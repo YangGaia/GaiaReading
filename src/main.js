@@ -12,6 +12,10 @@ const IS_SMOKE = process.argv.includes('--smoke-test');
 const DEBUG_OPEN_INDEX = process.argv.indexOf('--debug-open');
 const DEBUG_OPEN_PATH = DEBUG_OPEN_INDEX >= 0 ? process.argv[DEBUG_OPEN_INDEX + 1] : null;
 
+if (IS_SMOKE) {
+  app.setPath('userData', path.join(app.getPath('temp'), 'gaia-reading-smoke-' + process.pid));
+}
+
 let mainWindow = null;
 let store = null;
 
@@ -92,20 +96,31 @@ function createWindow() {
           const script = `(async () => {
             try {
               await __gaiaDebug.openBook({ path: ${JSON.stringify(DEBUG_OPEN_PATH)}, format: 'epub', title: 'fixture' });
-              await new Promise((r) => setTimeout(r, 1200));
+              await __gaiaDebug.waitLocations();
+              await new Promise((r) => setTimeout(r, 400));
+              const pctBefore = __gaiaDebug.getPercent();
               const locBefore = __gaiaDebug.getLoc();
               await __gaiaDebug.nextPage();
-              await new Promise((r) => setTimeout(r, 1200));
+              await new Promise((r) => setTimeout(r, 800));
+              const pctAfter = __gaiaDebug.getPercent();
               const locAfter = __gaiaDebug.getLoc();
               await __gaiaDebug.addBookmark();
               const countAfterAdd = __gaiaDebug.getBookmarkCount();
               await __gaiaDebug.removeBookmarkAt(0);
               const countAfterRemove = __gaiaDebug.getBookmarkCount();
-              console.log('DEBUG_LOC_BEFORE', locBefore);
-              console.log('DEBUG_LOC_AFTER', locAfter);
-              console.log('DEBUG_BOOKMARK_ADD', countAfterAdd);
-              console.log('DEBUG_BOOKMARK_REMOVE', countAfterRemove);
-              return JSON.stringify({ locBefore, locAfter, countAfterAdd, countAfterRemove });
+              __gaiaDebug.togglePanel('bookmarks');
+              const bookmarksOpen = !__gaiaDebug.getPanels().bookmarksHidden;
+              __gaiaDebug.togglePanel('bookmarks');
+              const bookmarksClosed = __gaiaDebug.getPanels().bookmarksHidden;
+              __gaiaDebug.togglePanel('toc');
+              const tocOpen = !__gaiaDebug.getPanels().tocHidden;
+              __gaiaDebug.togglePanel('toc');
+              const tocClosed = __gaiaDebug.getPanels().tocHidden;
+              console.log('DEBUG_PROGRESS', pctBefore, pctAfter);
+              console.log('DEBUG_LOC', locBefore, locAfter);
+              console.log('DEBUG_BOOKMARK', countAfterAdd, countAfterRemove);
+              console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
+              return JSON.stringify({ pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -117,8 +132,14 @@ function createWindow() {
             const parsed = JSON.parse(status);
             debugOk =
               parsed.locBefore !== parsed.locAfter &&
+              parsed.pctAfter != null &&
+              parsed.pctAfter > parsed.pctBefore &&
               parsed.countAfterAdd === 1 &&
-              parsed.countAfterRemove === 0;
+              parsed.countAfterRemove === 0 &&
+              parsed.bookmarksOpen === true &&
+              parsed.bookmarksClosed === true &&
+              parsed.tocOpen === true &&
+              parsed.tocClosed === true;
             if (!debugOk) console.error('DEBUG_CHECKS_FAILED:', JSON.stringify(parsed));
           } catch {
             debugOk = false;
@@ -193,3 +214,4 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+

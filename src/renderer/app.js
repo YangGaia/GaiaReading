@@ -194,10 +194,24 @@ async function openEpub(book) {
 
   rendition.on('relocated', (location) => {
     const cfi = location.start.cfi;
-    const percent = location.start.percentage ? location.start.percentage * 100 : 0;
-    els.readerStatus.textContent = '进度 ' + percent.toFixed(1) + '%';
-    saveProgress(book.path, { loc: cfi, percent });
+    const percent = location.start.percentage != null ? location.start.percentage * 100 : null;
+    els.readerStatus.textContent = percent != null ? '进度 ' + percent.toFixed(1) + '%' : '进度 计算中…';
+    saveProgress(book.path, { loc: cfi, percent: percent != null ? percent : 0 });
   });
+
+  // 生成整书位置索引，百分比进度依赖它（否则一直为 0）
+  state.current.locationsReady = epub.locations
+    .generate(1600)
+    .then(() => {
+      const locObj = rendition.currentLocation();
+      if (locObj && locObj.start && locObj.start.percentage != null) {
+        const percent = locObj.start.percentage * 100;
+        els.readerStatus.textContent = '进度 ' + percent.toFixed(1) + '%';
+        saveProgress(book.path, { loc: locObj.start.cfi, percent });
+      }
+      return true;
+    })
+    .catch(() => false);
 
   const nav = await epub.loaded.navigation;
   const renderToc = (items, depth) => {
@@ -346,9 +360,16 @@ function cycleLineHeight() {
 }
 
 function togglePanel(which) {
-  const tocOpen = which === 'toc';
-  els.tocPanel.hidden = !tocOpen;
-  els.bookmarksPanel.hidden = tocOpen;
+  const isToc = which === 'toc';
+  const targetHidden = isToc ? els.tocPanel.hidden : els.bookmarksPanel.hidden;
+  if (!targetHidden) {
+    // 目标面板当前已打开，再次点击则关闭
+    els.tocPanel.hidden = true;
+    els.bookmarksPanel.hidden = true;
+    return;
+  }
+  els.tocPanel.hidden = !isToc;
+  els.bookmarksPanel.hidden = isToc;
 }
 
 function renderBookmarksPanel() {
@@ -479,6 +500,7 @@ window.__gaiaDebug = {
   prevPage,
   addBookmark,
   removeBookmarkAt,
+  togglePanel,
   getStatus: () => els.readerStatus.textContent,
   getLoc: () => {
     const c = state.current;
@@ -490,6 +512,21 @@ window.__gaiaDebug = {
       return null;
     }
   },
+  getPercent: () => {
+    const c = state.current;
+    if (!c || !c.rendition) return null;
+    try {
+      const locObj = c.rendition.currentLocation();
+      return locObj && locObj.start && locObj.start.percentage != null ? locObj.start.percentage : null;
+    } catch (e) {
+      return null;
+    }
+  },
+  waitLocations: () =>
+    state.current && state.current.locationsReady
+      ? state.current.locationsReady
+      : Promise.resolve(false),
+  getPanels: () => ({ tocHidden: els.tocPanel.hidden, bookmarksHidden: els.bookmarksPanel.hidden }),
   getBookmarkCount,
 };
 
