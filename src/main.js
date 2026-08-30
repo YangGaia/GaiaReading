@@ -306,12 +306,8 @@ function createWindow() {
         await mainWindow.webContents.executeJavaScript(`__gaiaDebug.openBook(${JSON.stringify(book)})`);
         await wait(3200);
         await capture('reader.png');
-        const hrefs = await mainWindow.webContents.executeJavaScript('__gaiaDebug.getTocHrefs()');
-        const chapterHref = hrefs && hrefs.length > 1 ? hrefs[1] : (hrefs && hrefs[0]);
-        if (chapterHref) {
-          await mainWindow.webContents.executeJavaScript(`__gaiaDebug.displayHref(${JSON.stringify(chapterHref)})`);
-          await wait(2500);
-        }
+        await mainWindow.webContents.executeJavaScript('__gaiaDebug.openLongestChapter()');
+        await wait(2500);
         await mainWindow.webContents.executeJavaScript('__gaiaDebug.toggleSpread()');
         await wait(1600);
         await capture('spread.png');
@@ -388,6 +384,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
 
 
 

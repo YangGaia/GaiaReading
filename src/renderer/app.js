@@ -1132,6 +1132,26 @@ window.__gaiaDebug = {
     if (!c || !c.rendition) return Promise.resolve(false);
     return c.rendition.display(href).then(() => true).catch(() => false);
   },
+  openLongestChapter: async () => {
+    const c = state.current;
+    if (!c || !c.epub || !c.rendition) return false;
+    try {
+      const items = c.epub.spine.spineItems || [];
+      let best = null;
+      for (const item of items) {
+        if (item.properties && item.properties.includes('non-linear')) continue;
+        await item.load(c.epub.request);
+        const text = item.document && item.document.body ? item.document.body.textContent.length : 0;
+        item.unload();
+        if (!best || text > best.len) best = { href: item.href, len: text };
+      }
+      if (!best) return false;
+      await c.rendition.display(best.href);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
   getLibrary: () => state.library,
   getLibraryCount: () => state.library.length,
   getProgressKeys: () => Object.keys(state.progress),
@@ -1139,6 +1159,7 @@ window.__gaiaDebug = {
 };
 
 init();
+
 
 
 
