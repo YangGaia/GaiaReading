@@ -125,12 +125,25 @@ function createWindow() {
               const libAfterRemove = __gaiaDebug.getLibraryCount();
               const bookmarkCountAfterShelfRemove = __gaiaDebug.getBookmarkCount();
               const progressCountAfterShelfRemove = __gaiaDebug.getProgressKeys().length;
+              await __gaiaDebug.addToLibrary({ path: fixture, format: 'epub', title: 'fixture' });
+              await __gaiaDebug.addToLibrary({ path: '/fake/book2.epub', format: 'epub', title: 'fake2' });
+              const libAfterBatchAdd = __gaiaDebug.getLibraryCount();
+              await __gaiaDebug.addBookmark();
+              const bookmarkBeforeBatch = __gaiaDebug.getBookmarkCount();
+              await __gaiaDebug.selectBook(fixture);
+              await __gaiaDebug.selectBook('/fake/book2.epub');
+              const selectedCount = __gaiaDebug.getSelectedCount();
+              await __gaiaDebug.batchRemoveSelected();
+              const libAfterBatchRemove = __gaiaDebug.getLibraryCount();
+              const bookmarkCountAfterBatchRemove = __gaiaDebug.getBookmarkCount();
+              const progressCountAfterBatchRemove = __gaiaDebug.getProgressKeys().length;
               console.log('DEBUG_PROGRESS', pctBefore, pctAfter);
               console.log('DEBUG_LOC', locBefore, locAfter);
               console.log('DEBUG_BOOKMARK', countAfterAdd, countAfterRemove);
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
-              return JSON.stringify({ pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove });
+              console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
+              return JSON.stringify({ pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -154,7 +167,13 @@ function createWindow() {
               parsed.libAfterRemove === 0 &&
               parsed.shelfBookmarkBeforeRemove === 1 &&
               parsed.bookmarkCountAfterShelfRemove === 0 &&
-              parsed.progressCountAfterShelfRemove === 0;
+              parsed.progressCountAfterShelfRemove === 0 &&
+              parsed.libAfterBatchAdd === 2 &&
+              parsed.bookmarkBeforeBatch === 1 &&
+              parsed.selectedCount === 2 &&
+              parsed.libAfterBatchRemove === 0 &&
+              parsed.bookmarkCountAfterBatchRemove === 0 &&
+              parsed.progressCountAfterBatchRemove === 0;
             if (!debugOk) console.error('DEBUG_CHECKS_FAILED:', JSON.stringify(parsed));
           } catch {
             debugOk = false;

@@ -11,10 +11,17 @@
     <header class="topbar">
       <h1 class="app-title">Gaia Reading</h1>
       <div class="actions">
+        <button id="btn-manage" class="btn" title="多选批量管理书架">批量管理</button>
         <button id="btn-import-files" class="btn primary">导入文件</button>
         <button id="btn-import-folder" class="btn">导入文件夹</button>
       </div>
     </header>
+    <div id="manage-bar" class="manage-bar" hidden>
+      <span>已选 <b id="manage-count">0</b> 本</span>
+      <button id="btn-select-all" class="btn">全选</button>
+      <button id="btn-remove-selected" class="btn danger">移除选中</button>
+      <button id="btn-exit-manage" class="btn">完成</button>
+    </div>
     <p id="library-hint" class="hint">书架为空，点击上方按钮导入电子书（EPUB / PDF / TXT）</p>
     <div id="bookshelf" class="bookshelf"></div>
   </div>
@@ -43,6 +50,11 @@
   <div id="page-nav" hidden>
     <button id="btn-prev-page" class="btn">上一页</button>
     <button id="btn-next-page" class="btn">下一页</button>
+  </div>
+
+  <div id="context-menu" hidden>
+    <button class="ctx-item" id="ctx-open">打开</button>
+    <button class="ctx-item danger" id="ctx-remove">从书架移除</button>
   </div>
 
   <script src="vendor/jszip.min.js"></script>
