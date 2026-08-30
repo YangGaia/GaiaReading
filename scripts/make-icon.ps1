@@ -1,9 +1,9 @@
-﻿# Generate build/icon.png (256x256) and build/icon.ico (16/32/48/256) from the source jpg icon
+# Generate build/icon.png (256x256) and build/icon.ico (16/32/48/256) from the source jpg icon
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$srcJpg = Get-ChildItem -LiteralPath $root -Filter *.jpg | Select-Object -First 1
+$srcJpg = Get-ChildItem -LiteralPath (Join-Path $root 'assets') -Filter *.jpg | Select-Object -First 1
 if (-not $srcJpg) {
   Write-Error 'No source jpg icon found in project root.'
 }
