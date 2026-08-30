@@ -710,7 +710,7 @@ const fx = {
   canvas: null,
   ctx: null,
   particles: [],
-  trail: [],
+  lastTrail: null,
   lastMove: 0,
   raf: 0,
   running: false,
@@ -750,10 +750,22 @@ function spawnBurst(x, y) {
 }
 
 function addTrailPoint(x, y) {
-  const last = fx.trail[fx.trail.length - 1];
-  if (last && Math.abs(last.x - x) < 4 && Math.abs(last.y - y) < 4) return;
-  fx.trail.push({ x, y, t: performance.now() });
-  if (fx.trail.length > 90) fx.trail.shift();
+  if (fx.lastTrail && Math.abs(fx.lastTrail.x - x) < 4 && Math.abs(fx.lastTrail.y - y) < 4) return;
+  fx.lastTrail = { x, y };
+  const colors = ['#ff5f5f', '#ffb020', '#ffd93d', '#4cd964', '#34c7ff', '#8f6bff', '#ff7ad9'];
+  for (let i = 0; i < 2; i++) {
+    fx.particles.push({
+      x: x + (Math.random() - 0.5) * 8,
+      y: y + (Math.random() - 0.5) * 8,
+      vx: (Math.random() - 0.5) * 1.2,
+      vy: (Math.random() - 0.5) * 1.2,
+      size: 1.5 + Math.random() * 2.5,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      life: 0.55,
+      decay: 0.018 + Math.random() * 0.02,
+      gravity: 0,
+    });
+  }
   ensureFxLoop();
 }
 
@@ -766,32 +778,6 @@ function ensureFxLoop() {
 function fxTick() {
   const ctx = fx.ctx;
   ctx.clearRect(0, 0, fx.canvas.width, fx.canvas.height);
-  const now = performance.now();
-  fx.trail = fx.trail.filter((p) => now - p.t < 450);
-  for (let i = 1; i < fx.trail.length; i++) {
-    const q = fx.trail[i - 1];
-    const p = fx.trail[i];
-    const life = 1 - (now - p.t) / 450;
-    if (life <= 0) continue;
-    ctx.globalAlpha = Math.max(0, life) * 0.55;
-    ctx.strokeStyle = '#6ec6ff';
-    ctx.lineWidth = 1.5 + life * 3;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(q.x, q.y);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-  }
-  for (const tp of fx.trail) {
-    const life = 1 - (now - tp.t) / 450;
-    if (life <= 0) continue;
-    ctx.globalAlpha = Math.max(0, life) * 0.35;
-    ctx.fillStyle = '#bfe3ff';
-    ctx.beginPath();
-    ctx.arc(tp.x, tp.y, 0.8 + life * 2.2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
   fx.particles = fx.particles.filter((p) => p.life > 0);
   for (const p of fx.particles) {
     p.x += p.vx;
@@ -805,7 +791,7 @@ function fxTick() {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
-  if (fx.particles.length || fx.trail.length) {
+  if (fx.particles.length) {
     fx.raf = requestAnimationFrame(fxTick);
   } else {
     fx.running = false;
@@ -815,7 +801,7 @@ function fxTick() {
 
 function clearFx() {
   fx.particles = [];
-  fx.trail = [];
+  fx.lastTrail = null;
   if (fx.running) {
     cancelAnimationFrame(fx.raf);
     fx.running = false;
@@ -1044,7 +1030,7 @@ window.__gaiaDebug = {
   burst: (x, y) => spawnBurst(x == null ? 200 : x, y == null ? 200 : y),
   getParticleCount: () => fx.particles.length,
   trailPoint: (x, y) => addTrailPoint(x, y),
-  getTrailCount: () => fx.trail.length,
+  clearFx,
   isFxLoopRunning: () => fx.running,
   isFxActive: () => !$('fx-canvas').hidden,
   addToLibrary,
@@ -1109,6 +1095,7 @@ window.__gaiaDebug = {
 };
 
 init();
+
 
 
 

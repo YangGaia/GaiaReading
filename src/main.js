@@ -103,13 +103,14 @@ function createWindow() {
               __gaiaDebug.burst(200, 200);
               await new Promise((r) => setTimeout(r, 60));
               const particleCount = __gaiaDebug.getParticleCount();
+              __gaiaDebug.clearFx();
               __gaiaDebug.trailPoint(100, 100);
               __gaiaDebug.trailPoint(140, 100);
               __gaiaDebug.trailPoint(180, 100);
               __gaiaDebug.trailPoint(220, 100);
               __gaiaDebug.trailPoint(260, 100);
               await new Promise((r) => setTimeout(r, 120));
-              const trailCount = __gaiaDebug.getTrailCount();
+              const trailCount = __gaiaDebug.getParticleCount();
               const trailLoopRunning = __gaiaDebug.isFxLoopRunning();
               await __gaiaDebug.openBook({ path: fixture, format: 'epub', title: 'fixture' });
               await __gaiaDebug.waitLocations();
@@ -317,6 +318,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
 
 
 
