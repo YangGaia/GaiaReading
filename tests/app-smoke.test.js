@@ -14,7 +14,12 @@ test('项目关键文件齐全', () => {
   assert.ok(pkg.scripts.test, '缺少 test 脚本');
   assert.ok(pkg.scripts.smoke, '缺少 smoke 脚本');
   assert.ok(pkg.scripts['smoke:open'], '缺少 smoke:open 脚本');
-  for (const f of ['src/preload.js', 'src/renderer/index.html', 'src/renderer/app.js']) {
+  for (const f of [
+    'src/preload.js',
+    'src/shared/bookmarks.js',
+    'src/renderer/index.html',
+    'src/renderer/app.js',
+  ]) {
     assert.ok(fs.existsSync(path.join(root, f)), f + ' 缺失');
   }
   for (const v of ['jszip.min.js', 'epub.min.js', 'pdf.min.js', 'pdf.worker.min.js']) {

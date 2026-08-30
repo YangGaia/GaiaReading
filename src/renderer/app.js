@@ -1,6 +1,7 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
+const { addBookmark: addBookmarkToMap, removeBookmark: removeBookmarkFromMap } = window.GaiaBookmarks;
 
 const els = {
   libraryView: $('library-view'),
@@ -12,7 +13,7 @@ const els = {
   readerStatus: $('reader-status'),
   tocPanel: $('toc-panel'),
   bookmarksPanel: $('bookmarks-panel'),
-  pdfNav: $('pdf-nav'),
+  pageNav: $('page-nav'),
 };
 
 const state = {
@@ -140,7 +141,7 @@ function closeReaderContent() {
     if (c.pdf) { try { c.pdf.destroy(); } catch (e) {} }
   }
   els.readerContent.innerHTML = '';
-  els.pdfNav.hidden = true;
+  els.pageNav.hidden = true;
   state.current = null;
 }
 
@@ -166,6 +167,7 @@ async function openBook(book) {
   els.bookmarksPanel.hidden = true;
   els.tocPanel.innerHTML = '';
   els.readerStatus.textContent = '加载中…';
+  els.pageNav.hidden = false;
   state.current = { path: book.path, format: book.format };
   renderBookmarksPanel();
   try {
@@ -233,7 +235,6 @@ async function openPdf(book) {
   state.current.zoom = 1;
   const saved = state.progress[book.path];
   if (saved && saved.page >= 1 && saved.page <= pdf.numPages) state.current.page = saved.page;
-  els.pdfNav.hidden = false;
   await renderPdfPage();
 }
 
@@ -296,6 +297,30 @@ function applyTxtTypography() {
   }
 }
 
+function nextPage() {
+  const c = state.current;
+  if (!c) return;
+  if (c.format === 'epub') {
+    if (c.rendition) c.rendition.next();
+  } else if (c.format === 'pdf') {
+    if (c.page < c.pages) { c.page += 1; renderPdfPage(); }
+  } else if (c.format === 'txt') {
+    els.readerContent.scrollTop += els.readerContent.clientHeight * 0.9;
+  }
+}
+
+function prevPage() {
+  const c = state.current;
+  if (!c) return;
+  if (c.format === 'epub') {
+    if (c.rendition) c.rendition.prev();
+  } else if (c.format === 'pdf') {
+    if (c.page > 1) { c.page -= 1; renderPdfPage(); }
+  } else if (c.format === 'txt') {
+    els.readerContent.scrollTop -= els.readerContent.clientHeight * 0.9;
+  }
+}
+
 function adjustFont(delta) {
   const c = state.current;
   if (!c) return;
@@ -334,7 +359,10 @@ function renderBookmarksPanel() {
     els.bookmarksPanel.textContent = '（还没有书签，点击右上角 +书签 添加）';
     return;
   }
-  for (const bm of list) {
+  list.forEach((bm, index) => {
+    const row = document.createElement('div');
+    row.className = 'bookmark-row';
+
     const a = document.createElement('a');
     a.href = '#';
     a.textContent = bm.label;
@@ -342,14 +370,26 @@ function renderBookmarksPanel() {
       ev.preventDefault();
       jumpToBookmark(bm.loc);
     });
-    els.bookmarksPanel.appendChild(a);
-  }
+
+    const del = document.createElement('button');
+    del.className = 'btn bookmark-delete';
+    del.textContent = '删除';
+    del.title = '删除此书签';
+    del.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      removeBookmarkAt(index);
+    });
+
+    row.appendChild(a);
+    row.appendChild(del);
+    els.bookmarksPanel.appendChild(row);
+  });
 }
 
 async function addBookmark() {
   const c = state.current;
   if (!c) return;
-  const list = state.bookmarks[c.path] || [];
   let loc;
   let label;
   if (c.format === 'epub') {
@@ -359,19 +399,31 @@ async function addBookmark() {
       return;
     }
     loc = locObj.start.cfi;
-    label = '书签 ' + (list.length + 1);
+    label = '书签 ' + (getBookmarkCount() + 1);
   } else if (c.format === 'pdf') {
     loc = String(c.page);
-    label = '书签 ' + (list.length + 1) + '（第 ' + c.page + ' 页）';
+    label = '书签 ' + (getBookmarkCount() + 1) + '（第 ' + c.page + ' 页）';
   } else {
     loc = String(els.readerContent.scrollTop);
-    label = '书签 ' + (list.length + 1);
+    label = '书签 ' + (getBookmarkCount() + 1);
   }
-  list.push({ label, loc });
-  state.bookmarks[c.path] = list;
+  state.bookmarks = addBookmarkToMap(state.bookmarks, c.path, { label, loc });
   await saveBookmarksNow();
   renderBookmarksPanel();
   els.readerStatus.textContent = '已添加书签';
+}
+
+async function removeBookmarkAt(index) {
+  const c = state.current;
+  if (!c) return;
+  state.bookmarks = removeBookmarkFromMap(state.bookmarks, c.path, index);
+  await saveBookmarksNow();
+  renderBookmarksPanel();
+  els.readerStatus.textContent = '书签已删除';
+}
+
+function getBookmarkCount() {
+  return state.current ? (state.bookmarks[state.current.path] || []).length : 0;
 }
 
 async function jumpToBookmark(loc) {
@@ -402,19 +454,18 @@ function bindEvents() {
   $('btn-toc').addEventListener('click', () => togglePanel('toc'));
   $('btn-bookmarks').addEventListener('click', () => togglePanel('bookmarks'));
   $('btn-add-bookmark').addEventListener('click', addBookmark);
-  $('btn-prev-page').addEventListener('click', () => {
-    const c = state.current;
-    if (c && c.format === 'pdf' && c.page > 1) { c.page -= 1; renderPdfPage(); }
-  });
-  $('btn-next-page').addEventListener('click', () => {
-    const c = state.current;
-    if (c && c.format === 'pdf' && c.page < c.pages) { c.page += 1; renderPdfPage(); }
-  });
+  $('btn-prev-page').addEventListener('click', prevPage);
+  $('btn-next-page').addEventListener('click', nextPage);
   document.addEventListener('keydown', (ev) => {
     const c = state.current;
     if (!c) return;
-    if (c.format === 'pdf' && ev.key === 'ArrowLeft' && c.page > 1) { c.page -= 1; renderPdfPage(); }
-    if (c.format === 'pdf' && ev.key === 'ArrowRight' && c.page < c.pages) { c.page += 1; renderPdfPage(); }
+    if (ev.key === 'ArrowRight' || ev.key === 'PageDown') {
+      ev.preventDefault();
+      nextPage();
+    } else if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') {
+      ev.preventDefault();
+      prevPage();
+    }
   });
   window.addEventListener('resize', () => {
     const c = state.current;
@@ -422,9 +473,24 @@ function bindEvents() {
   });
 }
 
-init();
-
 window.__gaiaDebug = {
   openBook,
+  nextPage,
+  prevPage,
+  addBookmark,
+  removeBookmarkAt,
   getStatus: () => els.readerStatus.textContent,
+  getLoc: () => {
+    const c = state.current;
+    if (!c || !c.rendition) return null;
+    try {
+      const locObj = c.rendition.currentLocation();
+      return locObj && locObj.start ? locObj.start.cfi : null;
+    } catch (e) {
+      return null;
+    }
+  },
+  getBookmarkCount,
 };
+
+init();
