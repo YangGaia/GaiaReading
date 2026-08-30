@@ -773,9 +773,9 @@ function fxTick() {
     const p = fx.trail[i];
     const life = 1 - (now - p.t) / 450;
     if (life <= 0) continue;
-    ctx.globalAlpha = Math.max(0, life) * 0.5;
-    ctx.strokeStyle = '#7cc4ff';
-    ctx.lineWidth = 1 + life * 2.5;
+    ctx.globalAlpha = Math.max(0, life) * 0.55;
+    ctx.strokeStyle = '#6ec6ff';
+    ctx.lineWidth = 1.5 + life * 3;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(q.x, q.y);
@@ -805,7 +805,7 @@ function fxTick() {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
-  if (fx.particles.length) {
+  if (fx.particles.length || fx.trail.length) {
     fx.raf = requestAnimationFrame(fxTick);
   } else {
     fx.running = false;
@@ -1045,6 +1045,7 @@ window.__gaiaDebug = {
   getParticleCount: () => fx.particles.length,
   trailPoint: (x, y) => addTrailPoint(x, y),
   getTrailCount: () => fx.trail.length,
+  isFxLoopRunning: () => fx.running,
   isFxActive: () => !$('fx-canvas').hidden,
   addToLibrary,
   removeFromShelf: (book) => removeFromShelf(book, true),
@@ -1108,6 +1109,7 @@ window.__gaiaDebug = {
 };
 
 init();
+
 
 
 
