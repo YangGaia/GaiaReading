@@ -9,6 +9,8 @@ const { JsonStore } = require('./shared/store');
 
 const SUPPORTED_EXT = ['.epub', '.pdf', '.txt'];
 const IS_SMOKE = process.argv.includes('--smoke-test');
+const DEBUG_OPEN_INDEX = process.argv.indexOf('--debug-open');
+const DEBUG_OPEN_PATH = DEBUG_OPEN_INDEX >= 0 ? process.argv[DEBUG_OPEN_INDEX + 1] : null;
 
 let mainWindow = null;
 let store = null;
@@ -78,20 +80,40 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   if (IS_SMOKE) {
-    const errors = [];
+    const messages = [];
     mainWindow.webContents.on('console-message', (event, level, message) => {
-      if (level >= 3) errors.push(message);
+      messages.push({ level, message });
     });
-    mainWindow.webContents.once('did-finish-load', () => {
-      setTimeout(() => {
+    mainWindow.webContents.once('did-finish-load', async () => {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        if (DEBUG_OPEN_PATH) {
+          const script = `(async () => {
+            try {
+              await __gaiaDebug.openBook({ path: ${JSON.stringify(DEBUG_OPEN_PATH)}, format: 'epub', title: 'fixture' });
+              await new Promise((r) => setTimeout(r, 1500));
+              return __gaiaDebug.getStatus();
+            } catch (e) {
+              console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
+              return 'ERROR';
+            }
+          })()`;
+          const status = await mainWindow.webContents.executeJavaScript(script);
+          console.log('DEBUG_STATUS:', status);
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+        const errors = messages.filter((m) => m.level >= 3);
         if (errors.length) {
-          console.error('SMOKE_ERRORS:', JSON.stringify(errors));
+          console.error('SMOKE_ERRORS:', JSON.stringify(errors.map((e) => e.message)));
           app.exit(1);
         } else {
           console.log('SMOKE_OK');
           app.exit(0);
         }
-      }, 1200);
+      } catch (err) {
+        console.error('SMOKE_HARNESS_ERROR:', err);
+        app.exit(1);
+      }
     });
   }
 }
