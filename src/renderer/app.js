@@ -423,3 +423,8 @@ function bindEvents() {
 }
 
 init();
+
+window.__gaiaDebug = {
+  openBook,
+  getStatus: () => els.readerStatus.textContent,
+};

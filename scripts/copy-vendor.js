@@ -6,6 +6,7 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const vendorDir = path.join(root, 'src', 'renderer', 'vendor');
 const files = [
+  ['jszip/dist/jszip.min.js', 'jszip.min.js'],
   ['epubjs/dist/epub.min.js', 'epub.min.js'],
   ['pdfjs-dist/build/pdf.min.js', 'pdf.min.js'],
   ['pdfjs-dist/build/pdf.worker.min.js', 'pdf.worker.min.js'],
