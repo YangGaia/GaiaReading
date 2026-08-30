@@ -98,8 +98,8 @@ function showView(name) {
   void el.offsetWidth;
   el.classList.add('view-fade');
   const fxCanvas = $('fx-canvas');
-  fxCanvas.hidden = name !== 'home';
-  if (name !== 'home') clearFx();
+  fxCanvas.hidden = !(name === 'home' || name === 'library');
+  if (name !== 'home' && name !== 'library') clearFx();
 }
 
 function finishSplash() {
@@ -710,6 +710,7 @@ const fx = {
   canvas: null,
   ctx: null,
   particles: [],
+  trail: [],
   lastMove: 0,
   raf: 0,
   running: false,
@@ -748,18 +749,12 @@ function spawnBurst(x, y) {
   ensureFxLoop();
 }
 
-function spawnTrail(x, y) {
-  fx.particles.push({
-    x: x + (Math.random() - 0.5) * 12,
-    y: y + (Math.random() - 0.5) * 12,
-    vx: (Math.random() - 0.5) * 0.6,
-    vy: (Math.random() - 0.5) * 0.6 - 0.2,
-    size: 1.5 + Math.random() * 2,
-    color: '#9ecbff',
-    life: 0.5,
-    decay: 0.03,
-    gravity: 0,
-  });
+function addTrailPoint(x, y) {
+  const last = fx.trail[fx.trail.length - 1];
+  if (last && Math.abs(last.x - x) < 4 && Math.abs(last.y - y) < 4) return;
+  fx.trail.push({ x, y, t: performance.now() });
+  if (fx.trail.length > 90) fx.trail.shift();
+  ensureFxLoop();
 }
 
 function ensureFxLoop() {
@@ -771,6 +766,32 @@ function ensureFxLoop() {
 function fxTick() {
   const ctx = fx.ctx;
   ctx.clearRect(0, 0, fx.canvas.width, fx.canvas.height);
+  const now = performance.now();
+  fx.trail = fx.trail.filter((p) => now - p.t < 450);
+  for (let i = 1; i < fx.trail.length; i++) {
+    const q = fx.trail[i - 1];
+    const p = fx.trail[i];
+    const life = 1 - (now - p.t) / 450;
+    if (life <= 0) continue;
+    ctx.globalAlpha = Math.max(0, life) * 0.5;
+    ctx.strokeStyle = '#7cc4ff';
+    ctx.lineWidth = 1 + life * 2.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(q.x, q.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+  for (const tp of fx.trail) {
+    const life = 1 - (now - tp.t) / 450;
+    if (life <= 0) continue;
+    ctx.globalAlpha = Math.max(0, life) * 0.35;
+    ctx.fillStyle = '#bfe3ff';
+    ctx.beginPath();
+    ctx.arc(tp.x, tp.y, 0.8 + life * 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
   fx.particles = fx.particles.filter((p) => p.life > 0);
   for (const p of fx.particles) {
     p.x += p.vx;
@@ -794,6 +815,7 @@ function fxTick() {
 
 function clearFx() {
   fx.particles = [];
+  fx.trail = [];
   if (fx.running) {
     cancelAnimationFrame(fx.raf);
     fx.running = false;
@@ -909,8 +931,13 @@ function bindEvents() {
   $('btn-home-settings').addEventListener('click', openSettings);
   views.home.addEventListener('pointerdown', (ev) => spawnBurst(ev.clientX, ev.clientY));
   views.home.addEventListener('pointermove', (ev) => {
-    const now = Date.now();
-    if (now - fx.lastMove > 40) { fx.lastMove = now; spawnTrail(ev.clientX, ev.clientY); }
+    const now = performance.now();
+    if (now - fx.lastMove > 16) { fx.lastMove = now; addTrailPoint(ev.clientX, ev.clientY); }
+  });
+  views.library.addEventListener('pointerdown', (ev) => spawnBurst(ev.clientX, ev.clientY));
+  views.library.addEventListener('pointermove', (ev) => {
+    const now = performance.now();
+    if (now - fx.lastMove > 16) { fx.lastMove = now; addTrailPoint(ev.clientX, ev.clientY); }
   });
   $('btn-back-home').addEventListener('click', () => showView('home'));
 
@@ -1002,6 +1029,7 @@ function bindEvents() {
 
 window.__gaiaDebug = {
   openBook,
+  backToLibrary,
   nextPage,
   prevPage,
   addBookmark,
@@ -1015,6 +1043,8 @@ window.__gaiaDebug = {
   isDarkInjected,
   burst: (x, y) => spawnBurst(x == null ? 200 : x, y == null ? 200 : y),
   getParticleCount: () => fx.particles.length,
+  trailPoint: (x, y) => addTrailPoint(x, y),
+  getTrailCount: () => fx.trail.length,
   isFxActive: () => !$('fx-canvas').hidden,
   addToLibrary,
   removeFromShelf: (book) => removeFromShelf(book, true),
@@ -1078,6 +1108,8 @@ window.__gaiaDebug = {
 };
 
 init();
+
+
 
 
 
