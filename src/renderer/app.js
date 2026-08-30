@@ -754,16 +754,16 @@ function addTrailPoint(x, y) {
   if (fx.lastTrail && Math.abs(fx.lastTrail.x - x) < 4 && Math.abs(fx.lastTrail.y - y) < 4) return;
   fx.lastTrail = { x, y };
   const colors = ['#ff5f5f', '#ffb020', '#ffd93d', '#4cd964', '#34c7ff', '#8f6bff', '#ff7ad9'];
-  const n = 3;
+  const n = 2;
   for (let i = 0; i < n; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 0.4 + Math.random() * 1.8;
+    const speed = 0.2 + Math.random() * 0.8;
     fx.particles.push({
-      x: x + (Math.random() - 0.5) * 6,
-      y: y + (Math.random() - 0.5) * 6,
+      x: x + (Math.random() - 0.5) * 3,
+      y: y + (Math.random() - 0.5) * 3,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
-      size: 3 + Math.random() * 2.5,
+      size: 2 + Math.random() * 1.5,
       color: colors[Math.floor(Math.random() * colors.length)],
       shape: 'diamond',
       life: 0.9 + Math.random() * 0.3,
@@ -1114,6 +1114,7 @@ window.__gaiaDebug = {
 };
 
 init();
+
 
 
 
