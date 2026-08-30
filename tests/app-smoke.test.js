@@ -36,6 +36,14 @@ test('首页与闪屏图片资源存在', () => {
   }
 });
 
+test('版本号为 0.2.0 且界面同步', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.strictEqual(pkg.version, '0.2.0');
+  const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
+  assert.ok(html.includes('Gaia Reading 0.2.0'), '关于面板版本号未同步');
+  assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
+});
+
 test('测试用 EPUB fixture 存在', () => {
   const fixture = path.join(root, 'tests', 'fixtures', 'sample.epub');
   assert.ok(fs.existsSync(fixture), 'fixture 缺失，请先运行 node scripts/make-fixture.js');
