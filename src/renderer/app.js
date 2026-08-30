@@ -28,6 +28,8 @@ const els = {
   drawerFuncs: $('drawer-funcs'),
   fontValue: $('font-value'),
   lineHeightValue: $('line-height-value'),
+  drawerSpread: $('drawer-spread'),
+  spreadValue: $('spread-value'),
 };
 
 const views = {
@@ -48,6 +50,7 @@ const state = {
   fontSize: 100,
   lineHeight: 1.8,
   txtFont: 16,
+  spread: false,
   homeReady: null,
   resolveHome: null,
 };
@@ -302,6 +305,7 @@ function openSettings() {
   const inReader = state.current != null;
   els.drawerReading.hidden = !inReader;
   els.drawerFuncs.hidden = !inReader;
+  els.drawerSpread.hidden = !(inReader && state.current && state.current.format === 'epub');
   if (inReader) updateSettingsValues();
   els.settingsOverlay.hidden = false;
 }
@@ -318,6 +322,7 @@ function updateSettingsValues() {
   const c = state.current;
   els.fontValue.textContent = c && c.format === 'pdf' ? Math.round((c.zoom || 1) * 100) + '%' : state.fontSize + '%';
   els.lineHeightValue.textContent = state.lineHeight.toFixed(1);
+  els.spreadValue.textContent = state.spread ? '双页' : '单页';
 }
 
 function closeReaderContent() {
@@ -428,6 +433,21 @@ function resizeEpubRendition() {
   }
 }
 
+function animatePage(direction) {
+  const el = els.readerContent;
+  el.classList.remove('paging-next', 'paging-prev');
+  void el.offsetWidth;
+  el.classList.add(direction === 'next' ? 'paging-next' : 'paging-prev');
+}
+
+function toggleSpread() {
+  const c = state.current;
+  if (!c || c.format !== 'epub' || !c.rendition) return;
+  state.spread = !state.spread;
+  c.rendition.spread(state.spread ? 'auto' : 'none', 700);
+  if (isSettingsOpen()) updateSettingsValues();
+}
+
 function applyEpubTypography() {
   const c = state.current;
   if (!c || !c.rendition) return;
@@ -511,9 +531,9 @@ function nextPage() {
   const c = state.current;
   if (!c) return;
   if (c.format === 'epub') {
-    if (c.rendition) c.rendition.next();
+    if (c.rendition) { animatePage('next'); c.rendition.next(); }
   } else if (c.format === 'pdf') {
-    if (c.page < c.pages) { c.page += 1; renderPdfPage(); }
+    if (c.page < c.pages) { c.page += 1; animatePage('next'); renderPdfPage(); }
   } else if (c.format === 'txt') {
     els.readerContent.scrollTop += els.readerContent.clientHeight * 0.9;
   }
@@ -523,9 +543,9 @@ function prevPage() {
   const c = state.current;
   if (!c) return;
   if (c.format === 'epub') {
-    if (c.rendition) c.rendition.prev();
+    if (c.rendition) { animatePage('prev'); c.rendition.prev(); }
   } else if (c.format === 'pdf') {
-    if (c.page > 1) { c.page -= 1; renderPdfPage(); }
+    if (c.page > 1) { c.page -= 1; animatePage('prev'); renderPdfPage(); }
   } else if (c.format === 'txt') {
     els.readerContent.scrollTop -= els.readerContent.clientHeight * 0.9;
   }
@@ -690,6 +710,7 @@ function bindEvents() {
   $('btn-font-minus').addEventListener('click', () => adjustFont(-1));
   $('btn-font-plus').addEventListener('click', () => adjustFont(1));
   $('btn-line-height').addEventListener('click', cycleLineHeight);
+  $('btn-spread').addEventListener('click', toggleSpread);
   $('btn-toc').addEventListener('click', () => {
     closeSettings();
     togglePanel('toc');
@@ -760,6 +781,8 @@ window.__gaiaDebug = {
   addBookmark,
   removeBookmarkAt,
   togglePanel,
+  toggleSpread,
+  getSpreadMode: () => state.spread,
   addToLibrary,
   removeFromShelf: (book) => removeFromShelf(book, true),
   toggleManageMode,
@@ -822,3 +845,4 @@ window.__gaiaDebug = {
 };
 
 init();
+
