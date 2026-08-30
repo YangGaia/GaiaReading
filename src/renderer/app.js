@@ -1,6 +1,7 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const { addBookmark: addBookmarkToMap, removeBookmark: removeBookmarkFromMap } = window.GaiaBookmarks;
 const {
   removeBook: removeBookFromLibrary,
@@ -10,8 +11,6 @@ const {
 } = window.GaiaLibrary;
 
 const els = {
-  libraryView: $('library-view'),
-  readerView: $('reader-view'),
   bookshelf: $('bookshelf'),
   hint: $('library-hint'),
   readerTitle: $('reader-title'),
@@ -23,6 +22,19 @@ const els = {
   manageBar: $('manage-bar'),
   manageCount: $('manage-count'),
   contextMenu: $('context-menu'),
+  settingsOverlay: $('settings-overlay'),
+  settingsDrawer: $('settings-drawer'),
+  drawerReading: $('drawer-reading'),
+  drawerFuncs: $('drawer-funcs'),
+  fontValue: $('font-value'),
+  lineHeightValue: $('line-height-value'),
+};
+
+const views = {
+  splash: $('splash-view'),
+  home: $('home-view'),
+  library: $('library-view'),
+  reader: $('reader-view'),
 };
 
 const state = {
@@ -36,7 +48,13 @@ const state = {
   fontSize: 100,
   lineHeight: 1.8,
   txtFont: 16,
+  homeReady: null,
+  resolveHome: null,
 };
+
+state.homeReady = new Promise((resolve) => {
+  state.resolveHome = resolve;
+});
 
 let lastProgressSave = {};
 let lastTxtSave = 0;
@@ -66,6 +84,27 @@ function saveProgress(pathKey, value) {
   }
 }
 
+function showView(name) {
+  for (const key of Object.keys(views)) {
+    views[key].hidden = key !== name;
+  }
+  const el = views[name];
+  el.classList.remove('view-fade');
+  void el.offsetWidth;
+  el.classList.add('view-fade');
+}
+
+function finishSplash() {
+  const splash = views.splash;
+  splash.classList.add('fade-out');
+  setTimeout(() => {
+    splash.hidden = true;
+    splash.classList.remove('fade-out');
+    showView('home');
+    if (state.resolveHome) state.resolveHome();
+  }, 450);
+}
+
 async function init() {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
   const [lib, progress, bookmarks] = await Promise.all([
@@ -87,6 +126,8 @@ async function init() {
   }
   renderLibrary();
   bindEvents();
+  await delay(2000);
+  finishSplash();
 }
 
 function renderLibrary() {
@@ -257,6 +298,28 @@ function hideContextMenu() {
   state.ctxBook = null;
 }
 
+function openSettings() {
+  const inReader = state.current != null;
+  els.drawerReading.hidden = !inReader;
+  els.drawerFuncs.hidden = !inReader;
+  if (inReader) updateSettingsValues();
+  els.settingsOverlay.hidden = false;
+}
+
+function closeSettings() {
+  els.settingsOverlay.hidden = true;
+}
+
+function isSettingsOpen() {
+  return !els.settingsOverlay.hidden;
+}
+
+function updateSettingsValues() {
+  const c = state.current;
+  els.fontValue.textContent = c && c.format === 'pdf' ? Math.round((c.zoom || 1) * 100) + '%' : state.fontSize + '%';
+  els.lineHeightValue.textContent = state.lineHeight.toFixed(1);
+}
+
 function closeReaderContent() {
   const c = state.current;
   if (c) {
@@ -276,16 +339,15 @@ async function backToLibrary() {
     await window.api.stateSet('progress', state.progress);
     closeReaderContent();
   }
-  els.readerView.hidden = true;
-  els.libraryView.hidden = false;
+  showView('library');
   renderLibrary();
 }
 
 async function openBook(book) {
   if (state.manageMode) exitManageMode();
+  closeSettings();
   closeReaderContent();
-  els.libraryView.hidden = true;
-  els.readerView.hidden = false;
+  showView('reader');
   els.readerTitle.textContent = book.title || book.path;
   els.tocPanel.hidden = true;
   els.bookmarksPanel.hidden = true;
@@ -353,6 +415,17 @@ async function openEpub(book) {
   };
   renderToc(nav.toc || [], 0);
   if (!els.tocPanel.children.length) els.tocPanel.textContent = '（本书没有目录）';
+}
+
+function resizeEpubRendition() {
+  const c = state.current;
+  if (c && c.rendition && typeof c.rendition.resize === 'function') {
+    try {
+      c.rendition.resize();
+    } catch (e) {
+      console.error(e);
+    }
+  }
 }
 
 function applyEpubTypography() {
@@ -471,6 +544,7 @@ function adjustFont(delta) {
     state.txtFont = Math.min(28, Math.max(12, state.txtFont + delta));
     applyTxtTypography();
   }
+  if (isSettingsOpen()) updateSettingsValues();
 }
 
 function cycleLineHeight() {
@@ -479,6 +553,7 @@ function cycleLineHeight() {
   state.lineHeight = options[(idx + 1) % options.length];
   if (state.current && state.current.format === 'epub') applyEpubTypography();
   if (state.current && state.current.format === 'txt') applyTxtTypography();
+  if (isSettingsOpen()) updateSettingsValues();
   els.readerStatus.textContent = '行距 ' + state.lineHeight.toFixed(1);
 }
 
@@ -488,10 +563,11 @@ function togglePanel(which) {
   if (!targetHidden) {
     els.tocPanel.hidden = true;
     els.bookmarksPanel.hidden = true;
-    return;
+  } else {
+    els.tocPanel.hidden = !isToc;
+    els.bookmarksPanel.hidden = isToc;
   }
-  els.tocPanel.hidden = !isToc;
-  els.bookmarksPanel.hidden = isToc;
+  resizeEpubRendition();
 }
 
 function renderBookmarksPanel() {
@@ -499,7 +575,7 @@ function renderBookmarksPanel() {
   els.bookmarksPanel.innerHTML = '';
   const list = c ? state.bookmarks[c.path] || [] : [];
   if (!list.length) {
-    els.bookmarksPanel.textContent = '（还没有书签，点击右上角 +书签 添加）';
+    els.bookmarksPanel.textContent = '（还没有书签，点击设置中的"添加书签"）';
     return;
   }
   list.forEach((bm, index) => {
@@ -582,6 +658,25 @@ async function jumpToBookmark(loc) {
 }
 
 function bindEvents() {
+  $('btn-home-shelf').addEventListener('click', () => showView('library'));
+  $('btn-home-folder').addEventListener('click', async () => {
+    const paths = await window.api.openFolder();
+    if (paths.length) {
+      await importPaths(paths);
+      showView('library');
+    }
+  });
+  $('btn-home-settings').addEventListener('click', openSettings);
+  $('btn-back-home').addEventListener('click', () => showView('home'));
+
+  $('btn-settings').addEventListener('click', openSettings);
+  $('btn-settings-reader').addEventListener('click', openSettings);
+  $('btn-settings-close').addEventListener('click', closeSettings);
+  els.settingsOverlay.addEventListener('click', (ev) => {
+    if (ev.target === els.settingsOverlay) closeSettings();
+  });
+  els.settingsDrawer.addEventListener('click', (ev) => ev.stopPropagation());
+
   $('btn-manage').addEventListener('click', toggleManageMode);
   $('btn-select-all').addEventListener('click', selectAll);
   $('btn-remove-selected').addEventListener('click', () => batchRemoveSelected());
@@ -590,17 +685,23 @@ function bindEvents() {
     const paths = await window.api.openFiles();
     if (paths.length) await importPaths(paths);
   });
-  $('btn-import-folder').addEventListener('click', async () => {
-    const paths = await window.api.openFolder();
-    if (paths.length) await importPaths(paths);
-  });
+
   $('btn-back').addEventListener('click', backToLibrary);
   $('btn-font-minus').addEventListener('click', () => adjustFont(-1));
   $('btn-font-plus').addEventListener('click', () => adjustFont(1));
   $('btn-line-height').addEventListener('click', cycleLineHeight);
-  $('btn-toc').addEventListener('click', () => togglePanel('toc'));
-  $('btn-bookmarks').addEventListener('click', () => togglePanel('bookmarks'));
-  $('btn-add-bookmark').addEventListener('click', addBookmark);
+  $('btn-toc').addEventListener('click', () => {
+    closeSettings();
+    togglePanel('toc');
+  });
+  $('btn-bookmarks').addEventListener('click', () => {
+    closeSettings();
+    togglePanel('bookmarks');
+  });
+  $('btn-add-bookmark').addEventListener('click', () => {
+    closeSettings();
+    addBookmark();
+  });
   $('btn-prev-page').addEventListener('click', prevPage);
   $('btn-next-page').addEventListener('click', nextPage);
 
@@ -628,6 +729,10 @@ function bindEvents() {
 
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
+      if (isSettingsOpen()) {
+        closeSettings();
+        return;
+      }
       hideContextMenu();
       return;
     }
@@ -644,6 +749,7 @@ function bindEvents() {
   window.addEventListener('resize', () => {
     const c = state.current;
     if (c && c.format === 'pdf') renderPdfPage();
+    if (c && c.format === 'epub') resizeEpubRendition();
   });
 }
 
@@ -662,6 +768,17 @@ window.__gaiaDebug = {
     toggleSelect(pathKey);
   },
   batchRemoveSelected: () => batchRemoveSelected(true),
+  openSettings,
+  closeSettings,
+  isSettingsOpen,
+  waitHome: () => state.homeReady,
+  getView: () => {
+    for (const key of Object.keys(views)) {
+      if (!views[key].hidden) return key;
+    }
+    return null;
+  },
+  isSplashHidden: () => views.splash.hidden,
   getStatus: () => els.readerStatus.textContent,
   getLoc: () => {
     const c = state.current;
@@ -688,6 +805,16 @@ window.__gaiaDebug = {
       ? state.current.locationsReady
       : Promise.resolve(false),
   getPanels: () => ({ tocHidden: els.tocPanel.hidden, bookmarksHidden: els.bookmarksPanel.hidden }),
+  getRenditionSize: () => {
+    const c = state.current;
+    if (!c || !c.rendition) return { w: 0, h: 0 };
+    try {
+      const iframe = els.readerContent.querySelector('iframe');
+      return { w: iframe ? iframe.clientWidth : 0, h: iframe ? iframe.clientHeight : 0 };
+    } catch (e) {
+      return { w: 0, h: 0 };
+    }
+  },
   getBookmarkCount,
   getLibraryCount: () => state.library.length,
   getProgressKeys: () => Object.keys(state.progress),

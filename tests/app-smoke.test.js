@@ -28,6 +28,14 @@ test('项目关键文件齐全', () => {
   }
 });
 
+test('首页与闪屏图片资源存在', () => {
+  for (const img of ['1.jpg', '2.jpeg']) {
+    const f = path.join(root, 'src', 'renderer', 'images', img);
+    assert.ok(fs.existsSync(f), img + ' 缺失，请先复制到 src/renderer/images/');
+    assert.ok(fs.statSync(f).size > 10000, img + ' 异常过小');
+  }
+});
+
 test('测试用 EPUB fixture 存在', () => {
   const fixture = path.join(root, 'tests', 'fixtures', 'sample.epub');
   assert.ok(fs.existsSync(fixture), 'fixture 缺失，请先运行 node scripts/make-fixture.js');

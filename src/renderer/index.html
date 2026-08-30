@@ -7,22 +7,44 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="library-view">
+  <div id="splash-view">
+    <img id="splash-img" src="images/2.jpeg" alt="Gaia Reading">
+    <div class="splash-name">Gaia Reading</div>
+    <div class="splash-bar"><div class="splash-bar-fill"></div></div>
+  </div>
+
+  <div id="home-view" hidden>
+    <div class="home-left">
+      <h1 class="home-title">Gaia Reading</h1>
+      <p class="home-subtitle">欢迎回来，选择要做什么</p>
+      <button class="home-item d1" id="btn-home-shelf"><span class="home-ico">📚</span>进入书架</button>
+      <button class="home-item d2" id="btn-home-folder"><span class="home-ico">📂</span>加载文件夹</button>
+      <button class="home-item d3" id="btn-home-settings"><span class="home-ico">⚙</span>设置</button>
+    </div>
+    <div class="home-right">
+      <img id="home-img" src="images/1.jpg" alt="Gaia Reading">
+    </div>
+  </div>
+
+  <div id="library-view" hidden>
     <header class="topbar">
-      <h1 class="app-title">Gaia Reading</h1>
+      <button id="btn-back-home" class="btn">← 首页</button>
+      <span class="page-title">书架</span>
       <div class="actions">
-        <button id="btn-manage" class="btn" title="多选批量管理书架">批量管理</button>
-        <button id="btn-import-files" class="btn primary">导入文件</button>
-        <button id="btn-import-folder" class="btn">导入文件夹</button>
+        <button id="btn-settings" class="btn">设置</button>
       </div>
     </header>
+    <div class="shelf-toolbar">
+      <button id="btn-import-files" class="btn primary">导入文件</button>
+      <button id="btn-manage" class="btn">批量管理</button>
+    </div>
     <div id="manage-bar" class="manage-bar" hidden>
       <span>已选 <b id="manage-count">0</b> 本</span>
       <button id="btn-select-all" class="btn">全选</button>
       <button id="btn-remove-selected" class="btn danger">移除选中</button>
       <button id="btn-exit-manage" class="btn">完成</button>
     </div>
-    <p id="library-hint" class="hint">书架为空，点击上方按钮导入电子书（EPUB / PDF / TXT）</p>
+    <p id="library-hint" class="hint">书架为空，点击"加载文件夹"或"导入文件"添加电子书（EPUB / PDF / TXT）</p>
     <div id="bookshelf" class="bookshelf"></div>
   </div>
 
@@ -31,12 +53,7 @@
       <button id="btn-back" class="btn">← 书架</button>
       <span id="reader-title" class="reader-title"></span>
       <div class="actions">
-        <button id="btn-font-minus" class="btn" title="字号减小">A−</button>
-        <button id="btn-font-plus" class="btn" title="字号增大">A+</button>
-        <button id="btn-line-height" class="btn" title="切换行距">行距</button>
-        <button id="btn-toc" class="btn" title="目录">目录</button>
-        <button id="btn-bookmarks" class="btn" title="书签">书签</button>
-        <button id="btn-add-bookmark" class="btn primary" title="添加书签">+书签</button>
+        <button id="btn-settings-reader" class="btn">设置</button>
       </div>
     </header>
     <div id="reader-body">
@@ -55,6 +72,37 @@
   <div id="context-menu" hidden>
     <button class="ctx-item" id="ctx-open">打开</button>
     <button class="ctx-item danger" id="ctx-remove">从书架移除</button>
+  </div>
+
+  <div id="settings-overlay" hidden>
+    <div id="settings-drawer">
+      <div class="drawer-head">
+        <span class="drawer-title">设置</span>
+        <button id="btn-settings-close" class="btn">×</button>
+      </div>
+      <div id="drawer-reading" hidden>
+        <h3>阅读</h3>
+        <div class="drawer-row">
+          <button id="btn-font-minus" class="btn">A−</button>
+          <span id="font-value">100%</span>
+          <button id="btn-font-plus" class="btn">A+</button>
+        </div>
+        <div class="drawer-row">
+          <button id="btn-line-height" class="btn">行距</button>
+          <span id="line-height-value">1.8</span>
+        </div>
+      </div>
+      <div id="drawer-funcs" hidden>
+        <h3>功能</h3>
+        <button id="btn-toc" class="btn block">目录</button>
+        <button id="btn-bookmarks" class="btn block">书签</button>
+        <button id="btn-add-bookmark" class="btn block primary">添加书签</button>
+      </div>
+      <div class="drawer-about">
+        <h3>关于</h3>
+        <p>Gaia Reading 0.1.0 · 电子书阅读器</p>
+      </div>
+    </div>
   </div>
 
   <script src="vendor/jszip.min.js"></script>

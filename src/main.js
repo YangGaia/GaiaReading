@@ -96,6 +96,9 @@ function createWindow() {
           const script = `(async () => {
             try {
               const fixture = ${JSON.stringify(DEBUG_OPEN_PATH)};
+              await __gaiaDebug.waitHome();
+              const viewAfterSplash = __gaiaDebug.getView();
+              const splashHidden = __gaiaDebug.isSplashHidden();
               await __gaiaDebug.openBook({ path: fixture, format: 'epub', title: 'fixture' });
               await __gaiaDebug.waitLocations();
               await new Promise((r) => setTimeout(r, 400));
@@ -117,6 +120,16 @@ function createWindow() {
               const tocOpen = !__gaiaDebug.getPanels().tocHidden;
               __gaiaDebug.togglePanel('toc');
               const tocClosed = __gaiaDebug.getPanels().tocHidden;
+              __gaiaDebug.togglePanel('toc');
+              await __gaiaDebug.nextPage();
+              await new Promise((r) => setTimeout(r, 600));
+              __gaiaDebug.togglePanel('toc');
+              await new Promise((r) => setTimeout(r, 400));
+              const epSize = __gaiaDebug.getRenditionSize();
+              __gaiaDebug.openSettings();
+              const drawerOpen = __gaiaDebug.isSettingsOpen();
+              __gaiaDebug.closeSettings();
+              const drawerClosed = !__gaiaDebug.isSettingsOpen();
               await __gaiaDebug.addBookmark();
               await __gaiaDebug.addToLibrary({ path: fixture, format: 'epub', title: 'fixture' });
               const libAfterAdd = __gaiaDebug.getLibraryCount();
@@ -137,13 +150,14 @@ function createWindow() {
               const libAfterBatchRemove = __gaiaDebug.getLibraryCount();
               const bookmarkCountAfterBatchRemove = __gaiaDebug.getBookmarkCount();
               const progressCountAfterBatchRemove = __gaiaDebug.getProgressKeys().length;
+              console.log('DEBUG_VIEW', viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epSize.w, epSize.h);
               console.log('DEBUG_PROGRESS', pctBefore, pctAfter);
               console.log('DEBUG_LOC', locBefore, locAfter);
               console.log('DEBUG_BOOKMARK', countAfterAdd, countAfterRemove);
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epW: epSize.w, epH: epSize.h, pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -154,6 +168,12 @@ function createWindow() {
           try {
             const parsed = JSON.parse(status);
             debugOk =
+              parsed.viewAfterSplash === 'home' &&
+              parsed.splashHidden === true &&
+              parsed.drawerOpen === true &&
+              parsed.drawerClosed === true &&
+              parsed.epW > 0 &&
+              parsed.epH > 0 &&
               parsed.locBefore !== parsed.locAfter &&
               parsed.pctAfter != null &&
               parsed.pctAfter > parsed.pctBefore &&
