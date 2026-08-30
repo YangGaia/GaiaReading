@@ -30,6 +30,7 @@ const els = {
   lineHeightValue: $('line-height-value'),
   drawerSpread: $('drawer-spread'),
   spreadValue: $('spread-value'),
+  nightValue: $('night-value'),
 };
 
 const views = {
@@ -51,6 +52,7 @@ const state = {
   lineHeight: 1.8,
   txtFont: 16,
   spread: false,
+  prefs: { dark: false },
   homeReady: null,
   resolveHome: null,
 };
@@ -95,6 +97,9 @@ function showView(name) {
   el.classList.remove('view-fade');
   void el.offsetWidth;
   el.classList.add('view-fade');
+  const fxCanvas = $('fx-canvas');
+  fxCanvas.hidden = name !== 'home';
+  if (name !== 'home') clearFx();
 }
 
 function finishSplash() {
@@ -110,14 +115,19 @@ function finishSplash() {
 
 async function init() {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
-  const [lib, progress, bookmarks] = await Promise.all([
+  const [lib, progress, bookmarks, prefs] = await Promise.all([
     window.api.stateGet('library'),
     window.api.stateGet('progress'),
     window.api.stateGet('bookmarks'),
+    window.api.stateGet('prefs'),
   ]);
   state.library = lib || [];
   state.progress = progress || {};
   state.bookmarks = bookmarks || {};
+  state.prefs = Object.assign({ dark: false }, prefs || {});
+  document.body.classList.toggle('dark', !!state.prefs.dark);
+  els.nightValue.textContent = state.prefs.dark ? '开启' : '关闭';
+  initFx();
 
   const alive = [];
   for (const book of state.library) {
@@ -378,6 +388,9 @@ async function openEpub(book) {
   state.current.epub = epub;
   const rendition = epub.renderTo('reader-content', { width: '100%', height: '100%', flow: 'paginated', spread: 'none' });
   state.current.rendition = rendition;
+  rendition.hooks.content.register((contents) => {
+    applyEpubDark(contents);
+  });
 
   applyEpubTypography();
   const saved = state.progress[book.path];
@@ -475,17 +488,32 @@ async function renderPdfPage() {
   const target = Math.max(320, els.readerContent.clientWidth - 32);
   const scale = (target / base.width) * c.zoom;
   const viewport = page.getViewport({ scale });
-  const canvas = document.createElement('canvas');
   const dpr = window.devicePixelRatio || 1;
+  const wrap = document.createElement('div');
+  wrap.className = 'pdf-page';
+  wrap.style.width = Math.floor(viewport.width) + 'px';
+  wrap.style.height = Math.floor(viewport.height) + 'px';
+
+  const canvas = document.createElement('canvas');
+  canvas.className = 'pdf-canvas-base';
   canvas.width = Math.floor(viewport.width * dpr);
   canvas.height = Math.floor(viewport.height * dpr);
   canvas.style.width = Math.floor(viewport.width) + 'px';
   canvas.style.height = Math.floor(viewport.height) + 'px';
   els.readerContent.innerHTML = '';
-  els.readerContent.appendChild(canvas);
+  els.readerContent.classList.toggle('pdf-dark', !!state.prefs.dark);
+  wrap.appendChild(canvas);
+  els.readerContent.appendChild(wrap);
+
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   await page.render({ canvasContext: ctx, viewport }).promise;
+
+  if (state.prefs.dark) {
+    const overlay = await buildPdfImageOverlay(page, viewport, dpr);
+    if (overlay) wrap.appendChild(overlay);
+  }
+
   els.readerStatus.textContent = '第 ' + c.page + ' / ' + c.pages + ' 页';
   saveProgress(c.path, { page: c.page });
 }
@@ -677,6 +705,198 @@ async function jumpToBookmark(loc) {
   }
 }
 
+/* ===== 粒子特效（仅首页） ===== */
+const fx = {
+  canvas: null,
+  ctx: null,
+  particles: [],
+  lastMove: 0,
+  raf: 0,
+  running: false,
+};
+
+function initFx() {
+  fx.canvas = $('fx-canvas');
+  fx.ctx = fx.canvas.getContext('2d');
+  resizeFx();
+  window.addEventListener('resize', resizeFx);
+}
+
+function resizeFx() {
+  fx.canvas.width = window.innerWidth;
+  fx.canvas.height = window.innerHeight;
+}
+
+function spawnBurst(x, y) {
+  const colors = ['#ff5f5f', '#ffb020', '#ffd93d', '#4cd964', '#34c7ff', '#8f6bff', '#ff7ad9'];
+  const n = 16;
+  for (let i = 0; i < n; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 5;
+    fx.particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 1.5,
+      size: 3 + Math.random() * 4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      life: 1,
+      decay: 0.018 + Math.random() * 0.02,
+      gravity: 0.12,
+    });
+  }
+  ensureFxLoop();
+}
+
+function spawnTrail(x, y) {
+  fx.particles.push({
+    x: x + (Math.random() - 0.5) * 12,
+    y: y + (Math.random() - 0.5) * 12,
+    vx: (Math.random() - 0.5) * 0.6,
+    vy: (Math.random() - 0.5) * 0.6 - 0.2,
+    size: 1.5 + Math.random() * 2,
+    color: '#9ecbff',
+    life: 0.5,
+    decay: 0.03,
+    gravity: 0,
+  });
+}
+
+function ensureFxLoop() {
+  if (fx.running) return;
+  fx.running = true;
+  fx.raf = requestAnimationFrame(fxTick);
+}
+
+function fxTick() {
+  const ctx = fx.ctx;
+  ctx.clearRect(0, 0, fx.canvas.width, fx.canvas.height);
+  fx.particles = fx.particles.filter((p) => p.life > 0);
+  for (const p of fx.particles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += p.gravity;
+    p.life -= p.decay;
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (fx.particles.length) {
+    fx.raf = requestAnimationFrame(fxTick);
+  } else {
+    fx.running = false;
+    ctx.clearRect(0, 0, fx.canvas.width, fx.canvas.height);
+  }
+}
+
+function clearFx() {
+  fx.particles = [];
+  if (fx.running) {
+    cancelAnimationFrame(fx.raf);
+    fx.running = false;
+  }
+  if (fx.ctx) fx.ctx.clearRect(0, 0, fx.canvas.width, fx.canvas.height);
+}
+
+/* ===== 夜间模式 ===== */
+async function toggleNight() {
+  state.prefs.dark = !state.prefs.dark;
+  document.body.classList.toggle('dark', state.prefs.dark);
+  els.nightValue.textContent = state.prefs.dark ? '开启' : '关闭';
+  const c = state.current;
+  if (c && c.format === 'epub' && c.rendition) {
+    try {
+      c.rendition.getContents().forEach((contents) => applyEpubDark(contents));
+    } catch (e) {}
+  }
+  if (c && c.format === 'pdf') renderPdfPage();
+  await window.api.stateSet('prefs', state.prefs);
+}
+
+function applyEpubDark(contents) {
+  const doc = contents.document;
+  let style = doc.getElementById('gaia-dark-style');
+  if (!state.prefs.dark) {
+    if (style) style.remove();
+    return;
+  }
+  if (!style) {
+    style = doc.createElement('style');
+    style.id = 'gaia-dark-style';
+    (doc.head || doc.documentElement).appendChild(style);
+  }
+  style.textContent = 'html, body { background: #000 !important; } body { color: #e6edf3 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #e6edf3 !important; } a { color: #58a6ff !important; }';
+}
+
+function isDarkInjected() {
+  const c = state.current;
+  if (!c || !c.rendition) return false;
+  try {
+    return c.rendition.getContents().some((contents) => !!contents.document.getElementById('gaia-dark-style'));
+  } catch (e) {
+    return false;
+  }
+}
+
+async function buildPdfImageOverlay(page, viewport, dpr) {
+  try {
+    const OPS = window.pdfjsLib.OPS;
+    const fnToName = {};
+    for (const name of Object.keys(OPS)) fnToName[OPS[name]] = name;
+    const opList = await page.getOperatorList();
+    const draws = [];
+    for (let i = 0; i < opList.fnArray.length; i++) {
+      const name = fnToName[opList.fnArray[i]];
+      if ((name === 'paintImageXObject' || name === 'paintJpegXObject') && typeof opList.argsArray[i][1] === 'number') {
+        const args = opList.argsArray[i];
+        draws.push({ objId: args[0], x: args[1], y: args[2], w: args[3], h: args[4] });
+      }
+    }
+    if (!draws.length) return null;
+    const overlay = document.createElement('canvas');
+    overlay.className = 'pdf-image-overlay';
+    overlay.width = Math.floor(viewport.width * dpr);
+    overlay.height = Math.floor(viewport.height * dpr);
+    overlay.style.width = Math.floor(viewport.width) + 'px';
+    overlay.style.height = Math.floor(viewport.height) + 'px';
+    const octx = overlay.getContext('2d');
+    octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (const d of draws) {
+      try {
+        const img = await page.objs.get(d.objId);
+        if (!img || !img.width || !img.height || !img.data) continue;
+        const p1 = viewport.convertToViewportPoint(d.x, viewport.height - d.y);
+        const p2 = viewport.convertToViewportPoint(d.x + d.w, viewport.height - (d.y + d.h));
+        const ix = Math.min(p1[0], p2[0]);
+        const iy = Math.min(p1[1], p2[1]);
+        const iw = Math.abs(p2[0] - p1[0]);
+        const ih = Math.abs(p2[1] - p1[1]);
+        if (iw <= 0 || ih <= 0) continue;
+        const tmp = document.createElement('canvas');
+        tmp.width = img.width;
+        tmp.height = img.height;
+        const tctx = tmp.getContext('2d');
+        if (img.data.length === img.width * img.height * 4) {
+          tctx.putImageData(new ImageData(new Uint8ClampedArray(img.data), img.width, img.height), 0, 0);
+        } else {
+          const bmp = await createImageBitmap(new Blob([img.data]));
+          tctx.drawImage(bmp, 0, 0);
+        }
+        octx.drawImage(tmp, ix, iy, iw, ih);
+      } catch (e) {
+        // 单张图片失败不影响其他
+      }
+    }
+    return overlay;
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
 function bindEvents() {
   $('btn-home-shelf').addEventListener('click', () => showView('library'));
   $('btn-home-folder').addEventListener('click', async () => {
@@ -687,6 +907,11 @@ function bindEvents() {
     }
   });
   $('btn-home-settings').addEventListener('click', openSettings);
+  views.home.addEventListener('pointerdown', (ev) => spawnBurst(ev.clientX, ev.clientY));
+  views.home.addEventListener('pointermove', (ev) => {
+    const now = Date.now();
+    if (now - fx.lastMove > 40) { fx.lastMove = now; spawnTrail(ev.clientX, ev.clientY); }
+  });
   $('btn-back-home').addEventListener('click', () => showView('home'));
 
   $('btn-settings').addEventListener('click', openSettings);
@@ -711,6 +936,7 @@ function bindEvents() {
   $('btn-font-plus').addEventListener('click', () => adjustFont(1));
   $('btn-line-height').addEventListener('click', cycleLineHeight);
   $('btn-spread').addEventListener('click', toggleSpread);
+  $('btn-night').addEventListener('click', toggleNight);
   $('btn-toc').addEventListener('click', () => {
     closeSettings();
     togglePanel('toc');
@@ -783,6 +1009,13 @@ window.__gaiaDebug = {
   togglePanel,
   toggleSpread,
   getSpreadMode: () => state.spread,
+  toggleNight,
+  isNight: () => !!state.prefs.dark,
+  isBodyDark: () => document.body.classList.contains('dark'),
+  isDarkInjected,
+  burst: (x, y) => spawnBurst(x == null ? 200 : x, y == null ? 200 : y),
+  getParticleCount: () => fx.particles.length,
+  isFxActive: () => !$('fx-canvas').hidden,
   addToLibrary,
   removeFromShelf: (book) => removeFromShelf(book, true),
   toggleManageMode,
@@ -845,4 +1078,6 @@ window.__gaiaDebug = {
 };
 
 init();
+
+
 

@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <canvas id="fx-canvas" hidden></canvas>
   <div id="splash-view">
     <img id="splash-img" src="images/2.jpeg" alt="Gaia Reading">
     <div class="splash-name">Gaia Reading</div>
@@ -102,6 +103,13 @@
         <button id="btn-bookmarks" class="btn block">书签</button>
         <button id="btn-add-bookmark" class="btn block primary">添加书签</button>
       </div>
+      <div id="drawer-appearance">
+        <h3>外观</h3>
+        <div class="drawer-row">
+          <button id="btn-night" class="btn">夜间模式</button>
+          <span id="night-value">关闭</span>
+        </div>
+      </div>
       <div class="drawer-about">
         <h3>关于</h3>
         <p>Gaia Reading 0.2.0 · 电子书阅读器</p>
@@ -117,4 +125,5 @@
   <script src="app.js"></script>
 </body>
 </html>
+
 

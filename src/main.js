@@ -99,8 +99,20 @@ function createWindow() {
               await __gaiaDebug.waitHome();
               const viewAfterSplash = __gaiaDebug.getView();
               const splashHidden = __gaiaDebug.isSplashHidden();
+              const fxOnHome = __gaiaDebug.isFxActive();
+              __gaiaDebug.burst(200, 200);
+              await new Promise((r) => setTimeout(r, 60));
+              const particleCount = __gaiaDebug.getParticleCount();
               await __gaiaDebug.openBook({ path: fixture, format: 'epub', title: 'fixture' });
               await __gaiaDebug.waitLocations();
+              const fxInReader = __gaiaDebug.isFxActive();
+              const nightBefore = __gaiaDebug.isNight();
+              __gaiaDebug.toggleNight();
+              await new Promise((r) => setTimeout(r, 400));
+              const nightAfter = __gaiaDebug.isNight();
+              const bodyDark = __gaiaDebug.isBodyDark();
+              const darkInjected = __gaiaDebug.isDarkInjected();
+              __gaiaDebug.toggleNight();
               await new Promise((r) => setTimeout(r, 400));
               const pctBefore = __gaiaDebug.getPercent();
               const locBefore = __gaiaDebug.getLoc();
@@ -157,6 +169,8 @@ function createWindow() {
               const bookmarkCountAfterBatchRemove = __gaiaDebug.getBookmarkCount();
               const progressCountAfterBatchRemove = __gaiaDebug.getProgressKeys().length;
               console.log('DEBUG_VIEW', viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epSize.w, epSize.h);
+              console.log('DEBUG_FX', fxOnHome, particleCount, fxInReader);
+              console.log('DEBUG_NIGHT', nightBefore, nightAfter, bodyDark, darkInjected);
               console.log('DEBUG_SPREAD', spreadBefore, spreadAfter, epSizeAfterSpread.w);
               console.log('DEBUG_PROGRESS', pctBefore, pctAfter);
               console.log('DEBUG_LOC', locBefore, locAfter);
@@ -164,7 +178,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -184,6 +198,13 @@ function createWindow() {
               parsed.spreadBefore === false &&
               parsed.spreadAfter === true &&
               parsed.epW2 > 0 &&
+              parsed.fxOnHome === true &&
+              parsed.particleCount > 0 &&
+              parsed.fxInReader === false &&
+              parsed.nightBefore === false &&
+              parsed.nightAfter === true &&
+              parsed.bodyDark === true &&
+              parsed.darkInjected === true &&
               parsed.locBefore !== parsed.locAfter &&
               parsed.pctAfter != null &&
               parsed.pctAfter > parsed.pctBefore &&
@@ -278,4 +299,5 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
 
