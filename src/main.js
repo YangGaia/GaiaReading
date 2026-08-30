@@ -18,6 +18,17 @@ if (IS_SMOKE) {
   app.setPath('userData', path.join(app.getPath('temp'), 'gaia-reading-smoke-' + process.pid));
 }
 
+if (SHOT_DIR) {
+  const shotDataDir = path.join(app.getPath('temp'), 'gaia-reading-shot-' + process.pid);
+  app.setPath('userData', shotDataDir);
+  const realState = path.join(app.getPath('appData'), 'gaia-reading', 'gaia-reading.json');
+  if (fs.existsSync(realState)) {
+    fs.mkdirSync(shotDataDir, { recursive: true });
+    fs.copyFileSync(realState, path.join(shotDataDir, 'gaia-reading.json'));
+    console.log('SHOT_USES_REAL_LIBRARY');
+  }
+}
+
 let mainWindow = null;
 let store = null;
 
@@ -295,6 +306,15 @@ function createWindow() {
         await mainWindow.webContents.executeJavaScript(`__gaiaDebug.openBook(${JSON.stringify(book)})`);
         await wait(3200);
         await capture('reader.png');
+        const hrefs = await mainWindow.webContents.executeJavaScript('__gaiaDebug.getTocHrefs()');
+        const chapterHref = hrefs && hrefs.length > 1 ? hrefs[1] : (hrefs && hrefs[0]);
+        if (chapterHref) {
+          await mainWindow.webContents.executeJavaScript(`__gaiaDebug.displayHref(${JSON.stringify(chapterHref)})`);
+          await wait(2500);
+        }
+        await mainWindow.webContents.executeJavaScript('__gaiaDebug.toggleSpread()');
+        await wait(1600);
+        await capture('spread.png');
         await mainWindow.webContents.executeJavaScript('__gaiaDebug.toggleNight()');
         await wait(900);
         await mainWindow.webContents.executeJavaScript("__gaiaDebug.showView('home')");
@@ -368,6 +388,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
 
 
 

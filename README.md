@@ -12,6 +12,8 @@
 
 ![阅读界面](docs/screenshots/reader.png)
 
+![双页阅读](docs/screenshots/spread.png)
+
 ### 夜间模式
 
 ![夜间模式-首页](docs/screenshots/night_home.png)
@@ -85,6 +87,7 @@ src/
 └── renderer/          # 界面（闪屏、首页、书架、阅读器、设置抽屉），vendor 为安装时复制的库
 tests/                 # node:test 单元测试 + 自动化冒烟场景
 ```
+
 
 
 

@@ -1109,6 +1109,29 @@ window.__gaiaDebug = {
     }
   },
   getBookmarkCount,
+  getTocHrefs: async () => {
+    const c = state.current;
+    if (!c || !c.epub) return [];
+    try {
+      const nav = await c.epub.loaded.navigation;
+      const out = [];
+      const walk = (items) => {
+        for (const it of items) {
+          if (it.href) out.push(it.href);
+          if (it.subitems && it.subitems.length) walk(it.subitems);
+        }
+      };
+      walk(nav.toc || []);
+      return out;
+    } catch (e) {
+      return [];
+    }
+  },
+  displayHref: (href) => {
+    const c = state.current;
+    if (!c || !c.rendition) return Promise.resolve(false);
+    return c.rendition.display(href).then(() => true).catch(() => false);
+  },
   getLibrary: () => state.library,
   getLibraryCount: () => state.library.length,
   getProgressKeys: () => Object.keys(state.progress),
@@ -1116,6 +1139,7 @@ window.__gaiaDebug = {
 };
 
 init();
+
 
 
 
