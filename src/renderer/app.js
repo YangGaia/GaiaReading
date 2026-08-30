@@ -1034,6 +1034,7 @@ function bindEvents() {
 window.__gaiaDebug = {
   openBook,
   backToLibrary,
+  showView,
   nextPage,
   prevPage,
   addBookmark,
@@ -1114,6 +1115,7 @@ window.__gaiaDebug = {
 };
 
 init();
+
 
 
 

@@ -11,8 +11,10 @@ const SUPPORTED_EXT = ['.epub', '.pdf', '.txt'];
 const IS_SMOKE = process.argv.includes('--smoke-test');
 const DEBUG_OPEN_INDEX = process.argv.indexOf('--debug-open');
 const DEBUG_OPEN_PATH = DEBUG_OPEN_INDEX >= 0 ? process.argv[DEBUG_OPEN_INDEX + 1] : null;
+const SHOT_DIR_INDEX = process.argv.indexOf('--shot-dir');
+const SHOT_DIR = SHOT_DIR_INDEX >= 0 ? process.argv[SHOT_DIR_INDEX + 1] : null;
 
-if (IS_SMOKE) {
+if (IS_SMOKE || SHOT_DIR) {
   app.setPath('userData', path.join(app.getPath('temp'), 'gaia-reading-smoke-' + process.pid));
 }
 
@@ -266,6 +268,44 @@ function createWindow() {
       }
     });
   }
+
+  if (SHOT_DIR) {
+    mainWindow.webContents.once('did-finish-load', async () => {
+      try {
+        fs.mkdirSync(SHOT_DIR, { recursive: true });
+        const capture = async (name) => {
+          const image = await mainWindow.webContents.capturePage();
+          fs.writeFileSync(path.join(SHOT_DIR, name), image.toPNG());
+          console.log('SHOT_SAVED', name);
+        };
+        const fixture = DEBUG_OPEN_PATH ? path.resolve(DEBUG_OPEN_PATH) : path.resolve('tests', 'fixtures', 'sample.epub');
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        await capture('splash.png');
+        await mainWindow.webContents.executeJavaScript('window.__gaiaDebug.waitHome()');
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await capture('home.png');
+        await mainWindow.webContents.executeJavaScript(`(async () => {
+          const meta = await window.api.metadata(${JSON.stringify(fixture)});
+          await __gaiaDebug.addToLibrary(meta);
+          await __gaiaDebug.addToLibrary({ path: '/fake/book2.epub', format: 'epub', title: '示例二', author: '未知作者', cover: null });
+          __gaiaDebug.showView('library');
+        })()`);
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        await capture('bookshelf.png');
+        await mainWindow.webContents.executeJavaScript(`(async () => {
+          const meta = await window.api.metadata(${JSON.stringify(fixture)});
+          await __gaiaDebug.openBook(meta);
+        })()`);
+        await new Promise((resolve) => setTimeout(resolve, 2600));
+        await capture('reader.png');
+        console.log('SHOTS_DONE');
+        app.exit(0);
+      } catch (err) {
+        console.error('SHOT_ERROR', err);
+        app.exit(1);
+      }
+    });
+  }
 }
 
 ipcMain.handle('dialog:openFiles', async () => {
@@ -320,6 +360,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
 
 
 

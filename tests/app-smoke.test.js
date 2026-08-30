@@ -14,6 +14,7 @@ test('项目关键文件齐全', () => {
   assert.ok(pkg.scripts.test, '缺少 test 脚本');
   assert.ok(pkg.scripts.smoke, '缺少 smoke 脚本');
   assert.ok(pkg.scripts['smoke:open'], '缺少 smoke:open 脚本');
+  assert.ok(pkg.scripts.shot, '缺少 shot 截图脚本');
   for (const f of [
     'src/preload.js',
     'src/shared/bookmarks.js',
@@ -44,6 +45,17 @@ test('版本号为 0.2.0 且界面同步', () => {
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
   assert.ok(html.includes('btn-night'), '缺少夜间模式开关');
   assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
+});
+
+test('README 界面截图存在且已引用', () => {
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  const shots = ['splash', 'home', 'bookshelf', 'reader'];
+  for (const s of shots) {
+    assert.ok(readme.includes('docs/screenshots/' + s + '.png'), 'README 缺少 ' + s + ' 截图引用');
+    const f = path.join(root, 'docs', 'screenshots', s + '.png');
+    assert.ok(fs.existsSync(f), s + '.png 缺失，请先运行 npm run shot');
+    assert.ok(fs.statSync(f).size > 5000, s + '.png 异常过小');
+  }
 });
 
 test('夜间模式样式与 PDF 深色规则存在', () => {
