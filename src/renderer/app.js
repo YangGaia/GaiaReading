@@ -741,6 +741,7 @@ function spawnBurst(x, y) {
       vy: Math.sin(angle) * speed - 1.5,
       size: 3 + Math.random() * 4,
       color: colors[Math.floor(Math.random() * colors.length)],
+      shape: 'circle',
       life: 1,
       decay: 0.018 + Math.random() * 0.02,
       gravity: 0.12,
@@ -753,16 +754,20 @@ function addTrailPoint(x, y) {
   if (fx.lastTrail && Math.abs(fx.lastTrail.x - x) < 4 && Math.abs(fx.lastTrail.y - y) < 4) return;
   fx.lastTrail = { x, y };
   const colors = ['#ff5f5f', '#ffb020', '#ffd93d', '#4cd964', '#34c7ff', '#8f6bff', '#ff7ad9'];
-  for (let i = 0; i < 2; i++) {
+  const n = 3;
+  for (let i = 0; i < n; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.4 + Math.random() * 1.8;
     fx.particles.push({
-      x: x + (Math.random() - 0.5) * 8,
-      y: y + (Math.random() - 0.5) * 8,
-      vx: (Math.random() - 0.5) * 1.2,
-      vy: (Math.random() - 0.5) * 1.2,
-      size: 1.5 + Math.random() * 2.5,
+      x: x + (Math.random() - 0.5) * 6,
+      y: y + (Math.random() - 0.5) * 6,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: 3 + Math.random() * 2.5,
       color: colors[Math.floor(Math.random() * colors.length)],
-      life: 0.55,
-      decay: 0.018 + Math.random() * 0.02,
+      shape: 'diamond',
+      life: 0.9 + Math.random() * 0.3,
+      decay: 0.008 + Math.random() * 0.006,
       gravity: 0,
     });
   }
@@ -775,6 +780,23 @@ function ensureFxLoop() {
   fx.raf = requestAnimationFrame(fxTick);
 }
 
+function drawParticle(ctx, p) {
+  ctx.globalAlpha = Math.max(0, p.life);
+  ctx.fillStyle = p.color;
+  ctx.beginPath();
+  if (p.shape === 'diamond') {
+    const s = p.size * (0.6 + p.life * 0.7);
+    ctx.moveTo(p.x, p.y - s);
+    ctx.lineTo(p.x + s, p.y);
+    ctx.lineTo(p.x, p.y + s);
+    ctx.lineTo(p.x - s, p.y);
+    ctx.closePath();
+  } else {
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+  }
+  ctx.fill();
+}
+
 function fxTick() {
   const ctx = fx.ctx;
   ctx.clearRect(0, 0, fx.canvas.width, fx.canvas.height);
@@ -784,11 +806,7 @@ function fxTick() {
     p.y += p.vy;
     p.vy += p.gravity;
     p.life -= p.decay;
-    ctx.globalAlpha = Math.max(0, p.life);
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    ctx.fill();
+    drawParticle(ctx, p);
   }
   ctx.globalAlpha = 1;
   if (fx.particles.length) {
@@ -1029,6 +1047,7 @@ window.__gaiaDebug = {
   isDarkInjected,
   burst: (x, y) => spawnBurst(x == null ? 200 : x, y == null ? 200 : y),
   getParticleCount: () => fx.particles.length,
+  getDiamondCount: () => fx.particles.filter((p) => p.shape === 'diamond').length,
   trailPoint: (x, y) => addTrailPoint(x, y),
   clearFx,
   isFxLoopRunning: () => fx.running,
@@ -1095,6 +1114,7 @@ window.__gaiaDebug = {
 };
 
 init();
+
 
 
 
