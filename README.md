@@ -2,26 +2,6 @@
 
 电子书阅读器，基于 Electron + epub.js，支持 EPUB / PDF / TXT 三种格式。
 
-## 界面预览
-
-![启动界面](docs/screenshots/splash.png)
-
-![首页](docs/screenshots/home.png)
-
-![书架](docs/screenshots/bookshelf.png)
-
-![阅读界面](docs/screenshots/reader.png)
-
-![双页阅读](docs/screenshots/spread.png)
-
-### 夜间模式
-
-![夜间模式-首页](docs/screenshots/night_home.png)
-
-![夜间模式-书架](docs/screenshots/night_bookshelf.png)
-
-![夜间模式-阅读](docs/screenshots/night_reader.png)
-
 ## 功能
 
 - 启动闪屏：进入应用先显示启动动画，再平滑进入首页
@@ -88,6 +68,14 @@ src/
 tests/                 # node:test 单元测试 + 自动化冒烟场景
 ```
 
+## 界面预览
 
+![启动界面](docs/screenshots/splash.png)
 
+![首页](docs/screenshots/night_home.png)
 
+![书架](docs/screenshots/night_bookshelf.png)
+
+![阅读界面](docs/screenshots/reader.png)
+
+![双页阅读](docs/screenshots/spread.png)

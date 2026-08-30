@@ -49,7 +49,7 @@ test('版本号为 0.2.0 且界面同步', () => {
 
 test('README 界面截图存在且已引用', () => {
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
-  const shots = ['splash', 'home', 'bookshelf', 'reader', 'spread', 'night_home', 'night_bookshelf', 'night_reader'];
+  const shots = ['splash', 'night_home', 'night_bookshelf', 'reader', 'spread'];
   for (const s of shots) {
     assert.ok(readme.includes('docs/screenshots/' + s + '.png'), 'README 缺少 ' + s + ' 截图引用');
     const f = path.join(root, 'docs', 'screenshots', s + '.png');
@@ -81,5 +81,6 @@ test('应用图标存在且打包配置已启用', () => {
   assert.ok(pkg.build && pkg.build.win, '缺少 build.win 配置');
   assert.strictEqual(pkg.build.win.icon, 'build/icon.png');
 });
+
 
 
