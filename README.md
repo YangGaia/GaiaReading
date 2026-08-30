@@ -12,6 +12,14 @@
 
 ![阅读界面](docs/screenshots/reader.png)
 
+### 夜间模式
+
+![夜间模式-首页](docs/screenshots/night_home.png)
+
+![夜间模式-书架](docs/screenshots/night_bookshelf.png)
+
+![夜间模式-阅读](docs/screenshots/night_reader.png)
+
 ## 功能
 
 - 启动闪屏：进入应用先显示启动动画，再平滑进入首页
@@ -77,5 +85,6 @@ src/
 └── renderer/          # 界面（闪屏、首页、书架、阅读器、设置抽屉），vendor 为安装时复制的库
 tests/                 # node:test 单元测试 + 自动化冒烟场景
 ```
+
 
 

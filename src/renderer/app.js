@@ -1109,12 +1109,14 @@ window.__gaiaDebug = {
     }
   },
   getBookmarkCount,
+  getLibrary: () => state.library,
   getLibraryCount: () => state.library.length,
   getProgressKeys: () => Object.keys(state.progress),
   getSelectedCount: () => state.selected.size,
 };
 
 init();
+
 
 
 
