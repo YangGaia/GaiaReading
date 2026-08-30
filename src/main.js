@@ -87,12 +87,25 @@ function createWindow() {
     mainWindow.webContents.once('did-finish-load', async () => {
       try {
         await new Promise((resolve) => setTimeout(resolve, 800));
+        let debugOk = true;
         if (DEBUG_OPEN_PATH) {
           const script = `(async () => {
             try {
               await __gaiaDebug.openBook({ path: ${JSON.stringify(DEBUG_OPEN_PATH)}, format: 'epub', title: 'fixture' });
-              await new Promise((r) => setTimeout(r, 1500));
-              return __gaiaDebug.getStatus();
+              await new Promise((r) => setTimeout(r, 1200));
+              const locBefore = __gaiaDebug.getLoc();
+              await __gaiaDebug.nextPage();
+              await new Promise((r) => setTimeout(r, 1200));
+              const locAfter = __gaiaDebug.getLoc();
+              await __gaiaDebug.addBookmark();
+              const countAfterAdd = __gaiaDebug.getBookmarkCount();
+              await __gaiaDebug.removeBookmarkAt(0);
+              const countAfterRemove = __gaiaDebug.getBookmarkCount();
+              console.log('DEBUG_LOC_BEFORE', locBefore);
+              console.log('DEBUG_LOC_AFTER', locAfter);
+              console.log('DEBUG_BOOKMARK_ADD', countAfterAdd);
+              console.log('DEBUG_BOOKMARK_REMOVE', countAfterRemove);
+              return JSON.stringify({ locBefore, locAfter, countAfterAdd, countAfterRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -100,11 +113,21 @@ function createWindow() {
           })()`;
           const status = await mainWindow.webContents.executeJavaScript(script);
           console.log('DEBUG_STATUS:', status);
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          try {
+            const parsed = JSON.parse(status);
+            debugOk =
+              parsed.locBefore !== parsed.locAfter &&
+              parsed.countAfterAdd === 1 &&
+              parsed.countAfterRemove === 0;
+            if (!debugOk) console.error('DEBUG_CHECKS_FAILED:', JSON.stringify(parsed));
+          } catch {
+            debugOk = false;
+            console.error('DEBUG_RESULT_UNPARSEABLE:', status);
+          }
         }
         const errors = messages.filter((m) => m.level >= 3);
-        if (errors.length) {
-          console.error('SMOKE_ERRORS:', JSON.stringify(errors.map((e) => e.message)));
+        if (errors.length || !debugOk) {
+          if (errors.length) console.error('SMOKE_ERRORS:', JSON.stringify(errors.map((e) => e.message)));
           app.exit(1);
         } else {
           console.log('SMOKE_OK');
