@@ -2,7 +2,12 @@
 
 const $ = (id) => document.getElementById(id);
 const { addBookmark: addBookmarkToMap, removeBookmark: removeBookmarkFromMap } = window.GaiaBookmarks;
-const { removeBook: removeBookFromLibrary, removeEntry: removeEntryFromMap } = window.GaiaLibrary;
+const {
+  removeBook: removeBookFromLibrary,
+  removeBooks: removeBooksFromLibrary,
+  removeEntry: removeEntryFromMap,
+  removeEntries: removeEntriesFromMap,
+} = window.GaiaLibrary;
 
 const els = {
   libraryView: $('library-view'),
@@ -15,6 +20,9 @@ const els = {
   tocPanel: $('toc-panel'),
   bookmarksPanel: $('bookmarks-panel'),
   pageNav: $('page-nav'),
+  manageBar: $('manage-bar'),
+  manageCount: $('manage-count'),
+  contextMenu: $('context-menu'),
 };
 
 const state = {
@@ -22,6 +30,9 @@ const state = {
   progress: {},
   bookmarks: {},
   current: null,
+  manageMode: false,
+  selected: new Set(),
+  ctxBook: null,
   fontSize: 100,
   lineHeight: 1.8,
   txtFont: 16,
@@ -83,19 +94,14 @@ function renderLibrary() {
   els.hint.hidden = state.library.length > 0;
   for (const book of state.library) {
     const card = document.createElement('div');
-    card.className = 'book-card';
+    card.className = 'book-card' + (state.selected.has(book.path) ? ' selected' : '');
+    card.dataset.path = book.path;
     card.title = book.path;
 
-    const del = document.createElement('button');
-    del.className = 'book-remove';
-    del.title = '从书架移除（不会删除原文件）';
-    del.textContent = '×';
-    del.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      removeFromShelf(book);
-    });
-    card.appendChild(del);
+    const check = document.createElement('div');
+    check.className = 'book-check';
+    check.textContent = '\u2713';
+    card.appendChild(check);
 
     if (book.cover) {
       const img = document.createElement('img');
@@ -125,7 +131,10 @@ function renderLibrary() {
     badge.textContent = book.format;
     card.appendChild(badge);
 
-    card.addEventListener('click', () => openBook(book));
+    card.addEventListener('click', () => {
+      if (state.manageMode) toggleSelect(book.path);
+      else openBook(book);
+    });
     els.bookshelf.appendChild(card);
   }
 }
@@ -160,6 +169,7 @@ async function removeFromShelf(book, silent) {
   state.library = removeBookFromLibrary(state.library, book.path);
   state.progress = removeEntryFromMap(state.progress, book.path);
   state.bookmarks = removeEntryFromMap(state.bookmarks, book.path);
+  state.selected.delete(book.path);
   await Promise.all([
     saveLibrary(),
     window.api.stateSet('progress', state.progress),
@@ -167,6 +177,84 @@ async function removeFromShelf(book, silent) {
   ]);
   renderLibrary();
   return true;
+}
+
+function enterManageMode() {
+  state.manageMode = true;
+  state.selected.clear();
+  els.manageBar.hidden = false;
+  $('btn-manage').textContent = '完成管理';
+  renderLibrary();
+}
+
+function exitManageMode() {
+  state.manageMode = false;
+  state.selected.clear();
+  els.manageBar.hidden = true;
+  $('btn-manage').textContent = '批量管理';
+  renderLibrary();
+}
+
+function toggleManageMode() {
+  if (state.manageMode) exitManageMode();
+  else enterManageMode();
+}
+
+function toggleSelect(pathKey) {
+  if (state.selected.has(pathKey)) state.selected.delete(pathKey);
+  else state.selected.add(pathKey);
+  updateManageUI();
+}
+
+function selectAll() {
+  for (const b of state.library) state.selected.add(b.path);
+  updateManageUI();
+}
+
+function updateManageUI() {
+  els.manageCount.textContent = String(state.selected.size);
+  for (const card of els.bookshelf.querySelectorAll('.book-card')) {
+    card.classList.toggle('selected', state.selected.has(card.dataset.path));
+  }
+}
+
+async function batchRemoveSelected(silent) {
+  const paths = Array.from(state.selected);
+  if (!paths.length) return false;
+  const names = paths
+    .map((p) => {
+      const b = state.library.find((x) => x.path === p);
+      return b ? b.title || p : p;
+    })
+    .join('、');
+  if (!silent && !window.confirm('确定从书架移除选中的 ' + paths.length + ' 本书吗？\n只从书架移除，不会删除电脑上的原文件。\n' + names)) {
+    return false;
+  }
+  state.library = removeBooksFromLibrary(state.library, paths);
+  state.progress = removeEntriesFromMap(state.progress, paths);
+  state.bookmarks = removeEntriesFromMap(state.bookmarks, paths);
+  state.selected.clear();
+  await Promise.all([
+    saveLibrary(),
+    window.api.stateSet('progress', state.progress),
+    saveBookmarksNow(),
+  ]);
+  if (!state.library.length) exitManageMode();
+  else renderLibrary();
+  return true;
+}
+
+function showContextMenu(x, y, book) {
+  state.ctxBook = book;
+  const menu = els.contextMenu;
+  menu.style.left = Math.max(4, Math.min(x, window.innerWidth - 160)) + 'px';
+  menu.style.top = Math.max(4, Math.min(y, window.innerHeight - 90)) + 'px';
+  menu.hidden = false;
+}
+
+function hideContextMenu() {
+  els.contextMenu.hidden = true;
+  state.ctxBook = null;
 }
 
 function closeReaderContent() {
@@ -194,6 +282,7 @@ async function backToLibrary() {
 }
 
 async function openBook(book) {
+  if (state.manageMode) exitManageMode();
   closeReaderContent();
   els.libraryView.hidden = true;
   els.readerView.hidden = false;
@@ -234,7 +323,6 @@ async function openEpub(book) {
     saveProgress(book.path, { loc: cfi, percent: percent != null ? percent : 0 });
   });
 
-  // 生成整书位置索引，百分比进度依赖它（否则一直为 0）
   state.current.locationsReady = epub.locations
     .generate(1600)
     .then(() => {
@@ -494,6 +582,10 @@ async function jumpToBookmark(loc) {
 }
 
 function bindEvents() {
+  $('btn-manage').addEventListener('click', toggleManageMode);
+  $('btn-select-all').addEventListener('click', selectAll);
+  $('btn-remove-selected').addEventListener('click', () => batchRemoveSelected());
+  $('btn-exit-manage').addEventListener('click', exitManageMode);
   $('btn-import-files').addEventListener('click', async () => {
     const paths = await window.api.openFiles();
     if (paths.length) await importPaths(paths);
@@ -511,7 +603,34 @@ function bindEvents() {
   $('btn-add-bookmark').addEventListener('click', addBookmark);
   $('btn-prev-page').addEventListener('click', prevPage);
   $('btn-next-page').addEventListener('click', nextPage);
+
+  els.bookshelf.addEventListener('contextmenu', (ev) => {
+    const card = ev.target.closest('.book-card');
+    if (!card) return;
+    ev.preventDefault();
+    const book = state.library.find((b) => b.path === card.dataset.path);
+    if (book) showContextMenu(ev.clientX, ev.clientY, book);
+  });
+  els.contextMenu.addEventListener('contextmenu', (ev) => ev.preventDefault());
+  $('ctx-open').addEventListener('click', () => {
+    const book = state.ctxBook;
+    hideContextMenu();
+    if (book) openBook(book);
+  });
+  $('ctx-remove').addEventListener('click', () => {
+    const book = state.ctxBook;
+    hideContextMenu();
+    if (book) removeFromShelf(book);
+  });
+  document.addEventListener('click', (ev) => {
+    if (!ev.target.closest('#context-menu')) hideContextMenu();
+  });
+
   document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') {
+      hideContextMenu();
+      return;
+    }
     const c = state.current;
     if (!c) return;
     if (ev.key === 'ArrowRight' || ev.key === 'PageDown') {
@@ -537,6 +656,12 @@ window.__gaiaDebug = {
   togglePanel,
   addToLibrary,
   removeFromShelf: (book) => removeFromShelf(book, true),
+  toggleManageMode,
+  selectBook: (pathKey) => {
+    if (!state.manageMode) enterManageMode();
+    toggleSelect(pathKey);
+  },
+  batchRemoveSelected: () => batchRemoveSelected(true),
   getStatus: () => els.readerStatus.textContent,
   getLoc: () => {
     const c = state.current;
@@ -566,6 +691,7 @@ window.__gaiaDebug = {
   getBookmarkCount,
   getLibraryCount: () => state.library.length,
   getProgressKeys: () => Object.keys(state.progress),
+  getSelectedCount: () => state.selected.size,
 };
 
 init();
