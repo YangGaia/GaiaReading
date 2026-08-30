@@ -35,8 +35,11 @@ test('测试用 EPUB fixture 存在', () => {
 });
 
 test('应用图标存在且打包配置已启用', () => {
-  const icon = path.join(root, 'build', 'icon.png');
-  assert.ok(fs.existsSync(icon), 'build/icon.png 缺失，请先运行 scripts/make-icon.ps1');
+  const png = path.join(root, 'build', 'icon.png');
+  assert.ok(fs.existsSync(png), 'build/icon.png 缺失，请先运行 scripts/make-icon.ps1');
+  const ico = path.join(root, 'build', 'icon.ico');
+  assert.ok(fs.existsSync(ico), 'build/icon.ico 缺失，请先运行 scripts/make-icon.ps1');
+  assert.ok(fs.statSync(ico).size > 1000, 'icon.ico 异常过小（生成可能失败）');
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.ok(pkg.build && pkg.build.win, '缺少 build.win 配置');
   assert.strictEqual(pkg.build.win.icon, 'build/icon.png');
