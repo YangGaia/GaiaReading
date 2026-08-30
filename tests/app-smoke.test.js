@@ -42,6 +42,15 @@ test('版本号为 0.2.0 且界面同步', () => {
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
   assert.ok(html.includes('Gaia Reading 0.2.0'), '关于面板版本号未同步');
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
+  assert.ok(html.includes('btn-night'), '缺少夜间模式开关');
+  assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
+});
+
+test('夜间模式样式与 PDF 深色规则存在', () => {
+  const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+  assert.ok(css.includes('body.dark'), '缺少夜间模式变量');
+  assert.ok(css.includes('pdf-dark'), '缺少 PDF 深色规则');
+  assert.ok(css.includes('KaiTi') === false, '应已移除楷体字体栈');
 });
 
 test('测试用 EPUB fixture 存在', () => {
