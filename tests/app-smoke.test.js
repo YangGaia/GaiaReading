@@ -17,6 +17,7 @@ test('项目关键文件齐全', () => {
   for (const f of [
     'src/preload.js',
     'src/shared/bookmarks.js',
+    'src/shared/library.js',
     'src/renderer/index.html',
     'src/renderer/app.js',
   ]) {

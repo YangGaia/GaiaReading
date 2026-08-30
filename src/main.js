@@ -95,7 +95,8 @@ function createWindow() {
         if (DEBUG_OPEN_PATH) {
           const script = `(async () => {
             try {
-              await __gaiaDebug.openBook({ path: ${JSON.stringify(DEBUG_OPEN_PATH)}, format: 'epub', title: 'fixture' });
+              const fixture = ${JSON.stringify(DEBUG_OPEN_PATH)};
+              await __gaiaDebug.openBook({ path: fixture, format: 'epub', title: 'fixture' });
               await __gaiaDebug.waitLocations();
               await new Promise((r) => setTimeout(r, 400));
               const pctBefore = __gaiaDebug.getPercent();
@@ -116,11 +117,20 @@ function createWindow() {
               const tocOpen = !__gaiaDebug.getPanels().tocHidden;
               __gaiaDebug.togglePanel('toc');
               const tocClosed = __gaiaDebug.getPanels().tocHidden;
+              await __gaiaDebug.addBookmark();
+              await __gaiaDebug.addToLibrary({ path: fixture, format: 'epub', title: 'fixture' });
+              const libAfterAdd = __gaiaDebug.getLibraryCount();
+              const shelfBookmarkBeforeRemove = __gaiaDebug.getBookmarkCount();
+              await __gaiaDebug.removeFromShelf({ path: fixture });
+              const libAfterRemove = __gaiaDebug.getLibraryCount();
+              const bookmarkCountAfterShelfRemove = __gaiaDebug.getBookmarkCount();
+              const progressCountAfterShelfRemove = __gaiaDebug.getProgressKeys().length;
               console.log('DEBUG_PROGRESS', pctBefore, pctAfter);
               console.log('DEBUG_LOC', locBefore, locAfter);
               console.log('DEBUG_BOOKMARK', countAfterAdd, countAfterRemove);
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
-              return JSON.stringify({ pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed });
+              console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
+              return JSON.stringify({ pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -139,7 +149,12 @@ function createWindow() {
               parsed.bookmarksOpen === true &&
               parsed.bookmarksClosed === true &&
               parsed.tocOpen === true &&
-              parsed.tocClosed === true;
+              parsed.tocClosed === true &&
+              parsed.libAfterAdd === 1 &&
+              parsed.libAfterRemove === 0 &&
+              parsed.shelfBookmarkBeforeRemove === 1 &&
+              parsed.bookmarkCountAfterShelfRemove === 0 &&
+              parsed.progressCountAfterShelfRemove === 0;
             if (!debugOk) console.error('DEBUG_CHECKS_FAILED:', JSON.stringify(parsed));
           } catch {
             debugOk = false;
@@ -214,4 +229,3 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-

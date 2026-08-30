@@ -2,6 +2,7 @@
 
 const $ = (id) => document.getElementById(id);
 const { addBookmark: addBookmarkToMap, removeBookmark: removeBookmarkFromMap } = window.GaiaBookmarks;
+const { removeBook: removeBookFromLibrary, removeEntry: removeEntryFromMap } = window.GaiaLibrary;
 
 const els = {
   libraryView: $('library-view'),
@@ -85,6 +86,17 @@ function renderLibrary() {
     card.className = 'book-card';
     card.title = book.path;
 
+    const del = document.createElement('button');
+    del.className = 'book-remove';
+    del.title = '从书架移除（不会删除原文件）';
+    del.textContent = '×';
+    del.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      removeFromShelf(book);
+    });
+    card.appendChild(del);
+
     if (book.cover) {
       const img = document.createElement('img');
       img.className = 'book-cover';
@@ -118,6 +130,13 @@ function renderLibrary() {
   }
 }
 
+async function addToLibrary(meta) {
+  if (state.library.some((b) => b.path === meta.path)) return;
+  state.library.push(meta);
+  await saveLibrary();
+  renderLibrary();
+}
+
 async function importPaths(paths) {
   const existing = new Set(state.library.map((b) => b.path));
   let added = 0;
@@ -132,6 +151,22 @@ async function importPaths(paths) {
     await saveLibrary();
     renderLibrary();
   }
+}
+
+async function removeFromShelf(book, silent) {
+  if (!silent && !window.confirm('确定从书架移除《' + (book.title || book.path) + '》吗？\n只从书架移除，不会删除电脑上的原文件。')) {
+    return false;
+  }
+  state.library = removeBookFromLibrary(state.library, book.path);
+  state.progress = removeEntryFromMap(state.progress, book.path);
+  state.bookmarks = removeEntryFromMap(state.bookmarks, book.path);
+  await Promise.all([
+    saveLibrary(),
+    window.api.stateSet('progress', state.progress),
+    saveBookmarksNow(),
+  ]);
+  renderLibrary();
+  return true;
 }
 
 function closeReaderContent() {
@@ -363,7 +398,6 @@ function togglePanel(which) {
   const isToc = which === 'toc';
   const targetHidden = isToc ? els.tocPanel.hidden : els.bookmarksPanel.hidden;
   if (!targetHidden) {
-    // 目标面板当前已打开，再次点击则关闭
     els.tocPanel.hidden = true;
     els.bookmarksPanel.hidden = true;
     return;
@@ -501,6 +535,8 @@ window.__gaiaDebug = {
   addBookmark,
   removeBookmarkAt,
   togglePanel,
+  addToLibrary,
+  removeFromShelf: (book) => removeFromShelf(book, true),
   getStatus: () => els.readerStatus.textContent,
   getLoc: () => {
     const c = state.current;
@@ -528,6 +564,8 @@ window.__gaiaDebug = {
       : Promise.resolve(false),
   getPanels: () => ({ tocHidden: els.tocPanel.hidden, bookmarksHidden: els.bookmarksPanel.hidden }),
   getBookmarkCount,
+  getLibraryCount: () => state.library.length,
+  getProgressKeys: () => Object.keys(state.progress),
 };
 
 init();
