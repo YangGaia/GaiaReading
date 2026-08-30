@@ -33,3 +33,11 @@ test('测试用 EPUB fixture 存在', () => {
   assert.ok(fs.existsSync(fixture), 'fixture 缺失，请先运行 node scripts/make-fixture.js');
   assert.ok(fs.statSync(fixture).size > 1000);
 });
+
+test('应用图标存在且打包配置已启用', () => {
+  const icon = path.join(root, 'build', 'icon.png');
+  assert.ok(fs.existsSync(icon), 'build/icon.png 缺失，请先运行 scripts/make-icon.ps1');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.ok(pkg.build && pkg.build.win, '缺少 build.win 配置');
+  assert.strictEqual(pkg.build.win.icon, 'build/icon.png');
+});
