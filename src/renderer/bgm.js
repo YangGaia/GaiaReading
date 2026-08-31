@@ -110,6 +110,14 @@
     if (!ui.root) return;
     ui.root.dataset.view = name || 'home';
     ui.root.hidden = name === 'splash';
+    const topbar = document.querySelector('.topbar');
+    if (name === 'reader' && topbar) {
+      ui.root.classList.add('in-topbar');
+      if (ui.root.parentElement !== topbar) topbar.appendChild(ui.root);
+    } else {
+      ui.root.classList.remove('in-topbar');
+      if (ui.root.parentElement !== document.body) document.body.appendChild(ui.root);
+    }
   }
 
   function mkBtn(text, tip) {
