@@ -426,9 +426,9 @@ body.eye {
 .gaia-pet-head {
   position: absolute;
   left: 28.1%; /* x100/356 */
-  top: 0;
+  top: 12px; /* 头整体下移, 下巴盖住身体遮缝 */
   width: 47.75%; /* 170/356 */
-  transform-origin: 50% 100%; /* 下巴 y220 为轴 */
+  transform-origin: 50% 87%; /* 头下移12px后, 转轴仍保持在下巴 */
   will-change: transform;
   z-index: 2;
 }
