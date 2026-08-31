@@ -169,3 +169,16 @@ test('内置 BGM 功能接入', () => {
   assert.ok(app.includes('window.GaiaBgm.initBgm()'), '应用启动应初始化 BGM');
   assert.ok(shared.includes("BGM_DEFAULT_LOOP = ['alice', 'soujurou']"), '默认循环应只有有珠/草十郎');
 });
+
+test('BGM 胶囊封面与阅读进度条细节', () => {
+  const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+  const bgm = fs.readFileSync(path.join(root, 'src', 'renderer', 'bgm.js'), 'utf8');
+  assert.ok(fs.existsSync(path.join(root, 'assets', 'bgm', 'cover.jpg')), '缺少专辑封面');
+  assert.ok(html.includes("img-src 'self' data: blob: bgm:"), 'CSP 应允许 bgm: 图片');
+  assert.ok(bgm.includes('bgm://local/cover.jpg'), '胶囊应加载专辑封面');
+  assert.ok(css.includes('.bgm-cover'), '应有封面缩略图样式');
+  const topIdx = html.indexOf('id="progress-track"');
+  const footerIdx = html.indexOf('<footer class="statusbar">');
+  assert.ok(topIdx >= 0 && footerIdx >= 0 && topIdx < footerIdx, '进度条应位于顶栏（footer 之前）');
+});

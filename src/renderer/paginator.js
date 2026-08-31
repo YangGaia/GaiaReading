@@ -270,11 +270,17 @@ class Paginator {
         let range = null;
         try { range = doc.caretRangeFromPoint(x, y); } catch (e) {}
         if (!range || !range.startContainer || range.startContainer.nodeType !== 3) continue;
+        const nodeText = range.startContainer.textContent || '';
+        if (range.startOffset >= nodeText.length) continue; // 行尾/节点末尾的光标不采
         let r = null;
         try { r = range.getBoundingClientRect(); } catch (e) {}
         if (!r || r.left < -2 || r.left >= w - 2 || r.top < -2) continue;
         const off = this._textOffsetOfNode(range.startContainer, range.startOffset);
-        if (off >= 0) return { off, snippet: this._snippetAt(off) };
+        if (off >= 0) {
+          const snippet = this._snippetAt(off);
+          if (!snippet) continue; // 取不到文字片段就继续找下一行
+          return { off, snippet };
+        }
       }
     }
     return null;

@@ -1648,6 +1648,35 @@ window.__gaiaDebug = {
     };
   },
   getAnchorSnippet: () => (state.current && state.current.paginator ? ((state.current.paginator.anchor() || {}).snippet || '') : ''),
+  getAnchorProbe: () => {
+    const p = state.current && state.current.paginator;
+    if (!p || !p.doc) return null;
+    const doc = p.doc;
+    const w = p.pageWidth;
+    const h = p.host ? p.host.clientHeight : 600;
+    const out = [];
+    const xs = [Math.max(4, Math.floor(w / 2)), Math.max(4, 12), Math.max(4, w - 12)];
+    for (let y = 8; y <= h; y += 12) {
+      for (const x of xs) {
+        let range = null;
+        try { range = doc.caretRangeFromPoint(x, y); } catch (e) {}
+        if (!range || !range.startContainer || range.startContainer.nodeType !== 3) continue;
+        let r = null;
+        try { r = range.getBoundingClientRect(); } catch (e) {}
+        out.push({
+          x,
+          y,
+          tag: range.startContainer.parentElement ? range.startContainer.parentElement.tagName : null,
+          nodeLen: (range.startContainer.textContent || "").length,
+          caretOff: range.startOffset,
+          rectLeft: r ? Math.round(r.left) : null,
+          rectTop: r ? Math.round(r.top) : null,
+          snippet: String(range.startContainer.textContent || "").slice(range.startOffset, range.startOffset + 12),
+        });
+      }
+    }
+    return out.slice(0, 14);
+  },
   getPaginatorLayout: () => {
     const c = state.current;
     if (!c || !c.paginator || !c.paginator.doc) return null;

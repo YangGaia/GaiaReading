@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' blob:; script-src 'self' 'unsafe-eval'; font-src 'self' data:; media-src 'self' bgm: blob: data:; frame-src 'self' blob: data:; connect-src 'self' blob: data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: bgm:; style-src 'self' 'unsafe-inline' blob:; script-src 'self' 'unsafe-eval'; font-src 'self' data:; media-src 'self' bgm: blob: data:; frame-src 'self' blob: data:; connect-src 'self' blob: data:;">
 <title>Gaia Reading</title>
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -53,6 +53,7 @@
     <header class="topbar">
       <button id="btn-back" class="btn">← 书架</button>
       <span id="reader-title" class="reader-title"></span>
+      <div id="progress-track"><div id="progress-fill"></div></div>
       <div class="actions">
         <button id="btn-settings-reader" class="btn">设置</button>
       </div>
@@ -63,7 +64,6 @@
       <div id="reader-content"></div>
     </div>
     <footer class="statusbar">
-      <div id="progress-track"><div id="progress-fill"></div></div>
       <span id="reader-status"></span>
     </footer>
   </div>

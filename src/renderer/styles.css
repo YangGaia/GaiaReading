@@ -188,10 +188,9 @@ body.eye {
 #txt-content p { text-indent: 2em; margin: 0 0 0.8em; line-height: 1.9; }
 #txt-content { line-height: 1.9; }
 
-/* ===== 底部进度条 ===== */
-.statusbar { position: relative; padding: 10px 16px 8px; }
-#progress-track { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--border); }
-#progress-fill { height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+/* ===== 阅读页顶部进度条（与书名同行，右侧） ===== */
+#progress-track { width: 150px; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; flex: none; }
+#progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 2px; transition: width .3s ease; }
 
 /* ===== 设置抽屉下拉 ===== */
 .drawer-label { font-size: 13px; color: var(--text); min-width: 44px; }
@@ -201,28 +200,28 @@ body.eye {
 .book-progress-fill { height: 100%; background: var(--accent); }
 .book-progress-label { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 11px; color: var(--text-soft); min-width: 40px; text-align: right; white-space: nowrap; line-height: 18px; display: inline-block; font-variant-numeric: tabular-nums; }
 
-/* ===== 内置 BGM 悬浮胶囊 ===== */
+/* ===== 内置 BGM 悬浮胶囊（久遠寺有珠黑紫色） ===== */
 .bgm-capsule {
   position: fixed;
   z-index: 150;
   display: flex;
   align-items: center;
-  gap: 5px;
-  height: 40px;
-  padding: 0 12px 0 5px;
+  gap: 6px;
+  height: 42px;
+  padding: 0 12px 0 4px;
   border-radius: 999px;
-  background: var(--surface);
-  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  background: linear-gradient(135deg, rgba(30, 13, 52, .94), rgba(14, 6, 30, .94));
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid var(--border-strong);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, .16);
+  border: 1px solid rgba(139, 92, 246, .55);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(167, 139, 250, .18);
+  color: #e9e2ff;
   opacity: .92;
   transition: top .3s ease, left .3s ease, right .3s ease, bottom .3s ease, opacity .25s ease, box-shadow .25s ease;
   user-select: none;
 }
 .bgm-capsule[hidden] { display: none !important; }
-.bgm-capsule:hover { opacity: 1; box-shadow: 0 8px 26px rgba(0, 0, 0, .22); }
+.bgm-capsule:hover { opacity: 1; box-shadow: 0 8px 26px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(167, 139, 250, .22); }
 .bgm-capsule[data-view="home"] { top: 18px; right: 28px; bottom: auto; left: auto; }
 .bgm-capsule[data-view="library"] { left: 22px; bottom: 18px; top: auto; right: auto; }
 .bgm-capsule[data-view="reader"] { left: 22px; bottom: 14px; top: auto; right: auto; opacity: .55; }
@@ -230,47 +229,46 @@ body.eye {
 .bgm-capsule button {
   border: 0;
   background: transparent;
-  color: var(--text-soft);
+  color: #c9bdf0;
   cursor: pointer;
   padding: 4px;
   border-radius: 6px;
   font-size: 13px;
   line-height: 1;
 }
-.bgm-capsule button:hover { color: var(--text); background: var(--bg); }
-.bgm-note {
-  width: 28px;
-  height: 28px;
+.bgm-capsule button:hover { color: #fff; background: rgba(139, 92, 246, .2); }
+.bgm-cover {
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), #7b5cff);
-  color: #fff !important;
-  font-size: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: cover;
+  border: 1px solid rgba(167, 139, 250, .6);
+  cursor: pointer;
   flex: none;
+  padding: 0;
 }
-.bgm-note.playing { animation: bgmPulse 2.6s ease-in-out infinite; }
+.bgm-cover.playing { animation: bgmPulse 2.6s ease-in-out infinite; }
 @keyframes bgmPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(31, 111, 235, .5); }
-  50% { box-shadow: 0 0 0 7px rgba(31, 111, 235, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, .55); }
+  50% { box-shadow: 0 0 0 7px rgba(139, 92, 246, 0); }
 }
-.bgm-title-wrap { max-width: 120px; overflow: hidden; }
+.bgm-title-wrap { max-width: 130px; overflow: hidden; }
 .bgm-title {
   display: inline-block;
   font-size: 12px;
-  color: var(--text);
+  color: #efe9ff;
   white-space: nowrap;
   padding-left: 2px;
 }
-.bgm-capsule[data-playing="1"] .bgm-title { animation: bgmMarquee 8s linear infinite alternate; }
+.bgm-capsule[data-playing="1"] .bgm-title { animation: bgmMarquee 7s linear infinite; }
 @keyframes bgmMarquee {
   0% { transform: translateX(0); }
-  100% { transform: translateX(calc(120px - 100%)); }
+  85% { transform: translateX(130px); }
+  100% { transform: translateX(130px); }
 }
 .bgm-volume {
   width: 64px;
   height: 4px;
-  accent-color: var(--accent);
+  accent-color: #a78bfa;
   cursor: pointer;
 }

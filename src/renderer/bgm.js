@@ -49,7 +49,7 @@
     ui.mute.textContent = state.muted ? '🔇' : '🔊';
     ui.mute.title = state.muted ? '取消静音' : '静音';
     ui.volume.value = String(Math.round(state.volume * 100));
-    ui.note.classList.toggle('playing', state.on);
+    ui.cover.classList.toggle('playing', state.on);
     ui.root.dataset.playing = state.on ? '1' : '0';
     ui.root.title = t ? (t.title + ' · ' + t.artist) : '背景音乐';
   }
@@ -127,10 +127,11 @@
     root.dataset.view = 'home';
     root.dataset.playing = '0';
 
-    const note = document.createElement('button');
-    note.className = 'bgm-note';
-    note.textContent = '♪';
-    note.title = '背景音乐';
+    const cover = document.createElement('img');
+    cover.className = 'bgm-cover';
+    cover.src = 'bgm://local/cover.jpg';
+    cover.alt = '专辑封面';
+    cover.title = '背景音乐';
 
     const titleWrap = document.createElement('div');
     titleWrap.className = 'bgm-title-wrap';
@@ -151,16 +152,16 @@
     volume.step = '1';
     volume.title = '音量';
 
-    root.append(note, titleWrap, prev, play, nxt, mute, volume);
+    root.append(cover, titleWrap, prev, play, nxt, mute, volume);
 
-    note.addEventListener('click', toggle);
+    cover.addEventListener('click', toggle);
     prev.addEventListener('click', () => next(-1));
     play.addEventListener('click', toggle);
     nxt.addEventListener('click', () => next(1));
     mute.addEventListener('click', toggleMute);
     volume.addEventListener('input', () => setVolume(parseInt(volume.value, 10) / 100));
 
-    ui = { root, note, title, prev, play, nxt, mute, volume };
+    ui = { root, cover, title, prev, play, nxt, mute, volume };
     document.body.appendChild(root);
   }
 
