@@ -48,6 +48,8 @@
 
 ![展示画面 4](docs/screenshots/PixPin_2026-08-31_23-59-51.png)
 
+![展示画面 5](docs/screenshots/PixPin_2026-09-01_03-36-15.png)
+
 ## 在其他 Windows 电脑上运行
 
 ### 方式一：绿色版 exe（推荐，无需安装环境）
