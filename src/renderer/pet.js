@@ -37,6 +37,7 @@
   let loaded = false;
   let bubbleTimer = null;
   let animTimer = null;
+  let lastChat = 0;
   let dragging = false;
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
@@ -210,6 +211,11 @@
       return;
     }
     if (brain.state === PET_STATES.IDLE) {
+      // 待机碎碎念: 超过40秒没互动, 随机冒一句有珠的闲话
+      if (now - lastChat > 40000 && Math.random() < 0.6) {
+        lastChat = now;
+        showBubble(lineFor('idle'));
+      }
       const act = idleAction();
       if (act) {
         applyExpression(act.expression);

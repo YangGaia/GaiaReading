@@ -76,6 +76,13 @@ test('台词库各场景均有非空台词', () => {
   }
 });
 
+test('待机碎碎念台词库充足且每条非空', () => {
+  assert.ok(pet.LINES.idle.length >= 8, '待机碎碎念台词不足 8 条');
+  for (const line of pet.LINES.idle) {
+    assert.ok(typeof line === 'string' && line.length > 0, '存在空台词');
+  }
+});
+
 test('pick 从列表取项并尊重随机源', () => {
   assert.strictEqual(pick(['a', 'b'], () => 0), 'a');
   assert.strictEqual(pick(['a', 'b'], () => 0.99), 'b');
