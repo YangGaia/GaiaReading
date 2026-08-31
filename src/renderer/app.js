@@ -444,10 +444,10 @@ async function openEpub(book) {
 
   rendition.on('relocated', (location) => {
     const cfi = location.start.cfi;
-    const rawPct = location.start.percentage != null ? location.start.percentage * 100 : null;
-    if (rawPct != null && (rawPct > 0 || state.current.locationsDone)) {
-      state.current.displayPercent = rawPct;
-    }
+    const items = state.current.epub && state.current.epub.spine ? state.current.epub.spine.spineItems : [];
+    const total = items.length || 1;
+    const idx = location.start.index != null ? location.start.index : 0;
+    state.current.displayPercent = total > 1 ? (idx / (total - 1)) * 100 : 100;
     updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(1) + '%');
     saveProgress(book.path, { loc: cfi, percent: state.current.displayPercent });
   });
@@ -456,13 +456,6 @@ async function openEpub(book) {
     .generate(1600)
     .then(() => {
       state.current.locationsDone = true;
-      const locObj = rendition.currentLocation();
-      if (locObj && locObj.start && locObj.start.percentage != null) {
-        const percent = locObj.start.percentage * 100;
-        state.current.displayPercent = percent;
-        updateProgress(percent, '进度 ' + percent.toFixed(1) + '%');
-        saveProgress(book.path, { loc: locObj.start.cfi, percent });
-      }
       return true;
     })
     .catch(() => false);
@@ -1169,6 +1162,7 @@ window.__gaiaDebug = {
   },
   getPagingClass: () => els.readerContent.className,
   getDisplayPercent: () => (state.current && state.current.displayPercent != null ? state.current.displayPercent : 0),
+  getProgressWidth: () => els.progressFill.style.width,
   burst: (x, y) => spawnBurst(x == null ? 200 : x, y == null ? 200 : y),
   getParticleCount: () => fx.particles.length,
   getDiamondCount: () => fx.particles.filter((p) => p.shape === 'diamond').length,
@@ -1284,6 +1278,7 @@ window.__gaiaDebug = {
 };
 
 init();
+
 
 
 

@@ -69,6 +69,7 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
   assert.ok(html.includes('font-select'), '缺少字体选择');
   assert.ok(html.includes('btn-theme'), '缺少主题切换');
   assert.ok(html.includes('progress-fill'), '缺少阅读进度条');
+  assert.ok(html.includes("style-src 'self' 'unsafe-inline' blob:"), '缺少 blob 样式许可（图书 CSS 会被拦截）');
   const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
   assert.ok(main.includes('setApplicationMenu'), '缺少自定义菜单');
   assert.ok(main.includes('autoHideMenuBar'), '缺少菜单栏隐藏配置');
@@ -90,6 +91,7 @@ test('应用图标存在且打包配置已启用', () => {
   assert.ok(pkg.build && pkg.build.win, '缺少 build.win 配置');
   assert.strictEqual(pkg.build.win.icon, 'build/icon.png');
 });
+
 
 
 
