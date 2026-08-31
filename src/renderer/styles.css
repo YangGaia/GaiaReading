@@ -405,3 +405,10 @@ body.eye {
   50% { transform: translateY(-2px) translateX(-2px) scale(1.006, 0.994); }
   75% { transform: translateY(-1px) translateX(1.5px) scale(1.01, 0.99); }
 }
+
+/* 眼睛层: 视线跟随鼠标 */
+.gaia-pet-eyes {
+  position: absolute;
+  pointer-events: none;
+  will-change: transform;
+}

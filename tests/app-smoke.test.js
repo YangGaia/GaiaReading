@@ -44,6 +44,9 @@ test('桌宠素材与映射表完整', () => {
   assert.ok(fs.existsSync(path.join(petDir, 'pet-expressions.json')), 'pet-expressions.json 缺失');
   const cellsDir = path.join(petDir, 'cells');
   const files = fs.existsSync(cellsDir) ? fs.readdirSync(cellsDir) : [];
+  const eyeDir = path.join(petDir, 'eyes');
+  const eyeFiles = fs.existsSync(eyeDir) ? fs.readdirSync(eyeDir) : [];
+  assert.ok(eyeFiles.length >= 20, '眼睛贴片不足 20 张');
   assert.ok(files.length >= 21, '表情格不足 21 个');
   for (const name of ['半身照.png', '日常表情.png']) {
     assert.ok(fs.existsSync(path.join(cellsDir, name)), name + ' 缺失');

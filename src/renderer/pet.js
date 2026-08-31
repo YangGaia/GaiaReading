@@ -20,6 +20,7 @@
 
   const IMG = 'images/pet/cells/';
   const FACE_IMG = 'images/pet/faces/';
+  const EYE_IMG = 'images/pet/eyes/';
 
   /** 脸部标定（半身照 356x647，表情格约 254x256；坐标为估算，待主人确认）。 */
   const FACE = {
@@ -27,6 +28,9 @@
     expression: { x: 82, y: 103, w: 89, h: 79 },
     tile: { w: 134, h: 118, cx: 67.5, cy: 59.5 },
     sheet: { w: 356, h: 647 }, // 半身照原图尺寸, 用于显示缩放换算
+    eyeBox: { x: 82, y: 105, w: 89, h: 27 }, // 眼睛条裁切区(瞳孔 110..128 上下留余量)
+    eyeOffset: { x: 23, y: 22 }, // 眼睛条相对脸贴片裁剪区(59,83)的偏移
+    maxShift: { x: 2.5, y: 1.5 }, // 视线跟随最大位移(显示像素)
   };
 
   const DEFAULT_STATE = { on: true, x: null, y: null };
@@ -55,6 +59,14 @@
     const file = FACE_IMG + encodeURIComponent(name + '.png');
     if (ui.face.dataset.exp === name) return;
     ui.face.dataset.exp = name;
+    if (ui.eyes) {
+      if (name === '半身照') {
+        ui.eyes.hidden = true;
+      } else {
+        ui.eyes.hidden = false;
+        ui.eyes.src = EYE_IMG + encodeURIComponent(name + '.png');
+      }
+    }
     if (instant) {
       ui.face.src = file;
       ui.face.style.opacity = '1';
@@ -93,6 +105,13 @@
     ui.lid.style.height = lidH + 'px';
     ui.lid.style.left = Math.round((hbCx - ex.w * 0.36) * s) + 'px';
     ui.lid.style.top = Math.round((hbCy - (exCy - eyeY)) * s - lidH / 2) + 'px';
+    // 眼睛层: 贴片内偏移定位, 尺寸按显示缩放
+    const eyeBox = FACE.eyeBox;
+    const eyeOff = FACE.eyeOffset;
+    ui.eyes.style.width = Math.round(eyeBox.w * s) + 'px';
+    ui.eyes.style.height = Math.round(eyeBox.h * s) + 'px';
+    ui.eyes.style.left = Math.round((hbCx - tile.cx + eyeOff.x) * s) + 'px';
+    ui.eyes.style.top = Math.round((hbCy - tile.cy + eyeOff.y) * s) + 'px';
   }
 
   function showBubble(text) {
@@ -259,6 +278,22 @@
       ui.body.classList.add('drop');
       save();
     }
+
+    // 视线跟随鼠标: 眼睛层按鼠标相对桌宠位置微移
+    let lastMove = 0;
+    window.addEventListener('pointermove', (ev) => {
+      if (!saved.on || dragging || !ui.eyes || ui.eyes.hidden) return;
+      const now = performance.now();
+      if (now - lastMove < 16) return;
+      lastMove = now;
+      const rect = ui.root.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = Math.max(-1, Math.min(1, (ev.clientX - cx) / (rect.width / 2 || 1)));
+      const dy = Math.max(-1, Math.min(1, (ev.clientY - cy) / (rect.height / 2 || 1)));
+      const shift = FACE.maxShift;
+      ui.eyes.style.transform = 'translate(' + (dx * shift.x).toFixed(1) + 'px,' + (dy * shift.y).toFixed(1) + 'px)';
+    });
   }
 
   function build() {
@@ -294,10 +329,16 @@
     const lid = document.createElement('div');
     lid.className = 'gaia-pet-lid';
 
-    body.append(halfbody, face, lid);
+    const eyes = document.createElement('img');
+    eyes.className = 'gaia-pet-eyes';
+    eyes.src = EYE_IMG + encodeURIComponent('日常表情.png');
+    eyes.draggable = false;
+    eyes.alt = '';
+
+    body.append(halfbody, face, eyes, lid);
     root.append(bubble, body, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, body, halfbody, face, zzz, lid };
+    ui = { root, bubble, body, halfbody, face, eyes, zzz, lid };
   }
 
   async function init() {
