@@ -138,6 +138,12 @@ class Paginator {
     if (!s) return;
     let css = 'html { font-size: ' + (this.typo.fontSizePct / 100) + 'em !important; }';
     css += 'html, body { line-height: ' + this.typo.lineHeight + ' !important; }';
+    // 与 EPUB 阅读一致的排版：段落首行缩进、标题间距、行距
+    css += 'p { text-indent: 2em !important; margin: 0 0 0.8em !important; line-height: ' + this.typo.lineHeight + ' !important; }';
+    css += 'h1, h2, h3, h4 { line-height: 1.4 !important; margin: 1.2em 0 0.6em !important; text-indent: 0 !important; }';
+    css += 'blockquote { margin: 0.8em 0 !important; padding-left: 1em !important; border-left: 3px solid rgba(127,127,127,.35) !important; }';
+    css += 'li { line-height: ' + this.typo.lineHeight + ' !important; margin: 0.2em 0 !important; }';
+    css += 'img { max-width: 100% !important; height: auto !important; }';
     if (this.typo.fontFamily) {
       css += 'html, body, p, div, span, li, a, h1, h2, h3, h4 { font-family: ' + this.typo.fontFamily + ' !important; }';
     }
@@ -181,13 +187,21 @@ class Paginator {
     this.frame.style.height = hostH + 'px';
     this.frame.style.visibility = 'visible';
 
+    const pagePad = spread ? 28 : 32; // 页面内边距，单页/双页都给内容留白
     base.textContent =
       'html, body { margin: 0; padding: 0; }' +
       'body { column-width: ' + this.pageWidth + 'px; column-gap: ' + gap + 'px; ' +
       'height: ' + hostH + 'px; overflow: hidden; }';
+    // 页面内容左右内边距（列内容不贴边，像真实书籍版心）
     base.textContent +=
-      'img { max-width: ' + (this.pageWidth - 24) + 'px; height: auto; }' +
-      'table { max-width: ' + (this.pageWidth - 24) + 'px; }';
+      'body > * { margin-left: ' + pagePad + 'px; margin-right: ' + pagePad + 'px; }' +
+      'img { max-width: ' + (this.pageWidth - pagePad * 2) + 'px !important; height: auto; }' +
+      'table { max-width: ' + (this.pageWidth - pagePad * 2) + 'px; }';
+    // 双页模式中间书缝：列间细线模拟书脊
+    if (spread) {
+      base.textContent +=
+        'body { column-rule: 1px solid rgba(0,0,0,.12); }';
+    }
 
     this.measure();
     this.showPage(this.currentPage);

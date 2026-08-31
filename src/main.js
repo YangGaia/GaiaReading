@@ -396,7 +396,6 @@ function createWindow() {
           await wait(1000);
           await mainWindow.webContents.executeJavaScript("__gaiaDebug.setMode('spread')");
           await wait(1600);
-          await capture('spread.png');
           await mainWindow.webContents.executeJavaScript("__gaiaDebug.setMode('single')");
           await mainWindow.webContents.executeJavaScript("__gaiaDebug.setTheme('dark')");
           await wait(1200);
