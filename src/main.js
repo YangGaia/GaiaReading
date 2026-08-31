@@ -137,8 +137,9 @@ function createWindow() {
                 parsed.contentLen > 0 &&
                 parsed.chapters > 0 &&
                 typeof parsed.idxBefore === 'number' &&
-                parsed.idxAfter === parsed.idxBefore + 1 &&
-                parsed.pct != null;
+                (parsed.scrollAfter > parsed.scrollBefore || parsed.idxAfter > parsed.idxBefore) &&
+                parsed.pct != null &&
+                parsed.moved > 0;
               if (!debugOk) console.error('DEBUG_MOBI_CHECKS_FAILED:', JSON.stringify(parsed));
             } catch (parseErr) {
               debugOk = false;

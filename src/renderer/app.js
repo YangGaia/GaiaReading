@@ -582,19 +582,23 @@ async function openMobi(book) {
   };
   const saved = state.progress[book.path];
   let startIndex = 0;
+  let startScroll = 0;
   if (saved && typeof saved.mobiIndex === 'number') {
     startIndex = Math.max(0, Math.min(res.chapters.length - 1, saved.mobiIndex));
+    if (typeof saved.mobiScroll === 'number') startScroll = saved.mobiScroll;
   }
-  await renderMobiChapter(startIndex);
+  await renderMobiChapter(startIndex, { scrollTo: startScroll });
+  els.readerContent.addEventListener('scroll', () => updateMobiProgress(false));
   renderMobiToc();
 }
 
-async function renderMobiChapter(index) {
+async function renderMobiChapter(index, opts) {
   const c = state.current;
   if (!c || !c.mobiSession) return;
   const chapters = c.mobi.chapters;
   const clamped = Math.max(0, Math.min(chapters.length - 1, index));
   c.mobi.index = clamped;
+  opts = opts || {};
   els.readerStatus.textContent = '加载中…';
   try {
     const ch = await window.api.mobiChapter(c.mobiSession, clamped);
@@ -614,12 +618,37 @@ async function renderMobiChapter(index) {
     els.readerContent.appendChild(div);
     applyMobiTypography();
     applyMobiTheme();
-    const percent = chapters.length > 1 ? (clamped / (chapters.length - 1)) * 100 : 100;
-    updateProgress(percent, '进度 ' + percent.toFixed(1) + '% · 第 ' + (clamped + 1) + ' / ' + chapters.length + ' 节');
-    saveProgress(c.path, { mobiIndex: clamped, percent });
+    els.readerContent.scrollTop = 0;
+    updateMobiProgress(true);
+    if (opts.scrollTo === 'bottom') {
+      await new Promise((r) => setTimeout(r, 0));
+      els.readerContent.scrollTop = els.readerContent.scrollHeight;
+      updateMobiProgress(true);
+    } else if (typeof opts.scrollTo === 'number') {
+      await new Promise((r) => setTimeout(r, 0));
+      els.readerContent.scrollTop = Math.max(0, Math.min(els.readerContent.scrollHeight, opts.scrollTo));
+      updateMobiProgress(true);
+    }
   } catch (err) {
     console.error(err);
     els.readerStatus.textContent = '章节加载失败：' + err.message;
+  }
+}
+
+let lastMobiSave = 0;
+function updateMobiProgress(force) {
+  const c = state.current;
+  if (!c || !c.mobi) return;
+  const container = els.readerContent;
+  const max = container.scrollHeight - container.clientHeight;
+  const chapters = c.mobi.chapters;
+  const inChapter = max > 8 ? container.scrollTop / max : 0;
+  const percent = chapters.length > 1 ? ((c.mobi.index + inChapter) / chapters.length) * 100 : 100;
+  updateProgress(percent, '进度 ' + percent.toFixed(1) + '% · 第 ' + (c.mobi.index + 1) + ' / ' + chapters.length + ' 节');
+  const now = Date.now();
+  if (force || now - lastMobiSave > 600) {
+    lastMobiSave = now;
+    saveProgress(c.path, { mobiIndex: c.mobi.index, mobiScroll: container.scrollTop, percent });
   }
 }
 
@@ -725,7 +754,17 @@ function nextPage() {
   } else if (c.format === 'pdf') {
     if (c.page < c.pages) { c.page += 1; animatePage('next'); renderPdfPage(); }
   } else if (c.format === 'mobi' || c.format === 'azw3') {
-    if (c.mobi && c.mobi.index < c.mobi.chapters.length - 1) { animatePage('next'); renderMobiChapter(c.mobi.index + 1); }
+    const container = els.readerContent;
+    const max = container.scrollHeight - container.clientHeight;
+    const step = Math.max(40, container.clientHeight * 0.92);
+    if (container.scrollTop + step < max - 4) {
+      animatePage('next');
+      container.scrollTop += step;
+      updateMobiProgress(false);
+    } else if (c.mobi && c.mobi.index < c.mobi.chapters.length - 1) {
+      animatePage('next');
+      renderMobiChapter(c.mobi.index + 1);
+    }
   } else if (c.format === 'txt') {
     els.readerContent.scrollTop += els.readerContent.clientHeight * 0.9;
   }
@@ -739,7 +778,16 @@ function prevPage() {
   } else if (c.format === 'pdf') {
     if (c.page > 1) { c.page -= 1; animatePage('prev'); renderPdfPage(); }
   } else if (c.format === 'mobi' || c.format === 'azw3') {
-    if (c.mobi && c.mobi.index > 0) { animatePage('prev'); renderMobiChapter(c.mobi.index - 1); }
+    const container = els.readerContent;
+    const step = Math.max(40, container.clientHeight * 0.92);
+    if (container.scrollTop > 8) {
+      animatePage('prev');
+      container.scrollTop = Math.max(0, container.scrollTop - step);
+      updateMobiProgress(false);
+    } else if (c.mobi && c.mobi.index > 0) {
+      animatePage('prev');
+      renderMobiChapter(c.mobi.index - 1, { scrollTo: 'bottom' });
+    }
   } else if (c.format === 'txt') {
     els.readerContent.scrollTop -= els.readerContent.clientHeight * 0.9;
   }
@@ -843,7 +891,7 @@ async function addBookmark() {
     loc = String(c.page);
     label = '书签 ' + (getBookmarkCount() + 1) + '（第 ' + c.page + ' 页）';
   } else if (c.format === 'mobi' || c.format === 'azw3') {
-    loc = String(c.mobi ? c.mobi.index : 0);
+    loc = (c.mobi ? c.mobi.index : 0) + ':' + els.readerContent.scrollTop;
     label = '书签 ' + (getBookmarkCount() + 1) + '（第 ' + (c.mobi ? c.mobi.index + 1 : 1) + ' 节）';
   } else {
     loc = String(els.readerContent.scrollTop);
@@ -1325,6 +1373,8 @@ window.__gaiaDebug = {
   getMobiChapters: () => (state.current && state.current.mobi ? state.current.mobi.chapters.length : 0),
   getMobiTocCount: () => (state.current && state.current.mobi ? state.current.mobi.toc.length : 0),
   getMobiIndex: () => (state.current && state.current.mobi ? state.current.mobi.index : -1),
+  getReaderScrollTop: () => els.readerContent.scrollTop,
+  jumpToMobiChapter: (idx) => renderMobiChapter(idx),
   getReaderTitle: () => els.readerTitle.textContent,
   getMobiBackground: () => {
     const div = els.readerContent.querySelector('#mobi-content');
