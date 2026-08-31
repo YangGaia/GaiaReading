@@ -38,15 +38,15 @@
 
 ## 界面展示
 
-（按文件名顺序）
+（按拍摄时间从早到晚）
 
-![展示画面 1](docs/screenshots/PixPin_2026-08-31_23-58-37.png)
+![展示画面 1](docs/screenshots/screenshot-01.png)
 
-![展示画面 2](docs/screenshots/PixPin_2026-08-31_23-58-58.png)
+![展示画面 2](docs/screenshots/PixPin_2026-08-31_23-58-37.png)
 
-![展示画面 3](docs/screenshots/PixPin_2026-08-31_23-59-51.png)
+![展示画面 3](docs/screenshots/PixPin_2026-08-31_23-58-58.png)
 
-![展示画面 4](docs/screenshots/screenshot-01.png)
+![展示画面 4](docs/screenshots/PixPin_2026-08-31_23-59-51.png)
 
 ## 在其他 Windows 电脑上运行
 
