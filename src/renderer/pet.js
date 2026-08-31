@@ -30,7 +30,7 @@
     sheet: { w: 356, h: 647 }, // 半身照原图尺寸, 用于显示缩放换算
     eyeBox: { x: 82, y: 105, w: 89, h: 27 }, // 眼睛条裁切区(瞳孔 110..128 上下留余量)
     eyeOffset: { x: 23, y: 22 }, // 眼睛条相对脸贴片裁剪区(59,83)的偏移
-    maxShift: { x: 1.2, y: 0.8 }, // 视线跟随最大位移(显示像素), 防止瞳孔移出眼眶
+    maxShift: { x: 0.6, y: 0.5 }, // 视线跟随最大位移(显示像素), 防止瞳孔移出眼眶
   };
 
   const DEFAULT_STATE = { on: true, x: null, y: null };
@@ -289,10 +289,13 @@
       const rect = ui.root.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
-      const dx = Math.max(-1, Math.min(1, (ev.clientX - cx) / (rect.width / 2 || 1)));
-      const dy = Math.max(-1, Math.min(1, (ev.clientY - cy) / (rect.height / 2 || 1)));
+      let dx = Math.max(-1, Math.min(1, (ev.clientX - cx) / (rect.width / 2 || 1)));
+      let dy = Math.max(-1, Math.min(1, (ev.clientY - cy) / (rect.height / 2 || 1)));
+      // 非线性曲线: 中心附近几乎不动, 远离时才缓慢加大, 减少穿模
+      dx = Math.sign(dx) * Math.pow(Math.abs(dx), 1.6);
+      dy = Math.sign(dy) * Math.pow(Math.abs(dy), 1.6);
       const shift = FACE.maxShift;
-      ui.eyes.style.transform = 'translate(' + (dx * shift.x).toFixed(1) + 'px,' + (dy * shift.y).toFixed(1) + 'px)';
+      ui.eyes.style.transform = 'translate(' + (dx * shift.x).toFixed(2) + 'px,' + (dy * shift.y).toFixed(2) + 'px)';
     });
   }
 
