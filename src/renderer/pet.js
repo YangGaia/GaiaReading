@@ -30,7 +30,7 @@
     sheet: { w: 356, h: 647 }, // 半身照原图尺寸, 用于显示缩放换算
     eyeBox: { x: 82, y: 105, w: 89, h: 27 }, // 眼睛条裁切区(瞳孔 110..128 上下留余量)
     eyeOffset: { x: 23, y: 22 }, // 眼睛条相对脸贴片裁剪区(59,83)的偏移
-    maxShift: { x: 0.6, y: 0.5 }, // 视线跟随最大位移(显示像素), 防止瞳孔移出眼眶
+    maxTurn: { ry: 7, rot: 1.5, x: 2.5, y: 1.5, body: 1.2, bx: 2 }, // 转头跟随: 脸旋转/位移 + 身体侧倾
   };
 
   const DEFAULT_STATE = { on: true, x: null, y: null };
@@ -280,7 +280,7 @@
       save();
     }
 
-    // 视线跟随鼠标: pointermove 只记录目标方向, rAF 循环平滑逼近, 避免生硬卡顿
+    // 转头跟随鼠标: 脸贴片 rotateY 转向 + 位移, 身体 stage 轻微侧倾, rAF 平滑逼近
     const followTarget = { x: 0, y: 0 };
     const followCurrent = { x: 0, y: 0 };
     let followRect = null;
@@ -290,24 +290,28 @@
       followRect = { left: r.left, top: r.top, w: r.width, h: r.height };
     }
     window.addEventListener('pointermove', (ev) => {
-      if (!saved.on || dragging || !ui.eyes || ui.eyes.hidden) return;
+      if (!saved.on || dragging || !ui.face) return;
       if (!followRect) updateFollowRect();
       if (!followRect) return;
       const cx = followRect.left + followRect.w / 2;
       const cy = followRect.top + followRect.h / 2;
       let dx = Math.max(-1, Math.min(1, (ev.clientX - cx) / (followRect.w / 2 || 1)));
       let dy = Math.max(-1, Math.min(1, (ev.clientY - cy) / (followRect.h / 2 || 1)));
-      // 非线性曲线: 中心附近几乎不动, 远离时才缓慢加大, 减少穿模
-      dx = Math.sign(dx) * Math.pow(Math.abs(dx), 1.6);
-      dy = Math.sign(dy) * Math.pow(Math.abs(dy), 1.6);
-      followTarget.x = dx * FACE.maxShift.x;
-      followTarget.y = dy * FACE.maxShift.y;
+      // 非线性曲线: 中心附近几乎不动, 远离时才缓慢加大
+      dx = Math.sign(dx) * Math.pow(Math.abs(dx), 1.5);
+      dy = Math.sign(dy) * Math.pow(Math.abs(dy), 1.5);
+      followTarget.x = dx;
+      followTarget.y = dy;
     });
     function followLoop() {
-      if (saved.on && ui.eyes && !ui.eyes.hidden && !dragging) {
-        followCurrent.x += (followTarget.x - followCurrent.x) * 0.18;
-        followCurrent.y += (followTarget.y - followCurrent.y) * 0.18;
-        ui.eyes.style.transform = 'translate(' + followCurrent.x.toFixed(2) + 'px,' + followCurrent.y.toFixed(2) + 'px)';
+      if (saved.on && ui.face && !dragging) {
+        followCurrent.x += (followTarget.x - followCurrent.x) * 0.2;
+        followCurrent.y += (followTarget.y - followCurrent.y) * 0.2;
+        const x = followCurrent.x;
+        const y = followCurrent.y;
+        const t = FACE.maxTurn;
+        ui.face.style.transform = 'rotateY(' + (x * t.ry).toFixed(2) + 'deg) rotate(' + (x * t.rot).toFixed(2) + 'deg) translateX(' + (x * t.x).toFixed(2) + 'px) translateY(' + (y * t.y).toFixed(2) + 'px)';
+        if (ui.stage) ui.stage.style.transform = 'rotate(' + (x * t.body).toFixed(2) + 'deg) translateX(' + (x * t.bx).toFixed(2) + 'px)';
       }
       requestAnimationFrame(followLoop);
     }
@@ -354,10 +358,14 @@
     eyes.draggable = false;
     eyes.alt = '';
 
+    const stage = document.createElement('div');
+    stage.className = 'gaia-pet-stage';
+
     body.append(halfbody, face, eyes, lid);
-    root.append(bubble, body, zzz);
+    stage.appendChild(body);
+    root.append(bubble, stage, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, body, halfbody, face, eyes, zzz, lid };
+    ui = { root, bubble, stage, body, halfbody, face, eyes, zzz, lid };
   }
 
   async function init() {
