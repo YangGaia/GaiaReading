@@ -178,6 +178,7 @@ test('BGM 胶囊封面与阅读进度条细节', () => {
   assert.ok(html.includes("img-src 'self' data: blob: bgm:"), 'CSP 应允许 bgm: 图片');
   assert.ok(bgm.includes('bgm://local/cover.jpg'), '胶囊应加载专辑封面');
   assert.ok(css.includes('.bgm-cover'), '应有封面缩略图样式');
+  assert.ok(css.includes('[data-view="reader"] { left: auto; right: 22px;'), '阅读界面胶囊应位于右下角');
   const topIdx = html.indexOf('id="progress-track"');
   const footerIdx = html.indexOf('<footer class="statusbar">');
   assert.ok(topIdx >= 0 && footerIdx >= 0 && topIdx < footerIdx, '进度条应位于顶栏（footer 之前）');

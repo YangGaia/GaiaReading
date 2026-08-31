@@ -224,7 +224,7 @@ body.eye {
 .bgm-capsule:hover { opacity: 1; box-shadow: 0 8px 26px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(167, 139, 250, .22); }
 .bgm-capsule[data-view="home"] { top: 18px; right: 28px; bottom: auto; left: auto; }
 .bgm-capsule[data-view="library"] { left: 22px; bottom: 18px; top: auto; right: auto; }
-.bgm-capsule[data-view="reader"] { left: 22px; bottom: 14px; top: auto; right: auto; opacity: .55; }
+.bgm-capsule[data-view="reader"] { left: auto; right: 22px; bottom: 14px; top: auto; opacity: .55; }
 .bgm-capsule[data-view="reader"]:hover { opacity: 1; }
 .bgm-capsule button {
   border: 0;
