@@ -301,12 +301,12 @@ body.eye {
 .gaia-pet-body {
   position: relative;
   width: 100%;
-  aspect-ratio: 356 / 647;
   transform-origin: 50% 100%;
   animation: pet-breathe 4s ease-in-out infinite;
 }
 .gaia-pet-body.no-breathe { animation: none; }
 .gaia-pet-body.poke { animation: pet-poke 0.35s ease; }
+.gaia-pet-halfbody { display: block; width: 100%; height: auto; pointer-events: none; }
 .gaia-pet-face {
   position: absolute;
   pointer-events: none;
@@ -400,14 +400,6 @@ body.eye {
   100% { transform: scale(1, 1) translateY(0); }
 }
 @keyframes pet-breathe {
-  0%, 100% { transform: translateY(0) translateX(0) scale(1); }
-  25% { transform: translateY(-4px) translateX(2px) scale(1.014, 0.985); }
-  50% { transform: translateY(-2px) translateX(-2px) scale(1.006, 0.994); }
-  75% { transform: translateY(-1px) translateX(1.5px) scale(1.01, 0.99); }
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-3px) scale(1.012, 0.988); }
 }
-
-
-
-
-
-.gaia-pet-halfbody { display: block; width: 100%; height: auto; pointer-events: none; }
