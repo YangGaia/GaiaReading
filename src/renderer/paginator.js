@@ -3,8 +3,11 @@
 /**
  * 轻量分页引擎（供 TXT / MOBI / AZW3 使用）。
  *
- * 原理：把内容渲染进隐藏 iframe，通过 CSS 多列（column-width）自动分页，
- * 每列 = 一页，翻页即横向滚动 body。支持：
+ * 原理（与 epub.js paginated 布局一致）：
+ * 内容渲染进 iframe，body 使用 CSS 多列（column-width）自动分页，
+ * 每列 = 一页；翻页即横向滚动 documentElement（html）。
+ *
+ * 支持：
  * - 单页 / 双页 / 滚动 三种模式
  * - 字体、字号、行距、主题注入（切换后自动重排）
  * - 图片加载完成后自动重新测量页数
@@ -19,19 +22,24 @@ class Paginator {
    */
   constructor(host, opts) {
     this.host = host;
-    this.pageWidth = opts.pageWidth || 720;
-    this.gap = opts.gap || 48;
+    this.pageWidth = opts.pageWidth || 640;
+    this.gap = opts.gap || 40;
     this.mode = 'single'; // single | spread | scroll
     this.currentPage = 0;
     this.totalPages = 1;
-    this.scrollTop = 0;
     this.frame = null;
     this.doc = null;
-    this.onChange = null; // 回调：进度变化时通知
-    this.onTotalChange = null; // 回调：总页数变化时通知
+    this.onChange = null;      // 进度变化通知
+    this.onTotalChange = null; // 总页数变化通知
     this.typo = { fontSizePct: 100, lineHeight: 1.8, fontFamily: '' };
     this.theme = 'light';
+    this.pageBg = '#fffdf7';
     this._boundResize = () => this.reflow();
+  }
+
+  /** 列步进宽度：下一页/上一页的滚动距离（含列间距）。 */
+  get colStep() {
+    return this.pageWidth + this.gap;
   }
 
   /** 渲染内容。html 为章节/全文 HTML 片段（不含 <html>/<body>）。 */
@@ -40,14 +48,17 @@ class Paginator {
     const frame = document.createElement('iframe');
     frame.className = 'paginator-frame';
     frame.setAttribute('scrolling', 'no');
+    frame.setAttribute('title', '阅读内容');
     this.frame = frame;
     this.host.appendChild(frame);
 
     const doc = frame.contentDocument;
     this.doc = doc;
     let full = '<!DOCTYPE html><html><head><meta charset="utf-8">';
-    if (cssText) full += '<style>' + cssText + '</style>';
+    if (cssText) full += '<style id="paginator-book">' + cssText + '</style>';
     full += '<style id="paginator-base"></style>';
+    full += '<style id="paginator-typo"></style>';
+    full += '<style id="paginator-theme"></style>';
     full += '</head><body>' + (html || '') + '</body></html>';
     doc.open();
     doc.write(full);
@@ -56,13 +67,12 @@ class Paginator {
     await new Promise((resolve) => {
       if (doc.readyState === 'complete') return resolve();
       frame.addEventListener('load', () => resolve(), { once: true });
-      // 兜底：内容不触发 load 时
       setTimeout(resolve, 1500);
     });
 
     this.applyTypography();
     this.applyTheme();
-    this.reflow();
+    this.applyLayout();
     this.waitImages();
     window.addEventListener('resize', this._boundResize);
   }
@@ -95,7 +105,12 @@ class Paginator {
 
   /** 设置阅读模式：single | spread | scroll */
   setMode(mode) {
-    this.mode = mode === 'spread' || mode === 'scroll' ? mode : 'single';
+    const next = mode === 'spread' || mode === 'scroll' ? mode : 'single';
+    if (next === this.mode) {
+      this.applyLayout();
+      return;
+    }
+    this.mode = next;
     this.currentPage = 0;
     this.applyLayout();
   }
@@ -113,96 +128,104 @@ class Paginator {
 
   setTheme(theme) {
     this.theme = theme;
+    this.pageBg = theme === 'eye' ? '#f7efdd' : (theme === 'dark' ? '#000000' : '#fffdf7');
     if (this.doc) this.applyTheme();
   }
 
   applyTypography() {
     if (!this.doc) return;
-    const style = this.doc.getElementById('paginator-typo');
-    if (style) style.remove();
-    const s = this.doc.createElement('style');
-    s.id = 'paginator-typo';
-    let css = 'html, body { font-size: ' + (this.typo.fontSizePct / 100) + 'em !important; }';
-    css += 'body, p, div, span, li { line-height: ' + this.typo.lineHeight + ' !important; }';
-    if (this.typo.fontFamily) css += 'body, p, div, span, li { font-family: ' + this.typo.fontFamily + ' !important; }';
+    const s = this.doc.getElementById('paginator-typo');
+    if (!s) return;
+    let css = 'html { font-size: ' + (this.typo.fontSizePct / 100) + 'em !important; }';
+    css += 'html, body { line-height: ' + this.typo.lineHeight + ' !important; }';
+    if (this.typo.fontFamily) {
+      css += 'html, body, p, div, span, li, a, h1, h2, h3, h4 { font-family: ' + this.typo.fontFamily + ' !important; }';
+    }
     s.textContent = css;
-    (this.doc.head || this.doc.documentElement).appendChild(s);
   }
 
   applyTheme() {
     if (!this.doc) return;
-    const style = this.doc.getElementById('paginator-theme');
-    if (style) style.remove();
-    const s = this.doc.createElement('style');
-    s.id = 'paginator-theme';
+    const s = this.doc.getElementById('paginator-theme');
+    if (!s) return;
     let css = '';
     if (this.theme === 'dark') {
       css = 'html, body { background: #000 !important; } body { color: #e6edf3 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #e6edf3 !important; } a { color: #58a6ff !important; }';
     } else if (this.theme === 'eye') {
       css = 'html, body { background: #f5ecd9 !important; } body { color: #4a3826 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #4a3826 !important; } a { color: #8a6d3b !important; }';
+    } else {
+      css = 'html { background: ' + this.pageBg + ' !important; } body { background: ' + this.pageBg + ' !important; }';
     }
     s.textContent = css;
-    (this.doc.head || this.doc.documentElement).appendChild(s);
   }
 
   applyLayout() {
     if (!this.doc) return;
-    const body = this.doc.body;
-    const base = this.doc.getElementById('paginator-base');
+    const doc = this.doc;
+    const base = doc.getElementById('paginator-base');
     if (!base) return;
+    const hostW = this.host.clientWidth || 800;
+    const hostH = this.host.clientHeight || 600;
+
     if (this.mode === 'scroll') {
-      base.textContent = 'html, body { margin: 0; padding: 0; } body { column-width: auto !important; column-gap: 0 !important; height: 100% !important; overflow-y: auto !important; }';
-      this.frame.style.width = '100%';
-      this.frame.style.height = this.host.clientHeight + 'px';
+      base.textContent =
+        'html, body { margin: 0; padding: 0; }' +
+        'body { column-width: auto !important; column-gap: 0 !important; ' +
+        'height: auto !important; overflow-y: auto !important; overflow-x: hidden !important; ' +
+        'padding: 24px 28px !important; }';
+      this.frame.style.width = hostW + 'px';
+      this.frame.style.height = hostH + 'px';
+      this.frame.style.visibility = 'visible';
       return;
     }
-    const spread = this.mode === 'spread';
-    const colW = this.pageWidth;
+
     const gap = this.gap;
-    const frameW = spread ? colW * 2 + gap : colW;
-    const frameH = this.host.clientHeight || 600;
+    const spread = this.mode === 'spread';
+    // 页宽自适应阅读区：单页占满可用宽，双页两页+间距正好填满
+    const pad = spread ? 0 : 24;
+    const colW = spread
+      ? Math.floor((hostW - gap) / 2)
+      : Math.floor(hostW - pad * 2);
+    this.pageWidth = Math.max(240, colW);
+    const frameW = spread ? this.pageWidth * 2 + gap : this.pageWidth;
+
     this.frame.style.width = frameW + 'px';
-    this.frame.style.height = frameH + 'px';
+    this.frame.style.height = hostH + 'px';
+    this.frame.style.visibility = 'visible';
+
     base.textContent =
-      'html, body { margin: 0; padding: 0; } ' +
-      'body { column-width: ' + colW + 'px; column-gap: ' + gap + 'px; ' +
-      'height: ' + frameH + 'px; overflow: hidden; }';
+      'html, body { margin: 0; padding: 0; }' +
+      'body { column-width: ' + this.pageWidth + 'px; column-gap: ' + gap + 'px; ' +
+      'height: ' + hostH + 'px; overflow: hidden; }';
+    base.textContent +=
+      'img { max-width: ' + (this.pageWidth - 24) + 'px; height: auto; }' +
+      'table { max-width: ' + (this.pageWidth - 24) + 'px; }';
+
     this.measure();
     this.showPage(this.currentPage);
   }
 
   measure() {
     if (!this.doc || this.mode === 'scroll') return;
-    const body = this.doc.body;
-    const colW = this.pageWidth + this.gap;
-    const w = body.scrollWidth;
-    this.totalPages = Math.max(1, Math.ceil(w / colW));
+    const el = this.doc.documentElement;
+    const w = el.scrollWidth || 1;
+    this.totalPages = Math.max(1, Math.ceil(w / this.colStep));
     if (this.onTotalChange) this.onTotalChange(this.totalPages);
     if (this.onChange) this.onChange();
   }
 
-  /** 显示第 page 页（0 起）。 */
+  /** 显示第 page 页（0 起）。单页模式一次一页，双页模式一次两页（相邻列）。 */
   showPage(page) {
     if (!this.doc || this.mode === 'scroll') return;
     this.currentPage = Math.max(0, Math.min(this.totalPages - 1, page));
-    const body = this.doc.body;
-    const step = this.mode === 'spread' ? (this.pageWidth + this.gap) * 2 : this.pageWidth + this.gap;
-    body.scrollLeft = this.currentPage * step;
+    const el = this.doc.documentElement;
+    el.scrollLeft = this.currentPage * this.colStep;
     if (this.onChange) this.onChange();
   }
 
   next(step) {
     if (this.mode === 'scroll') {
-      if (this.frame && this.frame.contentDocument) {
-        const body = this.frame.contentDocument.body;
-        const max = body.scrollHeight - this.frame.clientHeight;
-        if (body.scrollTop < max) {
-          body.scrollTop += (this.frame.clientHeight || 600) * 0.92;
-          if (this.onChange) this.onChange();
-          return true;
-        }
-      }
-      return false;
+      return this.scrollInside(true);
     }
     const s = step == null ? (this.mode === 'spread' ? 2 : 1) : step;
     if (this.currentPage >= this.totalPages - 1) return false;
@@ -212,15 +235,7 @@ class Paginator {
 
   prev(step) {
     if (this.mode === 'scroll') {
-      if (this.frame && this.frame.contentDocument) {
-        const body = this.frame.contentDocument.body;
-        if (body.scrollTop > 0) {
-          body.scrollTop -= (this.frame.clientHeight || 600) * 0.92;
-          if (this.onChange) this.onChange();
-          return true;
-        }
-      }
-      return false;
+      return this.scrollInside(false);
     }
     const s = step == null ? (this.mode === 'spread' ? 2 : 1) : step;
     if (this.currentPage <= 0) return false;
@@ -228,12 +243,31 @@ class Paginator {
     return true;
   }
 
-  /** 当前滚动模式下内部滚动比例 0-100。 */
-  scrollPercent() {
-    if (this.mode !== 'scroll' || !this.frame || !this.frame.contentDocument) return 0;
+  /** 滚动模式：内部滚动一屏。返回是否移动。 */
+  scrollInside(forward) {
+    if (!this.frame || !this.frame.contentDocument) return false;
     const body = this.frame.contentDocument.body;
-    const max = body.scrollHeight - this.frame.clientHeight;
-    return max > 0 ? (body.scrollTop / max) * 100 : 0;
+    const win = this.frame.contentWindow;
+    const max = Math.max(0, body.scrollHeight - this.frame.clientHeight);
+    const step = (this.frame.clientHeight || 600) * 0.92;
+    if (forward) {
+      if (win.scrollY >= max - 4) return false;
+      win.scrollBy(0, step);
+    } else {
+      if (win.scrollY <= 0) return false;
+      win.scrollBy(0, -step);
+    }
+    if (this.onChange) this.onChange();
+    return true;
+  }
+
+  /** 滚动模式内部滚动比例 0-100。 */
+  scrollPercent() {
+    if (this.mode !== 'scroll' || !this.frame || !this.frame.contentWindow) return 0;
+    const win = this.frame.contentWindow;
+    const body = this.frame.contentDocument.body;
+    const max = Math.max(0, body.scrollHeight - this.frame.clientHeight);
+    return max > 0 ? (win.scrollY / max) * 100 : 0;
   }
 
   /** 分页模式下当前页比例 0-100。 */
@@ -242,14 +276,13 @@ class Paginator {
     return this.totalPages > 1 ? ((this.currentPage + 1) / this.totalPages) * 100 : 100;
   }
 
-  /** 滚动模式下读取/设置内部滚动位置。 */
   getScrollTop() {
-    return this.frame && this.frame.contentDocument ? this.frame.contentDocument.body.scrollTop : 0;
+    return this.frame && this.frame.contentWindow ? this.frame.contentWindow.scrollY : 0;
   }
 
   setScrollTop(v) {
-    if (this.frame && this.frame.contentDocument) {
-      this.frame.contentDocument.body.scrollTop = v;
+    if (this.frame && this.frame.contentWindow) {
+      this.frame.contentWindow.scrollTo(0, v);
       if (this.onChange) this.onChange();
     }
   }

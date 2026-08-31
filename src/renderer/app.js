@@ -681,9 +681,15 @@ function updateMobiProgress(force) {
       : '进度 ' + percent.toFixed(1) + '%';
   } else {
     percent = c.flow ? c.flow.percent() : c.paginator.pagePercent();
-    text = chapters && chapters.length > 1
-      ? '进度 ' + percent.toFixed(1) + '% · 第 ' + (c.flow ? c.flow.chapter + 1 : 1) + ' / ' + chapters.length + ' 节'
-      : '进度 ' + percent.toFixed(1) + '%';
+    const total = c.paginator ? c.paginator.totalPages : 0;
+    const cur = c.paginator ? c.paginator.currentPage + 1 : 0;
+    if (chapters && chapters.length > 1) {
+      text = '进度 ' + percent.toFixed(1) + '% · 第 ' + (c.flow ? c.flow.chapter + 1 : 1) + ' 节 ' + cur + ' / ' + total + ' 页';
+    } else if (total > 0) {
+      text = '进度 ' + percent.toFixed(1) + '% · 第 ' + cur + ' / ' + total + ' 页';
+    } else {
+      text = '进度 ' + percent.toFixed(1) + '%';
+    }
   }
   updateProgress(percent, text);
   const now = Date.now();

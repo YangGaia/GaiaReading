@@ -385,6 +385,30 @@ function createWindow() {
         await mainWindow.webContents.executeJavaScript("__gaiaDebug.showView('library')");
         await wait(900);
         await capture('bookshelf.png');
+
+        if (DEBUG_OPEN_PATH && /\.(mobi|azw3|txt)$/i.test(DEBUG_OPEN_PATH)) {
+          const ext = path.extname(DEBUG_OPEN_PATH).toLowerCase().slice(1);
+          await mainWindow.webContents.executeJavaScript(`__gaiaDebug.openBook(${JSON.stringify({ path: DEBUG_OPEN_PATH, format: ext, title: '阅读测试' })})`);
+          await wait(3000);
+          await mainWindow.webContents.executeJavaScript("__gaiaDebug.jumpToMobiChapter(10)");
+          await wait(1200);
+          await mainWindow.webContents.executeJavaScript("__gaiaDebug.jumpToMobiChapter(0)");
+          await wait(1000);
+          await mainWindow.webContents.executeJavaScript("__gaiaDebug.setMode('spread')");
+          await wait(1600);
+          await capture('spread.png');
+          await mainWindow.webContents.executeJavaScript("__gaiaDebug.setMode('scroll')");
+          await wait(1600);
+          await capture('scroll.png');
+          await mainWindow.webContents.executeJavaScript("__gaiaDebug.setMode('single')");
+          await mainWindow.webContents.executeJavaScript("__gaiaDebug.setTheme('dark')");
+          await wait(1200);
+          await capture('night_reader.png');
+          console.log('SHOTS_DONE');
+          app.exit(0);
+          return;
+        }
+
         const book = await mainWindow.webContents.executeJavaScript(`(async () => {
           const lib = __gaiaDebug.getLibrary();
           return lib.find((b) => b.format === 'epub') || lib[0] || null;
@@ -395,10 +419,10 @@ function createWindow() {
         await capture('reader.png');
         await mainWindow.webContents.executeJavaScript('__gaiaDebug.openLongestChapter()');
         await wait(2500);
-        await mainWindow.webContents.executeJavaScript('__gaiaDebug.toggleSpread()');
+        await mainWindow.webContents.executeJavaScript("__gaiaDebug.setMode('spread')");
         await wait(1600);
         await capture('spread.png');
-        await mainWindow.webContents.executeJavaScript('__gaiaDebug.toggleNight()');
+        await mainWindow.webContents.executeJavaScript("__gaiaDebug.setTheme('dark')");
         await wait(900);
         await mainWindow.webContents.executeJavaScript("__gaiaDebug.showView('home')");
         await wait(1700);
