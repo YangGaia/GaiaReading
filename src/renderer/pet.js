@@ -72,29 +72,6 @@
   }
 
   /** 表情层布局：把表情格的脸中心对齐到半身照的脸中心，按宽度等比缩放。 */
-  function layoutFace() {
-    if (!ui.face || !ui.head) return;
-    const hb = FACE.halfbody;
-    const ex = FACE.expression;
-    const tile = FACE.tile;
-    const sheet = FACE.sheet;
-    // 显示缩放 = 半身照当前显示宽度 / 原图宽度
-    const s = (ui.body.clientWidth || 150) / sheet.w;
-    const hbCx = hb.x + hb.w / 2;
-    const hbCy = hb.y + hb.h / 2;
-    const headBox = FACE.headBox;
-    ui.face.style.left = Math.round((hbCx - tile.cx - headBox.x) * s) + 'px';
-    ui.face.style.top = Math.round((hbCy - tile.cy - headBox.y) * s) + 'px';
-    // 眼皮(眨眼)遮罩: 覆盖表情层眼睛区域, 与脸部中心对齐
-    const exCy = ex.y + ex.h / 2;
-    const eyeY = ex.y + ex.h * 0.44;
-    const lidW = Math.round(ex.w * 0.72 * s);
-    const lidH = Math.round(10 * s);
-    ui.lid.style.width = lidW + 'px';
-    ui.lid.style.height = lidH + 'px';
-    ui.lid.style.left = Math.round((hbCx - ex.w * 0.36 - headBox.x) * s) + 'px';
-    ui.lid.style.top = Math.round((hbCy - (exCy - eyeY) - headBox.y) * s - lidH / 2) + 'px';
-  }
 
   function pokeBounce() {
     if (!ui.body) return;
@@ -104,20 +81,7 @@
     window.setTimeout(() => ui.body.classList.remove('poke'), 350);
   }
 
-  function triggerBlink() {
-    if (!ui.lid || !saved.on || dragging) return;
-    ui.lid.classList.remove('blink');
-    void ui.lid.offsetWidth;
-    ui.lid.classList.add('blink');
-  }
 
-  function scheduleBlink() {
-    window.clearTimeout(blinkTimer);
-    blinkTimer = window.setTimeout(() => {
-      triggerBlink();
-      scheduleBlink();
-    }, 2600 + Math.random() * 2600);
-  }
 
   function triggerTilt() {
     if (!ui.body) return;
@@ -314,32 +278,23 @@
     headimg.draggable = false;
     headimg.alt = '';
 
-    const face = document.createElement('img');
-    face.className = 'gaia-pet-face';
-    face.src = FACE_IMG + encodeURIComponent('日常表情.png');
-    face.draggable = false;
-    face.alt = '';
-
-    const lid = document.createElement('div');
-    lid.className = 'gaia-pet-lid';
 
     const zzz = document.createElement('div');
     zzz.className = 'gaia-pet-zzz';
     zzz.textContent = 'Zzz';
     zzz.hidden = true;
 
-    head.append(headimg, face, lid);
+    head.appendChild(headimg);
     body.append(bodypart, head);
     root.append(bubble, body, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, body, bodypart, head, headimg, face, lid, zzz };
+    ui = { root, bubble, body, bodypart, head, headimg, zzz };
   }
 
   async function init() {
     if (loaded) return;
     loaded = true;
     build();
-    layoutFace();
     bind();
 
     const savedState = await window.api.stateGet('pet');
@@ -363,7 +318,6 @@
     ui.root.hidden = !saved.on;
     applyExpression('日常表情', true);
     animTimer = window.setInterval(tick, 1000);
-    scheduleBlink();
   }
 
   function setEnabled(on) {
