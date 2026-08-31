@@ -306,7 +306,6 @@ body.eye {
 }
 .gaia-pet-body.no-breathe { animation: none; }
 .gaia-pet-body.poke { animation: pet-poke 0.35s ease; }
-.gaia-pet-halfbody { display: block; width: 100%; height: auto; pointer-events: none; }
 .gaia-pet-face {
   position: absolute;
   pointer-events: none;
@@ -408,11 +407,39 @@ body.eye {
 
 
 
-/* 扭头跟随: 整个身体以脚为轴自然扭动 */
-.gaia-pet-stage {
-  position: relative;
+
+/* 纸娃娃: 头层旋转 / 身体 / 脖子垫片 */
+.gaia-pet-bodypart {
+  position: absolute;
+  left: 0;
+  bottom: 0;
   width: 100%;
-  height: 100%;
+  display: block;
+  pointer-events: none;
   transform-origin: 50% 100%;
   will-change: transform;
+}
+.gaia-pet-neck {
+  position: absolute;
+  left: 0;
+  top: 54.1%; /* 350/647 */
+  width: 100%;
+  display: block;
+  pointer-events: none;
+  z-index: 3;
+}
+.gaia-pet-head {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  transform-origin: 50% 100%;
+  will-change: transform;
+  z-index: 2;
+}
+.gaia-pet-headimg {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
 }

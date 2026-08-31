@@ -18,7 +18,7 @@
 
   const { PET_STATES, EVENTS, createBrain, decideState, timeoutState, lineFor, idleAction } = shared;
 
-  const IMG = 'images/pet/cells/';
+  const IMG = 'images/pet/parts/';
   const FACE_IMG = 'images/pet/faces/';
 
   /** 脸部标定（半身照 356x647，表情格约 254x256；坐标为估算，待主人确认）。 */
@@ -27,7 +27,8 @@
     expression: { x: 82, y: 103, w: 89, h: 79 },
     tile: { w: 134, h: 118, cx: 67.5, cy: 59.5 },
     sheet: { w: 356, h: 647 }, // 半身照原图尺寸, 用于显示缩放换算
-    turn: { rot: 2.2, x: 3, y: 1.5 }, // 整体扭头跟随: 旋转(度)/位移(px), 以脚为轴自然扭动
+    headOffsetY: 110, // 头层从半身照 y110 开始(头+脖子)
+    turn: { headRot: 7, headX: 3, headY: 1.2, bodyRot: 1.2, bodyX: 1.5 }, // 头层旋转/位移 + 身体轻微跟随
   };
 
   const DEFAULT_STATE = { on: true, x: null, y: null };
@@ -72,7 +73,7 @@
 
   /** 表情层布局：把表情格的脸中心对齐到半身照的脸中心，按宽度等比缩放。 */
   function layoutFace() {
-    if (!ui.face || !ui.halfbody) return;
+    if (!ui.face || !ui.head) return;
     const hb = FACE.halfbody;
     const ex = FACE.expression;
     const tile = FACE.tile;
@@ -81,10 +82,11 @@
     const s = (ui.body.clientWidth || 150) / sheet.w;
     const hbCx = hb.x + hb.w / 2;
     const hbCy = hb.y + hb.h / 2;
+    const headTop = FACE.headOffsetY;
     ui.face.style.width = Math.round(tile.w * s) + 'px';
     ui.face.style.height = Math.round(tile.h * s) + 'px';
     ui.face.style.left = Math.round((hbCx - tile.cx) * s) + 'px';
-    ui.face.style.top = Math.round((hbCy - tile.cy) * s) + 'px';
+    ui.face.style.top = Math.round((hbCy - tile.cy - headTop) * s) + 'px';
     // 眼皮(眨眼)遮罩: 覆盖表情层眼睛区域, 与脸部中心对齐
     const exCy = ex.y + ex.h / 2;
     const eyeY = ex.y + ex.h * 0.44;
@@ -93,24 +95,7 @@
     ui.lid.style.width = lidW + 'px';
     ui.lid.style.height = lidH + 'px';
     ui.lid.style.left = Math.round((hbCx - ex.w * 0.36) * s) + 'px';
-    ui.lid.style.top = Math.round((hbCy - (exCy - eyeY)) * s - lidH / 2) + 'px';
-  }
-
-  function showBubble(text) {
-    if (!ui.bubble) return;
-    if (!text) {
-      ui.bubble.hidden = true;
-      return;
-    }
-    ui.bubble.textContent = text;
-    ui.bubble.hidden = false;
-    ui.bubble.classList.remove('show');
-    void ui.bubble.offsetWidth;
-    ui.bubble.classList.add('show');
-    window.clearTimeout(bubbleTimer);
-    bubbleTimer = window.setTimeout(() => {
-      ui.bubble.classList.remove('show');
-    }, 2600);
+    ui.lid.style.top = Math.round((hbCy - (exCy - eyeY) - headTop) * s - lidH / 2) + 'px';
   }
 
   function pokeBounce() {
@@ -262,7 +247,7 @@
       save();
     }
 
-    // 扭头跟随鼠标: 整个身体以脚为轴自然扭动(旋转+位移), rAF 平滑逼近
+    // 转头跟随鼠标: 头层以脖子为轴旋转, 身体轻微跟随, 脖子垫片固定遮缝
     const followTarget = { x: 0, y: 0 };
     const followCurrent = { x: 0, y: 0 };
     let followRect = null;
@@ -272,7 +257,7 @@
       followRect = { left: r.left, top: r.top, w: r.width, h: r.height };
     }
     window.addEventListener('pointermove', (ev) => {
-      if (!saved.on || dragging || !ui.stage) return;
+      if (!saved.on || dragging || !ui.head) return;
       if (!followRect) updateFollowRect();
       if (!followRect) return;
       const cx = followRect.left + followRect.w / 2;
@@ -286,13 +271,15 @@
       followTarget.y = dy;
     });
     function followLoop() {
-      if (saved.on && ui.stage && !dragging) {
+      if (saved.on && ui.head && !dragging) {
         followCurrent.x += (followTarget.x - followCurrent.x) * 0.2;
         followCurrent.y += (followTarget.y - followCurrent.y) * 0.2;
         const x = followCurrent.x;
         const y = followCurrent.y;
         const t = FACE.turn;
-        ui.stage.style.transform = 'rotate(' + (x * t.rot).toFixed(2) + 'deg) translateX(' + (x * t.x).toFixed(2) + 'px) translateY(' + (y * t.y).toFixed(2) + 'px)';
+        // 头层转头(含头发), 以脖子底部为轴; 身体轻微同向跟随
+        ui.head.style.transform = 'rotate(' + (x * t.headRot).toFixed(2) + 'deg) translateX(' + (x * t.headX).toFixed(2) + 'px) translateY(' + (y * t.headY).toFixed(2) + 'px)';
+        if (ui.bodypart) ui.bodypart.style.transform = 'rotate(' + (x * t.bodyRot).toFixed(2) + 'deg) translateX(' + (x * t.bodyX).toFixed(2) + 'px)';
       }
       requestAnimationFrame(followLoop);
     }
@@ -313,35 +300,47 @@
     const body = document.createElement('div');
     body.className = 'gaia-pet-body';
 
-    const halfbody = document.createElement('img');
-    halfbody.className = 'gaia-pet-halfbody';
-    halfbody.src = IMG + encodeURIComponent('半身照.png');
-    halfbody.draggable = false;
-    halfbody.alt = '';
+    // 纸娃娃三层: 身体(肩以下) / 脖子垫片(固定遮缝) / 头层(可旋转, 头发跟着头走)
+    const bodypart = document.createElement('img');
+    bodypart.className = 'gaia-pet-bodypart';
+    bodypart.src = IMG + 'body.png';
+    bodypart.draggable = false;
+    bodypart.alt = '';
+
+    const neck = document.createElement('img');
+    neck.className = 'gaia-pet-neck';
+    neck.src = IMG + 'neck.png';
+    neck.draggable = false;
+    neck.alt = '';
+
+    const head = document.createElement('div');
+    head.className = 'gaia-pet-head';
+
+    const headimg = document.createElement('img');
+    headimg.className = 'gaia-pet-headimg';
+    headimg.src = IMG + 'head.png';
+    headimg.draggable = false;
+    headimg.alt = '';
 
     const face = document.createElement('img');
     face.className = 'gaia-pet-face';
-    face.src = IMG + encodeURIComponent('日常表情.png');
+    face.src = FACE_IMG + encodeURIComponent('日常表情.png');
     face.draggable = false;
     face.alt = '';
+
+    const lid = document.createElement('div');
+    lid.className = 'gaia-pet-lid';
 
     const zzz = document.createElement('div');
     zzz.className = 'gaia-pet-zzz';
     zzz.textContent = 'Zzz';
     zzz.hidden = true;
 
-    const lid = document.createElement('div');
-    lid.className = 'gaia-pet-lid';
-
-
-    const stage = document.createElement('div');
-    stage.className = 'gaia-pet-stage';
-
-    body.append(halfbody, face, lid);
-    stage.appendChild(body);
-    root.append(bubble, stage, zzz);
+    head.append(headimg, face, lid);
+    body.append(bodypart, neck, head);
+    root.append(bubble, body, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, stage, body, halfbody, face, zzz, lid };
+    ui = { root, bubble, body, bodypart, neck, head, headimg, face, lid, zzz };
   }
 
   async function init() {
