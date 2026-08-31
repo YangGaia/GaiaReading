@@ -28,7 +28,7 @@
     tile: { w: 134, h: 118, cx: 67.5, cy: 59.5 },
     sheet: { w: 356, h: 647 }, // 半身照原图尺寸, 用于显示缩放换算
     headBox: { x: 100, y: 0, w: 170, h: 220 }, // 主人标定的头部区域: x100-270, y0-220
-    turn: { turnY: 9, turnX: 7, tx: 2, ty: 1.5 }, // 3D转头: rotateY左右/rotateX上下 + 位移, 身体不动
+    turn: { turnY: 9, turnX: 7, tx: 2, ty: 1.5, bodyY: 5 }, // 3D转头: 头rotateY左右/rotateX上下, 身体rotateY小幅跟随
   };
 
   const DEFAULT_STATE = { on: true, x: null, y: null };
@@ -241,7 +241,8 @@
         const t = FACE.turn;
         // 3D 转头: 左右 rotateY / 上下 rotateX + 轻微位移, 以脖子为轴; 身体不动
         ui.head.style.transform = 'rotateY(' + (x * t.turnY).toFixed(2) + 'deg) rotateX(' + (y * t.turnX).toFixed(2) + 'deg) translateX(' + (x * t.tx).toFixed(2) + 'px) translateY(' + (y * t.ty).toFixed(2) + 'px)';
-        if (ui.bodypart) ui.bodypart.style.transform = '';
+        // 身体同向 rotateY 小幅转身(约头的55%), 遮住头身衔接缝隙
+        if (ui.bodypart) ui.bodypart.style.transform = 'rotateY(' + (x * t.bodyY).toFixed(2) + 'deg)';
       }
       requestAnimationFrame(followLoop);
     }
