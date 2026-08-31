@@ -59,6 +59,7 @@
     const pageAtBookmark = __gaiaDebug.getPaginatorPage();
     const scrollAtBookmark = __gaiaDebug.getPaginatorScroll();
     const probeAtBookmark = __gaiaDebug.getAnchorProbe();
+    const marqueeAtReader = __gaiaDebug.bgmMarqueeInfo();
     await __gaiaDebug.setLineHeight(2.4);
     await new Promise((r) => setTimeout(r, 700));
     await __gaiaDebug.jumpToMobiChapter(idxAtBookmark);
@@ -87,7 +88,7 @@
     const habitTheme = __gaiaDebug.getTheme();
     const habitSpread = __gaiaDebug.getSpreadMode();
     const habitOk = habitTheme === 'eye' && habitSpread === true;
-    return JSON.stringify({ status, contentLen, chapters, tocCount, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, moved, crossed, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, layout: __gaiaDebug.getPaginatorLayout() });
+    return JSON.stringify({ status, contentLen, chapters, tocCount, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, moved, crossed, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
   } catch (e) {
     console.error('MOBI_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';

@@ -1727,6 +1727,7 @@ window.__gaiaDebug = {
   bgmNext: () => window.GaiaBgm.next(),
   bgmSetVolume: (v) => window.GaiaBgm.setVolume(v),
   bgmToggle: () => window.GaiaBgm.toggle(),
+  bgmMarqueeInfo: () => window.GaiaBgm.marqueeInfo(),
   getReaderTitle: () => els.readerTitle.textContent,
   getMobiBackground: () => {
     const c = state.current;
