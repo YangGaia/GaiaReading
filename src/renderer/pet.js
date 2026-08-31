@@ -52,26 +52,16 @@
     });
   }
 
-  /** 切换表情：短暂淡出后换图淡入。 */
-  function applyExpression(name, instant) {
+  /** 切换表情：直接替换, 不做淡入淡出, 避免过渡叠加阴影。 */
+  /** 切换表情：直接替换, 不做淡入淡出, 避免过渡叠加阴影。 */
+  function applyExpression(name) {
     if (!ui.face || !name) return;
     const file = FACE_IMG + encodeURIComponent(name + '.png');
     if (ui.face.dataset.exp === name) return;
     ui.face.dataset.exp = name;
-    if (instant) {
-      ui.face.src = file;
-      ui.face.style.opacity = '1';
-      return;
-    }
-    ui.face.style.opacity = '0';
-    window.setTimeout(() => {
-      ui.face.src = file;
-      ui.face.onload = () => {
-        ui.face.style.opacity = '1';
-      };
-    }, 150);
+    ui.face.src = file;
+    ui.face.style.opacity = '1';
   }
-
   /** 表情层布局：把表情格的脸中心对齐到半身照的脸中心，按宽度等比缩放。 */
 
 
