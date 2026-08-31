@@ -50,6 +50,26 @@
       prevIdx = curIdx;
       prevScroll = curScroll;
     }
+    // 书签内容锚点：长章节加书签 → 改行距重排 → 回章首再跳回，应回到同一段
+    await __gaiaDebug.addBookmark();
+    await new Promise((r) => setTimeout(r, 400));
+    const bmList = __gaiaDebug.getBookmarks();
+    const bm = bmList[bmList.length - 1];
+    const idxAtBookmark = __gaiaDebug.getMobiIndex();
+    const pageAtBookmark = __gaiaDebug.getPaginatorPage();
+    const scrollAtBookmark = __gaiaDebug.getPaginatorScroll();
+    await __gaiaDebug.setLineHeight(2.4);
+    await new Promise((r) => setTimeout(r, 700));
+    await __gaiaDebug.jumpToMobiChapter(idxAtBookmark);
+    await new Promise((r) => setTimeout(r, 500));
+    await __gaiaDebug.jumpToBookmark(bm);
+    await new Promise((r) => setTimeout(r, 800));
+    const pageAfterJump = __gaiaDebug.getPaginatorPage();
+    const snippetAfterJump = __gaiaDebug.getAnchorSnippet();
+    const anchorOk = !!(bm && bm.anchor && typeof bm.anchor.off === 'number') && __gaiaDebug.getAnchorInView(bm.anchor.off) && pageAfterJump >= 0;
+    const bmAnchorOff = bm && bm.anchor ? bm.anchor.off : -1;
+    const bmAnchorSnippet = bm && bm.anchor ? bm.anchor.snippet : '';
+    const scrollAfterJump = __gaiaDebug.getPaginatorScroll();
     // 阅读习惯与主题：设置护眼+双页后重开，应立即生效并延续
     await __gaiaDebug.setTheme('eye');
     if (!__gaiaDebug.getSpreadMode()) await __gaiaDebug.setMode('spread');
@@ -66,7 +86,7 @@
     const habitTheme = __gaiaDebug.getTheme();
     const habitSpread = __gaiaDebug.getSpreadMode();
     const habitOk = habitTheme === 'eye' && habitSpread === true;
-    return JSON.stringify({ status, contentLen, chapters, tocCount, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, moved, crossed, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk });
+    return JSON.stringify({ status, contentLen, chapters, tocCount, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, moved, crossed, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump });
   } catch (e) {
     console.error('MOBI_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';

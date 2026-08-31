@@ -221,7 +221,7 @@ class Paginator {
     if (!this.doc) return;
     this.currentPage = Math.max(0, Math.min(this.totalPages - 1, page));
     const el = this.doc.documentElement;
-    el.scrollLeft = this.currentPage * this.colStep;
+    this._scrollTo(this.currentPage * this.colStep);
     if (this.onChange) this.onChange();
   }
 
@@ -242,6 +242,130 @@ class Paginator {
   /** 当前页比例 0-100。 */
   pagePercent() {
     return this.totalPages > 1 ? ((this.currentPage + 1) / this.totalPages) * 100 : 100;
+  }
+
+  /** 同时滚动 html 与 body，兼容不同滚动容器。 */
+  _scrollTo(left) {
+    if (!this.doc) return;
+    this.doc.documentElement.scrollLeft = left;
+    if (this.doc.body) this.doc.body.scrollLeft = left;
+  }
+
+  /** 当前页顶部可见文本的全局偏移（正文 textContent 内），供书签使用。 */
+  anchor() {
+    if (!this.doc) return null;
+    const doc = this.doc;
+    const w = this.pageWidth;
+    const h = this.host.clientHeight || 600;
+    const xs = [Math.max(4, Math.floor(w / 2)), Math.max(4, 12), Math.max(4, w - 12)];
+    for (let y = 8; y <= h; y += 12) {
+      for (const x of xs) {
+        let range = null;
+        try { range = doc.caretRangeFromPoint(x, y); } catch (e) {}
+        if (!range || !range.startContainer || range.startContainer.nodeType !== 3) continue;
+        let r = null;
+        try { r = range.getBoundingClientRect(); } catch (e) {}
+        if (!r || r.left < -2 || r.left >= w - 2 || r.top < -2) continue;
+        const off = this._textOffsetOfNode(range.startContainer, range.startOffset);
+        if (off >= 0) return { off, snippet: this._snippetAt(off) };
+      }
+    }
+    return null;
+  }
+
+
+
+  /** 文本节点（含节点内偏移）→ 正文 textContent 全局偏移。 */
+  _textOffsetOfNode(node, offsetInNode) {
+    if (!this.doc) return -1;
+    const walker = this.doc.createTreeWalker(this.doc.body, NodeFilter.SHOW_TEXT);
+    let total = 0;
+    let n;
+    while ((n = walker.nextNode())) {
+      const len = (n.textContent || "").length;
+      if (n === node) return total + Math.min(offsetInNode || 0, len);
+      total += len;
+    }
+    return -1;
+  }
+
+  /** 全局偏移 → { node, offset }。 */
+  _nodeAtTextOffset(off) {
+    if (!this.doc) return { node: null, offset: 0 };
+    const walker = this.doc.createTreeWalker(this.doc.body, NodeFilter.SHOW_TEXT);
+    let total = 0;
+    let n = null;
+    while ((n = walker.nextNode())) {
+      const len = (n.textContent || "").length;
+      if (off < total + len) return { node: n, offset: off - total };
+      total += len;
+    }
+    return { node: n, offset: n ? (n.textContent || "").length : 0 };
+  }
+
+  /** 取全局偏移处的一段文字（用于书签展示/校验）。 */
+  _snippetAt(off) {
+    const pos = this._nodeAtTextOffset(off);
+    if (!pos.node) return "";
+    return String(pos.node.textContent || "").slice(pos.offset, pos.offset + 24).replace(/\s+/g, " ").trim();
+  }
+
+  /** 定位到包含全局文本偏移 off 的列（页），返回页索引；失败返回 -1。 */
+  locate(off) {
+    if (!this.doc || off == null) return -1;
+    const pos = this._nodeAtTextOffset(off);
+    if (!pos.node) return -1;
+    const doc = this.doc;
+    this._scrollTo(0);
+    let rect = null;
+    try {
+      const r = doc.createRange();
+      const len = (pos.node.textContent || "").length;
+      const start = Math.min(pos.offset, Math.max(0, len - 1));
+      const end = Math.min(start + 1, len);
+      if (len === 0) throw new Error("empty text");
+      r.setStart(pos.node, start);
+      r.setEnd(pos.node, end);
+      const rects = r.getClientRects();
+      if (rects && rects.length) rect = rects[0];
+    } catch (e) {}
+    if (!rect && pos.node.parentElement) rect = pos.node.parentElement.getBoundingClientRect();
+    if (!rect) return -1;
+    const page = Math.floor(rect.left / this.colStep);
+    return Math.max(0, Math.min(this.totalPages - 1, page));
+  }
+
+  /** 校验全局偏移处文字是否落在当前可视页内。 */
+  anchorInView(off) {
+    if (!this.doc || off == null) return false;
+    const pos = this._nodeAtTextOffset(off);
+    if (!pos.node) return false;
+    const doc = this.doc;
+    this._scrollTo(this.currentPage * this.colStep);
+    try {
+      const r = doc.createRange();
+      const len = (pos.node.textContent || '').length;
+      const start = Math.min(pos.offset, Math.max(0, len - 1));
+      r.setStart(pos.node, start);
+      r.setEnd(pos.node, Math.min(start + 1, len));
+      const rects = r.getClientRects();
+      if (!rects || !rects.length) return false;
+      const rect = rects[0];
+      const h = this.host.clientHeight || 600;
+      return rect.left >= -2 && rect.left < this.pageWidth - 2 && rect.top >= -2 && rect.top < h - 2;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** TXT 专用：全局偏移所在 <p> 的序号（0 起），找不到返回 -1。 */
+  paragraphIndexOfTextOffset(off) {
+    const pos = this._nodeAtTextOffset(off);
+    if (!this.doc || !pos.node) return -1;
+    let el = pos.node.parentElement;
+    while (el && el.tagName !== "P") el = el.parentElement;
+    if (!el) return -1;
+    return Array.prototype.indexOf.call(this.doc.body.querySelectorAll("p"), el);
   }
 
   reflow() {

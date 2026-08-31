@@ -2,7 +2,7 @@
 
 const $ = (id) => document.getElementById(id);
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const { addBookmark: addBookmarkToMap, removeBookmark: removeBookmarkFromMap } = window.GaiaBookmarks;
+const { addBookmark: addBookmarkToMap, removeBookmark: removeBookmarkFromMap, renameBookmark: renameBookmarkFromMap } = window.GaiaBookmarks;
 const {
   removeBook: removeBookFromLibrary,
   removeBooks: removeBooksFromLibrary,
@@ -10,6 +10,7 @@ const {
   removeEntries: removeEntriesFromMap,
 } = window.GaiaLibrary;
 const { paragraphsToHtml } = window.GaiaTxtHtml;
+const { splitTxtParagraphs, detectTxtChapters, chapterTitleForParagraph } = window.GaiaTxtChapters;
 const { epubDisplayPercent } = window.GaiaEpubProgress;
 
 const FONTS = {
@@ -754,6 +755,8 @@ async function openTxt(book) {
     if (state.current && state.current.flow) state.current.flow.setPages(0, total);
   };
   state.current.paginator.setTheme(state.prefs.theme);
+  const paragraphs = splitTxtParagraphs(res.text);
+  state.current.txtChapters = detectTxtChapters(paragraphs);
   const html = paragraphsToHtml(res.text) || '<p></p>';
   await state.current.paginator.render(html, '');
   if (state.current.flow) state.current.flow.setPages(0, state.current.paginator.totalPages || 1);
@@ -864,6 +867,68 @@ function togglePanel(which) {
   resizeEpubRendition();
 }
 
+function mobiChapterTitle(mobi, ch) {
+  if (!mobi) return '第 ' + ((ch || 0) + 1) + ' 节';
+  const label = findTocLabel(mobi.toc || [], ch);
+  return label || '第 ' + ((ch || 0) + 1) + ' 节';
+}
+
+function findTocLabel(items, ch) {
+  for (const it of items || []) {
+    if (it.index === ch && it.label && String(it.label).trim()) return String(it.label).trim();
+    if (it.children && it.children.length) {
+      const r = findTocLabel(it.children, ch);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+
+function epubChapterTitle(epub, spineIndex) {
+  try {
+    const items = (epub && epub.spine && epub.spine.spineItems) || [];
+    const item = items[spineIndex];
+    const nav = epub && epub.navigation && epub.navigation.toc;
+    if (item && item.href && nav) {
+      const label = findNavLabel(nav, item.href);
+      if (label) return label;
+    }
+  } catch (e) {}
+  return '第 ' + ((spineIndex || 0) + 1) + ' 章';
+}
+
+function findNavLabel(items, href) {
+  for (const it of items || []) {
+    if (it.href && (it.href === href || href.indexOf(it.href) === 0 || it.href.indexOf(href) === 0)) {
+      if (it.label && String(it.label).trim()) return String(it.label).trim();
+    }
+    if (it.subitems && it.subitems.length) {
+      const r = findNavLabel(it.subitems, href);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+
+function bookmarkChapterLabel(bm, c) {
+  if (bm && bm.chapter && String(bm.chapter).trim()) return String(bm.chapter).trim();
+  if (!bm || !bm.loc) return '未知位置';
+  if (c && c.format === 'pdf') return '第 ' + (parseInt(bm.loc, 10) || 1) + ' 页';
+  const m = String(bm.loc).match(/^page:(\d+):(\d+)/);
+  if (m) {
+    const ch = parseInt(m[1], 10) || 0;
+    if (c && (c.format === 'mobi' || c.format === 'azw3')) return mobiChapterTitle(c.mobi, ch);
+    return '第 ' + (ch + 1) + ' 节';
+  }
+  if (c && c.format === 'txt') return '全文';
+  return '未知章节';
+}
+
+function bookmarkPercentLabel(bm) {
+  if (bm && typeof bm.percent === 'number') return '进度 ' + bm.percent.toFixed(1) + '%';
+  return '进度 —';
+}
+
 function renderBookmarksPanel() {
   const c = state.current;
   els.bookmarksPanel.innerHTML = '';
@@ -876,12 +941,34 @@ function renderBookmarksPanel() {
     const row = document.createElement('div');
     row.className = 'bookmark-row';
 
-    const a = document.createElement('a');
-    a.href = '#';
-    a.textContent = bm.label;
-    a.addEventListener('click', (ev) => {
+    const main = document.createElement('div');
+    main.className = 'bookmark-main';
+
+    const title = document.createElement('span');
+    title.className = 'bookmark-title';
+    title.textContent = bm.name || bm.label || '书签 ' + (index + 1);
+    title.title = '双击书名或点 ✎ 重命名';
+    title.addEventListener('click', (ev) => {
       ev.preventDefault();
-      jumpToBookmark(bm.loc);
+      jumpToBookmark(bm);
+    });
+    title.addEventListener('dblclick', (ev) => {
+      ev.preventDefault();
+      makeBookmarkNameEditable(title, bm, index);
+    });
+
+    const meta = document.createElement('div');
+    meta.className = 'bookmark-meta';
+    meta.textContent = bookmarkChapterLabel(bm, c) + ' · ' + bookmarkPercentLabel(bm);
+
+    const edit = document.createElement('button');
+    edit.className = 'btn bookmark-edit';
+    edit.textContent = '✎';
+    edit.title = '重命名书签';
+    edit.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      makeBookmarkNameEditable(title, bm, index);
     });
 
     const del = document.createElement('button');
@@ -894,17 +981,47 @@ function renderBookmarksPanel() {
       removeBookmarkAt(index);
     });
 
-    row.appendChild(a);
+    main.appendChild(title);
+    main.appendChild(meta);
+    row.appendChild(main);
+    row.appendChild(edit);
     row.appendChild(del);
     els.bookmarksPanel.appendChild(row);
   });
 }
 
+function makeBookmarkNameEditable(titleEl, bm, index) {
+  const input = document.createElement('input');
+  input.className = 'bookmark-name-input';
+  input.value = bm.name || bm.label || '书签 ' + (index + 1);
+  titleEl.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const commit = async (save) => {
+    if (done) return;
+    done = true;
+    const v = input.value.trim();
+    if (save && v && v !== (bm.name || bm.label)) {
+      await renameBookmarkAt(index, v);
+    } else {
+      renderBookmarksPanel();
+    }
+  };
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') commit(true);
+    else if (ev.key === 'Escape') commit(false);
+  });
+  input.addEventListener('blur', () => commit(true));
+}
+
 async function addBookmark() {
   const c = state.current;
   if (!c) return;
-  let loc;
-  let label;
+  let loc = '';
+  let anchor = null;
+  let chapter = '';
+  let percent = null;
   if (c.format === 'epub') {
     const locObj = c.rendition && c.rendition.currentLocation();
     if (!locObj || !locObj.start) {
@@ -912,18 +1029,46 @@ async function addBookmark() {
       return;
     }
     loc = locObj.start.cfi;
-    label = '书签 ' + (getBookmarkCount() + 1);
+    percent = typeof state.current.displayPercent === 'number' ? state.current.displayPercent : 0;
+    chapter = epubChapterTitle(c.epub, locObj.start.index);
   } else if (c.format === 'pdf') {
     loc = String(c.page);
-    label = '书签 ' + (getBookmarkCount() + 1) + '（第 ' + c.page + ' 页）';
+    chapter = '第 ' + c.page + ' 页';
+    percent = c.pages ? (c.page / c.pages) * 100 : 0;
   } else if (c.paginator) {
-    loc = 'page:' + (c.mobi && c.flow ? c.flow.chapter : 0) + ':' + c.paginator.currentPage;
-    label = '书签 ' + (getBookmarkCount() + 1) + (c.mobi && c.flow ? '（第 ' + (c.flow.chapter + 1) + ' 节第 ' + (c.paginator.currentPage + 1) + ' 页）' : '（第 ' + (c.paginator.currentPage + 1) + ' 页）');
+    const ch = c.flow ? c.flow.chapter : 0;
+    const a = c.paginator.anchor();
+    if (a && typeof a.off === 'number') {
+      anchor = c.format === 'txt' ? { off: a.off, snippet: a.snippet || '' } : { ch, off: a.off, snippet: a.snippet || '' };
+      loc = 'anchor:' + JSON.stringify(anchor);
+    } else {
+      loc = 'page:' + ch + ':' + c.paginator.currentPage;
+    }
+    percent = c.flow ? c.flow.percent() : c.paginator.pagePercent();
+    if (c.format === 'txt') {
+      const paraIdx = a ? c.paginator.paragraphIndexOfTextOffset(a.off) : -1;
+      const t = paraIdx >= 0 ? chapterTitleForParagraph(c.txtChapters, paraIdx) : null;
+      chapter = t || (a && a.snippet ? '…' + a.snippet + '…' : '全文');
+    } else {
+      chapter = mobiChapterTitle(c.mobi, ch);
+    }
   } else {
     loc = String(els.readerContent.scrollTop);
-    label = '书签 ' + (getBookmarkCount() + 1);
+    chapter = '全文';
+    percent = 0;
   }
-  state.bookmarks = addBookmarkToMap(state.bookmarks, c.path, { label, loc });
+  const name = '书签 ' + (getBookmarkCount() + 1);
+  const bookmark = {
+    name,
+    label: name,
+    loc,
+    format: c.format,
+    chapter,
+    percent: percent == null ? null : Math.round(percent * 100) / 100,
+    anchor,
+    addedAt: Date.now(),
+  };
+  state.bookmarks = addBookmarkToMap(state.bookmarks, c.path, bookmark);
   await saveBookmarksNow();
   renderBookmarksPanel();
   els.readerStatus.textContent = '已添加书签';
@@ -938,33 +1083,57 @@ async function removeBookmarkAt(index) {
   els.readerStatus.textContent = '书签已删除';
 }
 
+async function renameBookmarkAt(index, name) {
+  const c = state.current;
+  if (!c) return;
+  state.bookmarks = renameBookmarkFromMap(state.bookmarks, c.path, index, name);
+  await saveBookmarksNow();
+  renderBookmarksPanel();
+  els.readerStatus.textContent = '书签已重命名';
+}
+
 function getBookmarkCount() {
   return state.current ? (state.bookmarks[state.current.path] || []).length : 0;
 }
 
-async function jumpToBookmark(loc) {
+async function jumpToBookmark(bm) {
   const c = state.current;
-  if (!c) return;
-  if (c.format === 'epub') c.rendition.display(loc);
-  else if (c.paginator) {
-    const parts = String(loc).split(':');
-    const chapter = parseInt(parts[1], 10) || 0;
-    const page = parseInt(parts[2], 10) || 0;
-    if (c.format === 'mobi' || c.format === 'azw3') {
-      await loadMobiChapter(chapter, { page });
-    } else {
-      c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
-      c.paginator.showPage(page);
-    }
-    updateMobiProgress(true);
+  if (!c || !bm) return;
+  const loc = bm.loc;
+  if (c.format === 'epub') {
+    if (loc) c.rendition.display(loc);
   } else if (c.format === 'pdf') {
     c.page = parseInt(loc, 10) || 1;
     await renderPdfPage();
+  } else if (c.paginator) {
+    if (bm.anchor && typeof bm.anchor.off === 'number') {
+      const ch = typeof bm.anchor.ch === 'number' ? bm.anchor.ch : (c.flow ? c.flow.chapter : 0);
+      if (c.format === 'mobi' || c.format === 'azw3') {
+        await loadMobiChapter(ch, {});
+      } else {
+        c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
+      }
+      const page = c.paginator.locate(bm.anchor.off);
+      if (page >= 0) {
+        c.paginator.showPage(page);
+        if (c.flow) c.flow.page = page;
+      }
+    } else if (loc) {
+      const parts = String(loc).split(':');
+      const chapter = parseInt(parts[1], 10) || 0;
+      const page = parseInt(parts[2], 10) || 0;
+      if (c.format === 'mobi' || c.format === 'azw3') {
+        await loadMobiChapter(chapter, { page });
+      } else {
+        c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
+        c.paginator.showPage(page);
+      }
+    }
+    updateMobiProgress(true);
   } else {
     els.readerContent.scrollTop = parseInt(loc, 10) || 0;
   }
 }
-
 /* ===== 粒子特效（仅首页） ===== */
 const fx = {
   canvas: null,
@@ -1433,6 +1602,26 @@ window.__gaiaDebug = {
     return els.readerContent.scrollTop;
   },
   jumpToMobiChapter: (idx) => loadMobiChapter(idx, { page: 0 }),
+  getBookmarks: () => (state.current ? state.bookmarks[state.current.path] || [] : []),
+  jumpToBookmark: (bm) => jumpToBookmark(bm),
+  getPaginatorScroll: () => {
+    const c = state.current;
+    if (!c || !c.paginator || !c.paginator.doc) return null;
+    const d = c.paginator.doc;
+    return {
+      page: c.paginator.currentPage,
+      total: c.paginator.totalPages,
+      colStep: c.paginator.colStep,
+      htmlScroll: d.documentElement.scrollLeft,
+      bodyScroll: d.body ? d.body.scrollLeft : -1,
+      winX: c.paginator.frame ? c.paginator.frame.contentWindow.scrollX : -1,
+      htmlW: d.documentElement.scrollWidth,
+      hostW: c.paginator.host ? c.paginator.host.clientWidth : 0,
+      frameW: c.paginator.frame ? c.paginator.frame.clientWidth : 0,
+    };
+  },
+  getAnchorSnippet: () => (state.current && state.current.paginator ? ((state.current.paginator.anchor() || {}).snippet || '') : ''),
+  getAnchorInView: (off) => (state.current && state.current.paginator ? state.current.paginator.anchorInView(off) : false),
   getReaderTitle: () => els.readerTitle.textContent,
   getMobiBackground: () => {
     const c = state.current;
@@ -1456,7 +1645,7 @@ window.__gaiaDebug = {
     if (state.current && state.current.format === 'epub' && state.current.rendition) {
       try { state.current.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
     }
-    if (state.current && state.current.format === 'txt') applyTxtTypography();
+    if (state.current && state.current.paginator) applyMobiTypography();
     if (isSettingsOpen()) updateSettingsValues();
     rememberSettings();
   },

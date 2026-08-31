@@ -111,6 +111,13 @@ body.dark {
 .bookmark-row a { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bookmark-delete { padding: 2px 8px; font-size: 12px; border-radius: 4px; color: var(--danger); border-color: var(--danger); background: var(--surface); cursor: pointer; }
 .bookmark-delete:hover { background: var(--danger-soft); }
+.bookmark-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bookmark-title { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.bookmark-title:hover { color: var(--accent); }
+.bookmark-meta { font-size: 11px; color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-edit { padding: 2px 7px; font-size: 12px; border-radius: 4px; color: var(--text-soft); border-color: var(--border-strong); background: var(--surface); cursor: pointer; }
+.bookmark-edit:hover { background: var(--accent-soft); color: var(--accent); }
+.bookmark-name-input { flex: 1; min-width: 0; font-size: 13px; padding: 2px 6px; border: 1px solid var(--accent); border-radius: 4px; background: var(--surface); color: var(--text); outline: none; }
 #reader-content { flex: 1; overflow: auto; background: var(--reader-bg); text-align: center; position: relative; }
 .paginator-frame { border: 0; display: block; margin: 0 auto; background: transparent; box-shadow: 0 2px 18px rgba(0,0,0,.12); }
 #txt-content { padding: 32px 40px; max-width: 720px; margin: 0 auto; white-space: pre-wrap; word-break: break-word; line-height: 1.8; font-size: 16px; text-align: left; color: var(--reader-text); }

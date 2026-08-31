@@ -133,7 +133,7 @@ function createWindow() {
             console.log('DEBUG_TXT:', txtStatus);
             try {
               const parsed = JSON.parse(txtStatus);
-              debugOk = parsed.contentLen > 0 && parsed.totalPages > 1 && parsed.pageAfter > parsed.pageBefore && parsed.pctMoved === true && parsed.pCount >= 1;
+              debugOk = parsed.contentLen > 0 && parsed.totalPages > 1 && parsed.pageAfter > parsed.pageBefore && parsed.pctMoved === true && parsed.pCount >= 1 && parsed.anchorOk === true;
               if (!debugOk) console.error('DEBUG_TXT_CHECKS_FAILED:', JSON.stringify(parsed));
             } catch (parseErr) {
               debugOk = false;
@@ -155,7 +155,8 @@ function createWindow() {
                 parsed.moved > 0 &&
                 parsed.pctMoved === true &&
                 parsed.eyeOk === true &&
-                parsed.habitOk === true;
+                parsed.habitOk === true &&
+                parsed.anchorOk === true;
               if (!debugOk) console.error('DEBUG_MOBI_CHECKS_FAILED:', JSON.stringify(parsed));
             } catch (parseErr) {
               debugOk = false;
@@ -209,6 +210,9 @@ function createWindow() {
               const progressWidth = __gaiaDebug.getProgressWidth();
               await __gaiaDebug.addBookmark();
               const countAfterAdd = __gaiaDebug.getBookmarkCount();
+              const bmInfo = __gaiaDebug.getBookmarks();
+              const bmChapter = bmInfo.length ? (bmInfo[bmInfo.length - 1].chapter || '') : '';
+              const bmPercent = bmInfo.length ? bmInfo[bmInfo.length - 1].percent : null;
               await __gaiaDebug.removeBookmarkAt(0);
               const countAfterRemove = __gaiaDebug.getBookmarkCount();
               __gaiaDebug.togglePanel('bookmarks');
@@ -286,7 +290,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -332,6 +336,8 @@ function createWindow() {
               parsed.shelfOrderAfterRead[0] === DEBUG_OPEN_PATH &&
               parsed.shelfProgressCount >= 1 &&
               parsed.countAfterAdd === 1 &&
+              parsed.bmChapter.length > 0 &&
+              typeof parsed.bmPercent === 'number' && parsed.bmPercent >= 0 &&
               parsed.countAfterRemove === 0 &&
               parsed.bookmarksOpen === true &&
               parsed.bookmarksClosed === true &&

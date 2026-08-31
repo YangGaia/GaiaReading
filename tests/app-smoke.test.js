@@ -121,3 +121,16 @@ test('EPUB 行距跟随用户设置且切换时即时生效', () => {
   const setSeg = app.slice(app.indexOf('setLineHeight: (lh)'));
   assert.ok(setSeg.includes('applyReaderStyles(contents)'), 'setLineHeight 应立即重注入 EPUB 阅读样式');
 });
+
+test('书签支持内容锚点、重命名与 TXT 章节识别', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const bm = fs.readFileSync(path.join(root, 'src', 'shared', 'bookmarks.js'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
+  assert.ok(bm.includes('function renameBookmark'), '书签库应支持重命名');
+  assert.ok(app.includes('renameBookmarkFromMap'), '渲染进程应接入重命名');
+  assert.ok(app.includes('paginator.anchor()'), '应通过内容锚点定位书签');
+  assert.ok(app.includes('paginator.locate('), '跳转应使用内容锚点重新定位');
+  assert.ok(app.includes('txtChapters'), '应识别 TXT 章节');
+  assert.ok(html.includes('txt-chapters.js'), '应加载 TXT 章节识别模块');
+  assert.ok(fs.existsSync(path.join(root, 'src', 'shared', 'txt-chapters.js')), 'txt-chapters 模块缺失');
+});

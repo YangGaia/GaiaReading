@@ -1,3 +1,5 @@
+'use strict';
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory();
@@ -29,5 +31,23 @@
     return (map[pathKey] || []).findIndex((b) => b.loc === loc);
   }
 
-  return { addBookmark, removeBookmark, findBookmarkIndex };
+  function renameBookmark(map, pathKey, index, name) {
+    const list = (map[pathKey] || []).slice();
+    if (index < 0 || index >= list.length) return map;
+    const trimmed = String(name == null ? '' : name).trim();
+    if (!trimmed) return map;
+    const nextList = list.slice();
+    nextList[index] = Object.assign({}, list[index], { name: trimmed });
+    const next = Object.assign({}, map);
+    next[pathKey] = nextList;
+    return next;
+  }
+
+  function bookmarkName(bm, index) {
+    if (bm && bm.name && String(bm.name).trim()) return String(bm.name).trim();
+    if (bm && bm.label) return String(bm.label).trim();
+    return '书签 ' + ((index || 0) + 1);
+  }
+
+  return { addBookmark, removeBookmark, findBookmarkIndex, renameBookmark, bookmarkName };
 });
