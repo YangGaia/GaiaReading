@@ -276,27 +276,43 @@
       ui.body.classList.remove('drop');
       void ui.body.offsetWidth;
       ui.body.classList.add('drop');
+      updateFollowRect();
       save();
     }
 
-    // 视线跟随鼠标: 眼睛层按鼠标相对桌宠位置微移
-    let lastMove = 0;
+    // 视线跟随鼠标: pointermove 只记录目标方向, rAF 循环平滑逼近, 避免生硬卡顿
+    const followTarget = { x: 0, y: 0 };
+    const followCurrent = { x: 0, y: 0 };
+    let followRect = null;
+    function updateFollowRect() {
+      if (!ui.root) return;
+      const r = ui.root.getBoundingClientRect();
+      followRect = { left: r.left, top: r.top, w: r.width, h: r.height };
+    }
     window.addEventListener('pointermove', (ev) => {
       if (!saved.on || dragging || !ui.eyes || ui.eyes.hidden) return;
-      const now = performance.now();
-      if (now - lastMove < 16) return;
-      lastMove = now;
-      const rect = ui.root.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      let dx = Math.max(-1, Math.min(1, (ev.clientX - cx) / (rect.width / 2 || 1)));
-      let dy = Math.max(-1, Math.min(1, (ev.clientY - cy) / (rect.height / 2 || 1)));
+      if (!followRect) updateFollowRect();
+      if (!followRect) return;
+      const cx = followRect.left + followRect.w / 2;
+      const cy = followRect.top + followRect.h / 2;
+      let dx = Math.max(-1, Math.min(1, (ev.clientX - cx) / (followRect.w / 2 || 1)));
+      let dy = Math.max(-1, Math.min(1, (ev.clientY - cy) / (followRect.h / 2 || 1)));
       // 非线性曲线: 中心附近几乎不动, 远离时才缓慢加大, 减少穿模
       dx = Math.sign(dx) * Math.pow(Math.abs(dx), 1.6);
       dy = Math.sign(dy) * Math.pow(Math.abs(dy), 1.6);
-      const shift = FACE.maxShift;
-      ui.eyes.style.transform = 'translate(' + (dx * shift.x).toFixed(2) + 'px,' + (dy * shift.y).toFixed(2) + 'px)';
+      followTarget.x = dx * FACE.maxShift.x;
+      followTarget.y = dy * FACE.maxShift.y;
     });
+    function followLoop() {
+      if (saved.on && ui.eyes && !ui.eyes.hidden && !dragging) {
+        followCurrent.x += (followTarget.x - followCurrent.x) * 0.18;
+        followCurrent.y += (followTarget.y - followCurrent.y) * 0.18;
+        ui.eyes.style.transform = 'translate(' + followCurrent.x.toFixed(2) + 'px,' + followCurrent.y.toFixed(2) + 'px)';
+      }
+      requestAnimationFrame(followLoop);
+    }
+    requestAnimationFrame(followLoop);
+    window.addEventListener('resize', updateFollowRect);
   }
 
   function build() {
