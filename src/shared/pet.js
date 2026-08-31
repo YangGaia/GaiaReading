@@ -5,7 +5,7 @@
  * - 表情清单（对应 src/renderer/images/pet/cells/*.png）
  * - 状态机：待机 / 滑过 / 戳一下 / 无聊 / 困倦 / 睡觉 / 唤醒
  * - 各状态的表情池与有珠风格台词库
- * - 事件驱动状态迁移、15秒无互动加权轮换（无聊/困倦/睡觉）、表情内说话阶梯（1s50%/2s90%/3s必说）
+ * - 事件驱动状态迁移、15秒无互动加权轮换（无聊/困倦/睡觉）、表情内说话节奏（第一句3s内必说/第二句2s后每轮80%）
  */
 
 (function (root, factory) {
@@ -42,12 +42,10 @@
   /** 被打扰后回到待机、满 5 秒换一次表情。 */
   const IDLE_EXPRESSION_INTERVAL = 5000;
 
-  /** 表情内说话概率阶梯：1 秒 50% / 2 秒 90% / 3 秒必说。 */
-  const SPEECH_STEPS = [
-    { after: 1000, chance: 0.5 },
-    { after: 2000, chance: 0.9 },
-    { after: 3000, chance: 1 },
-  ];
+  /** 表情内说话节奏：第一句在 3 秒内必说；第二句距上一句 2 秒后每轮 80%，没触发则保持 80%。 */
+  const FIRST_SPEECH_AFTER = 3000;
+  const SECOND_SPEECH_AFTER = 2000;
+  const SECOND_SPEECH_CHANCE = 0.8;
 
   /** 一个表情内说满两句后换表情。 */
   const SPEECH_PER_EXPRESSION = 2;
@@ -212,14 +210,15 @@
     return { expression: pickIdleExpression(current, rand) };
   }
 
-  /** 表情内说话判定：1 秒 50% / 2 秒 90% / 3 秒必说。 */
-  function speechDue(since, now, rand) {
+  /** 表情内说话判定：第一句（spokenCount=0）3 秒内必说；第二句距上一句 2 秒后每轮 80%，没触发则保持 80%。 */
+  function speechDue(since, now, rand, spokenCount) {
     const r = typeof rand === 'function' ? rand : Math.random;
     const elapsed = now - since;
-    if (elapsed < SPEECH_STEPS[0].after) return false;
-    if (elapsed >= SPEECH_STEPS[2].after) return true;
-    if (elapsed >= SPEECH_STEPS[1].after) return r() < SPEECH_STEPS[1].chance;
-    return r() < SPEECH_STEPS[0].chance;
+    if (spokenCount === 0) {
+      return elapsed >= FIRST_SPEECH_AFTER;
+    }
+    if (elapsed < SECOND_SPEECH_AFTER) return false;
+    return r() < SECOND_SPEECH_CHANCE;
   }
 
   /** 无聊/困倦/睡觉加权轮换：第一次等概率随机；之后上一次状态降至 15%、其余两个对半分；三个轮完一圈后重置。 */

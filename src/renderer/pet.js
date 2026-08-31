@@ -236,8 +236,8 @@
       }
       return;
     }
-    // 表情内说话: 1秒50% / 2秒90% / 3秒必说; 说完一句后同一表情内重走流程, 说满两句换表情
-    if (speechDue(speechSince, now)) {
+    // 表情内说话: 第一句3秒内必说; 第二句2秒后每轮80%, 没说保持80%; 说满两句换表情
+    if (speechDue(speechSince, now, Math.random, spokenCount)) {
       spokenCount += 1;
       speechSince = now;
       showBubble(lineFor('idle'));

@@ -112,14 +112,17 @@ test('pick 从列表取项并尊重随机源', () => {
   assert.strictEqual(pick(null), null);
 });
 
-test('说话阶梯: 1秒50%, 2秒90%, 3秒必说', () => {
-  assert.strictEqual(speechDue(0, 999, () => 0), false);
-  assert.strictEqual(speechDue(0, 1000, () => 0), true);
-  assert.strictEqual(speechDue(0, 1000, () => 0.99), false);
-  assert.strictEqual(speechDue(0, 1500, () => 0.99), false);
-  assert.strictEqual(speechDue(0, 2000, () => 0.99), false);
-  assert.strictEqual(speechDue(0, 2500, () => 0.99), false);
-  assert.strictEqual(speechDue(0, 3000, () => 0.99), true);
+test('第一句 3 秒内必说', () => {
+  assert.strictEqual(speechDue(0, 2999, () => 0, 0), false);
+  assert.strictEqual(speechDue(0, 3000, () => 0.99, 0), true);
+});
+
+test('第二句 2 秒后每轮 80%, 没说保持 80%', () => {
+  assert.strictEqual(speechDue(0, 1999, () => 0, 1), false);
+  assert.strictEqual(speechDue(0, 2000, () => 0.79, 1), true);
+  assert.strictEqual(speechDue(0, 2000, () => 0.8, 1), false);
+  assert.strictEqual(speechDue(0, 4000, () => 0.8, 1), false);
+  assert.strictEqual(speechDue(0, 4000, () => 0.79, 1), true);
 });
 
 test('pickIdleExpression 避开当前表情且来自待机池', () => {
