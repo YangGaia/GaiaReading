@@ -184,3 +184,7 @@ body.eye {
 /* ===== 设置抽屉下拉 ===== */
 .drawer-label { font-size: 13px; color: var(--text); min-width: 44px; }
 .drawer-select { flex: 1; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
+.book-progress { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.book-progress-track { flex: 1; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.book-progress-fill { height: 100%; background: var(--accent); }
+.book-progress-label { font-size: 11px; color: var(--text-soft); min-width: 34px; text-align: right; }

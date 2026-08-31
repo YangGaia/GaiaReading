@@ -180,9 +180,16 @@ function createWindow() {
               const drawerOpen = __gaiaDebug.isSettingsOpen();
               __gaiaDebug.closeSettings();
               const drawerClosed = !__gaiaDebug.isSettingsOpen();
+              await __gaiaDebug.backToLibrary();
+              await __gaiaDebug.openBook({ path: fixture, format: 'epub', title: 'fixture' });
+              await new Promise((r) => setTimeout(r, 1200));
+              const reopenStatus = __gaiaDebug.getStatus();
+              const reopenPct = __gaiaDebug.getDisplayPercent();
               await __gaiaDebug.addBookmark();
               await __gaiaDebug.addToLibrary({ path: fixture, format: 'epub', title: 'fixture' });
               const libAfterAdd = __gaiaDebug.getLibraryCount();
+              const shelfOrderAfterRead = __gaiaDebug.getSortedLibrary();
+              const shelfProgressCount = __gaiaDebug.getShelfProgressCount();
               const shelfBookmarkBeforeRemove = __gaiaDebug.getBookmarkCount();
               await __gaiaDebug.removeFromShelf({ path: fixture });
               const libAfterRemove = __gaiaDebug.getLibraryCount();
@@ -209,6 +216,7 @@ function createWindow() {
               console.log('DEBUG_VIEW', viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epSize.w, epSize.h);
               console.log('DEBUG_FX', fxOnHome, particleCount, fxInReader, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, diamondCount);
               console.log('DEBUG_NIGHT', nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass);
+              console.log('DEBUG_REOPEN', reopenStatus, reopenPct, shelfOrderAfterRead, shelfProgressCount);
               console.log('DEBUG_SPREAD', spreadBefore, spreadAfter, epSizeAfterSpread.w);
               console.log('DEBUG_PROGRESS', pctBefore, pctAfter);
               console.log('DEBUG_LOC', locBefore, locAfter);
@@ -216,7 +224,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -255,6 +263,9 @@ function createWindow() {
               parsed.pctAfter != null &&
               parsed.pctAfter > parsed.pctBefore &&
               parsed.pagingClass.indexOf('paging-next') >= 0 &&
+              parsed.reopenPct > 0 &&
+              parsed.shelfOrderAfterRead[0] === DEBUG_OPEN_PATH &&
+              parsed.shelfProgressCount >= 1 &&
               parsed.countAfterAdd === 1 &&
               parsed.countAfterRemove === 0 &&
               parsed.bookmarksOpen === true &&
@@ -273,9 +284,9 @@ function createWindow() {
               parsed.bookmarkCountAfterBatchRemove === 0 &&
               parsed.progressCountAfterBatchRemove === 0;
             if (!debugOk) console.error('DEBUG_CHECKS_FAILED:', JSON.stringify(parsed));
-          } catch {
+          } catch (parseErr) {
             debugOk = false;
-            console.error('DEBUG_RESULT_UNPARSEABLE:', status);
+            console.error('DEBUG_RESULT_UNPARSEABLE:', parseErr && parseErr.message, 'len=' + status.length, status);
           }
         }
         const errors = messages.filter((m) => m.level >= 3);
@@ -411,6 +422,13 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+
+
+
+
+
+
 
 
 

@@ -64,6 +64,7 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
   assert.ok(css.includes('body.eye'), '缺少护眼模式变量');
   assert.ok(css.includes('paging-next'), '缺少翻页动画规则');
   assert.ok(css.includes('pdf-dark'), '缺少 PDF 深色规则');
+  assert.ok(css.includes('book-progress'), '缺少书架进度样式');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
   assert.ok(html.includes('font-select'), '缺少字体选择');
   assert.ok(html.includes('btn-theme'), '缺少主题切换');
@@ -89,6 +90,7 @@ test('应用图标存在且打包配置已启用', () => {
   assert.ok(pkg.build && pkg.build.win, '缺少 build.win 配置');
   assert.strictEqual(pkg.build.win.icon, 'build/icon.png');
 });
+
 
 
 

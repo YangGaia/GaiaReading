@@ -154,10 +154,19 @@ async function init() {
   finishSplash();
 }
 
+function sortLibrary() {
+  return state.library.slice().sort((a, b) => {
+    const ta = state.progress[a.path] ? state.progress[a.path].updatedAt || 0 : 0;
+    const tb = state.progress[b.path] ? state.progress[b.path].updatedAt || 0 : 0;
+    return tb - ta;
+  });
+}
+
 function renderLibrary() {
   els.bookshelf.innerHTML = '';
   els.hint.hidden = state.library.length > 0;
-  for (const book of state.library) {
+  const sorted = sortLibrary();
+  for (const book of sorted) {
     const card = document.createElement('div');
     card.className = 'book-card' + (state.selected.has(book.path) ? ' selected' : '');
     card.dataset.path = book.path;
@@ -195,6 +204,25 @@ function renderLibrary() {
     badge.className = 'book-format';
     badge.textContent = book.format;
     card.appendChild(badge);
+
+    const prog = state.progress[book.path];
+    if (prog && (prog.percent != null || prog.page)) {
+      const prow = document.createElement('div');
+      prow.className = 'book-progress';
+      const track = document.createElement('div');
+      track.className = 'book-progress-track';
+      const fill = document.createElement('div');
+      fill.className = 'book-progress-fill';
+      const pct = prog.percent != null ? prog.percent : 0;
+      fill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+      track.appendChild(fill);
+      prow.appendChild(track);
+      const label = document.createElement('span');
+      label.className = 'book-progress-label';
+      label.textContent = prog.percent != null ? Math.round(pct) + '%' : '第 ' + prog.page + ' 页';
+      prow.appendChild(label);
+      card.appendChild(prow);
+    }
 
     card.addEventListener('click', () => {
       if (state.manageMode) toggleSelect(book.path);
@@ -381,6 +409,10 @@ async function openBook(book) {
   els.readerStatus.textContent = '加载中…';
   els.pageNav.hidden = false;
   state.current = { path: book.path, format: book.format };
+  const savedProg = state.progress[book.path];
+  if (savedProg && savedProg.percent != null) {
+    updateProgress(savedProg.percent, '进度 ' + savedProg.percent.toFixed(1) + '%');
+  }
   renderBookmarksPanel();
   try {
     if (book.format === 'epub') await openEpub(book);
@@ -405,21 +437,29 @@ async function openEpub(book) {
 
   applyEpubTypography();
   const saved = state.progress[book.path];
+  state.current.displayPercent = saved && saved.percent != null ? saved.percent : 0;
+  state.current.locationsDone = false;
+  updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(1) + '%');
   await rendition.display(saved && saved.loc ? saved.loc : undefined);
 
   rendition.on('relocated', (location) => {
     const cfi = location.start.cfi;
-    const percent = location.start.percentage != null ? location.start.percentage * 100 : null;
-    updateProgress(percent != null ? percent : 0, percent != null ? '进度 ' + percent.toFixed(1) + '%' : '进度 计算中…');
-    saveProgress(book.path, { loc: cfi, percent: percent != null ? percent : 0 });
+    const rawPct = location.start.percentage != null ? location.start.percentage * 100 : null;
+    if (rawPct != null && (rawPct > 0 || state.current.locationsDone)) {
+      state.current.displayPercent = rawPct;
+    }
+    updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(1) + '%');
+    saveProgress(book.path, { loc: cfi, percent: state.current.displayPercent });
   });
 
   state.current.locationsReady = epub.locations
     .generate(1600)
     .then(() => {
+      state.current.locationsDone = true;
       const locObj = rendition.currentLocation();
       if (locObj && locObj.start && locObj.start.percentage != null) {
         const percent = locObj.start.percentage * 100;
+        state.current.displayPercent = percent;
         updateProgress(percent, '进度 ' + percent.toFixed(1) + '%');
         saveProgress(book.path, { loc: locObj.start.cfi, percent });
       }
@@ -526,7 +566,7 @@ async function renderPdfPage() {
   }
 
   updateProgress((c.page / c.pages) * 100, '第 ' + c.page + ' / ' + c.pages + ' 页');
-  saveProgress(c.path, { page: c.page });
+  saveProgress(c.path, { page: c.page, percent: (c.page / c.pages) * 100 });
 }
 
 async function openTxt(book) {
@@ -1128,6 +1168,7 @@ window.__gaiaDebug = {
     }
   },
   getPagingClass: () => els.readerContent.className,
+  getDisplayPercent: () => (state.current && state.current.displayPercent != null ? state.current.displayPercent : 0),
   burst: (x, y) => spawnBurst(x == null ? 200 : x, y == null ? 200 : y),
   getParticleCount: () => fx.particles.length,
   getDiamondCount: () => fx.particles.filter((p) => p.shape === 'diamond').length,
@@ -1235,12 +1276,17 @@ window.__gaiaDebug = {
     }
   },
   getLibrary: () => state.library,
+  getSortedLibrary: () => sortLibrary().map((b) => b.path),
+  getShelfProgressCount: () => els.bookshelf.querySelectorAll('.book-progress').length,
   getLibraryCount: () => state.library.length,
   getProgressKeys: () => Object.keys(state.progress),
   getSelectedCount: () => state.selected.size,
 };
 
 init();
+
+
+
 
 
 
