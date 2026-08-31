@@ -410,31 +410,24 @@ body.eye {
 
 
 /* 纸娃娃: 头层旋转 / 身体 / 脖子垫片 */
+/* 完整底图(不切): 身体跟随鼠标轻微扭动 */
 .gaia-pet-bodypart {
   position: absolute;
   left: 0;
-  bottom: 0;
+  top: 0;
   width: 100%;
   display: block;
   pointer-events: none;
   transform-origin: 50% 100%;
   will-change: transform;
 }
-.gaia-pet-neck {
-  position: absolute;
-  left: 0;
-  top: 54.1%; /* 350/647 */
-  width: 100%;
-  display: block;
-  pointer-events: none;
-  z-index: 3;
-}
+/* 羽化头层: 以脖子为轴转头, 底部羽化与身体融合 */
 .gaia-pet-head {
   position: absolute;
   left: 0;
   top: 0;
   width: 100%;
-  transform-origin: 50% 100%;
+  transform-origin: 50% 98%;
   will-change: transform;
   z-index: 2;
 }

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""把半身照切成 头/身体/脖子垫片 三层, 用于"转头+身体跟随"纸娃娃结构。
-
-分界: 头层 y 110..440(含头+脖子), 身体层 y 430..647, 脖子垫片 y 350..470。
-转轴: 头层底部中心 (178, 440) 对应半身照坐标。
+"""重新生成桌宠纸娃娃素材(羽化融合版, 不硬切):
+- full.png   : 完整半身照(底层, 不动)
+- head.png   : 脖子以上透明头层(顶层, 旋转), 底部 40px 羽化融合
+头层从 y0 开始, 保留完整头顶; 转轴位于脖子底部(y~440)。
 """
 
 import os
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 SRC = r"D:\Codex_project\Gaia_Reading\src\renderer\images\pet\cells\半身照.png"
 OUT = r"D:\Codex_project\Gaia_Reading\src\renderer\images\pet\parts"
@@ -16,25 +16,28 @@ im = Image.open(SRC).convert('RGBA')
 W, H = im.size
 os.makedirs(OUT, exist_ok=True)
 
-head = im.crop((0, 110, W, 440))
-body = im.crop((0, 430, W, H))
-neck = im.crop((0, 350, W, 470))
-head.save(os.path.join(OUT, 'head.png'))
-body.save(os.path.join(OUT, 'body.png'))
-neck.save(os.path.join(OUT, 'neck.png'))
-print('head', head.size, 'body', body.size, 'neck', neck.size)
+# 1) 完整底图
+im.save(os.path.join(OUT, 'full.png'))
 
-# 合成预览: 头层旋转 -6 度 + 身体 + 脖子垫片 + 脸贴片
+# 2) 头层: y 0..450, 底部羽化(400..450 alpha 渐变到 0)
+head = im.crop((0, 0, W, 450)).convert('RGBA')
+a = np.array(head)
+h = a.shape[0]
+fade0, fade1 = 400, 449
+for y in range(fade0, fade1 + 1):
+    t = (y - fade0) / (fade1 - fade0)
+    a[y, :, 3] = (a[y, :, 3] * (1 - t)).astype(np.uint8)
+head = Image.fromarray(a)
+head.save(os.path.join(OUT, 'head.png'))
+print('full saved', im.size)
+print('head saved', head.size)
+
+# 3) 合成预览: 完整底 + 头层旋转 6 度
 canvas = Image.new('RGBA', (W, H), (240, 240, 245, 255))
-canvas.paste(body, (0, 430), body)
-head_rot = head.rotate(6, resample=Image.BICUBIC, center=(178, 330), expand=False)
-canvas.paste(head_rot, (0, 110), head_rot)
-canvas.paste(neck, (0, 350), neck)
-# 脸贴片(日常表情)按 FACE 定位到 head 内
+canvas.paste(im, (0, 0), im)
+rot = head.rotate(6, resample=Image.BICUBIC, center=(178, 440), expand=False)
+canvas.paste(rot, (0, 0), rot)
 face = Image.open(r"D:\Codex_project\Gaia_Reading\src\renderer\images\pet\faces\日常表情.png").convert('RGBA')
-hbCx, hbCy = 178.5, 176.0
-fx = round(hbCx - 67.5)
-fy = round(hbCy - 59.5)
-canvas.paste(face, (fx, fy), face)
+canvas.paste(face, (111, 116), face)
 canvas.save(r"D:\Codex_project\Gaia_Reading\src\renderer\images\pet\head-turn-sim.png")
 print('preview saved')

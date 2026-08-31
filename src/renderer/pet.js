@@ -27,7 +27,7 @@
     expression: { x: 82, y: 103, w: 89, h: 79 },
     tile: { w: 134, h: 118, cx: 67.5, cy: 59.5 },
     sheet: { w: 356, h: 647 }, // 半身照原图尺寸, 用于显示缩放换算
-    headOffsetY: 110, // 头层从半身照 y110 开始(头+脖子)
+    headOffsetY: 0, // 头层从半身照 y0 开始(完整头顶), 底部羽化融合
     turn: { headRot: 7, headX: 3, headY: 1.2, bodyRot: 1.2, bodyX: 1.5 }, // 头层旋转/位移 + 身体轻微跟随
   };
 
@@ -303,15 +303,9 @@
     // 纸娃娃三层: 身体(肩以下) / 脖子垫片(固定遮缝) / 头层(可旋转, 头发跟着头走)
     const bodypart = document.createElement('img');
     bodypart.className = 'gaia-pet-bodypart';
-    bodypart.src = IMG + 'body.png';
+    bodypart.src = IMG + 'full.png';
     bodypart.draggable = false;
     bodypart.alt = '';
-
-    const neck = document.createElement('img');
-    neck.className = 'gaia-pet-neck';
-    neck.src = IMG + 'neck.png';
-    neck.draggable = false;
-    neck.alt = '';
 
     const head = document.createElement('div');
     head.className = 'gaia-pet-head';
@@ -337,10 +331,10 @@
     zzz.hidden = true;
 
     head.append(headimg, face, lid);
-    body.append(bodypart, neck, head);
+    body.append(bodypart, head);
     root.append(bubble, body, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, body, bodypart, neck, head, headimg, face, lid, zzz };
+    ui = { root, bubble, body, bodypart, head, headimg, face, lid, zzz };
   }
 
   async function init() {
