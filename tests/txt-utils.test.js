@@ -47,9 +47,15 @@ test('文件名去扩展名', () => {
   assert.strictEqual(detectEncoding(Buffer.from([0xff, 0xfe, 0x00, 0x41])), 'utf16le');
 });
 
-test('TXT 单换行段落保留为段内换行', () => {
+test('TXT 无空行时每行单独成段', () => {
   const html = paragraphsToHtml('第一行\n第二行\n第三行');
-  assert.strictEqual(html, '<p>第一行<br>第二行<br>第三行</p>');
+  assert.strictEqual(html, '<p>第一行</p><p>第二行</p><p>第三行</p>');
+});
+
+test('TXT 每段一行的小说样书按行成段', () => {
+  const html = paragraphsToHtml('　　第一章\n　　正文第一段。\n　　正文第二段。');
+  assert.strictEqual(html, '<p>第一章</p><p>正文第一段。</p><p>正文第二段。</p>');
+  assert.ok(!html.includes('<br>'), '无空行样书不应出现段内换行');
 });
 
 test('TXT 空行分段且段内换行保留', () => {
@@ -58,7 +64,7 @@ test('TXT 空行分段且段内换行保留', () => {
 });
 
 test('TXT 段落 HTML 转义', () => {
-  const html = paragraphsToHtml('甲 & 乙 <x>\n丙 "引号"');
+  const html = paragraphsToHtml('甲 & 乙 <x>\n丙 "引号"\n\n丁');
   assert.ok(html.includes('&amp;'), '应转义 &');
   assert.ok(html.includes('&lt;'), '应转义 <');
   assert.ok(html.includes('&quot;'), '应转义引号');

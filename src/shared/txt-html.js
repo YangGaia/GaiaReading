@@ -18,20 +18,24 @@
 
   /**
    * 把 TXT 文本转成分页阅读用的段落 HTML：
-   * - 空行（连续两个以上换行）作为段落分隔
-   * - 段内的单个换行保留为 <br>，避免整本书被合并成一大段
+   * - 有空行：空行作为段落分隔，段内单个换行保留为 <br>
+   * - 没有空行：每一行单独成段（常见于每段一行的小说 TXT）
    * - \r\n / \r 统一为 \n，并做 HTML 转义
    */
   function paragraphsToHtml(text) {
     const normalized = String(text || '').replace(/\r\n?/g, '\n');
-    const blocks = normalized.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
-    if (!blocks.length) return '';
-    return blocks
-      .map((block) => {
-        const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
-        return '<p>' + lines.map(escapeHtml).join('<br>') + '</p>';
-      })
-      .join('');
+    const hasBlankLines = /\n\s*\n/.test(normalized);
+    if (hasBlankLines) {
+      const blocks = normalized.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+      return blocks
+        .map((block) => {
+          const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+          return '<p>' + lines.map(escapeHtml).join('<br>') + '</p>';
+        })
+        .join('');
+    }
+    const lines = normalized.split('\n').map((l) => l.trim()).filter(Boolean);
+    return lines.map((line) => '<p>' + escapeHtml(line) + '</p>').join('');
   }
 
   return { paragraphsToHtml };
