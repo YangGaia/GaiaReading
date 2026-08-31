@@ -180,6 +180,8 @@ test('BGM 胶囊封面与阅读进度条细节', () => {
   assert.ok(css.includes('.bgm-cover'), '应有封面缩略图样式');
   assert.ok(css.includes('.bgm-capsule.in-topbar'), '阅读界面胶囊应嵌入顶栏');
   assert.ok(bgm.includes('#reader-view .topbar'), '渲染进程应把胶囊放入阅读页顶栏');
+  assert.ok(css.includes('translateX(-50%)'), '歌名滚动应为无缝广告牌效果（右出左进）');
+  assert.ok(bgm.includes('if (state.on && overflows)'), '播放时应双份歌名实现无缝循环');
   const topIdx = html.indexOf('id="progress-track"');
   const footerIdx = html.indexOf('<footer class="statusbar">');
   assert.ok(topIdx >= 0 && footerIdx >= 0 && footerIdx < topIdx, '进度条应位于底部状态栏（footer 内）');

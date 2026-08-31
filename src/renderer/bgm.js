@@ -42,7 +42,11 @@
   function updateUi() {
     if (!ui.root) return;
     const t = trackById(state.trackId);
+    ui.root.dataset.playing = state.on ? '1' : '0';
     ui.title.textContent = t ? t.title : '';
+    const wrapW = ui.titleWrap ? ui.titleWrap.clientWidth : 0;
+    const overflows = ui.title.scrollWidth > wrapW + 1;
+    if (state.on && overflows) ui.title.textContent = (t ? t.title : '') + (t ? t.title : '');
     ui.title.title = t ? (t.title + ' · ' + t.artist) : '';
     ui.play.textContent = state.on ? '⏸' : '▶';
     ui.play.title = state.on ? '暂停' : '播放';
@@ -50,7 +54,6 @@
     ui.mute.title = state.muted ? '取消静音' : '静音';
     ui.volume.value = String(Math.round(state.volume * 100));
     ui.cover.classList.toggle('playing', state.on);
-    ui.root.dataset.playing = state.on ? '1' : '0';
     ui.root.title = t ? (t.title + ' · ' + t.artist) : '背景音乐';
   }
 
@@ -169,7 +172,7 @@
     mute.addEventListener('click', toggleMute);
     volume.addEventListener('input', () => setVolume(parseInt(volume.value, 10) / 100));
 
-    ui = { root, cover, title, prev, play, nxt, mute, volume };
+    ui = { root, cover, title, titleWrap, prev, play, nxt, mute, volume };
     document.body.appendChild(root);
   }
 

@@ -269,16 +269,18 @@ body.eye {
 .bgm-title-wrap { max-width: 130px; overflow: hidden; }
 .bgm-title {
   display: inline-block;
+  max-width: 100%;
   font-size: 12px;
   color: #efe9ff;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding-left: 2px;
 }
-.bgm-capsule[data-playing="1"] .bgm-title { animation: bgmMarquee 7s linear infinite; }
+.bgm-capsule[data-playing="1"] .bgm-title { animation: bgmMarquee 8s linear infinite; max-width: none; overflow: visible; text-overflow: clip; }
 @keyframes bgmMarquee {
-  0% { transform: translateX(0); }
-  85% { transform: translateX(130px); }
-  100% { transform: translateX(130px); }
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
 }
 .bgm-volume {
   width: 64px;
