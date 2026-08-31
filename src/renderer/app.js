@@ -1621,6 +1621,51 @@ window.__gaiaDebug = {
     };
   },
   getAnchorSnippet: () => (state.current && state.current.paginator ? ((state.current.paginator.anchor() || {}).snippet || '') : ''),
+  getPaginatorLayout: () => {
+    const c = state.current;
+    if (!c || !c.paginator || !c.paginator.doc) return null;
+    const p = c.paginator;
+    const d = p.doc;
+    const body = d.body;
+    const first = body.firstElementChild;
+    const cs = getComputedStyle(body);
+    const colStart = p.currentPage * p.colStep;
+    let textBox = null;
+    const walker = d.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = walker.nextNode())) {
+      if (!n.textContent || !n.textContent.trim()) continue;
+      const r = d.createRange();
+      r.selectNodeContents(n);
+      const rects = r.getClientRects();
+      for (const rect of rects) {
+        if (rect.left >= colStart && rect.left < colStart + p.pageWidth) {
+          textBox = { left: Math.round(rect.left - colStart), right: Math.round(rect.right - colStart), top: Math.round(rect.top) };
+          break;
+        }
+      }
+      if (textBox) break;
+    }
+    const fcs = first ? getComputedStyle(first) : null;
+    return {
+      hostW: p.host ? p.host.clientWidth : 0,
+      frameW: p.frame ? p.frame.clientWidth : 0,
+      pageWidth: p.pageWidth,
+      gap: p.gap,
+      colStep: p.colStep,
+      mode: p.mode,
+      page: p.currentPage,
+      total: p.totalPages,
+      bodyMarginL: cs.marginLeft,
+      bodyMarginR: cs.marginRight,
+      bodyPaddingL: cs.paddingLeft,
+      bodyPaddingR: cs.paddingRight,
+      firstChildTag: first ? first.tagName : null,
+      firstChildMarginL: fcs ? fcs.marginLeft : null,
+      firstChildMarginR: fcs ? fcs.marginRight : null,
+      textBox,
+    };
+  },
   getAnchorInView: (off) => (state.current && state.current.paginator ? state.current.paginator.anchorInView(off) : false),
   getReaderTitle: () => els.readerTitle.textContent,
   getMobiBackground: () => {

@@ -34,7 +34,7 @@
     const pageAfterJump = __gaiaDebug.getPaginatorPage();
     const snippetAfterJump = __gaiaDebug.getAnchorSnippet();
     const anchorOk = !!(bm && bm.anchor && typeof bm.anchor.off === 'number') && __gaiaDebug.getAnchorInView(bm.anchor.off) && pageAfterJump >= 0;
-    return JSON.stringify({ status, contentLen, totalPages, pageBefore, pageAfter, pctMoved, pCount, lineBreaks, pageAtBookmark, pageAfterReflow, pageAfterJump, snippetAfterJump, anchorOk });
+    return JSON.stringify({ status, contentLen, totalPages, pageBefore, pageAfter, pctMoved, pCount, lineBreaks, pageAtBookmark, pageAfterReflow, pageAfterJump, snippetAfterJump, anchorOk, layout: __gaiaDebug.getPaginatorLayout() });
   } catch (e) {
     console.error('TXT_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';

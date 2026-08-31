@@ -86,7 +86,7 @@
     const habitTheme = __gaiaDebug.getTheme();
     const habitSpread = __gaiaDebug.getSpreadMode();
     const habitOk = habitTheme === 'eye' && habitSpread === true;
-    return JSON.stringify({ status, contentLen, chapters, tocCount, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, moved, crossed, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump });
+    return JSON.stringify({ status, contentLen, chapters, tocCount, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, moved, crossed, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, layout: __gaiaDebug.getPaginatorLayout() });
   } catch (e) {
     console.error('MOBI_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';
