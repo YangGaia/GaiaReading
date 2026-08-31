@@ -10,6 +10,7 @@ const {
   removeEntries: removeEntriesFromMap,
 } = window.GaiaLibrary;
 const { paragraphsToHtml } = window.GaiaTxtHtml;
+const { epubDisplayPercent } = window.GaiaEpubProgress;
 
 const FONTS = {
   default: '',
@@ -470,28 +471,37 @@ async function openEpub(book) {
 
   rendition.on('relocated', (location) => {
     const cfi = location.start.cfi;
-    let percent;
-    if (location.start.percentage != null) {
-      percent = Math.min(100, Math.max(0, location.start.percentage * 100));
-    } else {
-      const items = state.current.epub && state.current.epub.spine ? state.current.epub.spine.spineItems : [];
-      const total = items.length || 1;
-      const idx = location.start.index != null ? location.start.index : 0;
-      percent = total > 1 ? (idx / (total - 1)) * 100 : 100;
-    }
+    const items = state.current.epub && state.current.epub.spine ? state.current.epub.spine.spineItems : [];
+    const locs = state.current.epub && state.current.epub.locations;
+    const locTotal = locs && locs.total ? locs.total : 0;
+    const percent = epubDisplayPercent(location, items, locTotal);
     state.current.displayPercent = percent;
     updateProgress(percent, '进度 ' + percent.toFixed(2) + '%');
     saveProgress(book.path, { loc: cfi, percent });
   });
 
+  const locationsReady = epub.locations
+    .generate(1600)
+    .then(() => {
+      state.current.locationsDone = true;
+      try {
+        const loc = rendition.currentLocation();
+        const items = state.current.epub && state.current.epub.spine ? state.current.epub.spine.spineItems : [];
+        const locTotal = epub.locations.total || 0;
+        if (loc && loc.start) {
+          const percent = epubDisplayPercent(loc, items, locTotal);
+          state.current.displayPercent = percent;
+          updateProgress(percent, '进度 ' + percent.toFixed(2) + '%');
+          saveProgress(book.path, { loc: loc.start.cfi, percent });
+        }
+      } catch (e) {
+        // 位置刷新失败不阻塞
+      }
+      return true;
+    })
+    .catch(() => false);
   state.current.locationsReady = Promise.race([
-    epub.locations
-      .generate(1600)
-      .then(() => {
-        state.current.locationsDone = true;
-        return true;
-      })
-      .catch(() => false),
+    locationsReady,
     new Promise((resolve) => setTimeout(() => resolve(false), 8000)),
   ]);
 

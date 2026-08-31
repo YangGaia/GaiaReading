@@ -106,7 +106,7 @@ test('全局阅读习惯、进度精度与主题即时生效已接入', () => {
   const themeCalls = (app.match(/paginator\.setTheme\(state\.prefs\.theme\)/g) || []).length;
   assert.ok(themeCalls >= 3, '打开 MOBI/TXT 时应立即注入主题（当前 ' + themeCalls + ' 处）');
   assert.ok(app.includes('percent.toFixed(2)'), '进度百分比应显示两位小数');
-  assert.ok(app.includes('location.start.percentage'), 'EPUB 进度应使用书内位置百分比');
+  assert.ok(app.includes('epubDisplayPercent'), 'EPUB 进度应使用位置索引+回退计算');
   assert.ok(app.includes('readMode: state.readMode'), '习惯应写入全局 prefs');
   assert.ok(app.includes('migrateHabitsFromLastBook'), '应保留旧版按书习惯的迁移');
 });
