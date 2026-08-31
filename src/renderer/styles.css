@@ -187,5 +187,6 @@ body.eye {
 .book-progress { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 10px; height: 18px; }
 .book-progress-track { flex: 1; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
 .book-progress-fill { height: 100%; background: var(--accent); }
-.book-progress-label { font-size: 11px; color: var(--text-soft); min-width: 38px; text-align: right; white-space: nowrap; line-height: 1; }
+.book-progress-label { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 11px; color: var(--text-soft); min-width: 40px; text-align: right; white-space: nowrap; line-height: 18px; display: inline-block; font-variant-numeric: tabular-nums; }
+
 
