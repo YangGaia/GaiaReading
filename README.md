@@ -1,7 +1,7 @@
 # Gaia Reading
 
 电子书阅读器，基于 Electron + epub.js，支持 EPUB / PDF / TXT / MOBI / AZW3 五种格式。
-当前版本：0.3.0
+当前版本：0.3.1
 
 ## 功能
 
