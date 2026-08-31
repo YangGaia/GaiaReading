@@ -28,7 +28,7 @@
     tile: { w: 134, h: 118, cx: 67.5, cy: 59.5 },
     sheet: { w: 356, h: 647 }, // 半身照原图尺寸, 用于显示缩放换算
     headOffsetY: 0, // 头层从半身照 y0 开始(完整头顶), 底部羽化融合
-    turn: { headRot: 7, headX: 3, headY: 1.2, bodyRot: 1.2, bodyX: 1.5 }, // 头层旋转/位移 + 身体轻微跟随
+    turn: { turnY: 9, turnX: 7, tx: 2, ty: 1.5 }, // 3D转头: rotateY左右/rotateX上下 + 位移, 身体不动
   };
 
   const DEFAULT_STATE = { on: true, x: null, y: null };
@@ -277,9 +277,9 @@
         const x = followCurrent.x;
         const y = followCurrent.y;
         const t = FACE.turn;
-        // 头层转头(含头发), 以脖子底部为轴; 身体轻微同向跟随
-        ui.head.style.transform = 'rotate(' + (x * t.headRot).toFixed(2) + 'deg) translateX(' + (x * t.headX).toFixed(2) + 'px) translateY(' + (y * t.headY).toFixed(2) + 'px)';
-        if (ui.bodypart) ui.bodypart.style.transform = 'rotate(' + (x * t.bodyRot).toFixed(2) + 'deg) translateX(' + (x * t.bodyX).toFixed(2) + 'px)';
+        // 3D 转头: 左右 rotateY / 上下 rotateX + 轻微位移, 以脖子为轴; 身体不动
+        ui.head.style.transform = 'rotateY(' + (x * t.turnY).toFixed(2) + 'deg) rotateX(' + (y * t.turnX).toFixed(2) + 'deg) translateX(' + (x * t.tx).toFixed(2) + 'px) translateY(' + (y * t.ty).toFixed(2) + 'px)';
+        if (ui.bodypart) ui.bodypart.style.transform = '';
       }
       requestAnimationFrame(followLoop);
     }
@@ -303,7 +303,7 @@
     // 纸娃娃三层: 身体(肩以下) / 脖子垫片(固定遮缝) / 头层(可旋转, 头发跟着头走)
     const bodypart = document.createElement('img');
     bodypart.className = 'gaia-pet-bodypart';
-    bodypart.src = IMG + 'full.png';
+    bodypart.src = IMG + 'body.png';
     bodypart.draggable = false;
     bodypart.alt = '';
 

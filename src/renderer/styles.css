@@ -302,6 +302,7 @@ body.eye {
   position: relative;
   width: 100%;
   aspect-ratio: 356 / 647;
+  perspective: 320px;
   transform-origin: 50% 100%;
   animation: pet-breathe 4s ease-in-out infinite;
 }
