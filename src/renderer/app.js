@@ -1477,6 +1477,15 @@ function bindEvents() {
   });
 
   $('btn-back').addEventListener('click', backToLibrary);
+  window.addEventListener('keydown', (ev) => {
+    const tag = (ev.target && ev.target.tagName || '').toLowerCase();
+    const typing = tag === 'input' || tag === 'select' || tag === 'textarea' || (ev.target && ev.target.isContentEditable);
+    if (typing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    if (views.reader.hidden) return;
+    if (ev.key === 'ArrowLeft') { ev.preventDefault(); prevPage(); }
+    else if (ev.key === 'ArrowRight') { ev.preventDefault(); nextPage(); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); backToLibrary(); }
+  });
   $('btn-font-minus').addEventListener('click', () => adjustFont(-1));
   $('btn-font-plus').addEventListener('click', () => adjustFont(1));
   $('btn-line-height').addEventListener('click', cycleLineHeight);

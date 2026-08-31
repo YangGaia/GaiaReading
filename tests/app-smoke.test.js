@@ -186,3 +186,14 @@ test('BGM 胶囊封面与阅读进度条细节', () => {
   const footerIdx = html.indexOf('<footer class="statusbar">');
   assert.ok(topIdx >= 0 && footerIdx >= 0 && footerIdx < topIdx, '进度条应位于底部状态栏（footer 内）');
 });
+
+test('键盘快捷键：左右键翻页、Esc 返回书架', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  assert.ok(app.includes("ev.key === 'ArrowLeft'"), '← 键应绑定上一页');
+  assert.ok(app.includes("ev.key === 'ArrowRight'"), '→ 键应绑定下一页');
+  assert.ok(app.includes("ev.key === 'Escape'"), 'Esc 键应关闭阅读界面');
+  assert.ok(app.includes('prevPage()'), '← 应调用上一页');
+  assert.ok(app.includes('nextPage()'), '→ 应调用下一页');
+  assert.ok(app.includes('backToLibrary()'), 'Esc 应返回书架');
+  assert.ok(app.includes('views.reader.hidden'), '仅在阅读界面响应快捷键');
+});
