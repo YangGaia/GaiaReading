@@ -6,8 +6,9 @@ const fs = require('fs');
 const { parseEpub } = require('./shared/epub-meta');
 const { decodeTxt, titleFromFilename } = require('./shared/txt-utils');
 const { JsonStore } = require('./shared/store');
+const { openMobi, loadChapter, cleanupMobi } = require('./shared/mobi');
 
-const SUPPORTED_EXT = ['.epub', '.pdf', '.txt'];
+const SUPPORTED_EXT = ['.epub', '.pdf', '.txt', '.mobi', '.azw3'];
 const IS_SMOKE = process.argv.includes('--smoke-test');
 const DEBUG_OPEN_INDEX = process.argv.indexOf('--debug-open');
 const DEBUG_OPEN_PATH = DEBUG_OPEN_INDEX >= 0 ? process.argv[DEBUG_OPEN_INDEX + 1] : null;
@@ -69,6 +70,23 @@ async function metaFor(filePath) {
     } catch {
       // 解析失败时退回文件名标题
     }
+  } else if (format === 'mobi' || format === 'azw3') {
+    const resDir = path.join(app.getPath('temp'), 'gaia-mobi-meta-' + process.pid);
+    let opened = null;
+    try {
+      opened = await openMobi(filePath, resDir);
+      return {
+        path: filePath,
+        format,
+        title: opened.title || fallbackTitle,
+        author: opened.author || '',
+        cover: opened.cover || null,
+      };
+    } catch {
+      // 解析失败时退回文件名标题
+    } finally {
+      cleanupMobi(opened);
+    }
   }
   return { path: filePath, format, title: fallbackTitle, author: '', cover: null };
 }
@@ -107,6 +125,26 @@ function createWindow() {
         await new Promise((resolve) => setTimeout(resolve, 800));
         let debugOk = true;
         if (DEBUG_OPEN_PATH) {
+          const debugExt = path.extname(DEBUG_OPEN_PATH).toLowerCase();
+          if (debugExt === '.mobi' || debugExt === '.azw3') {
+            await mainWindow.webContents.executeJavaScript("window.__MOBI_SMOKE_PATH = " + JSON.stringify(DEBUG_OPEN_PATH) + "; window.__MOBI_SMOKE_FORMAT = " + JSON.stringify(debugExt.slice(1)) + ";");
+            const mobiScript = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'mobi-smoke.js'), 'utf8');
+            const mobiStatus = await mainWindow.webContents.executeJavaScript(mobiScript);
+            console.log('DEBUG_MOBI:', mobiStatus);
+            try {
+              const parsed = JSON.parse(mobiStatus);
+              debugOk =
+                parsed.contentLen > 0 &&
+                parsed.chapters > 0 &&
+                typeof parsed.idxBefore === 'number' &&
+                parsed.idxAfter === parsed.idxBefore + 1 &&
+                parsed.pct != null;
+              if (!debugOk) console.error('DEBUG_MOBI_CHECKS_FAILED:', JSON.stringify(parsed));
+            } catch (parseErr) {
+              debugOk = false;
+              console.error('DEBUG_MOBI_UNPARSEABLE:', parseErr && parseErr.message, mobiStatus);
+            }
+          } else {
           const script = `(async () => {
             try {
               const fixture = ${JSON.stringify(DEBUG_OPEN_PATH)};
@@ -298,6 +336,7 @@ function createWindow() {
             debugOk = false;
             console.error('DEBUG_RESULT_UNPARSEABLE:', parseErr && parseErr.message, 'len=' + status.length, status);
           }
+          }
         }
         const errors = messages.filter((m) => m.level >= 3);
         if (errors.length || !debugOk) {
@@ -369,7 +408,7 @@ function createWindow() {
 ipcMain.handle('dialog:openFiles', async () => {
   const res = await dialog.showOpenDialog(mainWindow, {
     title: '选择电子书文件',
-    filters: [{ name: '电子书', extensions: ['epub', 'pdf', 'txt'] }],
+    filters: [{ name: '电子书', extensions: ['epub', 'pdf', 'txt', 'mobi', 'azw3'] }],
     properties: ['openFile', 'multiSelections'],
   });
   if (res.canceled) return [];
@@ -399,6 +438,43 @@ ipcMain.handle('book:read', async (event, filePath) => {
 });
 
 ipcMain.handle('book:metadata', async (event, filePath) => metaFor(filePath));
+
+const mobiSessions = new Map();
+let mobiSessionSeq = 0;
+
+ipcMain.handle('mobi:open', async (event, filePath) => {
+  const format = formatOf(filePath);
+  if (format !== 'mobi' && format !== 'azw3') throw new Error('不是 MOBI/AZW3 文件: ' + filePath);
+  const resourceSaveDir = path.join(app.getPath('temp'), 'gaia-mobi-' + process.pid + '-' + (mobiSessionSeq + 1));
+  const opened = await openMobi(filePath, resourceSaveDir);
+  const sessionId = 'mobi-' + (++mobiSessionSeq);
+  mobiSessions.set(sessionId, { opened, resourceSaveDir });
+  return {
+    sessionId,
+    kind: opened.kind,
+    title: opened.title,
+    author: opened.author,
+    cover: opened.cover,
+    chapters: opened.chapters,
+    toc: opened.toc,
+  };
+});
+
+ipcMain.handle('mobi:chapter', async (event, { sessionId, index }) => {
+  const session = mobiSessions.get(sessionId);
+  if (!session) throw new Error('MOBI 会话已失效，请重新打开');
+  const ch = await loadChapter(session.opened, index, session.resourceSaveDir);
+  return ch;
+});
+
+ipcMain.handle('mobi:close', (event, sessionId) => {
+  const session = mobiSessions.get(sessionId);
+  if (session) {
+    cleanupMobi(session.opened);
+    mobiSessions.delete(sessionId);
+  }
+  return true;
+});
 
 ipcMain.handle('state:get', (event, key) => store.get(key, null));
 ipcMain.handle('state:set', (event, { key, value }) => {

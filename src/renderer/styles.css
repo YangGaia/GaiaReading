@@ -113,6 +113,10 @@ body.dark {
 .bookmark-delete:hover { background: var(--danger-soft); }
 #reader-content { flex: 1; overflow: auto; background: var(--reader-bg); text-align: center; position: relative; }
 #txt-content { padding: 32px 40px; max-width: 720px; margin: 0 auto; white-space: pre-wrap; word-break: break-word; line-height: 1.8; font-size: 16px; text-align: left; color: var(--reader-text); }
+#mobi-content { padding: 32px 40px; max-width: 760px; margin: 0 auto; text-align: left; line-height: 1.8; font-size: 16px; color: var(--reader-text); min-height: 100%; box-sizing: border-box; }
+#mobi-content p { text-indent: 2em; margin: 0 0 0.8em; }
+#mobi-content h1, #mobi-content h2, #mobi-content h3, #mobi-content h4 { line-height: 1.4; margin: 1.2em 0 0.6em; text-indent: 0; }
+#mobi-content img { max-width: 100%; height: auto; }
 .statusbar { padding: 6px 16px; background: var(--surface); border-top: 1px solid var(--border); font-size: 12px; color: var(--text-soft); text-align: left; }
 #page-nav { position: fixed; bottom: 44px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 20px; padding: 6px 10px; box-shadow: 0 2px 8px var(--shadow); z-index: 10; }
 #page-nav[hidden] { display: none; }

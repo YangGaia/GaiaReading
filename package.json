@@ -1,6 +1,6 @@
 {
   "name": "gaia-reading",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "电子书阅读器 Demo（Electron + epub.js）",
   "main": "src/main.js",
   "scripts": {
@@ -19,6 +19,7 @@
     "electron-builder": "^26.15.3"
   },
   "dependencies": {
+    "@lingo-reader/mobi-parser": "^0.4.6",
     "epubjs": "^0.3.93",
     "fast-xml-parser": "^4.5.0",
     "iconv-lite": "^0.6.3",

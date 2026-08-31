@@ -2,3 +2,8 @@ node_modules/
 dist/
 *.log
 src/renderer/vendor/
+*.mobi
+*.azw3
+*.prc
+*.epub
+*.pdf

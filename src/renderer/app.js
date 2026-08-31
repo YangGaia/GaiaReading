@@ -369,7 +369,7 @@ function isSettingsOpen() {
 
 function updateSettingsValues() {
   const c = state.current;
-  els.fontValue.textContent = c && c.format === 'pdf' ? Math.round((c.zoom || 1) * 100) + '%' : state.fontSize + '%';
+  els.fontValue.textContent = c && c.format === 'pdf' ? Math.round((c.zoom || 1) * 100) + '%' : (c && (c.format === 'mobi' || c.format === 'azw3') ? state.txtFont + 'px' : state.fontSize + '%');
   els.lineHeightValue.textContent = state.lineHeight.toFixed(1);
   els.spreadValue.textContent = state.spread ? '双页' : '单页';
 }
@@ -379,6 +379,7 @@ function closeReaderContent() {
   if (c) {
     if (c.rendition) { try { c.rendition.destroy(); } catch (e) {} }
     if (c.pdf) { try { c.pdf.destroy(); } catch (e) {} }
+    if (c.mobiSession) { try { window.api.mobiClose(c.mobiSession); } catch (e) {} }
   }
   els.readerContent.innerHTML = '';
   els.pageNav.hidden = true;
@@ -390,6 +391,7 @@ async function backToLibrary() {
     const c = state.current;
     if (c.format === 'pdf') saveProgress(c.path, { page: c.page });
     if (c.format === 'txt') saveProgress(c.path, { offset: els.readerContent.scrollTop });
+    if ((c.format === 'mobi' || c.format === 'azw3') && c.mobi) saveProgress(c.path, { mobiIndex: c.mobi.index, percent: c.mobi.chapters.length > 1 ? (c.mobi.index / (c.mobi.chapters.length - 1)) * 100 : 100 });
     await window.api.stateSet('progress', state.progress);
     closeReaderContent();
   }
@@ -418,6 +420,7 @@ async function openBook(book) {
   try {
     if (book.format === 'epub') await openEpub(book);
     else if (book.format === 'pdf') await openPdf(book);
+    else if (book.format === 'mobi' || book.format === 'azw3') await openMobi(book);
     else await openTxt(book);
   } catch (err) {
     console.error(err);
@@ -569,6 +572,104 @@ async function renderPdfPage() {
   saveProgress(c.path, { page: c.page, percent: (c.page / c.pages) * 100 });
 }
 
+async function openMobi(book) {
+  const res = await window.api.mobiOpen(book.path);
+  state.current.mobiSession = res.sessionId;
+  state.current.mobi = {
+    chapters: res.chapters || [],
+    toc: res.toc || [],
+    index: 0,
+  };
+  const saved = state.progress[book.path];
+  let startIndex = 0;
+  if (saved && typeof saved.mobiIndex === 'number') {
+    startIndex = Math.max(0, Math.min(res.chapters.length - 1, saved.mobiIndex));
+  }
+  await renderMobiChapter(startIndex);
+  renderMobiToc();
+}
+
+async function renderMobiChapter(index) {
+  const c = state.current;
+  if (!c || !c.mobiSession) return;
+  const chapters = c.mobi.chapters;
+  const clamped = Math.max(0, Math.min(chapters.length - 1, index));
+  c.mobi.index = clamped;
+  els.readerStatus.textContent = '加载中…';
+  try {
+    const ch = await window.api.mobiChapter(c.mobiSession, clamped);
+    let html = ch.html || '';
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    if (bodyMatch) html = bodyMatch[1];
+    const div = document.createElement('div');
+    div.id = 'mobi-content';
+    div.innerHTML = html;
+    if (ch.cssText) {
+      const style = document.createElement('style');
+      style.id = 'mobi-book-style';
+      style.textContent = ch.cssText;
+      div.prepend(style);
+    }
+    els.readerContent.innerHTML = '';
+    els.readerContent.appendChild(div);
+    applyMobiTypography();
+    applyMobiTheme();
+    const percent = chapters.length > 1 ? (clamped / (chapters.length - 1)) * 100 : 100;
+    updateProgress(percent, '进度 ' + percent.toFixed(1) + '% · 第 ' + (clamped + 1) + ' / ' + chapters.length + ' 节');
+    saveProgress(c.path, { mobiIndex: clamped, percent });
+  } catch (err) {
+    console.error(err);
+    els.readerStatus.textContent = '章节加载失败：' + err.message;
+  }
+}
+
+function renderMobiToc() {
+  const c = state.current;
+  els.tocPanel.innerHTML = '';
+  if (!c || !c.mobi || !c.mobi.toc.length) {
+    els.tocPanel.textContent = '（本书没有目录）';
+    return;
+  }
+  const renderItems = (items, depth) => {
+    for (const item of items) {
+      const a = document.createElement('a');
+      a.href = '#';
+      a.textContent = '\\u3000'.repeat(depth) + (item.label || '').trim();
+      a.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        if (typeof item.index === 'number' && item.index >= 0) renderMobiChapter(item.index);
+      });
+      els.tocPanel.appendChild(a);
+      if (item.children && item.children.length) renderItems(item.children, depth + 1);
+    }
+  };
+  renderItems(c.mobi.toc, 0);
+}
+
+function applyMobiTypography() {
+  const div = els.readerContent.querySelector('#mobi-content');
+  if (!div) return;
+  div.style.fontSize = state.txtFont + 'px';
+  div.style.lineHeight = String(state.lineHeight);
+  div.style.fontFamily = FONTS[state.fontName] || 'inherit';
+}
+
+function applyMobiTheme() {
+  const div = els.readerContent.querySelector('#mobi-content');
+  if (!div) return;
+  const theme = state.prefs.theme;
+  if (theme === 'dark') {
+    div.style.color = '#e6edf3';
+    div.style.background = '#000';
+  } else if (theme === 'eye') {
+    div.style.color = '#4a3826';
+    div.style.background = '#f5ecd9';
+  } else {
+    div.style.color = '';
+    div.style.background = '';
+  }
+}
+
 async function openTxt(book) {
   const res = await window.api.readBook(book.path);
   const div = document.createElement('div');
@@ -623,6 +724,8 @@ function nextPage() {
     if (c.rendition) { animatePage('next'); c.rendition.next(); }
   } else if (c.format === 'pdf') {
     if (c.page < c.pages) { c.page += 1; animatePage('next'); renderPdfPage(); }
+  } else if (c.format === 'mobi' || c.format === 'azw3') {
+    if (c.mobi && c.mobi.index < c.mobi.chapters.length - 1) { animatePage('next'); renderMobiChapter(c.mobi.index + 1); }
   } else if (c.format === 'txt') {
     els.readerContent.scrollTop += els.readerContent.clientHeight * 0.9;
   }
@@ -635,6 +738,8 @@ function prevPage() {
     if (c.rendition) { animatePage('prev'); c.rendition.prev(); }
   } else if (c.format === 'pdf') {
     if (c.page > 1) { c.page -= 1; animatePage('prev'); renderPdfPage(); }
+  } else if (c.format === 'mobi' || c.format === 'azw3') {
+    if (c.mobi && c.mobi.index > 0) { animatePage('prev'); renderMobiChapter(c.mobi.index - 1); }
   } else if (c.format === 'txt') {
     els.readerContent.scrollTop -= els.readerContent.clientHeight * 0.9;
   }
@@ -649,6 +754,9 @@ function adjustFont(delta) {
   } else if (c.format === 'pdf') {
     c.zoom = Math.min(2, Math.max(0.6, (c.zoom || 1) + delta * 0.2));
     renderPdfPage();
+  } else if (c.format === 'mobi' || c.format === 'azw3') {
+    state.txtFont = Math.min(28, Math.max(12, state.txtFont + delta));
+    applyMobiTypography();
   } else if (c.format === 'txt') {
     state.txtFont = Math.min(28, Math.max(12, state.txtFont + delta));
     applyTxtTypography();
@@ -662,6 +770,7 @@ function cycleLineHeight() {
   const idx = options.indexOf(state.lineHeight);
   state.lineHeight = options[(idx + 1) % options.length];
   if (state.current && state.current.format === 'epub') applyEpubTypography();
+  if (state.current && (state.current.format === 'mobi' || state.current.format === 'azw3')) applyMobiTypography();
   if (state.current && state.current.format === 'txt') applyTxtTypography();
   if (isSettingsOpen()) updateSettingsValues();
   els.readerStatus.textContent = '行距 ' + state.lineHeight.toFixed(1);
@@ -733,6 +842,9 @@ async function addBookmark() {
   } else if (c.format === 'pdf') {
     loc = String(c.page);
     label = '书签 ' + (getBookmarkCount() + 1) + '（第 ' + c.page + ' 页）';
+  } else if (c.format === 'mobi' || c.format === 'azw3') {
+    loc = String(c.mobi ? c.mobi.index : 0);
+    label = '书签 ' + (getBookmarkCount() + 1) + '（第 ' + (c.mobi ? c.mobi.index + 1 : 1) + ' 节）';
   } else {
     loc = String(els.readerContent.scrollTop);
     label = '书签 ' + (getBookmarkCount() + 1);
@@ -760,7 +872,10 @@ async function jumpToBookmark(loc) {
   const c = state.current;
   if (!c) return;
   if (c.format === 'epub') c.rendition.display(loc);
-  else if (c.format === 'pdf') {
+  else if (c.format === 'mobi' || c.format === 'azw3') {
+    const idx = parseInt(loc, 10) || 0;
+    await renderMobiChapter(idx);
+  } else if (c.format === 'pdf') {
     c.page = parseInt(loc, 10) || 1;
     await renderPdfPage();
   } else {
@@ -912,6 +1027,7 @@ async function applyTheme(theme) {
     } catch (e) {}
   }
   if (c && c.format === 'pdf') renderPdfPage();
+  if (c && (c.format === 'mobi' || c.format === 'azw3')) applyMobiTheme();
   await window.api.stateSet('prefs', state.prefs);
   rememberSettings();
 }
@@ -1094,6 +1210,7 @@ function bindEvents() {
       try { c.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
     }
     if (c && c.format === 'txt') applyTxtTypography();
+    if (c && (c.format === 'mobi' || c.format === 'azw3')) applyMobiTypography();
     window.api.stateSet('prefs', state.prefs);
     rememberSettings();
   });
@@ -1201,6 +1318,18 @@ window.__gaiaDebug = {
     }
   },
   getPagingClass: () => els.readerContent.className,
+  getMobiContentLength: () => {
+    const div = els.readerContent.querySelector('#mobi-content');
+    return div ? div.innerHTML.length : 0;
+  },
+  getMobiChapters: () => (state.current && state.current.mobi ? state.current.mobi.chapters.length : 0),
+  getMobiTocCount: () => (state.current && state.current.mobi ? state.current.mobi.toc.length : 0),
+  getMobiIndex: () => (state.current && state.current.mobi ? state.current.mobi.index : -1),
+  getReaderTitle: () => els.readerTitle.textContent,
+  getMobiBackground: () => {
+    const div = els.readerContent.querySelector('#mobi-content');
+    return div ? getComputedStyle(div).backgroundColor : '';
+  },
   getDisplayPercent: () => (state.current && state.current.displayPercent != null ? state.current.displayPercent : 0),
   getProgressWidth: () => els.progressFill.style.width,
   getCurrentSettings: () => ({
@@ -1257,6 +1386,11 @@ window.__gaiaDebug = {
   },
   getPercent: () => {
     const c = state.current;
+    if (!c) return null;
+    if (c.format === 'mobi' || c.format === 'azw3') {
+      if (!c.mobi || !c.mobi.chapters.length) return 0;
+      return (c.mobi.index / (c.mobi.chapters.length - 1)) * 100;
+    }
     if (!c || !c.rendition) return null;
     try {
       const locObj = c.rendition.currentLocation();

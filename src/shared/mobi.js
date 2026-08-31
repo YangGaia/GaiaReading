@@ -1,0 +1,284 @@
+'use strict';
+
+/**
+ * MOBI / AZW3 (KF8) 解析封装。
+ *
+ * 依赖 @lingo-reader/mobi-parser（MIT，基于 Foliate 的 johnfactotum 实现）。
+ * 该包为 ESM-only，主进程内通过动态 import 加载。
+ *
+ * 关键点：
+ * 1. 文件可能是纯 MOBI7、纯 KF8（AZW3），或 MOBI7+KF8 组合（扩展名 .mobi 但含 KF8 正文）。
+ *    - KF8 / 组合文件必须用 initKf8File 才能拿到完整 spine。
+ *    - 纯 MOBI7 用 initMobiFile。
+ * 2. 资源（图片/CSS）会被 node 版保存到 resourceSaveDir，章节 HTML 里是本地绝对路径。
+ *    我们将其内联为 data URL，让渲染进程拿到自包含 HTML。
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+let parserPromise = null;
+
+function loadParser() {
+  if (!parserPromise) {
+    parserPromise = import('@lingo-reader/mobi-parser').catch((err) => {
+      parserPromise = null;
+      throw err;
+    });
+  }
+  return parserPromise;
+}
+
+/** 小端/大端无符号整数读取（默认大端，MOBI 内部字段均大端）。 */
+function readU32(buf, offset) {
+  return (buf[offset] << 24) | (buf[offset + 1] << 16) | (buf[offset + 2] << 8) | buf[offset + 3];
+}
+
+/**
+ * 从 PDB 容器中读取记录偏移表。
+ * 记录表从 78 字节处开始，每条 8 字节（4 字节偏移 + 4 字节属性）。
+ */
+function readRecordOffsets(buf) {
+  if (buf.length < 78) return [];
+  const numRecords = (buf[76] << 8) | buf[77];
+  const offsets = [];
+  for (let i = 0; i < numRecords; i++) {
+    const off = readU32(buf, 78 + i * 8);
+    offsets.push(off);
+  }
+  return offsets;
+}
+
+/**
+ * 检测 MOBI 文件类型。
+ * @returns {'kf8'|'mobi7'|'unknown'}
+ * - 'kf8'：KF8 / AZW3，或含 KF8 正文的组合文件（必须用 initKf8File）
+ * - 'mobi7'：纯 MOBI7（用 initMobiFile）
+ */
+function detectKind(buf) {
+  if (!buf || buf.length < 120) return 'unknown';
+  // PalmDB type/creator：偏移 60 处为 "BOOKMOBI"（type="BOOK", creator="MOBI"）
+  const dbType = buf.toString('latin1', 60, 68);
+  if (dbType !== 'BOOKMOBI') return 'unknown';
+  try {
+    const offsets = readRecordOffsets(buf);
+    if (!offsets.length) return 'unknown';
+    const rec0 = buf.slice(offsets[0], offsets[1] || offsets[0] + 512);
+    if (rec0.length < 64) return 'unknown';
+    // record0 = 16 字节 PalmDoc header + MOBI header（magic "MOBI" 在偏移 16）
+    const magic = rec0.toString('latin1', 16, 20);
+    if (magic !== 'MOBI') return 'unknown';
+    const version = readU32(rec0, 16 + 20); // mobiHeader.version 相对 record0 偏移 36
+    if (version >= 8) return 'kf8';
+    // MOBI7 头：检查 EXTH 中是否有 KF8 boundary（id=121）
+    const exthFlag = readU32(rec0, 128);
+    const length = readU32(rec0, 16 + 4); // MOBI header length
+    if ((exthFlag & 0x40) && rec0.length >= 16 + length + 12) {
+      const exthStart = 16 + length;
+      const exthLen = readU32(rec0, exthStart + 4);
+      const exthEnd = Math.min(rec0.length, exthStart + exthLen);
+      let pos = exthStart + 12;
+      while (pos + 8 <= exthEnd) {
+        const id = readU32(rec0, pos);
+        const size = readU32(rec0, pos + 4);
+        if (id === 121) return 'kf8';
+        pos += size;
+      }
+    }
+    return 'mobi7';
+  } catch {
+    return 'unknown';
+  }
+}
+
+function mimeOf(buf, fallback) {
+  if (!buf || !buf.length) return fallback || 'application/octet-stream';
+  if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg';
+  if (buf[0] === 0x89 && buf[1] === 0x50) return 'image/png';
+  if (buf[0] === 0x47 && buf[1] === 0x49) return 'image/gif';
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/webp';
+  return fallback || 'application/octet-stream';
+}
+
+/** 读取资源文件为 data URL。 */
+function toDataUrl(filePath) {
+  try {
+    const buf = fs.readFileSync(filePath);
+    const mime = mimeOf(buf, 'application/octet-stream');
+    return 'data:' + mime + ';base64,' + buf.toString('base64');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 把章节 HTML 中引用本地资源（图片/CSS）的绝对路径替换为内联内容。
+ * 返回 { html, cssText }：html 为自包含片段，cssText 为可注入的样式。
+ */
+function inlineChapterResources(chapterHtml, resourceSaveDir) {
+  let html = chapterHtml || '';
+  const cssText = [];
+
+  // CSS 文件引用：<link rel="stylesheet" href="...">
+  html = html.replace(/<link[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/gi, (match, href) => {
+    if (/^(https?:|data:)/i.test(href)) return match;
+    const p = path.isAbsolute(href) ? href : path.join(resourceSaveDir, href);
+    try {
+      cssText.push(fs.readFileSync(p, 'utf8'));
+      return '';
+    } catch {
+      return match;
+    }
+  });
+
+  // 图片引用：src="..." 或 srcset
+  html = html.replace(/(<img[^>]*src=["'])([^"']+)(["'])/gi, (match, pre, src, post) => {
+    if (/^(https?:|data:|blob:)/i.test(src)) return match;
+    const p = path.isAbsolute(src) ? src : path.join(resourceSaveDir, src);
+    const dataUrl = toDataUrl(p);
+    if (dataUrl) return pre + dataUrl + post;
+    return match;
+  });
+
+  // CSS url(...) 引用（背景图等）
+  html = html.replace(/url\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, ref) => {
+    if (/^(https?:|data:)/i.test(ref)) return match;
+    const p = path.isAbsolute(ref) ? ref : path.join(resourceSaveDir, ref);
+    const dataUrl = toDataUrl(p);
+    if (dataUrl) return 'url(' + dataUrl + ')';
+    return match;
+  });
+
+  return { html, cssText: cssText.join('\n') };
+}
+
+/**
+ * 打开并解析 MOBI/AZW3 文件。
+ * @param {string} filePath
+ * @param {string} resourceSaveDir 图片/CSS 等资源的落盘目录
+ */
+async function openMobi(filePath, resourceSaveDir) {
+  const buf = fs.readFileSync(filePath);
+  const kind = detectKind(buf);
+  const parser = await loadParser();
+
+  let book;
+  if (kind === 'kf8') {
+    book = await parser.initKf8File(filePath, resourceSaveDir);
+  } else {
+    // mobi7 或 unknown：先尝试 MOBI，若解析器内部识别为 KF8 兼容文件则回退 KF8
+    try {
+      book = await parser.initMobiFile(filePath, resourceSaveDir);
+    } catch (errMobi) {
+      try {
+        book = await parser.initKf8File(filePath, resourceSaveDir);
+      } catch (errKf8) {
+        throw new Error('无法解析 MOBI 文件：' + errMobi.message + ' / ' + errKf8.message);
+      }
+    }
+  }
+
+  const meta = book.getMetadata();
+  const spine = book.getSpine();
+  const toc = book.getToc();
+  let cover = null;
+  try {
+    const coverRef = book.getCoverImage();
+    if (coverRef && /^(https?:|data:|blob:|file:)/i.test(coverRef)) {
+      cover = coverRef;
+    } else if (coverRef && fs.existsSync(coverRef)) {
+      cover = toDataUrl(coverRef);
+    }
+  } catch {
+    // 无封面不阻塞
+  }
+
+  const chapters = spine.map((c, index) => ({
+    id: c.id,
+    index,
+  }));
+
+  // 把 TOC 条目映射到章节序号（快速路径：直接匹配 frag index）
+  const fidToIndex = new Map();
+  const rawChapters = book.chapters || [];
+  for (let i = 0; i < rawChapters.length; i++) {
+    const frags = rawChapters[i].frags || [];
+    for (const frag of frags) {
+      if (!fidToIndex.has(frag.index)) fidToIndex.set(frag.index, i);
+    }
+  }
+  function tocIndexFromHref(href) {
+    if (!href) return null;
+    const mm = href.match(/fid:([0-9a-f]+)/i);
+    if (mm && fidToIndex.has(parseInt(mm[1], 16))) return fidToIndex.get(parseInt(mm[1], 16));
+    if (typeof book.resolveHref === 'function') {
+      try {
+        const resolved = book.resolveHref(href);
+        if (resolved && resolved.id != null) return Number(resolved.id);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+  const mapToc = (items) =>
+    (items || []).map((item) => ({
+      label: item.label || '',
+      href: item.href || '',
+      index: tocIndexFromHref(item.href),
+      children: mapToc(item.children),
+    }));
+  const tocWithIndex = mapToc(toc);
+
+  return {
+    kind,
+    title: meta.title || '',
+    author: Array.isArray(meta.author) ? meta.author.join('、') : (meta.author || ''),
+    publisher: meta.publisher || '',
+    language: meta.language || '',
+    description: meta.description || '',
+    cover,
+    chapters,
+    toc: tocWithIndex,
+    book,
+    spine,
+  };
+}
+
+/**
+ * 加载指定章节并内联资源。
+ * @param {object} opened 由 openMobi 返回的对象（含 book/spine 引用）
+ * @param {string|number} chapterId 章节 id（字符串）或序号
+ * @param {string} resourceSaveDir
+ */
+async function loadChapter(opened, chapterId, resourceSaveDir) {
+  const { book, spine } = opened;
+  const chapter = typeof chapterId === 'number' ? spine[chapterId] : spine.find((c) => c.id === chapterId);
+  if (!chapter) throw new Error('章节不存在: ' + chapterId);
+  const processed = book.loadChapter(chapter.id);
+  if (!processed) throw new Error('章节加载失败: ' + chapterId);
+  const inlined = inlineChapterResources(processed.html, resourceSaveDir);
+  return {
+    index: spine.indexOf(chapter),
+    html: inlined.html,
+    cssText: inlined.cssText,
+  };
+}
+
+/** 释放资源（删除落盘资源目录）。 */
+function cleanupMobi(opened) {
+  if (opened && opened.book && typeof opened.book.destroy === 'function') {
+    try {
+      opened.book.destroy();
+    } catch {
+      // 忽略
+    }
+  }
+}
+
+module.exports = {
+  detectKind,
+  openMobi,
+  loadChapter,
+  cleanupMobi,
+};
