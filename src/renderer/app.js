@@ -409,6 +409,7 @@ async function openBook(book) {
   els.readerStatus.textContent = '加载中…';
   els.pageNav.hidden = false;
   state.current = { path: book.path, format: book.format };
+  applyBookSettings(book);
   const savedProg = state.progress[book.path];
   if (savedProg && savedProg.percent != null) {
     updateProgress(savedProg.percent, '进度 ' + savedProg.percent.toFixed(1) + '%');
@@ -441,6 +442,9 @@ async function openEpub(book) {
   state.current.locationsDone = false;
   updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(1) + '%');
   await rendition.display(saved && saved.loc ? saved.loc : undefined);
+  if (state.spread) {
+    try { rendition.spread('auto', 700); } catch (e) {}
+  }
 
   rendition.on('relocated', (location) => {
     const cfi = location.start.cfi;
@@ -503,6 +507,7 @@ function toggleSpread() {
   state.spread = !state.spread;
   c.rendition.spread(state.spread ? 'auto' : 'none', 700);
   if (isSettingsOpen()) updateSettingsValues();
+  rememberSettings();
 }
 
 function applyEpubTypography() {
@@ -520,6 +525,8 @@ async function openPdf(book) {
   state.current.page = 1;
   state.current.pages = pdf.numPages;
   state.current.zoom = 1;
+  const pdfSettings = state.progress[book.path] && state.progress[book.path].settings;
+  if (pdfSettings && pdfSettings.zoom) state.current.zoom = pdfSettings.zoom;
   const saved = state.progress[book.path];
   if (saved && saved.page >= 1 && saved.page <= pdf.numPages) state.current.page = saved.page;
   await renderPdfPage();
@@ -647,6 +654,7 @@ function adjustFont(delta) {
     applyTxtTypography();
   }
   if (isSettingsOpen()) updateSettingsValues();
+  rememberSettings();
 }
 
 function cycleLineHeight() {
@@ -657,6 +665,7 @@ function cycleLineHeight() {
   if (state.current && state.current.format === 'txt') applyTxtTypography();
   if (isSettingsOpen()) updateSettingsValues();
   els.readerStatus.textContent = '行距 ' + state.lineHeight.toFixed(1);
+  rememberSettings();
 }
 
 function togglePanel(which) {
@@ -904,6 +913,7 @@ async function applyTheme(theme) {
   }
   if (c && c.format === 'pdf') renderPdfPage();
   await window.api.stateSet('prefs', state.prefs);
+  rememberSettings();
 }
 
 async function cycleTheme() {
@@ -1004,6 +1014,34 @@ function updateProgress(percent, text) {
   if (text) els.readerStatus.textContent = text;
 }
 
+function applyBookSettings(book) {
+  const s = state.progress[book.path] && state.progress[book.path].settings;
+  if (!s) return;
+  if (s.theme) { state.prefs.theme = s.theme; applyThemeClass(); }
+  if (s.fontName) { state.fontName = s.fontName; els.fontSelect.value = s.fontName; }
+  if (s.fontSize != null) state.fontSize = s.fontSize;
+  if (s.txtFont != null) state.txtFont = s.txtFont;
+  if (s.lineHeight != null) state.lineHeight = s.lineHeight;
+  state.spread = !!s.spread;
+}
+
+function rememberSettings() {
+  const c = state.current;
+  if (!c) return;
+  const prev = (state.progress[c.path] && state.progress[c.path].settings) || {};
+  const settings = Object.assign({}, prev, {
+    theme: state.prefs.theme,
+    fontName: state.fontName,
+    fontSize: state.fontSize,
+    txtFont: state.txtFont,
+    lineHeight: state.lineHeight,
+    spread: state.spread,
+    zoom: c.zoom || prev.zoom,
+  });
+  state.progress[c.path] = Object.assign({}, state.progress[c.path], { settings });
+  window.api.stateSet('progress', state.progress);
+}
+
 function bindEvents() {
   $('btn-home-shelf').addEventListener('click', () => showView('library'));
   $('btn-home-folder').addEventListener('click', async () => {
@@ -1057,6 +1095,7 @@ function bindEvents() {
     }
     if (c && c.format === 'txt') applyTxtTypography();
     window.api.stateSet('prefs', state.prefs);
+    rememberSettings();
   });
   $('btn-toc').addEventListener('click', () => {
     closeSettings();
@@ -1147,6 +1186,7 @@ window.__gaiaDebug = {
     }
     if (c && c.format === 'txt') applyTxtTypography();
     await window.api.stateSet('prefs', state.prefs);
+    rememberSettings();
   },
   isFontInjected: () => {
     const c = state.current;
@@ -1163,6 +1203,21 @@ window.__gaiaDebug = {
   getPagingClass: () => els.readerContent.className,
   getDisplayPercent: () => (state.current && state.current.displayPercent != null ? state.current.displayPercent : 0),
   getProgressWidth: () => els.progressFill.style.width,
+  getCurrentSettings: () => ({
+    theme: state.prefs.theme,
+    fontName: state.fontName,
+    fontSize: state.fontSize,
+    txtFont: state.txtFont,
+    lineHeight: state.lineHeight,
+    spread: state.spread,
+  }),
+  setLineHeight: (lh) => {
+    state.lineHeight = lh;
+    if (state.current && state.current.format === 'epub') applyEpubTypography();
+    if (state.current && state.current.format === 'txt') applyTxtTypography();
+    if (isSettingsOpen()) updateSettingsValues();
+    rememberSettings();
+  },
   burst: (x, y) => spawnBurst(x == null ? 200 : x, y == null ? 200 : y),
   getParticleCount: () => fx.particles.length,
   getDiamondCount: () => fx.particles.filter((p) => p.shape === 'diamond').length,
@@ -1278,6 +1333,7 @@ window.__gaiaDebug = {
 };
 
 init();
+
 
 
 
