@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const pet = require('../src/shared/pet');
 
-const { PET_STATES, EVENTS, TIMERS, createBrain, decideState, timeoutState, lineFor, pick, idleAction, idleExpressionDue } = pet;
+const { PET_STATES, EVENTS, TIMERS, createBrain, decideState, timeoutState, lineFor, pick, idleExpressionDue, pickIdleExpression, speechDue, nextMood } = pet;
 
 test('初始大脑为待机状态', () => {
   const now = 1000000;
@@ -12,6 +12,8 @@ test('初始大脑为待机状态', () => {
   assert.strictEqual(brain.state, PET_STATES.IDLE);
   assert.strictEqual(brain.lastInteract, now);
   assert.strictEqual(brain.pokeCount, 0);
+  assert.strictEqual(brain.moodAt, 0);
+  assert.deepStrictEqual(brain.moodCycle, []);
 });
 
 test('滑过进入 hover 并使用 hover 表情池', () => {
@@ -49,16 +51,36 @@ test('点击间隔超过 2.5 秒后连击计数重置', () => {
   assert.strictEqual(d2.pokeMany, false);
 });
 
-test('超时迁移：无聊 -> 困倦 -> 睡觉', () => {
+test('15秒无互动触发情绪状态, 未满15秒不触发', () => {
   const brain = createBrain(0);
-  assert.strictEqual(timeoutState(brain, TIMERS.BORED_AFTER - 1), null);
-  const bored = timeoutState(brain, TIMERS.BORED_AFTER);
-  assert.strictEqual(bored.state, PET_STATES.BORED);
-  const sleepy = timeoutState(brain, TIMERS.SLEEPY_AFTER);
-  assert.strictEqual(sleepy.state, PET_STATES.SLEEPY);
-  const sleeping = timeoutState(brain, TIMERS.SLEEPING_AFTER);
-  assert.strictEqual(sleeping.state, PET_STATES.SLEEPING);
-  assert.strictEqual(sleeping.expression, '半身照');
+  const moods = [PET_STATES.BORED, PET_STATES.SLEEPY, PET_STATES.SLEEPING];
+  assert.strictEqual(timeoutState(brain, TIMERS.MOOD_AFTER - 1), null);
+  const d1 = timeoutState(brain, TIMERS.MOOD_AFTER, () => 0);
+  assert.ok(moods.includes(d1.state));
+  assert.strictEqual(d1.expression, pet.STATE_EXPRESSIONS[d1.state][0]);
+  assert.strictEqual(timeoutState(brain, TIMERS.MOOD_AFTER + 5000), null);
+  const d2 = timeoutState(brain, TIMERS.MOOD_AFTER * 2, () => 0.99);
+  assert.ok(moods.includes(d2.state));
+  assert.notStrictEqual(d2.state, d1.state);
+});
+
+test('情绪状态第一次等概率随机, 之后上次状态降至15%其余对半分', () => {
+  const brain = createBrain(0);
+  assert.strictEqual(nextMood(brain, () => 0), PET_STATES.BORED);
+  assert.strictEqual(nextMood(brain, () => 0.05), PET_STATES.BORED);
+  const other = nextMood(brain, () => 0.99);
+  assert.notStrictEqual(other, PET_STATES.BORED);
+  assert.ok([PET_STATES.SLEEPY, PET_STATES.SLEEPING].includes(other));
+});
+
+test('三个情绪状态轮完一圈后重置为等概率随机', () => {
+  const brain = createBrain(0);
+  assert.strictEqual(nextMood(brain, () => 0), PET_STATES.BORED);
+  assert.strictEqual(nextMood(brain, () => 0.999), PET_STATES.SLEEPING);
+  assert.strictEqual(nextMood(brain, () => 0.99), PET_STATES.SLEEPY);
+  assert.strictEqual(brain.moodCycle.length, 3);
+  assert.strictEqual(nextMood(brain, () => 0), PET_STATES.BORED);
+  assert.strictEqual(brain.moodCycle.length, 1);
 });
 
 test('互动可唤醒睡眠中的桌宠', () => {
@@ -90,11 +112,21 @@ test('pick 从列表取项并尊重随机源', () => {
   assert.strictEqual(pick(null), null);
 });
 
-test('待机小动作按概率触发且表情合法', () => {
-  const yes = idleAction(() => 0.01);
-  assert.ok(yes === null || pet.STATE_EXPRESSIONS.idle.includes(yes.expression));
-  const no = idleAction(() => 0.99);
-  assert.strictEqual(no, null);
+test('说话阶梯: 1秒50%, 2秒90%, 3秒必说', () => {
+  assert.strictEqual(speechDue(0, 999, () => 0), false);
+  assert.strictEqual(speechDue(0, 1000, () => 0), true);
+  assert.strictEqual(speechDue(0, 1000, () => 0.99), false);
+  assert.strictEqual(speechDue(0, 1500, () => 0.99), false);
+  assert.strictEqual(speechDue(0, 2000, () => 0.99), false);
+  assert.strictEqual(speechDue(0, 2500, () => 0.99), false);
+  assert.strictEqual(speechDue(0, 3000, () => 0.99), true);
+});
+
+test('pickIdleExpression 避开当前表情且来自待机池', () => {
+  const current = pet.STATE_EXPRESSIONS.idle[0];
+  const exp = pickIdleExpression(current, () => 0.99);
+  assert.notStrictEqual(exp, current);
+  assert.ok(pet.STATE_EXPRESSIONS.idle.includes(exp));
 });
 
 test('待机表情满 5 秒到期换一次, 未到期不换', () => {

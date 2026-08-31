@@ -5,7 +5,7 @@
  * - 表情清单（对应 src/renderer/images/pet/cells/*.png）
  * - 状态机：待机 / 滑过 / 戳一下 / 无聊 / 困倦 / 睡觉 / 唤醒
  * - 各状态的表情池与有珠风格台词库
- * - 事件驱动状态迁移、超时迁移、随机选择
+ * - 事件驱动状态迁移、15秒无互动加权轮换（无聊/困倦/睡觉）、表情内说话阶梯（1s50%/2s90%/3s必说）
  */
 
 (function (root, factory) {
@@ -34,15 +34,27 @@
     INTERACT: 'interact',
   };
 
-  /** 不理她的超时阈值（毫秒）：3 分钟无聊，6 分钟困倦，10 分钟睡觉。 */
+  /** 不理她的超时阈值（毫秒）：无聊/困倦/睡觉统一为 15 秒无互动触发。 */
   const TIMERS = {
-    BORED_AFTER: 3 * 60 * 1000,
-    SLEEPY_AFTER: 6 * 60 * 1000,
-    SLEEPING_AFTER: 10 * 60 * 1000,
+    MOOD_AFTER: 15 * 1000,
   };
 
-  /** 无交互待机时表情自动变化的间隔：每 5 秒换一次。 */
+  /** 被打扰后回到待机、满 5 秒换一次表情。 */
   const IDLE_EXPRESSION_INTERVAL = 5000;
+
+  /** 表情内说话概率阶梯：1 秒 50% / 2 秒 90% / 3 秒必说。 */
+  const SPEECH_STEPS = [
+    { after: 1000, chance: 0.5 },
+    { after: 2000, chance: 0.9 },
+    { after: 3000, chance: 1 },
+  ];
+
+  /** 一个表情内说满两句后换表情。 */
+  const SPEECH_PER_EXPRESSION = 2;
+
+  /** 无聊/困倦/睡觉加权轮换：上一次状态概率降至 15%，其余两个对半分。 */
+  const MOOD_STATES = [PET_STATES.BORED, PET_STATES.SLEEPY, PET_STATES.SLEEPING];
+  const MOOD_REPEAT_CHANCE = 0.15;
 
   /** 表情清单（顺序与 pet-expressions.json 一致）。 */
   const EXPRESSIONS = [
@@ -131,6 +143,8 @@
       lastInteract: t,
       pokeCount: 0,
       lastPokeAt: 0,
+      moodAt: 0,
+      moodCycle: [],
     };
   }
 
@@ -166,20 +180,16 @@
     }
   }
 
-  /** 超时迁移：长时间不互动，依次进入无聊 / 困倦 / 睡觉。 */
-  function timeoutState(brain, now) {
+  /** 超时迁移：15 秒无互动时按加权轮换抽无聊/困倦/睡觉，每满 15 秒抽一次。 */
+  function timeoutState(brain, now, rand) {
     const t = now == null ? Date.now() : now;
     const idle = t - brain.lastInteract;
-    if (idle >= TIMERS.SLEEPING_AFTER) {
-      return { state: PET_STATES.SLEEPING, expression: '半身照' };
-    }
-    if (idle >= TIMERS.SLEEPY_AFTER) {
-      return { state: PET_STATES.SLEEPY, expression: pick(STATE_EXPRESSIONS.sleepy) };
-    }
-    if (idle >= TIMERS.BORED_AFTER) {
-      return { state: PET_STATES.BORED, expression: pick(STATE_EXPRESSIONS.bored) };
-    }
-    return null;
+    if (idle < TIMERS.MOOD_AFTER) return null;
+    const sinceMood = t - (brain.moodAt || 0);
+    if (sinceMood < TIMERS.MOOD_AFTER) return null;
+    const mood = nextMood(brain, rand);
+    brain.moodAt = t;
+    return { state: mood, expression: pick(STATE_EXPRESSIONS[mood], rand) };
   }
 
   /** 从场景桶取一句台词。 */
@@ -187,23 +197,53 @@
     return pick(LINES[key] || [], rand);
   }
 
-  /** 待机小动作：随机返回一个表情（约 12% 概率触发一次），否则 null。 */
-  function idleAction(rand) {
-    const r = typeof rand === 'function' ? rand : Math.random;
-    if (r() < 0.12) {
-      return { expression: pick(STATE_EXPRESSIONS.idle, rand) };
-    }
-    return null;
-  }
-
-  /** 待机表情到期判断：距上次变化满 5 秒后返回一个新表情（自动避开当前表情），未到期返回 null。 */
-  function idleExpressionDue(lastChange, now, rand, current) {
-    if (now - lastChange < IDLE_EXPRESSION_INTERVAL) return null;
+  /** 从待机表情池挑一个，尽量避开当前表情。 */
+  function pickIdleExpression(current, rand) {
     let pool = STATE_EXPRESSIONS.idle;
     if (current && pool.length > 1) {
       pool = pool.filter((name) => name !== current);
     }
-    return { expression: pick(pool, rand) };
+    return pick(pool, rand);
+  }
+
+  /** 被打扰后满 5 秒到期换一次表情；未到期返回 null。 */
+  function idleExpressionDue(lastChange, now, rand, current) {
+    if (now - lastChange < IDLE_EXPRESSION_INTERVAL) return null;
+    return { expression: pickIdleExpression(current, rand) };
+  }
+
+  /** 表情内说话判定：1 秒 50% / 2 秒 90% / 3 秒必说。 */
+  function speechDue(since, now, rand) {
+    const r = typeof rand === 'function' ? rand : Math.random;
+    const elapsed = now - since;
+    if (elapsed < SPEECH_STEPS[0].after) return false;
+    if (elapsed >= SPEECH_STEPS[2].after) return true;
+    if (elapsed >= SPEECH_STEPS[1].after) return r() < SPEECH_STEPS[1].chance;
+    return r() < SPEECH_STEPS[0].chance;
+  }
+
+  /** 无聊/困倦/睡觉加权轮换：第一次等概率随机；之后上一次状态降至 15%、其余两个对半分；三个轮完一圈后重置。 */
+  function nextMood(brain, rand) {
+    const r = typeof rand === 'function' ? rand : Math.random;
+    let used = Array.isArray(brain.moodCycle) ? brain.moodCycle.slice() : [];
+    const hasAll = MOOD_STATES.every((s) => used.includes(s));
+    if (hasAll) used = [];
+    let chosen;
+    if (used.length === 0) {
+      chosen = MOOD_STATES[Math.floor(r() * MOOD_STATES.length)];
+    } else {
+      const last = used[used.length - 1];
+      const p = r();
+      if (p < MOOD_REPEAT_CHANCE) {
+        chosen = last;
+      } else {
+        const rest = MOOD_STATES.filter((s) => s !== last);
+        const t = (p - MOOD_REPEAT_CHANCE) / (1 - MOOD_REPEAT_CHANCE);
+        chosen = rest[Math.floor(t * rest.length)];
+      }
+    }
+    brain.moodCycle = used.concat(chosen);
+    return chosen;
   }
 
   return {
@@ -218,8 +258,11 @@
     decideState,
     timeoutState,
     lineFor,
-    idleAction,
     IDLE_EXPRESSION_INTERVAL,
     idleExpressionDue,
+    pickIdleExpression,
+    speechDue,
+    nextMood,
+    SPEECH_PER_EXPRESSION,
   };
 });

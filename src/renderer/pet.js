@@ -3,7 +3,7 @@
 /**
  * 赛博桌宠渲染层：
  * - 半身照为底，表情层按脸部标定叠加（FACE 配置，坐标待主人确认后微调）
- * - 交互：滑过 / 点击（连点触发"烦了"彩蛋）/ 拖拽 / 不理超时（无聊→困倦→睡觉）
+ * - 交互：滑过 / 点击（连点触发"烦了"彩蛋）/ 拖拽 / 不理超时（15秒加权轮换无聊/困倦/睡觉）
  * - 台词气泡 + Zzz，状态持久化到 pet 键（开关 / 位置）
  */
 
@@ -16,7 +16,7 @@
 })(typeof self !== 'undefined' ? self : this, function (shared) {
   'use strict';
 
-  const { PET_STATES, EVENTS, createBrain, decideState, timeoutState, lineFor, idleExpressionDue } = shared;
+  const { PET_STATES, EVENTS, createBrain, decideState, timeoutState, lineFor, idleExpressionDue, pickIdleExpression, speechDue, SPEECH_PER_EXPRESSION } = shared;
 
   const IMG = 'images/pet/cells/';
   const FACE_IMG = 'images/pet/faces/';
@@ -37,8 +37,10 @@
   let loaded = false;
   let bubbleTimer = null;
   let animTimer = null;
-  let lastChat = 0;
   let lastIdleExp = Date.now();
+  let speechSince = Date.now();
+  let spokenCount = 0;
+  let holdSpeech = false;
   let dragging = false;
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
@@ -182,6 +184,9 @@
       brain.state = d.state;
       applyExpression(d.expression);
       lastIdleExp = Date.now();
+      speechSince = Date.now();
+      spokenCount = 0;
+      holdSpeech = true;
     }
   }
 
@@ -218,19 +223,31 @@
       }
       return;
     }
-    if (brain.state === PET_STATES.IDLE) {
-      // 待机碎碎念: 超过40秒没互动, 随机冒一句有珠的闲话
-      if (now - lastChat > 40000 && Math.random() < 0.6) {
-        lastChat = now;
-        showBubble(lineFor('idle'));
-      }
+    if (brain.state !== PET_STATES.IDLE) return;
+    // 被打扰后: 满 5 秒先换一次表情, 再开始说话流程
+    if (holdSpeech) {
       const due = idleExpressionDue(lastIdleExp, now, Math.random, ui.face && ui.face.dataset.exp);
       if (due) {
+        holdSpeech = false;
         lastIdleExp = now;
+        speechSince = now;
+        spokenCount = 0;
         applyExpression(due.expression);
-      } else if (Math.random() < 0.12) {
-        triggerTilt();
       }
+      return;
+    }
+    // 表情内说话: 1秒50% / 2秒90% / 3秒必说; 说完一句后同一表情内重走流程, 说满两句换表情
+    if (speechDue(speechSince, now)) {
+      spokenCount += 1;
+      speechSince = now;
+      showBubble(lineFor('idle'));
+      if (spokenCount >= SPEECH_PER_EXPRESSION) {
+        spokenCount = 0;
+        lastIdleExp = now;
+        applyExpression(pickIdleExpression(ui.face && ui.face.dataset.exp));
+      }
+    } else if (Math.random() < 0.12) {
+      triggerTilt();
     }
   }
 
@@ -346,6 +363,9 @@
     ui.root.hidden = !saved.on;
     applyExpression('日常表情', true);
     lastIdleExp = Date.now();
+    speechSince = Date.now();
+    spokenCount = 0;
+    holdSpeech = false;
     animTimer = window.setInterval(tick, 1000);
     scheduleBlink();
   }
