@@ -61,7 +61,7 @@ const state = {
   fontSize: 100,
   lineHeight: 1.8,
   txtFont: 16,
-  spread: false,
+  readMode: 'single',
   prefs: { theme: 'light', fontName: 'default' },
   homeReady: null,
   resolveHome: null,
@@ -354,7 +354,7 @@ function openSettings() {
   const inReader = state.current != null;
   els.drawerReading.hidden = !inReader;
   els.drawerFuncs.hidden = !inReader;
-  els.drawerSpread.hidden = !(inReader && state.current && state.current.format === 'epub');
+  els.drawerSpread.hidden = !inReader;
   if (inReader) updateSettingsValues();
   els.settingsOverlay.hidden = false;
 }
@@ -369,9 +369,9 @@ function isSettingsOpen() {
 
 function updateSettingsValues() {
   const c = state.current;
-  els.fontValue.textContent = c && c.format === 'pdf' ? Math.round((c.zoom || 1) * 100) + '%' : (c && (c.format === 'mobi' || c.format === 'azw3') ? state.txtFont + 'px' : state.fontSize + '%');
+  els.fontValue.textContent = c && c.format === 'pdf' ? Math.round((c.zoom || 1) * 100) + '%' : (c && c.paginator ? state.fontSize + '%' : state.fontSize + '%');
   els.lineHeightValue.textContent = state.lineHeight.toFixed(1);
-  els.spreadValue.textContent = state.spread ? '双页' : '单页';
+  els.spreadValue.textContent = state.readMode === 'spread' ? '双页' : (state.readMode === 'scroll' ? '滚动' : '单页');
 }
 
 function closeReaderContent() {
@@ -379,6 +379,7 @@ function closeReaderContent() {
   if (c) {
     if (c.rendition) { try { c.rendition.destroy(); } catch (e) {} }
     if (c.pdf) { try { c.pdf.destroy(); } catch (e) {} }
+    if (c.paginator) { try { c.paginator.destroy(); } catch (e) {} }
     if (c.mobiSession) { try { window.api.mobiClose(c.mobiSession); } catch (e) {} }
   }
   els.readerContent.innerHTML = '';
@@ -390,8 +391,7 @@ async function backToLibrary() {
   if (state.current) {
     const c = state.current;
     if (c.format === 'pdf') saveProgress(c.path, { page: c.page });
-    if (c.format === 'txt') saveProgress(c.path, { offset: els.readerContent.scrollTop });
-    if ((c.format === 'mobi' || c.format === 'azw3') && c.mobi) saveProgress(c.path, { mobiIndex: c.mobi.index, percent: c.mobi.chapters.length > 1 ? (c.mobi.index / (c.mobi.chapters.length - 1)) * 100 : 100 });
+    if (c.paginator) updateMobiProgress(true);
     await window.api.stateSet('progress', state.progress);
     closeReaderContent();
   }
@@ -429,7 +429,7 @@ async function openBook(book) {
 }
 
 async function openEpub(book) {
-  const res = await window.api.readBook(book.path);
+    const res = await window.api.readBook(book.path);
   const buf = toArrayBuffer(toUint8Array(res.data));
   const epub = window.ePub(buf);
   state.current.epub = epub;
@@ -445,8 +445,10 @@ async function openEpub(book) {
   state.current.locationsDone = false;
   updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(1) + '%');
   await rendition.display(saved && saved.loc ? saved.loc : undefined);
-  if (state.spread) {
+  if (state.readMode === 'spread') {
     try { rendition.spread('auto', 700); } catch (e) {}
+  } else if (state.readMode === 'scroll') {
+    try { rendition.flow('scrolled-doc'); } catch (e) {}
   }
 
   rendition.on('relocated', (location) => {
@@ -459,13 +461,16 @@ async function openEpub(book) {
     saveProgress(book.path, { loc: cfi, percent: state.current.displayPercent });
   });
 
-  state.current.locationsReady = epub.locations
-    .generate(1600)
-    .then(() => {
-      state.current.locationsDone = true;
-      return true;
-    })
-    .catch(() => false);
+  state.current.locationsReady = Promise.race([
+    epub.locations
+      .generate(1600)
+      .then(() => {
+        state.current.locationsDone = true;
+        return true;
+      })
+      .catch(() => false),
+    new Promise((resolve) => setTimeout(() => resolve(false), 8000)),
+  ]);
 
   const nav = await epub.loaded.navigation;
   const renderToc = (items, depth) => {
@@ -505,10 +510,22 @@ function animatePage(direction) {
 }
 
 function toggleSpread() {
+  const order = ['single', 'spread', 'scroll'];
+  const idx = order.indexOf(state.readMode);
+  state.readMode = order[(idx + 1) % order.length];
   const c = state.current;
-  if (!c || c.format !== 'epub' || !c.rendition) return;
-  state.spread = !state.spread;
-  c.rendition.spread(state.spread ? 'auto' : 'none', 700);
+  if (c) {
+    if (c.format === 'epub' && c.rendition) {
+      if (state.readMode === 'scroll') {
+        c.rendition.flow('scrolled-doc');
+      } else {
+        c.rendition.spread(state.readMode === 'spread' ? 'auto' : 'none', 700);
+      }
+    } else if (c.paginator) {
+      c.paginator.setMode(state.readMode === 'spread' ? 'spread' : (state.readMode === 'scroll' ? 'scroll' : 'single'));
+      updateMobiProgress(true);
+    }
+  }
   if (isSettingsOpen()) updateSettingsValues();
   rememberSettings();
 }
@@ -578,26 +595,33 @@ async function openMobi(book) {
   state.current.mobi = {
     chapters: res.chapters || [],
     toc: res.toc || [],
-    index: 0,
+  };
+  state.current.flow = new window.GaiaFlow({ totalChapters: Math.max(1, (res.chapters || []).length) });
+  state.current.paginator = new window.GaiaPaginator(els.readerContent, { pageWidth: 640, gap: 48 });
+  state.current.paginator.onChange = () => updateMobiProgress(false);
+  state.current.paginator.onTotalChange = (total) => {
+    if (state.current && state.current.flow) state.current.flow.setPages(state.current.flow.chapter, total);
   };
   const saved = state.progress[book.path];
-  let startIndex = 0;
+  let startChapter = 0;
+  let startPage = 0;
   let startScroll = 0;
-  if (saved && typeof saved.mobiIndex === 'number') {
-    startIndex = Math.max(0, Math.min(res.chapters.length - 1, saved.mobiIndex));
+  if (saved) {
+    if (typeof saved.mobiChapter === 'number') startChapter = saved.mobiChapter;
+    else if (typeof saved.mobiIndex === 'number') startChapter = saved.mobiIndex;
+    if (typeof saved.mobiPage === 'number') startPage = saved.mobiPage;
     if (typeof saved.mobiScroll === 'number') startScroll = saved.mobiScroll;
   }
-  await renderMobiChapter(startIndex, { scrollTo: startScroll });
-  els.readerContent.addEventListener('scroll', () => updateMobiProgress(false));
+  state.current.flow.gotoChapter(startChapter);
+  await loadMobiChapter(startChapter, { page: startPage, scrollTop: startScroll });
   renderMobiToc();
 }
 
-async function renderMobiChapter(index, opts) {
+async function loadMobiChapter(chapterIndex, opts) {
   const c = state.current;
   if (!c || !c.mobiSession) return;
   const chapters = c.mobi.chapters;
-  const clamped = Math.max(0, Math.min(chapters.length - 1, index));
-  c.mobi.index = clamped;
+  const clamped = Math.max(0, Math.min(chapters.length - 1, chapterIndex));
   opts = opts || {};
   els.readerStatus.textContent = '加载中…';
   try {
@@ -605,28 +629,20 @@ async function renderMobiChapter(index, opts) {
     let html = ch.html || '';
     const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
     if (bodyMatch) html = bodyMatch[1];
-    const div = document.createElement('div');
-    div.id = 'mobi-content';
-    div.innerHTML = html;
-    if (ch.cssText) {
-      const style = document.createElement('style');
-      style.id = 'mobi-book-style';
-      style.textContent = ch.cssText;
-      div.prepend(style);
-    }
-    els.readerContent.innerHTML = '';
-    els.readerContent.appendChild(div);
-    applyMobiTypography();
-    applyMobiTheme();
-    els.readerContent.scrollTop = 0;
-    updateMobiProgress(true);
-    if (opts.scrollTo === 'bottom') {
-      await new Promise((r) => setTimeout(r, 0));
-      els.readerContent.scrollTop = els.readerContent.scrollHeight;
-      updateMobiProgress(true);
-    } else if (typeof opts.scrollTo === 'number') {
-      await new Promise((r) => setTimeout(r, 0));
-      els.readerContent.scrollTop = Math.max(0, Math.min(els.readerContent.scrollHeight, opts.scrollTo));
+    if (c.paginator) {
+      await c.paginator.render(html, ch.cssText || '');
+      if (c.flow) c.flow.gotoChapter(clamped);
+      const total = c.paginator.totalPages || 1;
+      if (c.flow) c.flow.setPages(clamped, total);
+      if (state.readMode === 'scroll') {
+        c.paginator.setMode('scroll');
+        if (typeof opts.scrollTop === 'number') c.paginator.setScrollTop(opts.scrollTop);
+      } else {
+        c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
+        const p = opts.page === 'end' ? total - 1 : (typeof opts.page === 'number' ? opts.page : 0);
+        c.paginator.showPage(p);
+        if (c.flow) c.flow.page = Math.min(Math.max(0, p), total - 1);
+      }
       updateMobiProgress(true);
     }
   } catch (err) {
@@ -635,23 +651,66 @@ async function renderMobiChapter(index, opts) {
   }
 }
 
-let lastMobiSave = 0;
-function updateMobiProgress(force) {
+function applyMobiTypography() {
   const c = state.current;
-  if (!c || !c.mobi) return;
-  const container = els.readerContent;
-  const max = container.scrollHeight - container.clientHeight;
-  const chapters = c.mobi.chapters;
-  const inChapter = max > 8 ? container.scrollTop / max : 0;
-  const percent = chapters.length > 1 ? ((c.mobi.index + inChapter) / chapters.length) * 100 : 100;
-  updateProgress(percent, '进度 ' + percent.toFixed(1) + '% · 第 ' + (c.mobi.index + 1) + ' / ' + chapters.length + ' 节');
-  const now = Date.now();
-  if (force || now - lastMobiSave > 600) {
-    lastMobiSave = now;
-    saveProgress(c.path, { mobiIndex: c.mobi.index, mobiScroll: container.scrollTop, percent });
+  if (c && c.paginator) {
+    c.paginator.setTypography({
+      fontSizePct: c.format === 'txt' ? (state.txtFont / 16) * 100 : state.fontSize,
+      lineHeight: state.lineHeight,
+      fontFamily: FONTS[state.fontName] || '',
+    });
   }
 }
 
+function applyMobiTheme() {
+  const c = state.current;
+  if (c && c.paginator) c.paginator.setTheme(state.prefs.theme);
+}
+
+let lastMobiSave = 0;
+function updateMobiProgress(force) {
+  const c = state.current;
+  if (!c || !c.paginator) return;
+  let percent;
+  let text;
+  const chapters = c.mobi ? c.mobi.chapters : null;
+  if (state.readMode === 'scroll') {
+    percent = c.paginator.scrollPercent();
+    text = chapters && chapters.length > 1
+      ? '进度 ' + percent.toFixed(1) + '% · 第 ' + (c.flow ? c.flow.chapter + 1 : 1) + ' / ' + chapters.length + ' 节'
+      : '进度 ' + percent.toFixed(1) + '%';
+  } else {
+    percent = c.flow ? c.flow.percent() : c.paginator.pagePercent();
+    text = chapters && chapters.length > 1
+      ? '进度 ' + percent.toFixed(1) + '% · 第 ' + (c.flow ? c.flow.chapter + 1 : 1) + ' / ' + chapters.length + ' 节'
+      : '进度 ' + percent.toFixed(1) + '%';
+  }
+  updateProgress(percent, text);
+  const now = Date.now();
+  if (force || now - lastMobiSave > 600) {
+    lastMobiSave = now;
+    const saved = { percent };
+    const isMobi = c.format === 'mobi' || c.format === 'azw3';
+    if (state.readMode === 'scroll') {
+      const top = c.paginator.getScrollTop();
+      if (isMobi) {
+        saved.mobiScroll = top;
+        if (c.flow) saved.mobiChapter = c.flow.chapter;
+      } else {
+        saved.offset = top;
+      }
+    } else {
+      if (isMobi) {
+        if (c.flow) saved.mobiChapter = c.flow.chapter;
+        saved.mobiPage = c.paginator.currentPage;
+        if (c.flow) saved.mobiIndex = c.flow.chapter;
+      } else {
+        saved.page = c.paginator.currentPage;
+      }
+    }
+    saveProgress(c.path, saved);
+  }
+}
 function renderMobiToc() {
   const c = state.current;
   els.tocPanel.innerHTML = '';
@@ -666,7 +725,7 @@ function renderMobiToc() {
       a.textContent = '\\u3000'.repeat(depth) + (item.label || '').trim();
       a.addEventListener('click', (ev) => {
         ev.preventDefault();
-        if (typeof item.index === 'number' && item.index >= 0) renderMobiChapter(item.index);
+        if (typeof item.index === 'number' && item.index >= 0) loadMobiChapter(item.index, { page: 0 });
       });
       els.tocPanel.appendChild(a);
       if (item.children && item.children.length) renderItems(item.children, depth + 1);
@@ -675,75 +734,50 @@ function renderMobiToc() {
   renderItems(c.mobi.toc, 0);
 }
 
-function applyMobiTypography() {
-  const div = els.readerContent.querySelector('#mobi-content');
-  if (!div) return;
-  div.style.fontSize = state.txtFont + 'px';
-  div.style.lineHeight = String(state.lineHeight);
-  div.style.fontFamily = FONTS[state.fontName] || 'inherit';
-}
-
-function applyMobiTheme() {
-  const div = els.readerContent.querySelector('#mobi-content');
-  if (!div) return;
-  const theme = state.prefs.theme;
-  if (theme === 'dark') {
-    div.style.color = '#e6edf3';
-    div.style.background = '#000';
-  } else if (theme === 'eye') {
-    div.style.color = '#4a3826';
-    div.style.background = '#f5ecd9';
-  } else {
-    div.style.color = '';
-    div.style.background = '';
-  }
-}
 
 async function openTxt(book) {
   const res = await window.api.readBook(book.path);
-  const div = document.createElement('div');
-  div.id = 'txt-content';
+  state.current.flow = new window.GaiaFlow({ totalChapters: 1 });
+  state.current.paginator = new window.GaiaPaginator(els.readerContent, { pageWidth: 640, gap: 48 });
+  state.current.paginator.onChange = () => updateMobiProgress(false);
+  state.current.paginator.onTotalChange = (total) => {
+    if (state.current && state.current.flow) state.current.flow.setPages(0, total);
+  };
   const paragraphs = res.text.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+  let html = '';
   if (paragraphs.length) {
-    for (const p of paragraphs) {
-      const el = document.createElement('p');
-      el.textContent = p;
-      div.appendChild(el);
-    }
+    html = paragraphs.map((p) => '<p>' + escapeHtml(p) + '</p>').join('');
   } else {
-    div.textContent = res.text;
+    html = '<p>' + escapeHtml(res.text) + '</p>';
   }
-  els.readerContent.appendChild(div);
-  applyTxtTypography();
-  const saved = state.progress[book.path];
-  setTimeout(() => {
-    if (saved && typeof saved.offset === 'number') els.readerContent.scrollTop = saved.offset;
-    updateTxtProgress(true);
-  }, 0);
-  els.readerContent.addEventListener('scroll', () => updateTxtProgress(false));
+  await state.current.paginator.render(html, '');
+  if (state.current.flow) state.current.flow.setPages(0, state.current.paginator.totalPages || 1);
+  if (state.readMode === 'scroll') {
+    state.current.paginator.setMode('scroll');
+    const saved = state.progress[book.path];
+    if (saved && typeof saved.offset === 'number') state.current.paginator.setScrollTop(saved.offset);
+  } else {
+    state.current.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
+    const saved = state.progress[book.path];
+    if (saved && typeof saved.page === 'number') state.current.paginator.showPage(saved.page);
+  }
+  updateMobiProgress(true);
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function updateTxtProgress(force) {
-  const c = state.current;
-  if (!c || c.format !== 'txt') return;
-  const container = els.readerContent;
-  const max = container.scrollHeight - container.clientHeight;
-  const percent = max > 0 ? (container.scrollTop / max) * 100 : 0;
-  updateProgress(percent, '进度 ' + percent.toFixed(1) + '%');
-  const now = Date.now();
-  if (force || now - lastTxtSave > 600) {
-    lastTxtSave = now;
-    saveProgress(c.path, { offset: container.scrollTop, percent });
-  }
+  updateMobiProgress(force);
 }
 
 function applyTxtTypography() {
-  const div = els.readerContent.querySelector('#txt-content');
-  if (div) {
-    div.style.fontSize = state.txtFont + 'px';
-    div.style.lineHeight = String(state.lineHeight);
-    div.style.fontFamily = FONTS[state.fontName] || 'inherit';
-  }
+  applyMobiTypography();
 }
 
 function nextPage() {
@@ -753,20 +787,24 @@ function nextPage() {
     if (c.rendition) { animatePage('next'); c.rendition.next(); }
   } else if (c.format === 'pdf') {
     if (c.page < c.pages) { c.page += 1; animatePage('next'); renderPdfPage(); }
-  } else if (c.format === 'mobi' || c.format === 'azw3') {
-    const container = els.readerContent;
-    const max = container.scrollHeight - container.clientHeight;
-    const step = Math.max(40, container.clientHeight * 0.92);
-    if (container.scrollTop + step < max - 4) {
-      animatePage('next');
-      container.scrollTop += step;
-      updateMobiProgress(false);
-    } else if (c.mobi && c.mobi.index < c.mobi.chapters.length - 1) {
-      animatePage('next');
-      renderMobiChapter(c.mobi.index + 1);
+  } else if (c.paginator) {
+    if (state.readMode === 'scroll') {
+      if (c.paginator.next()) { animatePage('next'); updateMobiProgress(false); }
+      return;
     }
-  } else if (c.format === 'txt') {
-    els.readerContent.scrollTop += els.readerContent.clientHeight * 0.9;
+    const step = state.readMode === 'spread' ? 2 : 1;
+    const moved = c.paginator.next(step);
+    if (moved) {
+      animatePage('next');
+      if (c.flow) c.flow.page = c.paginator.currentPage;
+      updateMobiProgress(false);
+    } else if (c.flow && c.flow.canNext()) {
+      animatePage('next');
+      const r = c.flow.next(step);
+      if (r && (c.format === 'mobi' || c.format === 'azw3')) {
+        loadMobiChapter(r.chapter, { page: 0 });
+      }
+    }
   }
 }
 
@@ -777,19 +815,24 @@ function prevPage() {
     if (c.rendition) { animatePage('prev'); c.rendition.prev(); }
   } else if (c.format === 'pdf') {
     if (c.page > 1) { c.page -= 1; animatePage('prev'); renderPdfPage(); }
-  } else if (c.format === 'mobi' || c.format === 'azw3') {
-    const container = els.readerContent;
-    const step = Math.max(40, container.clientHeight * 0.92);
-    if (container.scrollTop > 8) {
-      animatePage('prev');
-      container.scrollTop = Math.max(0, container.scrollTop - step);
-      updateMobiProgress(false);
-    } else if (c.mobi && c.mobi.index > 0) {
-      animatePage('prev');
-      renderMobiChapter(c.mobi.index - 1, { scrollTo: 'bottom' });
+  } else if (c.paginator) {
+    if (state.readMode === 'scroll') {
+      if (c.paginator.prev()) { animatePage('prev'); updateMobiProgress(false); }
+      return;
     }
-  } else if (c.format === 'txt') {
-    els.readerContent.scrollTop -= els.readerContent.clientHeight * 0.9;
+    const step = state.readMode === 'spread' ? 2 : 1;
+    const moved = c.paginator.prev(step);
+    if (moved) {
+      animatePage('prev');
+      if (c.flow) c.flow.page = c.paginator.currentPage;
+      updateMobiProgress(false);
+    } else if (c.flow && c.flow.canPrev()) {
+      animatePage('prev');
+      const r = c.flow.prev(step);
+      if (r && (c.format === 'mobi' || c.format === 'azw3')) {
+        loadMobiChapter(r.chapter, { page: 'end' });
+      }
+    }
   }
 }
 
@@ -802,12 +845,10 @@ function adjustFont(delta) {
   } else if (c.format === 'pdf') {
     c.zoom = Math.min(2, Math.max(0.6, (c.zoom || 1) + delta * 0.2));
     renderPdfPage();
-  } else if (c.format === 'mobi' || c.format === 'azw3') {
-    state.txtFont = Math.min(28, Math.max(12, state.txtFont + delta));
+  } else if (c.paginator) {
+    state.fontSize = Math.min(200, Math.max(80, state.fontSize + delta * 10));
+    state.txtFont = Math.min(28, Math.max(12, Math.round((state.fontSize / 100) * 16)));
     applyMobiTypography();
-  } else if (c.format === 'txt') {
-    state.txtFont = Math.min(28, Math.max(12, state.txtFont + delta));
-    applyTxtTypography();
   }
   if (isSettingsOpen()) updateSettingsValues();
   rememberSettings();
@@ -818,13 +859,11 @@ function cycleLineHeight() {
   const idx = options.indexOf(state.lineHeight);
   state.lineHeight = options[(idx + 1) % options.length];
   if (state.current && state.current.format === 'epub') applyEpubTypography();
-  if (state.current && (state.current.format === 'mobi' || state.current.format === 'azw3')) applyMobiTypography();
-  if (state.current && state.current.format === 'txt') applyTxtTypography();
+  if (state.current && state.current.paginator) applyMobiTypography();
   if (isSettingsOpen()) updateSettingsValues();
   els.readerStatus.textContent = '行距 ' + state.lineHeight.toFixed(1);
   rememberSettings();
 }
-
 function togglePanel(which) {
   const isToc = which === 'toc';
   const targetHidden = isToc ? els.tocPanel.hidden : els.bookmarksPanel.hidden;
@@ -890,9 +929,14 @@ async function addBookmark() {
   } else if (c.format === 'pdf') {
     loc = String(c.page);
     label = '书签 ' + (getBookmarkCount() + 1) + '（第 ' + c.page + ' 页）';
-  } else if (c.format === 'mobi' || c.format === 'azw3') {
-    loc = (c.mobi ? c.mobi.index : 0) + ':' + els.readerContent.scrollTop;
-    label = '书签 ' + (getBookmarkCount() + 1) + '（第 ' + (c.mobi ? c.mobi.index + 1 : 1) + ' 节）';
+  } else if (c.paginator) {
+    if (state.readMode === 'scroll') {
+      loc = 'scroll:' + (c.mobi && c.flow ? c.flow.chapter : 0) + ':' + c.paginator.getScrollTop();
+      label = '书签 ' + (getBookmarkCount() + 1) + '（滚动位置）';
+    } else {
+      loc = 'page:' + (c.mobi && c.flow ? c.flow.chapter : 0) + ':' + c.paginator.currentPage;
+      label = '书签 ' + (getBookmarkCount() + 1) + (c.mobi && c.flow ? '（第 ' + (c.flow.chapter + 1) + ' 节第 ' + (c.paginator.currentPage + 1) + ' 页）' : '（第 ' + (c.paginator.currentPage + 1) + ' 页）');
+    }
   } else {
     loc = String(els.readerContent.scrollTop);
     label = '书签 ' + (getBookmarkCount() + 1);
@@ -920,9 +964,30 @@ async function jumpToBookmark(loc) {
   const c = state.current;
   if (!c) return;
   if (c.format === 'epub') c.rendition.display(loc);
-  else if (c.format === 'mobi' || c.format === 'azw3') {
-    const idx = parseInt(loc, 10) || 0;
-    await renderMobiChapter(idx);
+  else if (c.paginator) {
+    if (String(loc).startsWith('scroll:')) {
+      const parts = String(loc).split(':');
+      const chapter = parseInt(parts[1], 10) || 0;
+      const top = parseInt(parts[2], 10) || 0;
+      if (c.format === 'mobi' || c.format === 'azw3') {
+        await loadMobiChapter(chapter, { scrollTop: top });
+      } else {
+        c.paginator.setMode('scroll');
+        c.paginator.setScrollTop(top);
+      }
+      state.readMode = 'scroll';
+    } else {
+      const parts = String(loc).split(':');
+      const chapter = parseInt(parts[1], 10) || 0;
+      const page = parseInt(parts[2], 10) || 0;
+      if (c.format === 'mobi' || c.format === 'azw3') {
+        await loadMobiChapter(chapter, { page });
+      } else {
+        c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
+        c.paginator.showPage(page);
+      }
+    }
+    updateMobiProgress(true);
   } else if (c.format === 'pdf') {
     c.page = parseInt(loc, 10) || 1;
     await renderPdfPage();
@@ -1075,7 +1140,7 @@ async function applyTheme(theme) {
     } catch (e) {}
   }
   if (c && c.format === 'pdf') renderPdfPage();
-  if (c && (c.format === 'mobi' || c.format === 'azw3')) applyMobiTheme();
+  if (c && c.paginator) applyMobiTheme();
   await window.api.stateSet('prefs', state.prefs);
   rememberSettings();
 }
@@ -1186,7 +1251,7 @@ function applyBookSettings(book) {
   if (s.fontSize != null) state.fontSize = s.fontSize;
   if (s.txtFont != null) state.txtFont = s.txtFont;
   if (s.lineHeight != null) state.lineHeight = s.lineHeight;
-  state.spread = !!s.spread;
+  state.readMode = s.readMode === 'spread' || s.readMode === 'scroll' ? s.readMode : 'single';
 }
 
 function rememberSettings() {
@@ -1199,7 +1264,7 @@ function rememberSettings() {
     fontSize: state.fontSize,
     txtFont: state.txtFont,
     lineHeight: state.lineHeight,
-    spread: state.spread,
+    readMode: state.readMode,
     zoom: c.zoom || prev.zoom,
   });
   state.progress[c.path] = Object.assign({}, state.progress[c.path], { settings });
@@ -1257,7 +1322,7 @@ function bindEvents() {
     if (c && c.format === 'epub' && c.rendition) {
       try { c.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
     }
-    if (c && c.format === 'txt') applyTxtTypography();
+    if (c && c.paginator) applyMobiTypography();
     if (c && (c.format === 'mobi' || c.format === 'azw3')) applyMobiTypography();
     window.api.stateSet('prefs', state.prefs);
     rememberSettings();
@@ -1335,7 +1400,24 @@ window.__gaiaDebug = {
   removeBookmarkAt,
   togglePanel,
   toggleSpread,
-  getSpreadMode: () => state.spread,
+  getSpreadMode: () => state.readMode === 'spread',
+  getReadMode: () => state.readMode,
+  setMode: (mode) => {
+    if (['single', 'spread', 'scroll'].includes(mode)) {
+      state.readMode = mode;
+      const c = state.current;
+      if (c) {
+        if (c.format === 'epub' && c.rendition) {
+          if (mode === 'scroll') { try { c.rendition.flow('scrolled-doc'); } catch (e) {} }
+          else { try { c.rendition.spread(mode === 'spread' ? 'auto' : 'none', 700); } catch (e) {} }
+        } else if (c.paginator) {
+          c.paginator.setMode(mode === 'spread' ? 'spread' : (mode === 'scroll' ? 'scroll' : 'single'));
+          updateMobiProgress(true);
+        }
+      }
+      rememberSettings();
+    }
+  },
   toggleNight: cycleTheme,
   setTheme: applyTheme,
   getTheme: () => state.prefs.theme,
@@ -1349,7 +1431,7 @@ window.__gaiaDebug = {
     if (c && c.format === 'epub' && c.rendition) {
       try { c.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
     }
-    if (c && c.format === 'txt') applyTxtTypography();
+    if (c && c.paginator) applyMobiTypography();
     await window.api.stateSet('prefs', state.prefs);
     rememberSettings();
   },
@@ -1366,19 +1448,28 @@ window.__gaiaDebug = {
     }
   },
   getPagingClass: () => els.readerContent.className,
+  getPaginatorTotal: () => (state.current && state.current.paginator ? state.current.paginator.totalPages : 0),
+  getPaginatorPage: () => (state.current && state.current.paginator ? state.current.paginator.currentPage : -1),
   getMobiContentLength: () => {
-    const div = els.readerContent.querySelector('#mobi-content');
-    return div ? div.innerHTML.length : 0;
+    const c = state.current;
+    return c && c.paginator && c.paginator.doc ? c.paginator.doc.body.innerHTML.length : 0;
   },
   getMobiChapters: () => (state.current && state.current.mobi ? state.current.mobi.chapters.length : 0),
   getMobiTocCount: () => (state.current && state.current.mobi ? state.current.mobi.toc.length : 0),
-  getMobiIndex: () => (state.current && state.current.mobi ? state.current.mobi.index : -1),
-  getReaderScrollTop: () => els.readerContent.scrollTop,
-  jumpToMobiChapter: (idx) => renderMobiChapter(idx),
+  getMobiIndex: () => (state.current && state.current.flow ? state.current.flow.chapter : -1),
+  getReaderScrollTop: () => {
+    const c = state.current;
+    if (c && c.paginator) {
+      return state.readMode === 'scroll' ? c.paginator.getScrollTop() : c.paginator.currentPage;
+    }
+    return els.readerContent.scrollTop;
+  },
+  jumpToMobiChapter: (idx) => loadMobiChapter(idx, { page: 0 }),
   getReaderTitle: () => els.readerTitle.textContent,
   getMobiBackground: () => {
-    const div = els.readerContent.querySelector('#mobi-content');
-    return div ? getComputedStyle(div).backgroundColor : '';
+    const c = state.current;
+    if (c && c.paginator && c.paginator.doc) return getComputedStyle(c.paginator.doc.body).backgroundColor;
+    return '';
   },
   getDisplayPercent: () => (state.current && state.current.displayPercent != null ? state.current.displayPercent : 0),
   getProgressWidth: () => els.progressFill.style.width,
@@ -1388,7 +1479,8 @@ window.__gaiaDebug = {
     fontSize: state.fontSize,
     txtFont: state.txtFont,
     lineHeight: state.lineHeight,
-    spread: state.spread,
+    readMode: state.readMode,
+    spread: state.readMode === 'spread',
   }),
   setLineHeight: (lh) => {
     state.lineHeight = lh;
@@ -1437,9 +1529,8 @@ window.__gaiaDebug = {
   getPercent: () => {
     const c = state.current;
     if (!c) return null;
-    if (c.format === 'mobi' || c.format === 'azw3') {
-      if (!c.mobi || !c.mobi.chapters.length) return 0;
-      return (c.mobi.index / (c.mobi.chapters.length - 1)) * 100;
+    if (c.paginator) {
+      return state.readMode === 'scroll' ? c.paginator.scrollPercent() : (c.flow ? c.flow.percent() : c.paginator.pagePercent());
     }
     if (!c || !c.rendition) return null;
     try {

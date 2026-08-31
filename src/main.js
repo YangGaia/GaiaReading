@@ -126,7 +126,20 @@ function createWindow() {
         let debugOk = true;
         if (DEBUG_OPEN_PATH) {
           const debugExt = path.extname(DEBUG_OPEN_PATH).toLowerCase();
-          if (debugExt === '.mobi' || debugExt === '.azw3') {
+          if (debugExt === '.txt') {
+            await mainWindow.webContents.executeJavaScript('window.__TXT_SMOKE_PATH = ' + JSON.stringify(DEBUG_OPEN_PATH) + ';');
+            const txtScript = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'txt-smoke.js'), 'utf8');
+            const txtStatus = await mainWindow.webContents.executeJavaScript(txtScript);
+            console.log('DEBUG_TXT:', txtStatus);
+            try {
+              const parsed = JSON.parse(txtStatus);
+              debugOk = parsed.contentLen > 0 && parsed.totalPages > 1 && parsed.pageAfter > parsed.pageBefore && parsed.scrollMode === 'scroll';
+              if (!debugOk) console.error('DEBUG_TXT_CHECKS_FAILED:', JSON.stringify(parsed));
+            } catch (parseErr) {
+              debugOk = false;
+              console.error('DEBUG_TXT_UNPARSEABLE:', parseErr && parseErr.message, txtStatus);
+            }
+          } else if (debugExt === '.mobi' || debugExt === '.azw3') {
             await mainWindow.webContents.executeJavaScript("window.__MOBI_SMOKE_PATH = " + JSON.stringify(DEBUG_OPEN_PATH) + "; window.__MOBI_SMOKE_FORMAT = " + JSON.stringify(debugExt.slice(1)) + ";");
             const mobiScript = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'mobi-smoke.js'), 'utf8');
             const mobiStatus = await mainWindow.webContents.executeJavaScript(mobiScript);
@@ -210,17 +223,17 @@ function createWindow() {
               await new Promise((r) => setTimeout(r, 400));
               const epSize = __gaiaDebug.getRenditionSize();
               const spreadBefore = __gaiaDebug.getSpreadMode();
-              __gaiaDebug.toggleSpread();
+              __gaiaDebug.setMode('spread');
               await new Promise((r) => setTimeout(r, 600));
               const spreadAfter = __gaiaDebug.getSpreadMode();
               const epSizeAfterSpread = __gaiaDebug.getRenditionSize();
-              __gaiaDebug.toggleSpread();
+              __gaiaDebug.setMode('spread');
               __gaiaDebug.openSettings();
               const drawerOpen = __gaiaDebug.isSettingsOpen();
               __gaiaDebug.closeSettings();
               const drawerClosed = !__gaiaDebug.isSettingsOpen();
               await __gaiaDebug.setLineHeight(2);
-              await __gaiaDebug.toggleSpread();
+              await __gaiaDebug.setMode('spread');
               await new Promise((r) => setTimeout(r, 500));
               await __gaiaDebug.backToLibrary();
               await __gaiaDebug.openBook({ path: fixture, format: 'epub', title: 'fixture' });
@@ -230,7 +243,7 @@ function createWindow() {
               const memAfter = __gaiaDebug.getCurrentSettings();
               const memOk = memAfter.theme === 'eye' && memAfter.fontName === 'song' && memAfter.spread === true && Math.abs(memAfter.lineHeight - 2) < 0.01;
               await __gaiaDebug.setTheme('light');
-              if (__gaiaDebug.getSpreadMode()) await __gaiaDebug.toggleSpread();
+              if (__gaiaDebug.getSpreadMode()) await __gaiaDebug.setMode('single');
               await __gaiaDebug.addBookmark();
               await __gaiaDebug.addToLibrary({ path: fixture, format: 'epub', title: 'fixture' });
               const libAfterAdd = __gaiaDebug.getLibraryCount();
@@ -476,6 +489,7 @@ ipcMain.handle('mobi:close', (event, sessionId) => {
   }
   return true;
 });
+
 
 ipcMain.handle('state:get', (event, key) => store.get(key, null));
 ipcMain.handle('state:set', (event, { key, value }) => {
