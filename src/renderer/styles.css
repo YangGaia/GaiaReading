@@ -236,7 +236,7 @@ body.eye {
 }
 .bgm-capsule.in-topbar:hover { opacity: 1; }
 .bgm-capsule.in-topbar .bgm-cover { width: 28px; height: 28px; }
-.bgm-capsule.in-topbar .bgm-title-wrap { max-width: 100px; }
+.bgm-capsule.in-topbar .bgm-title-wrap { max-width: 190px; }
 .bgm-capsule.in-topbar .bgm-volume { width: 48px; }
 
 .bgm-capsule[data-view="reader"]:hover { opacity: 1; }
@@ -266,21 +266,19 @@ body.eye {
   0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, .55); }
   50% { box-shadow: 0 0 0 7px rgba(139, 92, 246, 0); }
 }
-.bgm-title-wrap { max-width: 130px; overflow: hidden; }
+.bgm-title-wrap { max-width: 190px; overflow: hidden; }
 .bgm-title {
   display: inline-block;
-  max-width: 100%;
   font-size: 12px;
   color: #efe9ff;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   padding-left: 2px;
 }
-.bgm-capsule[data-playing="1"] .bgm-title { animation: bgmMarquee 8s linear infinite; max-width: none; overflow: visible; text-overflow: clip; }
-@keyframes bgmMarquee {
-  0% { transform: translateX(-50%); }
-  100% { transform: translateX(0); }
+.bgm-capsule[data-playing="1"] .bgm-char { display: inline-block; animation: bgmWave 2.4s ease-in-out infinite; animation-delay: calc(var(--i, 0) * 90ms); }
+@keyframes bgmWave {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-2.5px); }
+  75% { transform: translateY(2px); }
 }
 .bgm-volume {
   width: 64px;

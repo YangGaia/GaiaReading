@@ -39,14 +39,25 @@
     });
   }
 
+  /** 歌名逐字渲染：每个字一个 span，播放时带波浪形动画（--i 控制相位差）。 */
+  function renderTitle(title) {
+    if (!ui.title) return;
+    ui.title.textContent = '';
+    const chars = String(title || '');
+    for (let i = 0; i < chars.length; i++) {
+      const s = document.createElement('span');
+      s.className = 'bgm-char';
+      s.style.setProperty('--i', String(i));
+      s.textContent = chars[i] === ' ' ? '\\u00A0' : chars[i];
+      ui.title.appendChild(s);
+    }
+  }
+
   function updateUi() {
     if (!ui.root) return;
     const t = trackById(state.trackId);
     ui.root.dataset.playing = state.on ? '1' : '0';
-    ui.title.textContent = t ? t.title : '';
-    const wrapW = ui.titleWrap ? ui.titleWrap.clientWidth : 0;
-    const overflows = ui.title.scrollWidth > wrapW + 1;
-    if (state.on && overflows) ui.title.textContent = (t ? t.title : '') + (t ? t.title : '');
+    renderTitle(t ? t.title : '');
     ui.title.title = t ? (t.title + ' · ' + t.artist) : '';
     ui.play.textContent = state.on ? '⏸' : '▶';
     ui.play.title = state.on ? '暂停' : '播放';
@@ -207,12 +218,30 @@
     updateUi();
   }
 
+  function marqueeInfo() {
+    if (!ui.title) return null;
+    const firstChar = ui.title.querySelector('.bgm-char');
+    const cs = firstChar ? getComputedStyle(firstChar) : null;
+    return {
+      charCount: ui.title.children.length,
+      on: state.on,
+      track: state.trackId,
+      textLen: ui.title.textContent.length,
+      wrapW: ui.titleWrap ? ui.titleWrap.clientWidth : 0,
+      scrollW: ui.title.scrollWidth,
+      animName: cs.animationName,
+      transform: cs.transform,
+      playingAttr: ui.root ? ui.root.dataset.playing : '',
+    };
+  }
+
   return {
     initBgm,
     positionBgm,
     toggle,
     next,
     setVolume,
+    marqueeInfo,
     getState: () => Object.assign({}, state),
     getTracks: () => BGM_TRACKS.slice(),
   };
