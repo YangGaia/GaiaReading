@@ -301,6 +301,7 @@ body.eye {
 .gaia-pet-body {
   position: relative;
   width: 100%;
+  aspect-ratio: 356 / 647;
   transform-origin: 50% 100%;
   animation: pet-breathe 4s ease-in-out infinite;
 }
