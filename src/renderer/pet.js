@@ -27,7 +27,7 @@
     expression: { x: 82, y: 103, w: 89, h: 79 },
     tile: { w: 134, h: 118, cx: 67.5, cy: 59.5 },
     sheet: { w: 356, h: 647 }, // 半身照原图尺寸, 用于显示缩放换算
-    headOffsetY: 0, // 头层从半身照 y0 开始(完整头顶), 底部羽化融合
+    headBox: { x: 100, y: 0, w: 170, h: 220 }, // 主人标定的头部区域: x100-270, y0-220
     turn: { turnY: 9, turnX: 7, tx: 2, ty: 1.5 }, // 3D转头: rotateY左右/rotateX上下 + 位移, 身体不动
   };
 
@@ -82,11 +82,9 @@
     const s = (ui.body.clientWidth || 150) / sheet.w;
     const hbCx = hb.x + hb.w / 2;
     const hbCy = hb.y + hb.h / 2;
-    const headTop = FACE.headOffsetY;
-    ui.face.style.width = Math.round(tile.w * s) + 'px';
-    ui.face.style.height = Math.round(tile.h * s) + 'px';
-    ui.face.style.left = Math.round((hbCx - tile.cx) * s) + 'px';
-    ui.face.style.top = Math.round((hbCy - tile.cy - headTop) * s) + 'px';
+    const headBox = FACE.headBox;
+    ui.face.style.left = Math.round((hbCx - tile.cx - headBox.x) * s) + 'px';
+    ui.face.style.top = Math.round((hbCy - tile.cy - headBox.y) * s) + 'px';
     // 眼皮(眨眼)遮罩: 覆盖表情层眼睛区域, 与脸部中心对齐
     const exCy = ex.y + ex.h / 2;
     const eyeY = ex.y + ex.h * 0.44;
@@ -94,8 +92,8 @@
     const lidH = Math.round(10 * s);
     ui.lid.style.width = lidW + 'px';
     ui.lid.style.height = lidH + 'px';
-    ui.lid.style.left = Math.round((hbCx - ex.w * 0.36) * s) + 'px';
-    ui.lid.style.top = Math.round((hbCy - (exCy - eyeY) - headTop) * s - lidH / 2) + 'px';
+    ui.lid.style.left = Math.round((hbCx - ex.w * 0.36 - headBox.x) * s) + 'px';
+    ui.lid.style.top = Math.round((hbCy - (exCy - eyeY) - headBox.y) * s - lidH / 2) + 'px';
   }
 
   function pokeBounce() {

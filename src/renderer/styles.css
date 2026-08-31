@@ -425,10 +425,10 @@ body.eye {
 /* 羽化头层: 以脖子为轴转头, 底部羽化与身体融合 */
 .gaia-pet-head {
   position: absolute;
-  left: 0;
+  left: 28.1%; /* x100/356 */
   top: 0;
-  width: 100%;
-  transform-origin: 50% 98%;
+  width: 47.75%; /* 170/356 */
+  transform-origin: 50% 100%; /* 下巴 y220 为轴 */
   will-change: transform;
   z-index: 2;
 }
