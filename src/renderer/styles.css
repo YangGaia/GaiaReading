@@ -302,7 +302,6 @@ body.eye {
   position: relative;
   width: 100%;
   aspect-ratio: 356 / 647;
-  perspective: 320px;
   transform-origin: 50% 100%;
   animation: pet-breathe 4s ease-in-out infinite;
 }
@@ -410,31 +409,5 @@ body.eye {
 
 
 
-/* 纸娃娃: 头层旋转 / 身体 / 脖子垫片 */
-/* 完整底图(不切): 身体跟随鼠标轻微扭动 */
-.gaia-pet-bodypart {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  display: block;
-  pointer-events: none;
-  transform-origin: 50% 100%;
-  will-change: transform;
-}
-/* 羽化头层: 以脖子为轴转头, 底部羽化与身体融合 */
-.gaia-pet-head {
-  position: absolute;
-  left: 28.1%; /* x100/356 */
-  top: 12px; /* 头整体下移, 下巴盖住身体遮缝 */
-  width: 47.75%; /* 170/356 */
-  transform-origin: 50% 87%; /* 头下移12px后, 转轴仍保持在下巴 */
-  will-change: transform;
-  z-index: 2;
-}
-.gaia-pet-headimg {
-  display: block;
-  width: 100%;
-  height: auto;
-  pointer-events: none;
-}
+
+.gaia-pet-halfbody { display: block; width: 100%; height: auto; pointer-events: none; }

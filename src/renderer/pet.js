@@ -18,7 +18,7 @@
 
   const { PET_STATES, EVENTS, createBrain, decideState, timeoutState, lineFor, idleAction } = shared;
 
-  const IMG = 'images/pet/parts/';
+  const IMG = 'images/pet/cells/';
   const FACE_IMG = 'images/pet/faces/';
 
   /** 脸部标定（半身照 356x647，表情格约 254x256；坐标为估算，待主人确认）。 */
@@ -39,6 +39,7 @@
   let loaded = false;
   let bubbleTimer = null;
   let animTimer = null;
+  let blinkTimer = null;
   let dragging = false;
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
@@ -72,6 +73,47 @@
   }
 
   /** 表情层布局：把表情格的脸中心对齐到半身照的脸中心，按宽度等比缩放。 */
+
+
+  /** 表情层布局：把表情格的脸中心对齐到半身照的脸中心，按显示缩放换算。 */
+  function layoutFace() {
+    if (!ui.face || !ui.halfbody) return;
+    const hb = FACE.halfbody;
+    const ex = FACE.expression;
+    const tile = FACE.tile;
+    const sheet = FACE.sheet;
+    const s = (ui.body.clientWidth || 150) / sheet.w;
+    const hbCx = hb.x + hb.w / 2;
+    const hbCy = hb.y + hb.h / 2;
+    ui.face.style.width = Math.round(tile.w * s) + 'px';
+    ui.face.style.height = Math.round(tile.h * s) + 'px';
+    ui.face.style.left = Math.round((hbCx - tile.cx) * s) + 'px';
+    ui.face.style.top = Math.round((hbCy - tile.cy) * s) + 'px';
+    // 眼皮(眨眼)遮罩: 覆盖表情层眼睛区域, 与脸部中心对齐
+    const exCy = ex.y + ex.h / 2;
+    const eyeY = ex.y + ex.h * 0.44;
+    const lidW = Math.round(ex.w * 0.72 * s);
+    const lidH = Math.round(10 * s);
+    ui.lid.style.width = lidW + 'px';
+    ui.lid.style.height = lidH + 'px';
+    ui.lid.style.left = Math.round((hbCx - ex.w * 0.36) * s) + 'px';
+    ui.lid.style.top = Math.round((hbCy - (exCy - eyeY)) * s - lidH / 2) + 'px';
+  }
+
+  function triggerBlink() {
+    if (!ui.lid || !saved.on || dragging) return;
+    ui.lid.classList.remove('blink');
+    void ui.lid.offsetWidth;
+    ui.lid.classList.add('blink');
+  }
+
+  function scheduleBlink() {
+    window.clearTimeout(blinkTimer);
+    blinkTimer = window.setTimeout(() => {
+      triggerBlink();
+      scheduleBlink();
+    }, 2600 + Math.random() * 2600);
+  }
 
   function pokeBounce() {
     if (!ui.body) return;
@@ -205,49 +247,9 @@
       ui.body.classList.remove('drop');
       void ui.body.offsetWidth;
       ui.body.classList.add('drop');
-      updateFollowRect();
       save();
     }
 
-    // 转头跟随鼠标: 头层以脖子为轴旋转, 身体轻微跟随, 脖子垫片固定遮缝
-    const followTarget = { x: 0, y: 0 };
-    const followCurrent = { x: 0, y: 0 };
-    let followRect = null;
-    function updateFollowRect() {
-      if (!ui.root) return;
-      const r = ui.root.getBoundingClientRect();
-      followRect = { left: r.left, top: r.top, w: r.width, h: r.height };
-    }
-    window.addEventListener('pointermove', (ev) => {
-      if (!saved.on || dragging || !ui.head) return;
-      if (!followRect) updateFollowRect();
-      if (!followRect) return;
-      const cx = followRect.left + followRect.w / 2;
-      const cy = followRect.top + followRect.h / 2;
-      let dx = Math.max(-1, Math.min(1, (ev.clientX - cx) / (followRect.w / 2 || 1)));
-      let dy = Math.max(-1, Math.min(1, (ev.clientY - cy) / (followRect.h / 2 || 1)));
-      // 非线性曲线: 中心附近几乎不动, 远离时才缓慢加大
-      dx = Math.sign(dx) * Math.pow(Math.abs(dx), 1.5);
-      dy = Math.sign(dy) * Math.pow(Math.abs(dy), 1.5);
-      followTarget.x = dx;
-      followTarget.y = dy;
-    });
-    function followLoop() {
-      if (saved.on && ui.head && !dragging) {
-        followCurrent.x += (followTarget.x - followCurrent.x) * 0.2;
-        followCurrent.y += (followTarget.y - followCurrent.y) * 0.2;
-        const x = followCurrent.x;
-        const y = followCurrent.y;
-        const t = FACE.turn;
-        // 3D 转头: 左右 rotateY / 上下 rotateX + 轻微位移, 以脖子为轴; 身体不动
-        ui.head.style.transform = 'rotateY(' + (x * t.turnY).toFixed(2) + 'deg) rotateX(' + (y * t.turnX).toFixed(2) + 'deg) translateX(' + (x * t.tx).toFixed(2) + 'px) translateY(' + (y * t.ty).toFixed(2) + 'px)';
-        // 身体同向 rotateY 小幅转身(约头的55%), 遮住头身衔接缝隙
-        if (ui.bodypart) ui.bodypart.style.transform = 'rotateY(' + (x * t.bodyY).toFixed(2) + 'deg)';
-      }
-      requestAnimationFrame(followLoop);
-    }
-    requestAnimationFrame(followLoop);
-    window.addEventListener('resize', updateFollowRect);
   }
 
   function build() {
@@ -263,39 +265,37 @@
     const body = document.createElement('div');
     body.className = 'gaia-pet-body';
 
-    // 纸娃娃三层: 身体(肩以下) / 脖子垫片(固定遮缝) / 头层(可旋转, 头发跟着头走)
-    const bodypart = document.createElement('img');
-    bodypart.className = 'gaia-pet-bodypart';
-    bodypart.src = IMG + 'body.png';
-    bodypart.draggable = false;
-    bodypart.alt = '';
+    const halfbody = document.createElement('img');
+    halfbody.className = 'gaia-pet-halfbody';
+    halfbody.src = IMG + '半身照.png';
+    halfbody.draggable = false;
+    halfbody.alt = '';
 
-    const head = document.createElement('div');
-    head.className = 'gaia-pet-head';
+    const face = document.createElement('img');
+    face.className = 'gaia-pet-face';
+    face.src = FACE_IMG + encodeURIComponent('日常表情.png');
+    face.draggable = false;
+    face.alt = '';
 
-    const headimg = document.createElement('img');
-    headimg.className = 'gaia-pet-headimg';
-    headimg.src = IMG + 'head.png';
-    headimg.draggable = false;
-    headimg.alt = '';
-
+    const lid = document.createElement('div');
+    lid.className = 'gaia-pet-lid';
 
     const zzz = document.createElement('div');
     zzz.className = 'gaia-pet-zzz';
     zzz.textContent = 'Zzz';
     zzz.hidden = true;
 
-    head.appendChild(headimg);
-    body.append(bodypart, head);
+    body.append(halfbody, face, lid);
     root.append(bubble, body, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, body, bodypart, head, headimg, zzz };
+    ui = { root, bubble, body, halfbody, face, lid, zzz };
   }
 
   async function init() {
     if (loaded) return;
     loaded = true;
     build();
+    layoutFace();
     bind();
 
     const savedState = await window.api.stateGet('pet');
@@ -319,6 +319,7 @@
     ui.root.hidden = !saved.on;
     applyExpression('日常表情', true);
     animTimer = window.setInterval(tick, 1000);
+    scheduleBlink();
   }
 
   function setEnabled(on) {
