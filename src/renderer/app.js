@@ -843,6 +843,9 @@ function cycleLineHeight() {
   const idx = options.indexOf(state.lineHeight);
   state.lineHeight = options[(idx + 1) % options.length];
   if (state.current && state.current.format === 'epub') applyEpubTypography();
+  if (state.current && state.current.format === 'epub' && state.current.rendition) {
+    try { state.current.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
+  }
   if (state.current && state.current.paginator) applyMobiTypography();
   if (isSettingsOpen()) updateSettingsValues();
   els.readerStatus.textContent = '行距 ' + state.lineHeight.toFixed(1);
@@ -1128,7 +1131,7 @@ function applyReaderStyles(contents) {
   } else if (theme === 'eye') {
     css += 'html, body { background: #f5ecd9 !important; } body { color: #4a3826 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #4a3826 !important; } a { color: #8a6d3b !important; }';
   }
-  css += 'p { text-indent: 2em !important; margin: 0 0 0.8em !important; line-height: 1.9 !important; } h1, h2, h3, h4 { line-height: 1.4 !important; margin: 1.2em 0 0.6em !important; }';
+  css += 'p { text-indent: 2em !important; margin: 0 0 0.8em !important; line-height: ' + state.lineHeight + ' !important; } h1, h2, h3, h4 { line-height: 1.4 !important; margin: 1.2em 0 0.6em !important; }';
   if (font) css += 'body, p, div, span, li { font-family: ' + font + ' !important; }';
   if (style) style.remove();
   if (!css) return;
@@ -1450,6 +1453,9 @@ window.__gaiaDebug = {
   setLineHeight: (lh) => {
     state.lineHeight = lh;
     if (state.current && state.current.format === 'epub') applyEpubTypography();
+    if (state.current && state.current.format === 'epub' && state.current.rendition) {
+      try { state.current.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
+    }
     if (state.current && state.current.format === 'txt') applyTxtTypography();
     if (isSettingsOpen()) updateSettingsValues();
     rememberSettings();

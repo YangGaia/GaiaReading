@@ -110,3 +110,14 @@ test('全局阅读习惯、进度精度与主题即时生效已接入', () => {
   assert.ok(app.includes('readMode: state.readMode'), '习惯应写入全局 prefs');
   assert.ok(app.includes('migrateHabitsFromLastBook'), '应保留旧版按书习惯的迁移');
 });
+
+test('EPUB 行距跟随用户设置且切换时即时生效', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  assert.ok(/line-height: ' \+ state\.lineHeight \+ ' !important/.test(app), 'EPUB 段落行距应使用 state.lineHeight');
+  assert.ok(!app.includes('line-height: 1.9 !important; } h1, h2, h3, h4'), '不应再写死 EPUB 段落行距 1.9');
+  const cycleSeg = app.slice(app.indexOf('function cycleLineHeight'), app.indexOf('function togglePanel'));
+  assert.ok(cycleSeg.includes('applyEpubTypography()'), 'cycleLineHeight 应更新 epub.js 主题行距');
+  assert.ok(cycleSeg.includes('applyReaderStyles(contents)'), 'cycleLineHeight 应立即重注入 EPUB 阅读样式');
+  const setSeg = app.slice(app.indexOf('setLineHeight: (lh)'));
+  assert.ok(setSeg.includes('applyReaderStyles(contents)'), 'setLineHeight 应立即重注入 EPUB 阅读样式');
+});
