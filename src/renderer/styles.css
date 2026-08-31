@@ -400,6 +400,8 @@ body.eye {
   100% { transform: scale(1, 1) translateY(0); }
 }
 @keyframes pet-breathe {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-3px) scale(1.012, 0.988); }
+  0%, 100% { transform: translateY(0) translateX(0) scale(1); }
+  25% { transform: translateY(-4px) translateX(2px) scale(1.014, 0.985); }
+  50% { transform: translateY(-2px) translateX(-2px) scale(1.006, 0.994); }
+  75% { transform: translateY(-1px) translateX(1.5px) scale(1.01, 0.99); }
 }

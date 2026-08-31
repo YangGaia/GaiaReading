@@ -19,11 +19,14 @@
   const { PET_STATES, EVENTS, createBrain, decideState, timeoutState, lineFor, idleAction } = shared;
 
   const IMG = 'images/pet/cells/';
+  const FACE_IMG = 'images/pet/faces/';
 
   /** 脸部标定（半身照 356x647，表情格约 254x256；坐标为估算，待主人确认）。 */
   const FACE = {
     halfbody: { x: 134, y: 137, w: 89, h: 78 },
     expression: { x: 82, y: 103, w: 89, h: 79 },
+    tile: { w: 134, h: 118, cx: 67.5, cy: 59.5 },
+    sheet: { w: 356, h: 647 }, // 半身照原图尺寸, 用于显示缩放换算
   };
 
   const DEFAULT_STATE = { on: true, x: null, y: null };
@@ -49,7 +52,7 @@
   /** 切换表情：短暂淡出后换图淡入。 */
   function applyExpression(name, instant) {
     if (!ui.face || !name) return;
-    const file = IMG + encodeURIComponent(name + '.png');
+    const file = FACE_IMG + encodeURIComponent(name + '.png');
     if (ui.face.dataset.exp === name) return;
     ui.face.dataset.exp = name;
     if (instant) {
@@ -71,25 +74,25 @@
     if (!ui.face || !ui.halfbody) return;
     const hb = FACE.halfbody;
     const ex = FACE.expression;
-    const scale = hb.w / ex.w;
-    const baseW = 254;
-    const baseH = 256;
+    const tile = FACE.tile;
+    const sheet = FACE.sheet;
+    // 显示缩放 = 半身照当前显示宽度 / 原图宽度
+    const s = (ui.body.clientWidth || 150) / sheet.w;
     const hbCx = hb.x + hb.w / 2;
     const hbCy = hb.y + hb.h / 2;
-    const exCx = ex.x + ex.w / 2;
-    const exCy = ex.y + ex.h / 2;
-    ui.face.style.width = Math.round(baseW * scale) + 'px';
-    ui.face.style.height = Math.round(baseH * scale) + 'px';
-    ui.face.style.left = Math.round(hbCx - exCx * scale) + 'px';
-    ui.face.style.top = Math.round(hbCy - exCy * scale) + 'px';
+    ui.face.style.width = Math.round(tile.w * s) + 'px';
+    ui.face.style.height = Math.round(tile.h * s) + 'px';
+    ui.face.style.left = Math.round((hbCx - tile.cx) * s) + 'px';
+    ui.face.style.top = Math.round((hbCy - tile.cy) * s) + 'px';
     // 眼皮(眨眼)遮罩: 覆盖表情层眼睛区域, 与脸部中心对齐
+    const exCy = ex.y + ex.h / 2;
     const eyeY = ex.y + ex.h * 0.44;
-    const lidW = Math.round(ex.w * 0.72 * scale);
-    const lidH = Math.round(10 * scale);
+    const lidW = Math.round(ex.w * 0.72 * s);
+    const lidH = Math.round(10 * s);
     ui.lid.style.width = lidW + 'px';
     ui.lid.style.height = lidH + 'px';
-    ui.lid.style.left = Math.round(hbCx - lidW / 2) + 'px';
-    ui.lid.style.top = Math.round(hbCy - (exCy - eyeY) * scale - lidH / 2) + 'px';
+    ui.lid.style.left = Math.round((hbCx - ex.w * 0.36) * s) + 'px';
+    ui.lid.style.top = Math.round((hbCy - (exCy - eyeY)) * s - lidH / 2) + 'px';
   }
 
   function showBubble(text) {
@@ -225,9 +228,11 @@
       const r = ui.root.getBoundingClientRect();
       downPos = { x: ev.clientX, y: ev.clientY };
       dragOffset = { x: ev.clientX - r.left, y: ev.clientY - r.top };
-      ui.root.setPointerCapture(ev.pointerId);
+      window.addEventListener('pointermove', onDragMove);
+      window.addEventListener('pointerup', endDrag);
+      window.addEventListener('pointercancel', endDrag);
     });
-    ui.root.addEventListener('pointermove', (ev) => {
+    function onDragMove(ev) {
       if (Math.abs(ev.clientX - downPos.x) <= 4 && Math.abs(ev.clientY - downPos.y) <= 4) return;
       if (!dragging) {
         dragging = true;
@@ -240,8 +245,11 @@
       saved.y = Math.max(0, Math.min(window.innerHeight - bh, ev.clientY - dragOffset.y));
       ui.root.style.left = saved.x + 'px';
       ui.root.style.top = saved.y + 'px';
-    });
-    const endDrag = () => {
+    }
+    function endDrag() {
+      window.removeEventListener('pointermove', onDragMove);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
       if (!dragging) return;
       dragging = false;
       ui.root.classList.remove('dragging');
@@ -250,9 +258,7 @@
       void ui.body.offsetWidth;
       ui.body.classList.add('drop');
       save();
-    };
-    ui.root.addEventListener('pointerup', endDrag);
-    ui.root.addEventListener('pointercancel', endDrag);
+    }
   }
 
   function build() {
