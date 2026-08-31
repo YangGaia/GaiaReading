@@ -62,7 +62,7 @@ const state = {
   lineHeight: 1.8,
   txtFont: 16,
   readMode: 'single',
-  prefs: { theme: 'light', fontName: 'default' },
+  prefs: { theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, readMode: 'single' },
   homeReady: null,
   resolveHome: null,
 };
@@ -123,6 +123,19 @@ function finishSplash() {
   }, 450);
 }
 
+function migrateHabitsFromLastBook() {
+  if (state.prefs.fontSize != null && state.prefs.lineHeight != null) return;
+  const entries = Object.keys(state.progress)
+    .map((k) => state.progress[k])
+    .filter((e) => e && e.settings)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const last = entries[0] && entries[0].settings;
+  if (!last) return;
+  for (const k of ['theme', 'fontName', 'fontSize', 'txtFont', 'lineHeight', 'readMode']) {
+    if (state.prefs[k] == null && last[k] != null) state.prefs[k] = last[k];
+  }
+}
+
 async function init() {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
   const [lib, progress, bookmarks, prefs] = await Promise.all([
@@ -134,8 +147,13 @@ async function init() {
   state.library = lib || [];
   state.progress = progress || {};
   state.bookmarks = bookmarks || {};
-  state.prefs = Object.assign({ theme: 'light', fontName: 'default' }, prefs || {});
+  state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, readMode: 'single' }, prefs || {});
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
+  migrateHabitsFromLastBook();
+  state.fontSize = state.prefs.fontSize != null ? state.prefs.fontSize : 100;
+  state.txtFont = state.prefs.txtFont != null ? state.prefs.txtFont : 16;
+  state.lineHeight = state.prefs.lineHeight != null ? state.prefs.lineHeight : 1.8;
+  state.readMode = state.prefs.readMode === 'spread' ? 'spread' : 'single';
   applyThemeClass();
   els.fontSelect.value = state.prefs.fontName || 'default';
   initFx();
@@ -411,7 +429,7 @@ async function openBook(book) {
   els.readerStatus.textContent = '加载中…';
   els.pageNav.hidden = false;
   state.current = { path: book.path, format: book.format };
-  applyBookSettings(book);
+  applyGlobalHabits();
   const savedProg = state.progress[book.path];
   if (savedProg && savedProg.percent != null) {
     updateProgress(savedProg.percent, '进度 ' + savedProg.percent.toFixed(1) + '%');
@@ -594,6 +612,7 @@ async function openMobi(book) {
   state.current.paginator.onTotalChange = (total) => {
     if (state.current && state.current.flow) state.current.flow.setPages(state.current.flow.chapter, total);
   };
+  state.current.paginator.setTheme(state.prefs.theme);
   const saved = state.progress[book.path];
   let startChapter = 0;
   let startPage = 0;
@@ -620,8 +639,8 @@ async function loadMobiChapter(chapterIndex, opts) {
     const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
     if (bodyMatch) html = bodyMatch[1];
     if (c.paginator) {
-      await c.paginator.render(html, ch.cssText || '');
       if (c.flow) c.flow.gotoChapter(clamped);
+      await c.paginator.render(html, ch.cssText || '');
       const total = c.paginator.totalPages || 1;
       if (c.flow) c.flow.setPages(clamped, total);
       c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
@@ -663,11 +682,11 @@ function updateMobiProgress(force) {
   const total = c.paginator ? c.paginator.totalPages : 0;
   const cur = c.paginator ? c.paginator.currentPage + 1 : 0;
   if (chapters && chapters.length > 1) {
-    text = '进度 ' + percent.toFixed(1) + '% · 第 ' + (c.flow ? c.flow.chapter + 1 : 1) + ' 节 ' + cur + ' / ' + total + ' 页';
+    text = '进度 ' + percent.toFixed(2) + '% · 第 ' + (c.flow ? c.flow.chapter + 1 : 1) + ' 节 ' + cur + ' / ' + total + ' 页';
   } else if (total > 0) {
-    text = '进度 ' + percent.toFixed(1) + '% · 第 ' + cur + ' / ' + total + ' 页';
+    text = '进度 ' + percent.toFixed(2) + '% · 第 ' + cur + ' / ' + total + ' 页';
   } else {
-    text = '进度 ' + percent.toFixed(1) + '%';
+    text = '进度 ' + percent.toFixed(2) + '%';
   }
   updateProgress(percent, text);
   const now = Date.now();
@@ -717,6 +736,7 @@ async function openTxt(book) {
   state.current.paginator.onTotalChange = (total) => {
     if (state.current && state.current.flow) state.current.flow.setPages(0, total);
   };
+  state.current.paginator.setTheme(state.prefs.theme);
   const paragraphs = res.text.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
   let html = '';
   if (paragraphs.length) {
@@ -1185,32 +1205,34 @@ function updateProgress(percent, text) {
   if (text) els.readerStatus.textContent = text;
 }
 
-function applyBookSettings(book) {
-  const s = state.progress[book.path] && state.progress[book.path].settings;
-  if (!s) return;
-  if (s.theme) { state.prefs.theme = s.theme; applyThemeClass(); }
-  if (s.fontName) { state.fontName = s.fontName; els.fontSelect.value = s.fontName; }
-  if (s.fontSize != null) state.fontSize = s.fontSize;
-  if (s.txtFont != null) state.txtFont = s.txtFont;
-  if (s.lineHeight != null) state.lineHeight = s.lineHeight;
-  state.readMode = s.readMode === 'spread' ? 'spread' : 'single';
+function applyGlobalHabits() {
+  const p = state.prefs;
+  if (p.theme) { state.prefs.theme = p.theme; applyThemeClass(); }
+  if (p.fontName) { state.fontName = p.fontName; els.fontSelect.value = p.fontName; }
+  if (p.fontSize != null) state.fontSize = p.fontSize;
+  if (p.txtFont != null) state.txtFont = p.txtFont;
+  if (p.lineHeight != null) state.lineHeight = p.lineHeight;
+  state.readMode = p.readMode === 'spread' ? 'spread' : 'single';
 }
 
 function rememberSettings() {
-  const c = state.current;
-  if (!c) return;
-  const prev = (state.progress[c.path] && state.progress[c.path].settings) || {};
-  const settings = Object.assign({}, prev, {
+  state.prefs = Object.assign({}, state.prefs, {
     theme: state.prefs.theme,
     fontName: state.fontName,
     fontSize: state.fontSize,
     txtFont: state.txtFont,
     lineHeight: state.lineHeight,
     readMode: state.readMode,
-    zoom: c.zoom || prev.zoom,
   });
-  state.progress[c.path] = Object.assign({}, state.progress[c.path], { settings });
-  window.api.stateSet('progress', state.progress);
+  window.api.stateSet('prefs', state.prefs);
+  const c = state.current;
+  if (!c) return;
+  const prev = (state.progress[c.path] && state.progress[c.path].settings) || {};
+  if (c.zoom != null || prev.zoom != null) {
+    const settings = Object.assign({}, prev, { zoom: c.zoom || prev.zoom });
+    state.progress[c.path] = Object.assign({}, state.progress[c.path], { settings });
+    window.api.stateSet('progress', state.progress);
+  }
 }
 
 function bindEvents() {

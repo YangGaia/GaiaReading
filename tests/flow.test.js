@@ -64,3 +64,22 @@ test('章节未知页数时跨章仍可推进', () => {
   assert.strictEqual(r.chapter, 1);
   assert.strictEqual(r.page, 0);
 });
+
+test('多章节进度：章内逐页推进且跨章连续', () => {
+  const flow = new ReadingFlow({ totalChapters: 3, pagesPerChapter: [5, 5, 5] });
+  const p0 = flow.percent();
+  flow.next();
+  const p1 = flow.percent();
+  flow.next();
+  const p2 = flow.percent();
+  assert.ok(p1 > p0, '章内翻页后进度应增加');
+  assert.ok(p2 > p1, '继续翻页进度应继续增加');
+  assert.strictEqual(flow.chapter, 0);
+  // 翻到章末并跨章，进度保持连续递增
+  flow.gotoChapter(0);
+  flow.page = 4;
+  const beforeCross = flow.percent();
+  flow.next();
+  assert.ok(flow.percent() >= beforeCross, '跨章后进度不应回退');
+  assert.strictEqual(flow.chapter, 1);
+});

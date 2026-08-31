@@ -11,10 +11,13 @@
     const contentLen = __gaiaDebug.getMobiContentLength();
     const totalPages = __gaiaDebug.getPaginatorTotal();
     const pageBefore = __gaiaDebug.getPaginatorPage();
+    const pctBefore = __gaiaDebug.getProgressWidth();
     await __gaiaDebug.nextPage();
     await new Promise((r) => setTimeout(r, 500));
     const pageAfter = __gaiaDebug.getPaginatorPage();
-    return JSON.stringify({ status, contentLen, totalPages, pageBefore, pageAfter });
+    const pctAfter = __gaiaDebug.getProgressWidth();
+    const pctMoved = pctBefore !== pctAfter && pctAfter !== '';
+    return JSON.stringify({ status, contentLen, totalPages, pageBefore, pageAfter, pctMoved });
   } catch (e) {
     console.error('TXT_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';

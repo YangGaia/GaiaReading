@@ -37,11 +37,11 @@ test('首页与闪屏图片资源存在', () => {
   }
 });
 
-test('版本号为 0.3.0 且界面同步', () => {
+test('版本号为 0.3.1 且界面同步', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '0.3.0');
+  assert.strictEqual(pkg.version, '0.3.1');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.ok(html.includes('Gaia Reading 0.3.0'), '关于面板版本号未同步');
+  assert.ok(html.includes('Gaia Reading 0.3.1'), '关于面板版本号未同步');
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
   assert.ok(html.includes('btn-theme'), '缺少主题切换');
   assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
@@ -98,3 +98,14 @@ test('应用图标存在且打包配置已启用', () => {
 
 
 
+
+test('全局阅读习惯、进度精度与主题即时生效已接入', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  assert.ok(app.includes('function applyGlobalHabits'), '缺少全局习惯应用函数');
+  assert.ok(!app.includes('function applyBookSettings'), '不应再按书记忆阅读习惯');
+  const themeCalls = (app.match(/paginator\.setTheme\(state\.prefs\.theme\)/g) || []).length;
+  assert.ok(themeCalls >= 3, '打开 MOBI/TXT 时应立即注入主题（当前 ' + themeCalls + ' 处）');
+  assert.ok(app.includes('percent.toFixed(2)'), '进度百分比应显示两位小数');
+  assert.ok(app.includes('readMode: state.readMode'), '习惯应写入全局 prefs');
+  assert.ok(app.includes('migrateHabitsFromLastBook'), '应保留旧版按书习惯的迁移');
+});

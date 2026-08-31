@@ -133,7 +133,7 @@ function createWindow() {
             console.log('DEBUG_TXT:', txtStatus);
             try {
               const parsed = JSON.parse(txtStatus);
-              debugOk = parsed.contentLen > 0 && parsed.totalPages > 1 && parsed.pageAfter > parsed.pageBefore;
+              debugOk = parsed.contentLen > 0 && parsed.totalPages > 1 && parsed.pageAfter > parsed.pageBefore && parsed.pctMoved === true;
               if (!debugOk) console.error('DEBUG_TXT_CHECKS_FAILED:', JSON.stringify(parsed));
             } catch (parseErr) {
               debugOk = false;
@@ -152,7 +152,10 @@ function createWindow() {
                 typeof parsed.idxBefore === 'number' &&
                 (parsed.scrollAfter > parsed.scrollBefore || parsed.idxAfter > parsed.idxBefore) &&
                 parsed.pct != null &&
-                parsed.moved > 0;
+                parsed.moved > 0 &&
+                parsed.pctMoved === true &&
+                parsed.eyeOk === true &&
+                parsed.habitOk === true;
               if (!debugOk) console.error('DEBUG_MOBI_CHECKS_FAILED:', JSON.stringify(parsed));
             } catch (parseErr) {
               debugOk = false;
