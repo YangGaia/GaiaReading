@@ -41,6 +41,9 @@
     SLEEPING_AFTER: 10 * 60 * 1000,
   };
 
+  /** 无交互待机时表情自动变化的间隔：每 5 秒换一次。 */
+  const IDLE_EXPRESSION_INTERVAL = 5000;
+
   /** 表情清单（顺序与 pet-expressions.json 一致）。 */
   const EXPRESSIONS = [
     '日常表情', '倾听', '思考', '轻视看', '无奈', '接受', '偷看', '害羞', '严肃说话',
@@ -193,6 +196,16 @@
     return null;
   }
 
+  /** 待机表情到期判断：距上次变化满 5 秒后返回一个新表情（自动避开当前表情），未到期返回 null。 */
+  function idleExpressionDue(lastChange, now, rand, current) {
+    if (now - lastChange < IDLE_EXPRESSION_INTERVAL) return null;
+    let pool = STATE_EXPRESSIONS.idle;
+    if (current && pool.length > 1) {
+      pool = pool.filter((name) => name !== current);
+    }
+    return { expression: pick(pool, rand) };
+  }
+
   return {
     PET_STATES,
     EVENTS,
@@ -206,5 +219,7 @@
     timeoutState,
     lineFor,
     idleAction,
+    IDLE_EXPRESSION_INTERVAL,
+    idleExpressionDue,
   };
 });

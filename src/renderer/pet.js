@@ -16,7 +16,7 @@
 })(typeof self !== 'undefined' ? self : this, function (shared) {
   'use strict';
 
-  const { PET_STATES, EVENTS, createBrain, decideState, timeoutState, lineFor, idleAction } = shared;
+  const { PET_STATES, EVENTS, createBrain, decideState, timeoutState, lineFor, idleExpressionDue } = shared;
 
   const IMG = 'images/pet/cells/';
   const FACE_IMG = 'images/pet/faces/';
@@ -38,9 +38,16 @@
   let bubbleTimer = null;
   let animTimer = null;
   let lastChat = 0;
+  let lastIdleExp = Date.now();
   let dragging = false;
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
+
+  /** 气泡靠身侧摆放：贴左边缘时翻到右边，避免伸出屏幕。 */
+  function updateBubbleSide() {
+    if (!ui.bubble) return;
+    ui.bubble.classList.toggle('flip', saved.x < 260);
+  }
 
   function save() {
     window.api.stateSet('pet', {
@@ -174,6 +181,7 @@
     if (d) {
       brain.state = d.state;
       applyExpression(d.expression);
+      lastIdleExp = Date.now();
     }
   }
 
@@ -216,9 +224,10 @@
         lastChat = now;
         showBubble(lineFor('idle'));
       }
-      const act = idleAction();
-      if (act) {
-        applyExpression(act.expression);
+      const due = idleExpressionDue(lastIdleExp, now, Math.random, ui.face && ui.face.dataset.exp);
+      if (due) {
+        lastIdleExp = now;
+        applyExpression(due.expression);
       } else if (Math.random() < 0.12) {
         triggerTilt();
       }
@@ -251,6 +260,7 @@
       saved.y = Math.max(0, Math.min(window.innerHeight - bh, ev.clientY - dragOffset.y));
       ui.root.style.left = saved.x + 'px';
       ui.root.style.top = saved.y + 'px';
+      updateBubbleSide();
     }
     function endDrag() {
       window.removeEventListener('pointermove', onDragMove);
@@ -324,15 +334,18 @@
     if (saved.x != null && saved.y != null) {
       ui.root.style.left = saved.x + 'px';
       ui.root.style.top = saved.y + 'px';
+      updateBubbleSide();
     } else {
       const r = ui.root.getBoundingClientRect();
       saved.x = Math.max(8, window.innerWidth - r.width - 24);
       saved.y = Math.max(8, window.innerHeight - r.height - 24);
       ui.root.style.left = saved.x + 'px';
       ui.root.style.top = saved.y + 'px';
+      updateBubbleSide();
     }
     ui.root.hidden = !saved.on;
     applyExpression('日常表情', true);
+    lastIdleExp = Date.now();
     animTimer = window.setInterval(tick, 1000);
     scheduleBlink();
   }

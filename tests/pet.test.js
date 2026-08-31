@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const pet = require('../src/shared/pet');
 
-const { PET_STATES, EVENTS, TIMERS, createBrain, decideState, timeoutState, lineFor, pick, idleAction } = pet;
+const { PET_STATES, EVENTS, TIMERS, createBrain, decideState, timeoutState, lineFor, pick, idleAction, idleExpressionDue } = pet;
 
 test('初始大脑为待机状态', () => {
   const now = 1000000;
@@ -95,6 +95,19 @@ test('待机小动作按概率触发且表情合法', () => {
   assert.ok(yes === null || pet.STATE_EXPRESSIONS.idle.includes(yes.expression));
   const no = idleAction(() => 0.99);
   assert.strictEqual(no, null);
+});
+
+test('待机表情满 5 秒到期换一次, 未到期不换', () => {
+  assert.strictEqual(idleExpressionDue(0, 4999, () => 0), null);
+  const due = idleExpressionDue(0, 5000, () => 0);
+  assert.ok(pet.STATE_EXPRESSIONS.idle.includes(due.expression));
+});
+
+test('待机表情到期时避开当前表情', () => {
+  const current = pet.STATE_EXPRESSIONS.idle[0];
+  const due = idleExpressionDue(0, 5000, () => 0, current);
+  assert.notStrictEqual(due.expression, current);
+  assert.ok(pet.STATE_EXPRESSIONS.idle.includes(due.expression));
 });
 
 test('表情清单覆盖映射表中的全部表情', () => {
