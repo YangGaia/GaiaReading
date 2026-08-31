@@ -10,6 +10,14 @@ const {
   removeEntries: removeEntriesFromMap,
 } = window.GaiaLibrary;
 
+const FONTS = {
+  default: '',
+  song: '"SimSun", "Songti SC", serif',
+  kai: '"KaiTi", "STKaiti", serif',
+  hei: '"Microsoft YaHei", "SimHei", sans-serif',
+  yuan: '"Microsoft YaHei UI", "YouYuan", serif',
+};
+
 const els = {
   bookshelf: $('bookshelf'),
   hint: $('library-hint'),
@@ -30,7 +38,9 @@ const els = {
   lineHeightValue: $('line-height-value'),
   drawerSpread: $('drawer-spread'),
   spreadValue: $('spread-value'),
-  nightValue: $('night-value'),
+  themeValue: $('theme-value'),
+  progressFill: $('progress-fill'),
+  fontSelect: $('font-select'),
 };
 
 const views = {
@@ -52,7 +62,7 @@ const state = {
   lineHeight: 1.8,
   txtFont: 16,
   spread: false,
-  prefs: { dark: false },
+  prefs: { theme: 'light', fontName: 'default' },
   homeReady: null,
   resolveHome: null,
 };
@@ -124,9 +134,10 @@ async function init() {
   state.library = lib || [];
   state.progress = progress || {};
   state.bookmarks = bookmarks || {};
-  state.prefs = Object.assign({ dark: false }, prefs || {});
-  document.body.classList.toggle('dark', !!state.prefs.dark);
-  els.nightValue.textContent = state.prefs.dark ? '开启' : '关闭';
+  state.prefs = Object.assign({ theme: 'light', fontName: 'default' }, prefs || {});
+  if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
+  applyThemeClass();
+  els.fontSelect.value = state.prefs.fontName || 'default';
   initFx();
 
   const alive = [];
@@ -389,7 +400,7 @@ async function openEpub(book) {
   const rendition = epub.renderTo('reader-content', { width: '100%', height: '100%', flow: 'paginated', spread: 'none' });
   state.current.rendition = rendition;
   rendition.hooks.content.register((contents) => {
-    applyEpubDark(contents);
+    applyReaderStyles(contents);
   });
 
   applyEpubTypography();
@@ -399,7 +410,7 @@ async function openEpub(book) {
   rendition.on('relocated', (location) => {
     const cfi = location.start.cfi;
     const percent = location.start.percentage != null ? location.start.percentage * 100 : null;
-    els.readerStatus.textContent = percent != null ? '进度 ' + percent.toFixed(1) + '%' : '进度 计算中…';
+    updateProgress(percent != null ? percent : 0, percent != null ? '进度 ' + percent.toFixed(1) + '%' : '进度 计算中…');
     saveProgress(book.path, { loc: cfi, percent: percent != null ? percent : 0 });
   });
 
@@ -409,7 +420,7 @@ async function openEpub(book) {
       const locObj = rendition.currentLocation();
       if (locObj && locObj.start && locObj.start.percentage != null) {
         const percent = locObj.start.percentage * 100;
-        els.readerStatus.textContent = '进度 ' + percent.toFixed(1) + '%';
+        updateProgress(percent, '进度 ' + percent.toFixed(1) + '%');
         saveProgress(book.path, { loc: locObj.start.cfi, percent });
       }
       return true;
@@ -501,7 +512,7 @@ async function renderPdfPage() {
   canvas.style.width = Math.floor(viewport.width) + 'px';
   canvas.style.height = Math.floor(viewport.height) + 'px';
   els.readerContent.innerHTML = '';
-  els.readerContent.classList.toggle('pdf-dark', !!state.prefs.dark);
+  els.readerContent.classList.toggle('pdf-dark', state.prefs.theme === 'dark');
   wrap.appendChild(canvas);
   els.readerContent.appendChild(wrap);
 
@@ -509,12 +520,12 @@ async function renderPdfPage() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   await page.render({ canvasContext: ctx, viewport }).promise;
 
-  if (state.prefs.dark) {
+  if (state.prefs.theme === 'dark') {
     const overlay = await buildPdfImageOverlay(page, viewport, dpr);
     if (overlay) wrap.appendChild(overlay);
   }
 
-  els.readerStatus.textContent = '第 ' + c.page + ' / ' + c.pages + ' 页';
+  updateProgress((c.page / c.pages) * 100, '第 ' + c.page + ' / ' + c.pages + ' 页');
   saveProgress(c.path, { page: c.page });
 }
 
@@ -522,7 +533,16 @@ async function openTxt(book) {
   const res = await window.api.readBook(book.path);
   const div = document.createElement('div');
   div.id = 'txt-content';
-  div.textContent = res.text;
+  const paragraphs = res.text.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+  if (paragraphs.length) {
+    for (const p of paragraphs) {
+      const el = document.createElement('p');
+      el.textContent = p;
+      div.appendChild(el);
+    }
+  } else {
+    div.textContent = res.text;
+  }
   els.readerContent.appendChild(div);
   applyTxtTypography();
   const saved = state.progress[book.path];
@@ -539,7 +559,7 @@ function updateTxtProgress(force) {
   const container = els.readerContent;
   const max = container.scrollHeight - container.clientHeight;
   const percent = max > 0 ? (container.scrollTop / max) * 100 : 0;
-  els.readerStatus.textContent = '进度 ' + percent.toFixed(1) + '%';
+  updateProgress(percent, '进度 ' + percent.toFixed(1) + '%');
   const now = Date.now();
   if (force || now - lastTxtSave > 600) {
     lastTxtSave = now;
@@ -552,6 +572,7 @@ function applyTxtTypography() {
   if (div) {
     div.style.fontSize = state.txtFont + 'px';
     div.style.lineHeight = String(state.lineHeight);
+    div.style.fontFamily = FONTS[state.fontName] || 'inherit';
   }
 }
 
@@ -827,41 +848,63 @@ function clearFx() {
   if (fx.ctx) fx.ctx.clearRect(0, 0, fx.canvas.width, fx.canvas.height);
 }
 
-/* ===== 夜间模式 ===== */
-async function toggleNight() {
-  state.prefs.dark = !state.prefs.dark;
-  document.body.classList.toggle('dark', state.prefs.dark);
-  els.nightValue.textContent = state.prefs.dark ? '开启' : '关闭';
+/* ===== 主题（日间 / 护眼 / 夜间） ===== */
+function themeLabel(t) {
+  return t === 'dark' ? '夜间' : t === 'eye' ? '护眼' : '日间';
+}
+
+function applyThemeClass() {
+  document.body.classList.remove('dark', 'eye');
+  if (state.prefs.theme === 'dark') document.body.classList.add('dark');
+  if (state.prefs.theme === 'eye') document.body.classList.add('eye');
+  els.themeValue.textContent = themeLabel(state.prefs.theme);
+}
+
+async function applyTheme(theme) {
+  state.prefs.theme = theme;
+  applyThemeClass();
   const c = state.current;
   if (c && c.format === 'epub' && c.rendition) {
     try {
-      c.rendition.getContents().forEach((contents) => applyEpubDark(contents));
+      c.rendition.getContents().forEach((contents) => applyReaderStyles(contents));
     } catch (e) {}
   }
   if (c && c.format === 'pdf') renderPdfPage();
   await window.api.stateSet('prefs', state.prefs);
 }
 
-function applyEpubDark(contents) {
-  const doc = contents.document;
-  let style = doc.getElementById('gaia-dark-style');
-  if (!state.prefs.dark) {
-    if (style) style.remove();
-    return;
-  }
-  if (!style) {
-    style = doc.createElement('style');
-    style.id = 'gaia-dark-style';
-    (doc.head || doc.documentElement).appendChild(style);
-  }
-  style.textContent = 'html, body { background: #000 !important; } body { color: #e6edf3 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #e6edf3 !important; } a { color: #58a6ff !important; }';
+async function cycleTheme() {
+  const order = ['light', 'eye', 'dark'];
+  const idx = order.indexOf(state.prefs.theme);
+  await applyTheme(order[(idx + 1) % order.length]);
 }
 
-function isDarkInjected() {
+function applyReaderStyles(contents) {
+  const doc = contents.document;
+  let style = doc.getElementById('gaia-reader-style');
+  const theme = state.prefs.theme;
+  const font = FONTS[state.fontName] || '';
+  let css = '';
+  if (theme === 'dark') {
+    css += 'html, body { background: #000 !important; } body { color: #e6edf3 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #e6edf3 !important; } a { color: #58a6ff !important; }';
+  } else if (theme === 'eye') {
+    css += 'html, body { background: #f5ecd9 !important; } body { color: #4a3826 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #4a3826 !important; } a { color: #8a6d3b !important; }';
+  }
+  css += 'p { text-indent: 2em !important; margin: 0 0 0.8em !important; line-height: 1.9 !important; } h1, h2, h3, h4 { line-height: 1.4 !important; margin: 1.2em 0 0.6em !important; }';
+  if (font) css += 'body, p, div, span, li { font-family: ' + font + ' !important; }';
+  if (style) style.remove();
+  if (!css) return;
+  style = doc.createElement('style');
+  style.id = 'gaia-reader-style';
+  (doc.head || doc.documentElement).appendChild(style);
+  style.textContent = css;
+}
+
+function isThemeInjected() {
   const c = state.current;
   if (!c || !c.rendition) return false;
   try {
-    return c.rendition.getContents().some((contents) => !!contents.document.getElementById('gaia-dark-style'));
+    return c.rendition.getContents().some((contents) => !!contents.document.getElementById('gaia-reader-style'));
   } catch (e) {
     return false;
   }
@@ -923,6 +966,11 @@ async function buildPdfImageOverlay(page, viewport, dpr) {
   }
 }
 
+function updateProgress(percent, text) {
+  els.progressFill.style.width = Math.max(0, Math.min(100, percent)) + '%';
+  if (text) els.readerStatus.textContent = text;
+}
+
 function bindEvents() {
   $('btn-home-shelf').addEventListener('click', () => showView('library'));
   $('btn-home-folder').addEventListener('click', async () => {
@@ -967,7 +1015,16 @@ function bindEvents() {
   $('btn-font-plus').addEventListener('click', () => adjustFont(1));
   $('btn-line-height').addEventListener('click', cycleLineHeight);
   $('btn-spread').addEventListener('click', toggleSpread);
-  $('btn-night').addEventListener('click', toggleNight);
+  $('btn-theme').addEventListener('click', cycleTheme);
+  els.fontSelect.addEventListener('change', (ev) => {
+    state.fontName = ev.target.value;
+    const c = state.current;
+    if (c && c.format === 'epub' && c.rendition) {
+      try { c.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
+    }
+    if (c && c.format === 'txt') applyTxtTypography();
+    window.api.stateSet('prefs', state.prefs);
+  });
   $('btn-toc').addEventListener('click', () => {
     closeSettings();
     togglePanel('toc');
@@ -1042,10 +1099,35 @@ window.__gaiaDebug = {
   togglePanel,
   toggleSpread,
   getSpreadMode: () => state.spread,
-  toggleNight,
-  isNight: () => !!state.prefs.dark,
+  toggleNight: cycleTheme,
+  setTheme: applyTheme,
+  getTheme: () => state.prefs.theme,
+  isNight: () => state.prefs.theme === 'dark',
   isBodyDark: () => document.body.classList.contains('dark'),
-  isDarkInjected,
+  isBodyEye: () => document.body.classList.contains('eye'),
+  isDarkInjected: () => isThemeInjected() && state.prefs.theme === 'dark',
+  setFont: async (name) => {
+    state.fontName = name;
+    const c = state.current;
+    if (c && c.format === 'epub' && c.rendition) {
+      try { c.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
+    }
+    if (c && c.format === 'txt') applyTxtTypography();
+    await window.api.stateSet('prefs', state.prefs);
+  },
+  isFontInjected: () => {
+    const c = state.current;
+    if (!c || !c.rendition) return false;
+    try {
+      return c.rendition.getContents().some((contents) => {
+        const s = contents.document.getElementById('gaia-reader-style');
+        return s && s.textContent.indexOf('font-family') >= 0;
+      });
+    } catch (e) {
+      return false;
+    }
+  },
+  getPagingClass: () => els.readerContent.className,
   burst: (x, y) => spawnBurst(x == null ? 200 : x, y == null ? 200 : y),
   getParticleCount: () => fx.particles.length,
   getDiamondCount: () => fx.particles.filter((p) => p.shape === 'diamond').length,
@@ -1159,6 +1241,8 @@ window.__gaiaDebug = {
 };
 
 init();
+
+
 
 
 

@@ -62,7 +62,10 @@
       <nav id="bookmarks-panel" class="side-panel" hidden></nav>
       <div id="reader-content"></div>
     </div>
-    <footer id="reader-status" class="statusbar"></footer>
+    <footer class="statusbar">
+      <div id="progress-track"><div id="progress-fill"></div></div>
+      <span id="reader-status"></span>
+    </footer>
   </div>
 
   <div id="page-nav" hidden>
@@ -92,6 +95,16 @@
           <button id="btn-line-height" class="btn">行距</button>
           <span id="line-height-value">1.8</span>
         </div>
+        <div class="drawer-row">
+          <span class="drawer-label">字体</span>
+          <select id="font-select" class="drawer-select">
+            <option value="default">默认</option>
+            <option value="song">宋体</option>
+            <option value="kai">楷体</option>
+            <option value="hei">黑体</option>
+            <option value="yuan">圆体</option>
+          </select>
+        </div>
         <div class="drawer-row" id="drawer-spread">
           <button id="btn-spread" class="btn">双页模式</button>
           <span id="spread-value">单页</span>
@@ -106,8 +119,8 @@
       <div id="drawer-appearance">
         <h3>外观</h3>
         <div class="drawer-row">
-          <button id="btn-night" class="btn">夜间模式</button>
-          <span id="night-value">关闭</span>
+          <button id="btn-theme" class="btn">主题</button>
+          <span id="theme-value">日间</span>
         </div>
       </div>
       <div class="drawer-about">
@@ -125,5 +138,6 @@
   <script src="app.js"></script>
 </body>
 </html>
+
 
 

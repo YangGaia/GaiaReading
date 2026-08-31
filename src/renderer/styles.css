@@ -148,3 +148,39 @@ body.dark {
 /* ===== 粒子画布（仅首页） ===== */
 #fx-canvas { position: fixed; inset: 0; z-index: 90; pointer-events: none; }
 #fx-canvas[hidden] { display: none; }
+/* ===== 护眼主题 ===== */
+body.eye {
+  --bg: #f5ecd9;
+  --surface: #fbf5e9;
+  --border: #e6d9b8;
+  --border-strong: #d6c69f;
+  --text: #5b4636;
+  --text-soft: #8a7458;
+  --accent: #9a6b1f;
+  --accent-soft: #f0e2c0;
+  --danger: #b3402f;
+  --danger-soft: #f7e3dc;
+  --reader-bg: #f5ecd9;
+  --reader-text: #4a3826;
+  --shadow: rgba(90,70,40,.18);
+  --overlay: rgba(60,45,25,.35);
+}
+
+/* ===== 翻页动画（中等强度） ===== */
+@keyframes pageSlideNext { from { opacity: .25; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pageSlidePrev { from { opacity: .25; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
+#reader-content.paging-next { animation: pageSlideNext .32s ease; }
+#reader-content.paging-prev { animation: pageSlidePrev .32s ease; }
+
+/* ===== 阅读排版 ===== */
+#txt-content p { text-indent: 2em; margin: 0 0 0.8em; line-height: 1.9; }
+#txt-content { line-height: 1.9; }
+
+/* ===== 底部进度条 ===== */
+.statusbar { position: relative; padding: 10px 16px 8px; }
+#progress-track { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--border); }
+#progress-fill { height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+
+/* ===== 设置抽屉下拉 ===== */
+.drawer-label { font-size: 13px; color: var(--text); min-width: 44px; }
+.drawer-select { flex: 1; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }

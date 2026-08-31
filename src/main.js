@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { parseEpub } = require('./shared/epub-meta');
@@ -81,6 +81,7 @@ function createWindow() {
     minHeight: 600,
     title: 'Gaia Reading',
     show: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -130,16 +131,24 @@ function createWindow() {
               await __gaiaDebug.waitLocations();
               const fxInReader = __gaiaDebug.isFxActive();
               const nightBefore = __gaiaDebug.isNight();
-              __gaiaDebug.toggleNight();
+              await __gaiaDebug.setTheme('dark');
               await new Promise((r) => setTimeout(r, 400));
               const nightAfter = __gaiaDebug.isNight();
               const bodyDark = __gaiaDebug.isBodyDark();
               const darkInjected = __gaiaDebug.isDarkInjected();
-              __gaiaDebug.toggleNight();
+              await __gaiaDebug.setTheme('eye');
+              await new Promise((r) => setTimeout(r, 300));
+              const eyeTheme = __gaiaDebug.getTheme() === 'eye';
+              const bodyEye = __gaiaDebug.isBodyEye();
+              await __gaiaDebug.setFont('kai');
+              await new Promise((r) => setTimeout(r, 300));
+              const fontInjected = __gaiaDebug.isFontInjected();
+              await __gaiaDebug.setTheme('light');
               await new Promise((r) => setTimeout(r, 400));
               const pctBefore = __gaiaDebug.getPercent();
               const locBefore = __gaiaDebug.getLoc();
               await __gaiaDebug.nextPage();
+              const pagingClass = __gaiaDebug.getPagingClass();
               await new Promise((r) => setTimeout(r, 800));
               const pctAfter = __gaiaDebug.getPercent();
               const locAfter = __gaiaDebug.getLoc();
@@ -199,7 +208,7 @@ function createWindow() {
               const particleCountLibrary = __gaiaDebug.getParticleCount();
               console.log('DEBUG_VIEW', viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epSize.w, epSize.h);
               console.log('DEBUG_FX', fxOnHome, particleCount, fxInReader, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, diamondCount);
-              console.log('DEBUG_NIGHT', nightBefore, nightAfter, bodyDark, darkInjected);
+              console.log('DEBUG_NIGHT', nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass);
               console.log('DEBUG_SPREAD', spreadBefore, spreadAfter, epSizeAfterSpread.w);
               console.log('DEBUG_PROGRESS', pctBefore, pctAfter);
               console.log('DEBUG_LOC', locBefore, locAfter);
@@ -207,7 +216,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -234,6 +243,9 @@ function createWindow() {
               parsed.nightAfter === true &&
               parsed.bodyDark === true &&
               parsed.darkInjected === true &&
+              parsed.eyeTheme === true &&
+              parsed.bodyEye === true &&
+              parsed.fontInjected === true &&
               parsed.fxOnLibrary === true &&
               parsed.particleCountLibrary > 0 &&
               parsed.trailCount > 0 &&
@@ -242,6 +254,7 @@ function createWindow() {
               parsed.locBefore !== parsed.locAfter &&
               parsed.pctAfter != null &&
               parsed.pctAfter > parsed.pctBefore &&
+              parsed.pagingClass.indexOf('paging-next') >= 0 &&
               parsed.countAfterAdd === 1 &&
               parsed.countAfterRemove === 0 &&
               parsed.bookmarksOpen === true &&
@@ -373,8 +386,22 @@ ipcMain.handle('state:set', (event, { key, value }) => {
 });
 ipcMain.handle('file:exists', (event, filePath) => fs.existsSync(filePath));
 
+function setupMenu() {
+  const template = [
+    {
+      label: '编辑',
+      submenu: [
+        { role: 'undo', label: '撤销' },
+        { role: 'redo', label: '恢复' },
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 app.whenReady().then(() => {
   store = new JsonStore(path.join(app.getPath('userData'), 'gaia-reading.json'));
+  setupMenu();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -384,6 +411,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
 
 
 
