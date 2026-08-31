@@ -114,6 +114,7 @@ function showView(name) {
   const fxCanvas = $('fx-canvas');
   fxCanvas.hidden = !(name === 'home' || name === 'library');
   if (name !== 'home' && name !== 'library') clearFx();
+  if (window.GaiaBgm && window.GaiaBgm.positionBgm) window.GaiaBgm.positionBgm(name);
 }
 
 function finishSplash() {
@@ -161,6 +162,8 @@ async function init() {
   applyThemeClass();
   els.fontSelect.value = state.prefs.fontName || 'default';
   initFx();
+  window.GaiaBgm.initBgm();
+  window.GaiaBgm.positionBgm('home');
 
   const alive = [];
   for (const book of state.library) {
@@ -1691,6 +1694,10 @@ window.__gaiaDebug = {
     };
   },
   getAnchorInView: (off) => (state.current && state.current.paginator ? state.current.paginator.anchorInView(off) : false),
+  bgmState: () => window.GaiaBgm.getState(),
+  bgmNext: () => window.GaiaBgm.next(),
+  bgmSetVolume: (v) => window.GaiaBgm.setVolume(v),
+  bgmToggle: () => window.GaiaBgm.toggle(),
   getReaderTitle: () => els.readerTitle.textContent,
   getMobiBackground: () => {
     const c = state.current;

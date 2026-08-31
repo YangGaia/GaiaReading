@@ -155,3 +155,17 @@ test('可调节页边距功能接入', () => {
   assert.ok(pag.includes('setMargin(pct)'), '分页器应支持 setMargin');
   assert.ok(pag.includes('this.marginPct'), '分页器应保存边距档位');
 });
+
+test('内置 BGM 功能接入', () => {
+  const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
+  const shared = fs.readFileSync(path.join(root, 'src', 'shared', 'bgm.js'), 'utf8');
+  assert.ok(fs.existsSync(path.join(root, 'src', 'renderer', 'bgm.js')), '缺少渲染进程 BGM 模块');
+  assert.ok(html.includes('bgm.js'), '应加载 BGM 脚本');
+  assert.ok(html.includes("media-src 'self' bgm: blob: data:"), 'CSP 应允许 bgm: 媒体协议');
+  assert.ok(main.includes('protocol.registerSchemesAsPrivileged'), '主进程应注册 bgm 协议');
+  assert.ok(main.includes("app.commandLine.appendSwitch('autoplay-policy'"), '应开启自动播放策略');
+  assert.ok(app.includes('window.GaiaBgm.initBgm()'), '应用启动应初始化 BGM');
+  assert.ok(shared.includes("BGM_DEFAULT_LOOP = ['alice', 'soujurou']"), '默认循环应只有有珠/草十郎');
+});

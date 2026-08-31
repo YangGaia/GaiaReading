@@ -31,12 +31,16 @@
     "productName": "Gaia Reading",
     "files": [
       "src/**/*",
+    "assets/bgm/**",
       "package.json"
     ],
     "directories": {
       "output": "dist",
       "buildResources": "build"
     },
+    "asarUnpack": [
+      "assets/bgm/**"
+    ],
     "win": {
       "target": [
         "portable"
