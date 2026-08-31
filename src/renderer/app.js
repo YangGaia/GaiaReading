@@ -219,7 +219,7 @@ function renderLibrary() {
       prow.appendChild(track);
       const label = document.createElement('span');
       label.className = 'book-progress-label';
-      label.textContent = prog.percent != null ? Math.round(pct) + '%' : '第 ' + prog.page + ' 页';
+      label.textContent = Math.round(pct) + '%';
       prow.appendChild(label);
       card.appendChild(prow);
     }
@@ -1284,6 +1284,7 @@ window.__gaiaDebug = {
 };
 
 init();
+
 
 
 

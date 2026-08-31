@@ -91,7 +91,7 @@ body.dark {
 .manage-bar[hidden] { display: none; }
 .hint { text-align: center; color: var(--text-soft); margin-top: 80px; }
 .bookshelf { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px; padding: 24px; align-content: start; }
-.book-card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px; cursor: pointer; text-align: center; transition: box-shadow .15s, transform .15s, border-color .15s; }
+.book-card { position: relative; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px; cursor: pointer; text-align: center; transition: box-shadow .15s, transform .15s, border-color .15s; }
 .book-card:hover { box-shadow: 0 4px 14px var(--shadow); transform: translateY(-2px); }
 .book-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .book-check { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border-strong); background: var(--surface); color: #fff; font-size: 13px; line-height: 18px; text-align: center; z-index: 2; display: none; }
@@ -184,7 +184,8 @@ body.eye {
 /* ===== 设置抽屉下拉 ===== */
 .drawer-label { font-size: 13px; color: var(--text); min-width: 44px; }
 .drawer-select { flex: 1; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
-.book-progress { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.book-progress { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 10px; height: 18px; }
 .book-progress-track { flex: 1; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
 .book-progress-fill { height: 100%; background: var(--accent); }
-.book-progress-label { font-size: 11px; color: var(--text-soft); min-width: 34px; text-align: right; }
+.book-progress-label { font-size: 11px; color: var(--text-soft); min-width: 38px; text-align: right; white-space: nowrap; line-height: 1; }
+
