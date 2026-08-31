@@ -115,6 +115,7 @@ function showView(name) {
   fxCanvas.hidden = !(name === 'home' || name === 'library');
   if (name !== 'home' && name !== 'library') clearFx();
   if (window.GaiaBgm && window.GaiaBgm.positionBgm) window.GaiaBgm.positionBgm(name);
+  window.GaiaPet.init();
 }
 
 function finishSplash() {
@@ -1306,6 +1307,22 @@ async function applyTheme(theme) {
   rememberSettings();
 }
 
+
+function petValueLabel() {
+  return window.GaiaPet && window.GaiaPet.getState().on ? '开' : '关';
+}
+
+function updatePetUI() {
+  const el = $('pet-value');
+  if (el) el.textContent = petValueLabel();
+}
+
+function togglePet() {
+  const on = !(window.GaiaPet && window.GaiaPet.getState().on);
+  if (window.GaiaPet) window.GaiaPet.setEnabled(on);
+  updatePetUI();
+}
+
 async function cycleTheme() {
   const order = ['light', 'eye', 'dark'];
   const idx = order.indexOf(state.prefs.theme);
@@ -1492,6 +1509,7 @@ function bindEvents() {
   $('btn-margin').addEventListener('click', cycleMargin);
   $('btn-spread').addEventListener('click', toggleSpread);
   $('btn-theme').addEventListener('click', cycleTheme);
+  $('btn-pet-toggle').addEventListener('click', togglePet);
   els.fontSelect.addEventListener('change', (ev) => {
     state.fontName = ev.target.value;
     const c = state.current;

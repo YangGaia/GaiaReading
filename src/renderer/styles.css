@@ -286,3 +286,88 @@ body.eye {
   accent-color: #a78bfa;
   cursor: pointer;
 }
+
+/* ===== 赛博桌宠 ===== */
+.gaia-pet {
+  position: fixed;
+  z-index: 9000;
+  width: 150px;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
+}
+.gaia-pet.dragging { cursor: grabbing; }
+.gaia-pet-body {
+  position: relative;
+  width: 100%;
+  transform-origin: 50% 100%;
+  animation: pet-breathe 4s ease-in-out infinite;
+}
+.gaia-pet-body.no-breathe { animation: none; }
+.gaia-pet-body.poke { animation: pet-poke 0.35s ease; }
+.gaia-pet-halfbody { display: block; width: 100%; height: auto; pointer-events: none; }
+.gaia-pet-face {
+  position: absolute;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  opacity: 1;
+}
+.gaia-pet-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 6px);
+  transform: translateX(-50%) translateY(4px) scale(0.92);
+  transform-origin: 50% 100%;
+  background: rgba(255, 255, 255, 0.96);
+  color: #3b2a5d;
+  border: 1px solid rgba(80, 50, 130, 0.25);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+}
+.gaia-pet-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.96);
+  border-bottom: none;
+}
+.gaia-pet-bubble.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+.gaia-pet-zzz {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(90, 60, 140, 0.85);
+  animation: pet-zzz 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes pet-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015, 0.988); }
+}
+@keyframes pet-poke {
+  0% { transform: scale(1, 1); }
+  30% { transform: scale(0.92, 1.06); }
+  60% { transform: scale(1.06, 0.95); }
+  100% { transform: scale(1, 1); }
+}
+@keyframes pet-zzz {
+  0% { transform: translate(0, 0) scale(0.8); opacity: 0; }
+  25% { opacity: 0.9; }
+  100% { transform: translate(8px, -18px) scale(1.15); opacity: 0; }
+}

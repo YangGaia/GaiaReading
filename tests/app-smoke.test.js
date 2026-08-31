@@ -19,8 +19,10 @@ test('项目关键文件齐全', () => {
     'src/preload.js',
     'src/shared/bookmarks.js',
     'src/shared/library.js',
+    'src/shared/pet.js',
     'src/renderer/index.html',
     'src/renderer/app.js',
+    'src/renderer/pet.js',
   ]) {
     assert.ok(fs.existsSync(path.join(root, f)), f + ' 缺失');
   }
@@ -35,6 +37,19 @@ test('首页与闪屏图片资源存在', () => {
     assert.ok(fs.existsSync(f), img + ' 缺失，请先复制到 src/renderer/images/');
     assert.ok(fs.statSync(f).size > 10000, img + ' 异常过小');
   }
+});
+
+test('桌宠素材与映射表完整', () => {
+  const petDir = path.join(root, 'src', 'renderer', 'images', 'pet');
+  assert.ok(fs.existsSync(path.join(petDir, 'pet-expressions.json')), 'pet-expressions.json 缺失');
+  const cellsDir = path.join(petDir, 'cells');
+  const files = fs.existsSync(cellsDir) ? fs.readdirSync(cellsDir) : [];
+  assert.ok(files.length >= 21, '表情格不足 21 个');
+  for (const name of ['半身照.png', '日常表情.png']) {
+    assert.ok(fs.existsSync(path.join(cellsDir, name)), name + ' 缺失');
+  }
+  const mapping = JSON.parse(fs.readFileSync(path.join(petDir, 'pet-expressions.json'), 'utf8'));
+  assert.strictEqual(Object.keys(mapping.cells).length, 21, '映射表条目数不为 21');
 });
 
 test('版本号为 0.4.0 且界面同步', () => {
