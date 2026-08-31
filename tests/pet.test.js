@@ -2,6 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 const pet = require('../src/shared/pet');
 
 const { PET_STATES, EVENTS, TIMERS, createBrain, decideState, timeoutState, lineFor, pick, idleExpressionDue, pickIdleExpression, speechDue, nextMood } = pet;
@@ -143,6 +145,15 @@ test('待机表情到期时避开当前表情', () => {
   const due = idleExpressionDue(0, 5000, () => 0, current);
   assert.notStrictEqual(due.expression, current);
   assert.ok(pet.STATE_EXPRESSIONS.idle.includes(due.expression));
+});
+
+test('表情池引用的每个表情都有对应贴片文件', () => {
+  const facesDir = path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'faces');
+  for (const pool of Object.values(pet.STATE_EXPRESSIONS)) {
+    for (const name of pool) {
+      assert.ok(fs.existsSync(path.join(facesDir, name + '.png')), '缺少贴片: ' + name);
+    }
+  }
 });
 
 test('表情清单覆盖映射表中的全部表情', () => {
