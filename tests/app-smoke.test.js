@@ -141,3 +141,17 @@ test('分页器保留左右页边距（版心）', () => {
   assert.ok(!p.includes("'p { text-indent: 2em !important; margin: 0 0 0.8em !important;"), '段落排版不应再重置左右边距');
   assert.ok(p.includes("margin-top: 0 !important; margin-bottom: 0.8em !important"), '段落应只设上下边距，保留版心左右留白');
 });
+
+test('可调节页边距功能接入', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
+  assert.ok(html.includes('btn-margin'), '缺少页边距按钮');
+  assert.ok(html.includes('margin-value'), '缺少页边距数值显示');
+  assert.ok(app.includes('const MARGIN_OPTIONS = [4, 8, 12, 16];'), '应提供边距档位');
+  assert.ok(app.includes('function cycleMargin()'), '缺少边距循环函数');
+  assert.ok(app.includes('paginator.setMargin('), '应调用分页器边距');
+  assert.ok(app.includes("'body > * { margin-left: ' + marginPct + '% !important;"), 'EPUB 应注入可调边距');
+  assert.ok(pag.includes('setMargin(pct)'), '分页器应支持 setMargin');
+  assert.ok(pag.includes('this.marginPct'), '分页器应保存边距档位');
+});

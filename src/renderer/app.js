@@ -39,6 +39,7 @@ const els = {
   drawerFuncs: $('drawer-funcs'),
   fontValue: $('font-value'),
   lineHeightValue: $('line-height-value'),
+  marginValue: $('margin-value'),
   drawerSpread: $('drawer-spread'),
   spreadValue: $('spread-value'),
   themeValue: $('theme-value'),
@@ -65,7 +66,7 @@ const state = {
   lineHeight: 1.8,
   txtFont: 16,
   readMode: 'single',
-  prefs: { theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, readMode: 'single' },
+  prefs: { theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single' },
   homeReady: null,
   resolveHome: null,
 };
@@ -134,7 +135,7 @@ function migrateHabitsFromLastBook() {
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const last = entries[0] && entries[0].settings;
   if (!last) return;
-  for (const k of ['theme', 'fontName', 'fontSize', 'txtFont', 'lineHeight', 'readMode']) {
+  for (const k of ['theme', 'fontName', 'fontSize', 'txtFont', 'lineHeight', 'marginPct', 'readMode']) {
     if (state.prefs[k] == null && last[k] != null) state.prefs[k] = last[k];
   }
 }
@@ -150,7 +151,7 @@ async function init() {
   state.library = lib || [];
   state.progress = progress || {};
   state.bookmarks = bookmarks || {};
-  state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, readMode: 'single' }, prefs || {});
+  state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single' }, prefs || {});
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
   migrateHabitsFromLastBook();
   state.fontSize = state.prefs.fontSize != null ? state.prefs.fontSize : 100;
@@ -392,6 +393,7 @@ function updateSettingsValues() {
   const c = state.current;
   els.fontValue.textContent = c && c.format === 'pdf' ? Math.round((c.zoom || 1) * 100) + '%' : (c && c.paginator ? state.fontSize + '%' : state.fontSize + '%');
   els.lineHeightValue.textContent = state.lineHeight.toFixed(1);
+  els.marginValue.textContent = (state.prefs.marginPct != null ? state.prefs.marginPct : 8) + '%';
   els.spreadValue.textContent = state.readMode === 'spread' ? '双页' : '单页';
 }
 
@@ -631,6 +633,7 @@ async function openMobi(book) {
     if (state.current && state.current.flow) state.current.flow.setPages(state.current.flow.chapter, total);
   };
   state.current.paginator.setTheme(state.prefs.theme);
+  state.current.paginator.setMargin(state.prefs.marginPct != null ? state.prefs.marginPct : 8);
   const saved = state.progress[book.path];
   let startChapter = 0;
   let startPage = 0;
@@ -755,6 +758,7 @@ async function openTxt(book) {
     if (state.current && state.current.flow) state.current.flow.setPages(0, total);
   };
   state.current.paginator.setTheme(state.prefs.theme);
+  state.current.paginator.setMargin(state.prefs.marginPct != null ? state.prefs.marginPct : 8);
   const paragraphs = splitTxtParagraphs(res.text);
   state.current.txtChapters = detectTxtChapters(paragraphs);
   const html = paragraphsToHtml(res.text) || '<p></p>';
@@ -854,6 +858,22 @@ function cycleLineHeight() {
   els.readerStatus.textContent = '行距 ' + state.lineHeight.toFixed(1);
   rememberSettings();
 }
+const MARGIN_OPTIONS = [4, 8, 12, 16];
+function cycleMargin() {
+  const opts = MARGIN_OPTIONS;
+  const cur = state.prefs.marginPct != null ? state.prefs.marginPct : 8;
+  const idx = opts.indexOf(cur);
+  state.prefs.marginPct = opts[(idx + 1) % opts.length];
+  const c = state.current;
+  if (c && c.format === 'epub' && c.rendition) {
+    try { c.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
+  }
+  if (c && c.paginator) c.paginator.setMargin(state.prefs.marginPct);
+  if (isSettingsOpen()) updateSettingsValues();
+  els.readerStatus.textContent = '页边距 ' + state.prefs.marginPct + '%';
+  rememberSettings();
+}
+
 function togglePanel(which) {
   const isToc = which === 'toc';
   const targetHidden = isToc ? els.tocPanel.hidden : els.bookmarksPanel.hidden;
@@ -1301,6 +1321,8 @@ function applyReaderStyles(contents) {
     css += 'html, body { background: #f5ecd9 !important; } body { color: #4a3826 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #4a3826 !important; } a { color: #8a6d3b !important; }';
   }
   css += 'p { text-indent: 2em !important; margin: 0 0 0.8em !important; line-height: ' + state.lineHeight + ' !important; } h1, h2, h3, h4 { line-height: 1.4 !important; margin: 1.2em 0 0.6em !important; }';
+  const marginPct = state.prefs.marginPct != null ? state.prefs.marginPct : 8;
+  css += 'body > * { margin-left: ' + marginPct + '% !important; margin-right: ' + marginPct + '% !important; }';
   if (font) css += 'body, p, div, span, li { font-family: ' + font + ' !important; }';
   if (style) style.remove();
   if (!css) return;
@@ -1398,6 +1420,7 @@ function rememberSettings() {
     fontSize: state.fontSize,
     txtFont: state.txtFont,
     lineHeight: state.lineHeight,
+    marginPct: state.prefs.marginPct,
     readMode: state.readMode,
   });
   window.api.stateSet('prefs', state.prefs);
@@ -1454,6 +1477,7 @@ function bindEvents() {
   $('btn-font-minus').addEventListener('click', () => adjustFont(-1));
   $('btn-font-plus').addEventListener('click', () => adjustFont(1));
   $('btn-line-height').addEventListener('click', cycleLineHeight);
+  $('btn-margin').addEventListener('click', cycleMargin);
   $('btn-spread').addEventListener('click', toggleSpread);
   $('btn-theme').addEventListener('click', cycleTheme);
   els.fontSelect.addEventListener('change', (ev) => {
@@ -1681,6 +1705,7 @@ window.__gaiaDebug = {
     fontSize: state.fontSize,
     txtFont: state.txtFont,
     lineHeight: state.lineHeight,
+    marginPct: state.prefs.marginPct,
     readMode: state.readMode,
     spread: state.readMode === 'spread',
   }),

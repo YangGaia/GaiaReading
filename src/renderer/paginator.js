@@ -34,6 +34,7 @@ class Paginator {
     this.typo = { fontSizePct: 100, lineHeight: 1.8, fontFamily: '' };
     this.theme = 'light';
     this.pageBg = '#fffdf7';
+    this.marginPct = 8;
     this._boundResize = () => this.reflow();
   }
 
@@ -126,6 +127,12 @@ class Paginator {
     this.reflow();
   }
 
+  /** 设置页面左右边距百分比（如 4/8/12/16），立即重新排版。 */
+  setMargin(pct) {
+    this.marginPct = typeof pct === 'number' && pct >= 0 ? pct : 8;
+    if (this.doc) this.applyLayout();
+  }
+
   setTheme(theme) {
     this.theme = theme;
     this.pageBg = theme === 'eye' ? '#f7efdd' : (theme === 'dark' ? '#000000' : '#fffdf7');
@@ -187,7 +194,7 @@ class Paginator {
     this.frame.style.height = hostH + 'px';
     this.frame.style.visibility = 'visible';
 
-    const pagePad = spread ? 36 : 48; // 页面内边距，单页/双页都给内容留白（书版心）
+    const pagePad = Math.max(12, Math.round(this.pageWidth * this.marginPct / 100)); // 页边距按百分比随版心缩放
     base.textContent =
       'html, body { margin: 0; padding: 0; }' +
       'body { column-width: ' + this.pageWidth + 'px; column-gap: ' + gap + 'px; ' +
