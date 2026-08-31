@@ -25,7 +25,7 @@
   const FACE = {
     halfbody: { x: 134, y: 137, w: 89, h: 78 },
     expression: { x: 82, y: 103, w: 89, h: 79 },
-    tile: { w: 134, h: 118, cx: 67.5, cy: 59.5 },
+    tile: { w: 89, h: 79, cx: 44.5, cy: 39.5 }, // 脸框贴片(89x79), 与半身照脸框完全贴合, 无大羽化
     sheet: { w: 356, h: 647 }, // 半身照原图尺寸, 用于显示缩放换算
     headBox: { x: 100, y: 0, w: 170, h: 220 }, // 主人标定的头部区域: x100-270, y0-220
     turn: { turnY: 9, turnX: 7, tx: 2, ty: 1.5, bodyY: 5 }, // 3D转头: 头rotateY左右/rotateX上下, 身体rotateY小幅跟随
