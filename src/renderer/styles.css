@@ -371,3 +371,35 @@ body.eye {
   25% { opacity: 0.9; }
   100% { transform: translate(8px, -18px) scale(1.15); opacity: 0; }
 }
+
+/* 桌宠动作: 眨眼眼皮 / 歪头 / 回弹 / 呼吸浮动 */
+.gaia-pet-lid {
+  position: absolute;
+  background: #b39c8d;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 999px;
+}
+.gaia-pet-lid.blink { animation: pet-blink 0.28s ease; }
+@keyframes pet-blink {
+  0% { opacity: 0; }
+  45% { opacity: 0.95; }
+  55% { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+.gaia-pet-body.tilt { animation: pet-tilt 0.7s ease; }
+@keyframes pet-tilt {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(2.2deg) translateY(-2px); }
+  70% { transform: rotate(-1.6deg) translateY(1px); }
+}
+.gaia-pet-body.drop { animation: pet-drop 0.4s ease; }
+@keyframes pet-drop {
+  0% { transform: scale(1.06, 0.94) translateY(4px); }
+  60% { transform: scale(0.97, 1.03) translateY(-2px); }
+  100% { transform: scale(1, 1) translateY(0); }
+}
+@keyframes pet-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-3px) scale(1.012, 0.988); }
+}

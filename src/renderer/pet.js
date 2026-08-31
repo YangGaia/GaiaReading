@@ -22,8 +22,8 @@
 
   /** 脸部标定（半身照 356x647，表情格约 254x256；坐标为估算，待主人确认）。 */
   const FACE = {
-    halfbody: { x: 103, y: 45, w: 150, h: 120 },
-    expression: { x: 57, y: 40, w: 140, h: 110 },
+    halfbody: { x: 134, y: 137, w: 89, h: 78 },
+    expression: { x: 82, y: 103, w: 89, h: 79 },
   };
 
   const DEFAULT_STATE = { on: true, x: null, y: null };
@@ -82,6 +82,14 @@
     ui.face.style.height = Math.round(baseH * scale) + 'px';
     ui.face.style.left = Math.round(hbCx - exCx * scale) + 'px';
     ui.face.style.top = Math.round(hbCy - exCy * scale) + 'px';
+    // 眼皮(眨眼)遮罩: 覆盖表情层眼睛区域, 与脸部中心对齐
+    const eyeY = ex.y + ex.h * 0.44;
+    const lidW = Math.round(ex.w * 0.72 * scale);
+    const lidH = Math.round(10 * scale);
+    ui.lid.style.width = lidW + 'px';
+    ui.lid.style.height = lidH + 'px';
+    ui.lid.style.left = Math.round(hbCx - lidW / 2) + 'px';
+    ui.lid.style.top = Math.round(hbCy - (exCy - eyeY) * scale - lidH / 2) + 'px';
   }
 
   function showBubble(text) {
@@ -107,6 +115,29 @@
     void ui.body.offsetWidth;
     ui.body.classList.add('poke');
     window.setTimeout(() => ui.body.classList.remove('poke'), 350);
+  }
+
+  function triggerBlink() {
+    if (!ui.lid || !saved.on || dragging) return;
+    ui.lid.classList.remove('blink');
+    void ui.lid.offsetWidth;
+    ui.lid.classList.add('blink');
+  }
+
+  function scheduleBlink() {
+    window.clearTimeout(blinkTimer);
+    blinkTimer = window.setTimeout(() => {
+      triggerBlink();
+      scheduleBlink();
+    }, 2600 + Math.random() * 2600);
+  }
+
+  function triggerTilt() {
+    if (!ui.body) return;
+    ui.body.classList.add('no-breathe', 'tilt');
+    window.setTimeout(() => {
+      ui.body.classList.remove('tilt', 'no-breathe');
+    }, 700);
   }
 
   function wakeUp() {
@@ -177,7 +208,11 @@
     }
     if (brain.state === PET_STATES.IDLE) {
       const act = idleAction();
-      if (act) applyExpression(act.expression);
+      if (act) {
+        applyExpression(act.expression);
+      } else if (Math.random() < 0.12) {
+        triggerTilt();
+      }
     }
   }
 
@@ -211,6 +246,9 @@
       dragging = false;
       ui.root.classList.remove('dragging');
       ui.body.classList.remove('no-breathe');
+      ui.body.classList.remove('drop');
+      void ui.body.offsetWidth;
+      ui.body.classList.add('drop');
       save();
     };
     ui.root.addEventListener('pointerup', endDrag);
@@ -247,10 +285,13 @@
     zzz.textContent = 'Zzz';
     zzz.hidden = true;
 
-    body.append(halfbody, face);
+    const lid = document.createElement('div');
+    lid.className = 'gaia-pet-lid';
+
+    body.append(halfbody, face, lid);
     root.append(bubble, body, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, body, halfbody, face, zzz };
+    ui = { root, bubble, body, halfbody, face, zzz, lid };
   }
 
   async function init() {
@@ -281,6 +322,7 @@
     ui.root.hidden = !saved.on;
     applyExpression('日常表情', true);
     animTimer = window.setInterval(tick, 1000);
+    scheduleBlink();
   }
 
   function setEnabled(on) {
