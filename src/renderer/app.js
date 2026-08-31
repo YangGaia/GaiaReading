@@ -9,6 +9,7 @@ const {
   removeEntry: removeEntryFromMap,
   removeEntries: removeEntriesFromMap,
 } = window.GaiaLibrary;
+const { paragraphsToHtml } = window.GaiaTxtHtml;
 
 const FONTS = {
   default: '',
@@ -737,13 +738,7 @@ async function openTxt(book) {
     if (state.current && state.current.flow) state.current.flow.setPages(0, total);
   };
   state.current.paginator.setTheme(state.prefs.theme);
-  const paragraphs = res.text.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
-  let html = '';
-  if (paragraphs.length) {
-    html = paragraphs.map((p) => '<p>' + escapeHtml(p) + '</p>').join('');
-  } else {
-    html = '<p>' + escapeHtml(res.text) + '</p>';
-  }
+  const html = paragraphsToHtml(res.text) || '<p></p>';
   await state.current.paginator.render(html, '');
   if (state.current.flow) state.current.flow.setPages(0, state.current.paginator.totalPages || 1);
   state.current.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
@@ -752,13 +747,6 @@ async function openTxt(book) {
   updateMobiProgress(true);
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function updateTxtProgress(force) {
   updateMobiProgress(force);

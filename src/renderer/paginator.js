@@ -137,7 +137,7 @@ class Paginator {
     const s = this.doc.getElementById('paginator-typo');
     if (!s) return;
     let css = 'html { font-size: ' + (this.typo.fontSizePct / 100) + 'em !important; }';
-    css += 'html, body { line-height: ' + this.typo.lineHeight + ' !important; }';
+    css += 'html, body { line-height: ' + this.typo.lineHeight + ' !important; word-break: break-word !important; overflow-wrap: break-word !important; }';
     // 与 EPUB 阅读一致的排版：段落首行缩进、标题间距、行距
     css += 'p { text-indent: 2em !important; margin: 0 0 0.8em !important; line-height: ' + this.typo.lineHeight + ' !important; }';
     css += 'h1, h2, h3, h4 { line-height: 1.4 !important; margin: 1.2em 0 0.6em !important; text-indent: 0 !important; }';

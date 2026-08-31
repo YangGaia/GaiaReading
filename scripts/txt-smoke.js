@@ -17,7 +17,10 @@
     const pageAfter = __gaiaDebug.getPaginatorPage();
     const pctAfter = __gaiaDebug.getProgressWidth();
     const pctMoved = pctBefore !== pctAfter && pctAfter !== '';
-    return JSON.stringify({ status, contentLen, totalPages, pageBefore, pageAfter, pctMoved });
+    const frame = document.getElementById('reader-content').querySelector('iframe');
+    const pCount = frame && frame.contentDocument ? frame.contentDocument.body.querySelectorAll('p').length : -1;
+    const lineBreaks = frame && frame.contentDocument ? (frame.contentDocument.body.innerHTML.match(/<br>/g) || []).length : -1;
+    return JSON.stringify({ status, contentLen, totalPages, pageBefore, pageAfter, pctMoved, pCount, lineBreaks });
   } catch (e) {
     console.error('TXT_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';
