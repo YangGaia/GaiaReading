@@ -8,7 +8,7 @@
  * 每列 = 一页；翻页即横向滚动 documentElement（html）。
  *
  * 支持：
- * - 单页 / 双页 / 滚动 三种模式
+ * - 单页 / 双页 两种模式
  * - 字体、字号、行距、主题注入（切换后自动重排）
  * - 图片加载完成后自动重新测量页数
  */
@@ -24,7 +24,7 @@ class Paginator {
     this.host = host;
     this.pageWidth = opts.pageWidth || 640;
     this.gap = opts.gap || 40;
-    this.mode = 'single'; // single | spread | scroll
+    this.mode = 'single'; // single | spread
     this.currentPage = 0;
     this.totalPages = 1;
     this.frame = null;
@@ -103,9 +103,9 @@ class Paginator {
     setTimeout(finish, 2500);
   }
 
-  /** 设置阅读模式：single | spread | scroll */
+  /** 设置阅读模式：single | spread */
   setMode(mode) {
-    const next = mode === 'spread' || mode === 'scroll' ? mode : 'single';
+    const next = mode === 'spread' ? 'spread' : 'single';
     if (next === this.mode) {
       this.applyLayout();
       return;
@@ -167,18 +167,6 @@ class Paginator {
     const hostW = this.host.clientWidth || 800;
     const hostH = this.host.clientHeight || 600;
 
-    if (this.mode === 'scroll') {
-      base.textContent =
-        'html, body { margin: 0; padding: 0; }' +
-        'body { column-width: auto !important; column-gap: 0 !important; ' +
-        'height: auto !important; overflow-y: auto !important; overflow-x: hidden !important; ' +
-        'padding: 24px 28px !important; }';
-      this.frame.style.width = hostW + 'px';
-      this.frame.style.height = hostH + 'px';
-      this.frame.style.visibility = 'visible';
-      return;
-    }
-
     const gap = this.gap;
     const spread = this.mode === 'spread';
     // 页宽自适应阅读区：单页占满可用宽，双页两页+间距正好填满
@@ -206,7 +194,7 @@ class Paginator {
   }
 
   measure() {
-    if (!this.doc || this.mode === 'scroll') return;
+    if (!this.doc) return;
     const el = this.doc.documentElement;
     const w = el.scrollWidth || 1;
     this.totalPages = Math.max(1, Math.ceil(w / this.colStep));
@@ -216,7 +204,7 @@ class Paginator {
 
   /** 显示第 page 页（0 起）。单页模式一次一页，双页模式一次两页（相邻列）。 */
   showPage(page) {
-    if (!this.doc || this.mode === 'scroll') return;
+    if (!this.doc) return;
     this.currentPage = Math.max(0, Math.min(this.totalPages - 1, page));
     const el = this.doc.documentElement;
     el.scrollLeft = this.currentPage * this.colStep;
@@ -224,9 +212,6 @@ class Paginator {
   }
 
   next(step) {
-    if (this.mode === 'scroll') {
-      return this.scrollInside(true);
-    }
     const s = step == null ? (this.mode === 'spread' ? 2 : 1) : step;
     if (this.currentPage >= this.totalPages - 1) return false;
     this.showPage(this.currentPage + s);
@@ -234,57 +219,15 @@ class Paginator {
   }
 
   prev(step) {
-    if (this.mode === 'scroll') {
-      return this.scrollInside(false);
-    }
     const s = step == null ? (this.mode === 'spread' ? 2 : 1) : step;
     if (this.currentPage <= 0) return false;
     this.showPage(this.currentPage - s);
     return true;
   }
 
-  /** 滚动模式：内部滚动一屏。返回是否移动。 */
-  scrollInside(forward) {
-    if (!this.frame || !this.frame.contentDocument) return false;
-    const body = this.frame.contentDocument.body;
-    const win = this.frame.contentWindow;
-    const max = Math.max(0, body.scrollHeight - this.frame.clientHeight);
-    const step = (this.frame.clientHeight || 600) * 0.92;
-    if (forward) {
-      if (win.scrollY >= max - 4) return false;
-      win.scrollBy(0, step);
-    } else {
-      if (win.scrollY <= 0) return false;
-      win.scrollBy(0, -step);
-    }
-    if (this.onChange) this.onChange();
-    return true;
-  }
-
-  /** 滚动模式内部滚动比例 0-100。 */
-  scrollPercent() {
-    if (this.mode !== 'scroll' || !this.frame || !this.frame.contentWindow) return 0;
-    const win = this.frame.contentWindow;
-    const body = this.frame.contentDocument.body;
-    const max = Math.max(0, body.scrollHeight - this.frame.clientHeight);
-    return max > 0 ? (win.scrollY / max) * 100 : 0;
-  }
-
-  /** 分页模式下当前页比例 0-100。 */
+  /** 当前页比例 0-100。 */
   pagePercent() {
-    if (this.mode === 'scroll') return this.scrollPercent();
     return this.totalPages > 1 ? ((this.currentPage + 1) / this.totalPages) * 100 : 100;
-  }
-
-  getScrollTop() {
-    return this.frame && this.frame.contentWindow ? this.frame.contentWindow.scrollY : 0;
-  }
-
-  setScrollTop(v) {
-    if (this.frame && this.frame.contentWindow) {
-      this.frame.contentWindow.scrollTo(0, v);
-      if (this.onChange) this.onChange();
-    }
   }
 
   reflow() {

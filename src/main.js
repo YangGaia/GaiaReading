@@ -133,7 +133,7 @@ function createWindow() {
             console.log('DEBUG_TXT:', txtStatus);
             try {
               const parsed = JSON.parse(txtStatus);
-              debugOk = parsed.contentLen > 0 && parsed.totalPages > 1 && parsed.pageAfter > parsed.pageBefore && parsed.scrollMode === 'scroll';
+              debugOk = parsed.contentLen > 0 && parsed.totalPages > 1 && parsed.pageAfter > parsed.pageBefore;
               if (!debugOk) console.error('DEBUG_TXT_CHECKS_FAILED:', JSON.stringify(parsed));
             } catch (parseErr) {
               debugOk = false;
@@ -397,9 +397,6 @@ function createWindow() {
           await mainWindow.webContents.executeJavaScript("__gaiaDebug.setMode('spread')");
           await wait(1600);
           await capture('spread.png');
-          await mainWindow.webContents.executeJavaScript("__gaiaDebug.setMode('scroll')");
-          await wait(1600);
-          await capture('scroll.png');
           await mainWindow.webContents.executeJavaScript("__gaiaDebug.setMode('single')");
           await mainWindow.webContents.executeJavaScript("__gaiaDebug.setTheme('dark')");
           await wait(1200);

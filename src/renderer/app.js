@@ -371,7 +371,7 @@ function updateSettingsValues() {
   const c = state.current;
   els.fontValue.textContent = c && c.format === 'pdf' ? Math.round((c.zoom || 1) * 100) + '%' : (c && c.paginator ? state.fontSize + '%' : state.fontSize + '%');
   els.lineHeightValue.textContent = state.lineHeight.toFixed(1);
-  els.spreadValue.textContent = state.readMode === 'spread' ? '双页' : (state.readMode === 'scroll' ? '滚动' : '单页');
+  els.spreadValue.textContent = state.readMode === 'spread' ? '双页' : '单页';
 }
 
 function closeReaderContent() {
@@ -447,8 +447,6 @@ async function openEpub(book) {
   await rendition.display(saved && saved.loc ? saved.loc : undefined);
   if (state.readMode === 'spread') {
     try { rendition.spread('auto', 700); } catch (e) {}
-  } else if (state.readMode === 'scroll') {
-    try { rendition.flow('scrolled-doc'); } catch (e) {}
   }
 
   rendition.on('relocated', (location) => {
@@ -510,19 +508,13 @@ function animatePage(direction) {
 }
 
 function toggleSpread() {
-  const order = ['single', 'spread', 'scroll'];
-  const idx = order.indexOf(state.readMode);
-  state.readMode = order[(idx + 1) % order.length];
+  state.readMode = state.readMode === 'spread' ? 'single' : 'spread';
   const c = state.current;
   if (c) {
     if (c.format === 'epub' && c.rendition) {
-      if (state.readMode === 'scroll') {
-        c.rendition.flow('scrolled-doc');
-      } else {
-        c.rendition.spread(state.readMode === 'spread' ? 'auto' : 'none', 700);
-      }
+      c.rendition.spread(state.readMode === 'spread' ? 'auto' : 'none', 700);
     } else if (c.paginator) {
-      c.paginator.setMode(state.readMode === 'spread' ? 'spread' : (state.readMode === 'scroll' ? 'scroll' : 'single'));
+      c.paginator.setMode(state.readMode);
       updateMobiProgress(true);
     }
   }
@@ -605,15 +597,13 @@ async function openMobi(book) {
   const saved = state.progress[book.path];
   let startChapter = 0;
   let startPage = 0;
-  let startScroll = 0;
   if (saved) {
     if (typeof saved.mobiChapter === 'number') startChapter = saved.mobiChapter;
     else if (typeof saved.mobiIndex === 'number') startChapter = saved.mobiIndex;
     if (typeof saved.mobiPage === 'number') startPage = saved.mobiPage;
-    if (typeof saved.mobiScroll === 'number') startScroll = saved.mobiScroll;
   }
   state.current.flow.gotoChapter(startChapter);
-  await loadMobiChapter(startChapter, { page: startPage, scrollTop: startScroll });
+  await loadMobiChapter(startChapter, { page: startPage });
   renderMobiToc();
 }
 
@@ -634,15 +624,10 @@ async function loadMobiChapter(chapterIndex, opts) {
       if (c.flow) c.flow.gotoChapter(clamped);
       const total = c.paginator.totalPages || 1;
       if (c.flow) c.flow.setPages(clamped, total);
-      if (state.readMode === 'scroll') {
-        c.paginator.setMode('scroll');
-        if (typeof opts.scrollTop === 'number') c.paginator.setScrollTop(opts.scrollTop);
-      } else {
-        c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
-        const p = opts.page === 'end' ? total - 1 : (typeof opts.page === 'number' ? opts.page : 0);
-        c.paginator.showPage(p);
-        if (c.flow) c.flow.page = Math.min(Math.max(0, p), total - 1);
-      }
+      c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
+      const p = opts.page === 'end' ? total - 1 : (typeof opts.page === 'number' ? opts.page : 0);
+      c.paginator.showPage(p);
+      if (c.flow) c.flow.page = Math.min(Math.max(0, p), total - 1);
       updateMobiProgress(true);
     }
   } catch (err) {
@@ -674,22 +659,15 @@ function updateMobiProgress(force) {
   let percent;
   let text;
   const chapters = c.mobi ? c.mobi.chapters : null;
-  if (state.readMode === 'scroll') {
-    percent = c.paginator.scrollPercent();
-    text = chapters && chapters.length > 1
-      ? '进度 ' + percent.toFixed(1) + '% · 第 ' + (c.flow ? c.flow.chapter + 1 : 1) + ' / ' + chapters.length + ' 节'
-      : '进度 ' + percent.toFixed(1) + '%';
+  percent = c.flow ? c.flow.percent() : c.paginator.pagePercent();
+  const total = c.paginator ? c.paginator.totalPages : 0;
+  const cur = c.paginator ? c.paginator.currentPage + 1 : 0;
+  if (chapters && chapters.length > 1) {
+    text = '进度 ' + percent.toFixed(1) + '% · 第 ' + (c.flow ? c.flow.chapter + 1 : 1) + ' 节 ' + cur + ' / ' + total + ' 页';
+  } else if (total > 0) {
+    text = '进度 ' + percent.toFixed(1) + '% · 第 ' + cur + ' / ' + total + ' 页';
   } else {
-    percent = c.flow ? c.flow.percent() : c.paginator.pagePercent();
-    const total = c.paginator ? c.paginator.totalPages : 0;
-    const cur = c.paginator ? c.paginator.currentPage + 1 : 0;
-    if (chapters && chapters.length > 1) {
-      text = '进度 ' + percent.toFixed(1) + '% · 第 ' + (c.flow ? c.flow.chapter + 1 : 1) + ' 节 ' + cur + ' / ' + total + ' 页';
-    } else if (total > 0) {
-      text = '进度 ' + percent.toFixed(1) + '% · 第 ' + cur + ' / ' + total + ' 页';
-    } else {
-      text = '进度 ' + percent.toFixed(1) + '%';
-    }
+    text = '进度 ' + percent.toFixed(1) + '%';
   }
   updateProgress(percent, text);
   const now = Date.now();
@@ -697,22 +675,12 @@ function updateMobiProgress(force) {
     lastMobiSave = now;
     const saved = { percent };
     const isMobi = c.format === 'mobi' || c.format === 'azw3';
-    if (state.readMode === 'scroll') {
-      const top = c.paginator.getScrollTop();
-      if (isMobi) {
-        saved.mobiScroll = top;
-        if (c.flow) saved.mobiChapter = c.flow.chapter;
-      } else {
-        saved.offset = top;
-      }
+    if (isMobi) {
+      if (c.flow) saved.mobiChapter = c.flow.chapter;
+      saved.mobiPage = c.paginator.currentPage;
+      if (c.flow) saved.mobiIndex = c.flow.chapter;
     } else {
-      if (isMobi) {
-        if (c.flow) saved.mobiChapter = c.flow.chapter;
-        saved.mobiPage = c.paginator.currentPage;
-        if (c.flow) saved.mobiIndex = c.flow.chapter;
-      } else {
-        saved.page = c.paginator.currentPage;
-      }
+      saved.page = c.paginator.currentPage;
     }
     saveProgress(c.path, saved);
   }
@@ -758,15 +726,9 @@ async function openTxt(book) {
   }
   await state.current.paginator.render(html, '');
   if (state.current.flow) state.current.flow.setPages(0, state.current.paginator.totalPages || 1);
-  if (state.readMode === 'scroll') {
-    state.current.paginator.setMode('scroll');
-    const saved = state.progress[book.path];
-    if (saved && typeof saved.offset === 'number') state.current.paginator.setScrollTop(saved.offset);
-  } else {
-    state.current.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
-    const saved = state.progress[book.path];
-    if (saved && typeof saved.page === 'number') state.current.paginator.showPage(saved.page);
-  }
+  state.current.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
+  const saved = state.progress[book.path];
+  if (saved && typeof saved.page === 'number') state.current.paginator.showPage(saved.page);
   updateMobiProgress(true);
 }
 
@@ -794,10 +756,6 @@ function nextPage() {
   } else if (c.format === 'pdf') {
     if (c.page < c.pages) { c.page += 1; animatePage('next'); renderPdfPage(); }
   } else if (c.paginator) {
-    if (state.readMode === 'scroll') {
-      if (c.paginator.next()) { animatePage('next'); updateMobiProgress(false); }
-      return;
-    }
     const step = state.readMode === 'spread' ? 2 : 1;
     const moved = c.paginator.next(step);
     if (moved) {
@@ -822,10 +780,6 @@ function prevPage() {
   } else if (c.format === 'pdf') {
     if (c.page > 1) { c.page -= 1; animatePage('prev'); renderPdfPage(); }
   } else if (c.paginator) {
-    if (state.readMode === 'scroll') {
-      if (c.paginator.prev()) { animatePage('prev'); updateMobiProgress(false); }
-      return;
-    }
     const step = state.readMode === 'spread' ? 2 : 1;
     const moved = c.paginator.prev(step);
     if (moved) {
@@ -936,13 +890,8 @@ async function addBookmark() {
     loc = String(c.page);
     label = '书签 ' + (getBookmarkCount() + 1) + '（第 ' + c.page + ' 页）';
   } else if (c.paginator) {
-    if (state.readMode === 'scroll') {
-      loc = 'scroll:' + (c.mobi && c.flow ? c.flow.chapter : 0) + ':' + c.paginator.getScrollTop();
-      label = '书签 ' + (getBookmarkCount() + 1) + '（滚动位置）';
-    } else {
-      loc = 'page:' + (c.mobi && c.flow ? c.flow.chapter : 0) + ':' + c.paginator.currentPage;
-      label = '书签 ' + (getBookmarkCount() + 1) + (c.mobi && c.flow ? '（第 ' + (c.flow.chapter + 1) + ' 节第 ' + (c.paginator.currentPage + 1) + ' 页）' : '（第 ' + (c.paginator.currentPage + 1) + ' 页）');
-    }
+    loc = 'page:' + (c.mobi && c.flow ? c.flow.chapter : 0) + ':' + c.paginator.currentPage;
+    label = '书签 ' + (getBookmarkCount() + 1) + (c.mobi && c.flow ? '（第 ' + (c.flow.chapter + 1) + ' 节第 ' + (c.paginator.currentPage + 1) + ' 页）' : '（第 ' + (c.paginator.currentPage + 1) + ' 页）');
   } else {
     loc = String(els.readerContent.scrollTop);
     label = '书签 ' + (getBookmarkCount() + 1);
@@ -971,27 +920,14 @@ async function jumpToBookmark(loc) {
   if (!c) return;
   if (c.format === 'epub') c.rendition.display(loc);
   else if (c.paginator) {
-    if (String(loc).startsWith('scroll:')) {
-      const parts = String(loc).split(':');
-      const chapter = parseInt(parts[1], 10) || 0;
-      const top = parseInt(parts[2], 10) || 0;
-      if (c.format === 'mobi' || c.format === 'azw3') {
-        await loadMobiChapter(chapter, { scrollTop: top });
-      } else {
-        c.paginator.setMode('scroll');
-        c.paginator.setScrollTop(top);
-      }
-      state.readMode = 'scroll';
+    const parts = String(loc).split(':');
+    const chapter = parseInt(parts[1], 10) || 0;
+    const page = parseInt(parts[2], 10) || 0;
+    if (c.format === 'mobi' || c.format === 'azw3') {
+      await loadMobiChapter(chapter, { page });
     } else {
-      const parts = String(loc).split(':');
-      const chapter = parseInt(parts[1], 10) || 0;
-      const page = parseInt(parts[2], 10) || 0;
-      if (c.format === 'mobi' || c.format === 'azw3') {
-        await loadMobiChapter(chapter, { page });
-      } else {
-        c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
-        c.paginator.showPage(page);
-      }
+      c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
+      c.paginator.showPage(page);
     }
     updateMobiProgress(true);
   } else if (c.format === 'pdf') {
@@ -1257,7 +1193,7 @@ function applyBookSettings(book) {
   if (s.fontSize != null) state.fontSize = s.fontSize;
   if (s.txtFont != null) state.txtFont = s.txtFont;
   if (s.lineHeight != null) state.lineHeight = s.lineHeight;
-  state.readMode = s.readMode === 'spread' || s.readMode === 'scroll' ? s.readMode : 'single';
+  state.readMode = s.readMode === 'spread' ? 'spread' : 'single';
 }
 
 function rememberSettings() {
@@ -1409,15 +1345,14 @@ window.__gaiaDebug = {
   getSpreadMode: () => state.readMode === 'spread',
   getReadMode: () => state.readMode,
   setMode: (mode) => {
-    if (['single', 'spread', 'scroll'].includes(mode)) {
+    if (mode === 'single' || mode === 'spread') {
       state.readMode = mode;
       const c = state.current;
       if (c) {
         if (c.format === 'epub' && c.rendition) {
-          if (mode === 'scroll') { try { c.rendition.flow('scrolled-doc'); } catch (e) {} }
-          else { try { c.rendition.spread(mode === 'spread' ? 'auto' : 'none', 700); } catch (e) {} }
+          try { c.rendition.spread(mode === 'spread' ? 'auto' : 'none', 700); } catch (e) {}
         } else if (c.paginator) {
-          c.paginator.setMode(mode === 'spread' ? 'spread' : (mode === 'scroll' ? 'scroll' : 'single'));
+          c.paginator.setMode(mode);
           updateMobiProgress(true);
         }
       }
@@ -1465,9 +1400,7 @@ window.__gaiaDebug = {
   getMobiIndex: () => (state.current && state.current.flow ? state.current.flow.chapter : -1),
   getReaderScrollTop: () => {
     const c = state.current;
-    if (c && c.paginator) {
-      return state.readMode === 'scroll' ? c.paginator.getScrollTop() : c.paginator.currentPage;
-    }
+    if (c && c.paginator) return c.paginator.currentPage;
     return els.readerContent.scrollTop;
   },
   jumpToMobiChapter: (idx) => loadMobiChapter(idx, { page: 0 }),
@@ -1536,7 +1469,7 @@ window.__gaiaDebug = {
     const c = state.current;
     if (!c) return null;
     if (c.paginator) {
-      return state.readMode === 'scroll' ? c.paginator.scrollPercent() : (c.flow ? c.flow.percent() : c.paginator.pagePercent());
+      return c.flow ? c.flow.percent() : c.paginator.pagePercent();
     }
     if (!c || !c.rendition) return null;
     try {
