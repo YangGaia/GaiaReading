@@ -157,6 +157,42 @@ function inlineChapterResources(chapterHtml, resourceSaveDir) {
  * @param {string} filePath
  * @param {string} resourceSaveDir 图片/CSS 等资源的落盘目录
  */
+/**
+ * 判断文本是否以闭合的 pagebreak 标签开头（如 "</mbp:pagebreak>"）。
+ * 这类书籍的章节结构是 "<mbp:pagebreak/> 标题页 </mbp:pagebreak> 正文"，
+ * 正文章节的开头会残留闭合标签，这是"标题页被切分成独立章节"的结构信号。
+ */
+function startsWithClosingPagebreak(text) {
+  return /^\s*<\s*\/\s*(?:mbp:)?pagebreak/i.test(text || '');
+}
+
+/**
+ * 规划 MOBI7 章节合并。
+ * MOBI7 的章节按 <mbp:pagebreak/> 切分，部分书籍（尤其中文 MOBI 转档）会把
+ * "章节标题页"和"正文"切成两个独立章节，阅读时只见标题。
+ * 规则：若下一章以闭合的 </mbp:pagebreak> 开头，说明本章是标题页，并入下一章正文。
+ * 这是通用的结构修复，不依赖章节长度或具体书籍。
+ * @param {Array} rawChapters 解析器原始章节数组
+ * @param {string} kind 'mobi7' | 'kf8'
+ * @returns {number[]} mergeTarget：i 合并到 mergeTarget[i]，-1 表示独立成章
+ */
+function planChapterMerge(rawChapters, kind) {
+  const n = rawChapters.length;
+  const mergeTarget = new Array(n).fill(-1);
+  if (kind !== 'mobi7') return mergeTarget;
+  for (let i = 0; i < n - 1; i++) {
+    const next = rawChapters[i + 1];
+    const nextText = next && typeof next.text === 'string' ? next.text : '';
+    if (startsWithClosingPagebreak(nextText)) mergeTarget[i] = i + 1;
+  }
+  // 连续标题页/短节链式并入最终正文章节
+  for (let i = n - 2; i >= 0; i--) {
+    const t = mergeTarget[i];
+    if (t !== -1 && mergeTarget[t] !== -1) mergeTarget[i] = mergeTarget[t];
+  }
+  return mergeTarget;
+}
+
 async function openMobi(filePath, resourceSaveDir) {
   const buf = fs.readFileSync(filePath);
   const kind = detectKind(buf);
@@ -193,14 +229,30 @@ async function openMobi(filePath, resourceSaveDir) {
     // 无封面不阻塞
   }
 
-  const chapters = spine.map((c, index) => ({
-    id: c.id,
-    index,
-  }));
-
-  // 把 TOC 条目映射到章节序号（快速路径：直接匹配 frag index）
+    // 把 TOC 条目映射到章节序号（快速路径：直接匹配 frag index）
   const fidToIndex = new Map();
   const rawChapters = book.chapters || [];
+
+  // MOBI7 部分书籍把章节标题页切分成独立短章，合并到下一章正文，避免阅读时只见标题
+  const mergeTarget = planChapterMerge(rawChapters, kind);
+  const mergedKept = [];
+  const newIndexOf = new Array(rawChapters.length).fill(-1);
+  const mergePred = new Array(rawChapters.length).fill(null);
+  for (let i = 0; i < rawChapters.length; i++) {
+    if (mergeTarget[i] === -1) {
+      newIndexOf[i] = mergedKept.length;
+      mergedKept.push(i);
+    } else {
+      const t = mergeTarget[i];
+      if (!mergePred[t]) mergePred[t] = [];
+      mergePred[t].push(i);
+    }
+  }
+  const chapters = mergedKept.map((rawIdx, index) => ({
+    id: String(rawIdx),
+    index,
+    raw: rawIdx,
+  }));
   for (let i = 0; i < rawChapters.length; i++) {
     const frags = rawChapters[i].frags || [];
     for (const frag of frags) {
@@ -208,18 +260,21 @@ async function openMobi(filePath, resourceSaveDir) {
     }
   }
   function tocIndexFromHref(href) {
+    let raw = null;
     if (!href) return null;
     const mm = href.match(/fid:([0-9a-f]+)/i);
-    if (mm && fidToIndex.has(parseInt(mm[1], 16))) return fidToIndex.get(parseInt(mm[1], 16));
-    if (typeof book.resolveHref === 'function') {
+    if (mm && fidToIndex.has(parseInt(mm[1], 16))) raw = fidToIndex.get(parseInt(mm[1], 16));
+    if (raw == null && typeof book.resolveHref === 'function') {
       try {
         const resolved = book.resolveHref(href);
-        if (resolved && resolved.id != null) return Number(resolved.id);
+        if (resolved && resolved.id != null) raw = Number(resolved.id);
       } catch {
         return null;
       }
     }
-    return null;
+    if (raw == null) return null;
+    const target = mergeTarget[raw] >= 0 ? mergeTarget[raw] : raw;
+    return newIndexOf[target] != null ? newIndexOf[target] : null;
   }
   const mapToc = (items) =>
     (items || []).map((item) => ({
@@ -240,6 +295,8 @@ async function openMobi(filePath, resourceSaveDir) {
     cover,
     chapters,
     toc: tocWithIndex,
+    mergedKept,
+    mergePred,
     book,
     spine,
   };
@@ -251,17 +308,24 @@ async function openMobi(filePath, resourceSaveDir) {
  * @param {string|number} chapterId 章节 id（字符串）或序号
  * @param {string} resourceSaveDir
  */
-async function loadChapter(opened, chapterId, resourceSaveDir) {
-  const { book, spine } = opened;
-  const chapter = typeof chapterId === 'number' ? spine[chapterId] : spine.find((c) => c.id === chapterId);
-  if (!chapter) throw new Error('章节不存在: ' + chapterId);
-  const processed = book.loadChapter(chapter.id);
-  if (!processed) throw new Error('章节加载失败: ' + chapterId);
-  const inlined = inlineChapterResources(processed.html, resourceSaveDir);
+async function loadChapter(opened, chapterIndex, resourceSaveDir) {
+  const { book, spine, mergedKept, mergePred } = opened;
+  const rawIdx = mergedKept[chapterIndex];
+  if (rawIdx == null) throw new Error('章节不存在: ' + chapterIndex);
+  const parts = [];
+  const preds = mergePred[rawIdx] || [];
+  for (const ri of preds.concat([rawIdx])) {
+    const chapter = spine[ri];
+    if (!chapter) continue;
+    const processed = book.loadChapter(chapter.id);
+    if (processed) parts.push(processed);
+  }
+  if (!parts.length) throw new Error('章节加载失败: ' + chapterIndex);
+  const inlinedList = parts.map((p) => inlineChapterResources(p.html, resourceSaveDir));
   return {
-    index: spine.indexOf(chapter),
-    html: inlined.html,
-    cssText: inlined.cssText,
+    index: chapterIndex,
+    html: inlinedList.map((x) => x.html).join(''),
+    cssText: inlinedList.map((x) => x.cssText).join('\n'),
   };
 }
 
@@ -281,4 +345,5 @@ module.exports = {
   openMobi,
   loadChapter,
   cleanupMobi,
+  planChapterMerge,
 };

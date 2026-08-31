@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { detectKind, openMobi, loadChapter, cleanupMobi } = require('../src/shared/mobi');
+const { detectKind, openMobi, loadChapter, cleanupMobi, planChapterMerge } = require('../src/shared/mobi');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -82,4 +82,39 @@ test('TOC 条目应映射到章节序号', async (t) => {
   } catch {
     // 清理失败不阻塞
   }
+});
+
+test('planChapterMerge：mobi7 标题页并入下一章正文', () => {
+  const chapters = [
+    { text: '<p>第1章 标题</p>' },
+    { text: '</mbp:pagebreak><p>正文一……</p>' },
+    { text: '<p>第2章 标题</p>' },
+    { text: '</mbp:pagebreak><p>正文二……</p>' },
+    { text: '<p>第3章 标题</p>' },
+    { text: '</mbp:pagebreak><p>正文三……</p>' },
+  ];
+  assert.deepStrictEqual(planChapterMerge(chapters, 'mobi7'), [1, -1, 3, -1, 5, -1]);
+});
+
+test('planChapterMerge：无闭合 pagebreak 的正常 mobi7 不合并', () => {
+  const chapters = [
+    { text: '<mbp:pagebreak/><h1>一</h1><p>正文一</p>' },
+    { text: '<mbp:pagebreak/><h1>二</h1><p>正文二</p>' },
+  ];
+  assert.deepStrictEqual(planChapterMerge(chapters, 'mobi7'), [-1, -1]);
+});
+
+test('planChapterMerge：kf8 不合并章节', () => {
+  const chapters = [{ text: '<p>a</p>' }, { text: '</mbp:pagebreak><p>b</p>' }];
+  assert.deepStrictEqual(planChapterMerge(chapters, 'kf8'), [-1, -1]);
+});
+
+test('planChapterMerge：连续闭合开头段落链式并入最终章节', () => {
+  const chapters = [
+    { text: '</mbp:pagebreak><p>段A</p>' },
+    { text: '</mbp:pagebreak><p>段B</p>' },
+    { text: '</mbp:pagebreak><p>段C</p>' },
+    { text: '<p>正常章节</p>' },
+  ];
+  assert.deepStrictEqual(planChapterMerge(chapters, 'mobi7'), [2, 2, -1, -1]);
 });

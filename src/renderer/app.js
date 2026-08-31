@@ -433,7 +433,7 @@ async function openBook(book) {
   applyGlobalHabits();
   const savedProg = state.progress[book.path];
   if (savedProg && savedProg.percent != null) {
-    updateProgress(savedProg.percent, '进度 ' + savedProg.percent.toFixed(1) + '%');
+    updateProgress(savedProg.percent, '进度 ' + savedProg.percent.toFixed(2) + '%');
   }
   renderBookmarksPanel();
   try {
@@ -462,7 +462,7 @@ async function openEpub(book) {
   const saved = state.progress[book.path];
   state.current.displayPercent = saved && saved.percent != null ? saved.percent : 0;
   state.current.locationsDone = false;
-  updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(1) + '%');
+  updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(2) + '%');
   await rendition.display(saved && saved.loc ? saved.loc : undefined);
   if (state.readMode === 'spread') {
     try { rendition.spread('auto', 700); } catch (e) {}
@@ -470,12 +470,18 @@ async function openEpub(book) {
 
   rendition.on('relocated', (location) => {
     const cfi = location.start.cfi;
-    const items = state.current.epub && state.current.epub.spine ? state.current.epub.spine.spineItems : [];
-    const total = items.length || 1;
-    const idx = location.start.index != null ? location.start.index : 0;
-    state.current.displayPercent = total > 1 ? (idx / (total - 1)) * 100 : 100;
-    updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(1) + '%');
-    saveProgress(book.path, { loc: cfi, percent: state.current.displayPercent });
+    let percent;
+    if (location.start.percentage != null) {
+      percent = Math.min(100, Math.max(0, location.start.percentage * 100));
+    } else {
+      const items = state.current.epub && state.current.epub.spine ? state.current.epub.spine.spineItems : [];
+      const total = items.length || 1;
+      const idx = location.start.index != null ? location.start.index : 0;
+      percent = total > 1 ? (idx / (total - 1)) * 100 : 100;
+    }
+    state.current.displayPercent = percent;
+    updateProgress(percent, '进度 ' + percent.toFixed(2) + '%');
+    saveProgress(book.path, { loc: cfi, percent });
   });
 
   state.current.locationsReady = Promise.race([
