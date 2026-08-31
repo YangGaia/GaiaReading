@@ -49,7 +49,7 @@ test('版本号为 0.3.0 且界面同步', () => {
 
 test('README 界面截图存在且已引用', () => {
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
-  const shots = ['splash', 'night_home', 'night_bookshelf', 'reader', 'spread'];
+  const shots = ['screenshot-01', 'screenshot-02', 'screenshot-03', 'screenshot-04'];
   for (const s of shots) {
     assert.ok(readme.includes('docs/screenshots/' + s + '.png'), 'README 缺少 ' + s + ' 截图引用');
     const f = path.join(root, 'docs', 'screenshots', s + '.png');

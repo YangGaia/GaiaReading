@@ -74,13 +74,11 @@ tests/                 # node:test 单元测试 + 自动化冒烟场景
 
 ## 界面预览
 
-![启动界面](docs/screenshots/splash.png)
+![界面预览 1](docs/screenshots/screenshot-01.png)
 
-![首页](docs/screenshots/night_home.png)
+![界面预览 2](docs/screenshots/screenshot-02.png)
 
-![书架](docs/screenshots/night_bookshelf.png)
+![界面预览 3](docs/screenshots/screenshot-03.png)
 
-![阅读界面](docs/screenshots/reader.png)
-
-![双页阅读](docs/screenshots/spread.png)
+![界面预览 4](docs/screenshots/screenshot-04.png)
 
