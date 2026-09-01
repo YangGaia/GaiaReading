@@ -155,6 +155,10 @@ body.dark {
 #settings-drawer h3 { font-size: 12px; color: var(--text-soft); margin: 18px 0 8px; letter-spacing: 1px; }
 .drawer-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 #font-value, #line-height-value, #spread-value, #night-value { min-width: 44px; font-size: 13px; color: var(--text-soft); text-align: center; }
+.appearance-row { align-items: center; gap: 16px; }
+.appearance-control { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.appearance-control .btn { min-width: 52px; height: 30px; }
+#theme-value, #pet-value { min-width: 36px; font-size: 13px; line-height: 30px; color: var(--text-soft); text-align: center; }
 .btn.block { display: block; width: 100%; text-align: left; margin-bottom: 8px; }
 .drawer-about p { font-size: 12px; color: var(--text-soft); margin: 0; }
 
