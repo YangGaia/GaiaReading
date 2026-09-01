@@ -64,7 +64,7 @@ test('版本号为 0.5.1 且界面同步', () => {
 
 test('README 界面截图存在且已引用', () => {
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
-  const shots = ['screenshot-01', 'PixPin_2026-08-31_23-58-37', 'PixPin_2026-08-31_23-58-58', 'PixPin_2026-08-31_23-59-51', 'PixPin_2026-09-01_03-36-15'];
+  const shots = ['PixPin_2026-09-01_20-10-31', 'PixPin_2026-09-01_20-10-44', 'PixPin_2026-09-01_20-10-57', 'PixPin_2026-09-01_20-11-17'];
   for (const s of shots) {
     assert.ok(readme.includes('docs/screenshots/' + s + '.png'), 'README 缺少 ' + s + ' 截图引用');
     const f = path.join(root, 'docs', 'screenshots', s + '.png');
