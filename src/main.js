@@ -281,15 +281,17 @@ function createWindow() {
               const epSizeAfterSpread = __gaiaDebug.getRenditionSize();
               __gaiaDebug.setMode('spread');
               __gaiaDebug.openSettings();
+              const settingsCapsule = document.getElementById('bgm-capsule');
+              const bgmSettingsOpeningAnimation = settingsCapsule.getAnimations().some((a) => a.playState === 'running');
               await new Promise((r) => setTimeout(r, 350));
               const drawerOpen = __gaiaDebug.isSettingsOpen();
-              const settingsCapsule = document.getElementById('bgm-capsule');
               const settingsDrawer = document.getElementById('settings-drawer');
               const settingsCapsuleRect = settingsCapsule.getBoundingClientRect();
               const settingsDrawerRect = settingsDrawer.getBoundingClientRect();
               const bgmAvoidsSettings = settingsCapsuleRect.right <= settingsDrawerRect.left - 16;
               const bgmSettingsState = settingsCapsule.dataset.settingsOpen === '1' && settingsCapsule.parentElement === document.body;
               __gaiaDebug.closeSettings();
+              const bgmSettingsClosingAnimation = settingsCapsule.getAnimations().some((a) => a.playState === 'running');
               const drawerClosed = !__gaiaDebug.isSettingsOpen();
               const bgmSettingsRestored = settingsCapsule.dataset.settingsOpen === '0' && !!document.querySelector('#reader-view .topbar .bgm-capsule');
               await __gaiaDebug.setLineHeight(2);
@@ -343,7 +345,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -361,6 +363,8 @@ function createWindow() {
               parsed.bgmAvoidsSettings === true &&
               parsed.bgmSettingsState === true &&
               parsed.bgmSettingsRestored === true &&
+              parsed.bgmSettingsOpeningAnimation === true &&
+              parsed.bgmSettingsClosingAnimation === true &&
               parsed.epW > 0 &&
               parsed.epH > 0 &&
               parsed.spreadBefore === false &&

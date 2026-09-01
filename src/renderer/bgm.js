@@ -20,6 +20,7 @@
   const { BGM_TRACKS, trackById, nextAutoTrack, nextManualTrack, clampVolume } = shared;
 
   const DEFAULT_STATE = { volume: 0.5, muted: false, trackId: 'alice', on: true };
+  const SETTINGS_SLIDE_MS = 280;
   const state = Object.assign({}, DEFAULT_STATE);
   let audio = null;
   let ui = {};
@@ -27,6 +28,7 @@
   let errorSkip = false;
   let currentView = 'home';
   let settingsOpen = false;
+  let settingsAnimation = null;
 
   function srcFor(track) {
     return 'bgm://local/' + encodeURIComponent(track.file);
@@ -143,12 +145,48 @@
     }
   }
 
+  function cancelSettingsAnimation() {
+    if (settingsAnimation) settingsAnimation.cancel();
+    settingsAnimation = null;
+  }
+
+  function canAnimateSettings() {
+    return !!(ui.root && ui.root.animate && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches));
+  }
+
+  /** 从目标位置左侧滑入，方向固定为从左到右。 */
+  function animateSettingsEntry() {
+    if (!canAnimateSettings()) return;
+    settingsAnimation = ui.root.animate([
+      { transform: 'translateX(-36px)', opacity: 0.45 },
+      { transform: 'translateX(0)', opacity: 0.96 },
+    ], { duration: SETTINGS_SLIDE_MS, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  }
+
+  /** FLIP：先恢复顶栏布局，再从旧位置向右滑到新位置。 */
+  function animateSettingsRestore(fromRect) {
+    if (!canAnimateSettings() || !fromRect) return;
+    const toRect = ui.root.getBoundingClientRect();
+    const dx = fromRect.left - toRect.left;
+    const dy = fromRect.top - toRect.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    const finalOpacity = Number.parseFloat(getComputedStyle(ui.root).opacity) || 0.95;
+    settingsAnimation = ui.root.animate([
+      { transform: `translate(${dx}px, ${dy}px)`, opacity: 0.96 },
+      { transform: 'translate(0, 0)', opacity: finalOpacity },
+    ], { duration: SETTINGS_SLIDE_MS, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  }
+
   /** 设置抽屉打开时把胶囊移到抽屉左侧，关闭后恢复到当前视图原位。 */
   function setSettingsOpen(open) {
+    cancelSettingsAnimation();
+    const fromRect = ui.root ? ui.root.getBoundingClientRect() : null;
     settingsOpen = !!open;
     if (!ui.root) return;
     ui.root.dataset.settingsOpen = settingsOpen ? '1' : '0';
     positionBgm(currentView);
+    if (settingsOpen) animateSettingsEntry();
+    else animateSettingsRestore(fromRect);
   }
 
   function mkBtn(text, tip) {
