@@ -261,3 +261,20 @@ test('打哈欠专用表情只替换闭眼脸部的嘴型区域', () => {
   assert.ok(script.includes('严肃说话.png'), '打哈欠表情应采用清晰的圆口嘴型');
   assert.ok(script.includes('ellipse((55, 70, 79, 99)'), '嘴型合成范围应限制在脸部下半区');
 });
+
+test('鼠标转向试验帧采用局部语义变形并保留透明边缘', () => {
+  const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'make-pet-look-pilot.py'), 'utf8');
+  assert.ok(script.includes('add_face_yaw'), '脸部应使用独立的轻微偏转透视');
+  assert.ok(script.includes('for eye_x in (151.0, 204.0)'), '双眼应拥有比头部更早的视线偏移');
+  assert.ok(script.includes('left_shoulder') && script.includes('right_shoulder'), '身体转向应包含两侧肩线配合');
+  assert.ok(script.includes('premultiplied'), '透明素材重采样必须使用预乘 Alpha，避免黑边');
+  assert.ok(!script.includes('Image.AFFINE'), '试验帧不应使用整图仿射变形');
+});
+
+test('鼠标转向试验输出尺寸正确且与原始帧不同', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'parts', 'full.png'));
+  const pilot = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', 'pilot-look-left.png'));
+  const pngSize = (buffer) => ({ width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) });
+  assert.deepStrictEqual(pngSize(pilot), pngSize(source));
+  assert.notDeepStrictEqual(pilot, source, '左看帧不能只是原始帧的副本');
+});
