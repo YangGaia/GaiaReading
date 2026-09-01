@@ -378,6 +378,12 @@ body.eye {
   height: auto;
   pointer-events: none;
 }
+.gaia-pet-face-backing {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 1;
+}
 .gaia-pet-face {
   position: absolute;
   pointer-events: none;

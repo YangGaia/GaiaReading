@@ -112,7 +112,7 @@
   }
 
   function layoutFace() {
-    if (!ui.face || !ui.halfbody || !ui.headRig || !ui.head) return;
+    if (!ui.face || !ui.faceBacking || !ui.halfbody || !ui.headRig || !ui.head) return;
     const hb = FACE.halfbody;
     const tile = FACE.tile;
     const s = (ui.body.clientWidth || 150) / FACE.sheet.w;
@@ -126,7 +126,7 @@
     ui.head.style.width = Math.round(HEAD.w * s) + 'px';
     ui.head.style.left = Math.round(HEAD.x * s) + 'px';
     ui.head.style.top = Math.round(HEAD.y * s) + 'px';
-    for (const layer of [ui.face, ui.blinkFace]) {
+    for (const layer of [ui.faceBacking, ui.face, ui.blinkFace]) {
       layer.style.width = Math.round(faceW) + 'px';
       layer.style.height = Math.round(faceH) + 'px';
       layer.style.left = Math.round(faceLeft) + 'px';
@@ -145,8 +145,9 @@
   }
 
   function renderGaze() {
-    if (!ui.headGaze || !ui.halfbody || !ui.head || !ui.face || !ui.blinkFace || !ui.root) return;
-    const framesReady = ui.gazeFrames && ui.gazeFrames.every((frame) => frame.complete && frame.naturalWidth);
+    if (!ui.headGaze || !ui.halfbody || !ui.head || !ui.faceBacking || !ui.face || !ui.blinkFace || !ui.root) return;
+    const framesReady = ui.gazeFrames && ui.gazeFrames.every((frame) => frame.complete && frame.naturalWidth) &&
+      ui.faceBacking.complete && ui.faceBacking.naturalWidth;
     const active = framesReady && !gazeIsSuppressed();
     const x = active ? Math.max(-1, Math.min(1, gazeMotion.x)) : 0;
     const framePosition = (x + 1) * 4;
@@ -159,6 +160,7 @@
     const baseOpacity = active ? '0' : '1';
     ui.halfbody.style.opacity = baseOpacity;
     ui.head.style.opacity = baseOpacity;
+    ui.faceBacking.style.opacity = active ? '1' : '0';
     const faceX = active ? (displayedGazeFrame - 4) / 4 : 0;
     const faceScaleX = 1 - Math.abs(faceX) * 0.045;
     const faceTurn = `translate3d(${(faceX * 1.9).toFixed(2)}px, 0, 0) scaleX(${faceScaleX.toFixed(4)}) skewY(${(faceX * -0.28).toFixed(2)}deg)`;
@@ -848,6 +850,12 @@
     face.src = FACE_IMG + encodeURIComponent('日常表情.png');
     face.draggable = false;
     face.alt = '';
+    const faceBacking = document.createElement('img');
+    faceBacking.className = 'gaia-pet-face-backing';
+    faceBacking.draggable = false;
+    faceBacking.alt = '';
+    faceBacking.addEventListener('load', renderGaze);
+    faceBacking.src = PART_IMG + 'face-backing.png';
     const blinkFace = document.createElement('img');
     blinkFace.className = 'gaia-pet-face gaia-pet-blink-face';
     blinkFace.src = FACE_IMG + encodeURIComponent('安心.png');
@@ -857,13 +865,13 @@
     zzz.className = 'gaia-pet-zzz';
     zzz.textContent = 'Zzz';
     zzz.hidden = true;
-    headRig.append(head, face, blinkFace);
+    headRig.append(head, faceBacking, face, blinkFace);
     headGaze.append(headRig);
     body.append(halfbody, gazeSprites, headGaze);
     bodyGaze.append(body);
     root.append(bubble, bodyGaze, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, bodyGaze, body, halfbody, gazeSprites, gazeFrames, headGaze, headRig, head, face, blinkFace, zzz };
+    ui = { root, bubble, bodyGaze, body, halfbody, gazeSprites, gazeFrames, headGaze, headRig, head, faceBacking, face, blinkFace, zzz };
     buildConsole();
   }
 

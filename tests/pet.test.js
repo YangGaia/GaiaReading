@@ -192,6 +192,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(!renderer.includes('perspective(520px) rotateY'), '不应继续使用 CSS 透视扭曲头部');
   assert.ok(renderer.includes('springToward(gazeMotion, target, 38, 11'), '头部应克制地慢半拍跟随面部');
   assert.ok(renderer.includes('ui.face.style.transform = faceTurn'), '面部五官应在头发内部产生视差');
+  assert.ok(renderer.includes("faceBacking.src = PART_IMG + 'face-backing.png'"), '转脸时应有固定补色底板承接原位置');
+  assert.ok(renderer.includes("ui.faceBacking.style.opacity = active ? '1' : '0'"), '补色底板只能在左右注视时显示');
+  assert.ok(renderer.includes('ui.faceBacking.complete && ui.faceBacking.naturalWidth'), '补色底板加载完成前不能提前启动注视动画');
   assert.ok(renderer.includes('ui.gazeFrames.forEach'), '方向帧应按弹簧位置逐张播放');
   assert.ok(!renderer.includes('x * 3.8'), '不应继续把整颗头平移到鼠标方向');
   assert.ok(renderer.includes('brain.state === PET_STATES.SLEEPING'), '睡觉时应暂停鼠标跟随');
@@ -223,6 +226,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(css.includes('.gaia-pet-body-gaze'), '缺少身体跟随层样式');
   assert.ok(css.includes('.gaia-pet-head-gaze'), '缺少头部跟随层样式');
   assert.ok(css.includes('.gaia-pet-gaze-frame'), '缺少左右注视烘焙帧样式');
+  assert.ok(css.includes('.gaia-pet-face-backing'), '缺少转脸原位置的补色底板样式');
   assert.ok(css.includes('@keyframes pet-sleep-breathe'), '缺少睡眠呼吸动画');
   assert.ok(css.includes('@keyframes pet-head-drowse'), '缺少困倦点头的头部动画');
   assert.ok(css.includes('52%, 66% { transform: translateY(7px) rotate(1.8deg) scaleY(0.955); }'), '困倦动作应有明显的缓慢低头停顿');
@@ -280,7 +284,21 @@ test('鼠标转向试验帧采用局部语义变形并保留透明边缘', () =>
   assert.ok(!script.includes('left_shoulder, move_y=') && !script.includes('right_shoulder, move_y='), '身体转向不应制造高低肩');
   assert.ok(script.includes('left_shoulder') && script.includes('right_shoulder'), '身体转向应包含两侧肩线配合');
   assert.ok(script.includes('premultiplied'), '透明素材重采样必须使用预乘 Alpha，避免黑边');
+  assert.ok(script.includes('make_featureless_face_backing'), '应生成不含旧五官的脸部补色底板');
+  assert.ok(script.includes('distance_transform_edt'), '补色应从相邻干净肤色取样而不是绘制纯色矩形');
+  assert.ok(script.includes('gaussian_filter'), '补色边缘应进行 1–2 像素羽化');
   assert.ok(!script.includes('Image.AFFINE'), '试验帧不应使用整图仿射变形');
+});
+
+test('脸部补色底板保留透明轮廓并清除原五官', () => {
+  const backingPath = path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'parts', 'face-backing.png');
+  const defaultFacePath = path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'faces', '日常表情.png');
+  assert.ok(fs.existsSync(backingPath), '缺少脸部补色底板');
+  const backing = fs.readFileSync(backingPath);
+  const defaultFace = fs.readFileSync(defaultFacePath);
+  const pngSize = (buffer) => ({ width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) });
+  assert.deepStrictEqual(pngSize(backing), pngSize(defaultFace), '补色底板必须与表情贴片完全同尺寸');
+  assert.notDeepStrictEqual(backing, defaultFace, '补色底板不能保留原表情的完整五官');
 });
 
 test('鼠标左右看试验输出齐全、尺寸正确且均非原图副本', () => {
