@@ -562,6 +562,12 @@ function createWindow() {
         await mainWindow.webContents.executeJavaScript('window.__gaiaDebug.waitHome()');
         await wait(1700);
         await capture('home.png');
+        await mainWindow.webContents.executeJavaScript("GaiaPet.runEmotion('sleeping')");
+        await wait(100);
+        await mainWindow.webContents.executeJavaScript("GaiaPet.runEmotion('wake')");
+        await wait(390);
+        await capture('pet_wake_peak.png');
+        await wait(550);
         await mainWindow.webContents.executeJavaScript("GaiaPet.runAction('tilt')");
         await wait(260);
         await capture('pet_tilt_early.png');

@@ -615,7 +615,7 @@ body.eye {
 .gaia-pet-head-rig.performance-wake { animation: pet-head-wake 0.9s ease; }
 @keyframes pet-head-wake {
   0% { transform: translateY(4px) rotate(0.8deg) scaleY(0.96); }
-  42% { transform: translateY(-2px) rotate(-0.5deg) scaleY(1.018); }
+  42% { transform: translateY(0) rotate(-0.5deg) scaleY(1.018); }
   72% { transform: translateY(1px) rotate(0.2deg) scaleY(0.995); }
   100% { transform: translateY(0) rotate(0deg) scaleY(1); }
 }

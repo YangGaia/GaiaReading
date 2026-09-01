@@ -19,6 +19,7 @@ test('项目关键文件齐全', () => {
   for (const frame of ['pet_tilt_early.png', 'pet_tilt_peak.png', 'pet_tilt_return.png']) {
     assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少歪头动作帧 ${frame}`);
   }
+  assert.ok(main.includes("capture('pet_wake_peak.png')"), '截图验收应包含唤醒动作峰值帧');
   for (const f of [
     'src/preload.js',
     'src/shared/bookmarks.js',
