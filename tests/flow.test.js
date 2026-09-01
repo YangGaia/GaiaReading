@@ -83,3 +83,17 @@ test('多章节进度：章内逐页推进且跨章连续', () => {
   assert.ok(flow.percent() >= beforeCross, '跨章后进度不应回退');
   assert.strictEqual(flow.chapter, 1);
 });
+
+test('双页跨章：下一章页数未知时不跳过整章', () => {
+  const flow = new ReadingFlow({ totalChapters: 3, pagesPerChapter: [33, null, 10], startChapter: 0 });
+  flow.page = 32; // 第 0 章末页
+  const r = flow.next(2);
+  assert.strictEqual(r.chapter, 1, 'step=2 跨章时应落在下一章，不得跳过');
+  assert.strictEqual(r.page, 0);
+});
+
+test('双页后退：上一章页数未知时不跳过整章', () => {
+  const flow = new ReadingFlow({ totalChapters: 4, pagesPerChapter: [10, null, 10, 10], startChapter: 2 });
+  const r = flow.prev(2);
+  assert.strictEqual(r.chapter, 1, 'step=2 后退时应落在上一章，不得跳过');
+});

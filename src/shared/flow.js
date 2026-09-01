@@ -72,8 +72,14 @@ class ReadingFlow {
           this.chapter += 1;
           this.page = 0;
           crossed = true;
-          cur = this.chapterPages(this.chapter);
-          if (cur == null) cur = 1; // 未知页数按 1 页处理，保证可跨章
+          const nextCur = this.chapterPages(this.chapter);
+          if (nextCur == null) {
+            // 下一章页数未知：只落在其第 0 页，避免 step>1 时跳过整章
+            cur = 1;
+            remaining = 0;
+          } else {
+            cur = nextCur;
+          }
         } else {
           this.page = Math.max(0, cur - 1);
           remaining = 0;
@@ -100,8 +106,14 @@ class ReadingFlow {
         this.chapter -= 1;
         crossed = true;
         const cur = this.chapterPages(this.chapter);
-        this.page = Math.max(0, (cur == null ? 0 : cur) - 1);
-        remaining -= 1;
+        if (cur == null) {
+          // 上一章页数未知：只落在其第 0 页，避免 step>1 时跳过整章
+          this.page = 0;
+          remaining = 0;
+        } else {
+          this.page = Math.max(0, cur - 1);
+          remaining -= 1;
+        }
       } else {
         remaining = 0;
       }
