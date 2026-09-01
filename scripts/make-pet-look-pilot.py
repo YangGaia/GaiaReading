@@ -60,8 +60,8 @@ def add_face_pitch(dy, xx, yy, vertical):
         return
     cx, cy = 178.0, 169.0
     region = soft_ellipse(xx, yy, cx, cy, 55.0, 77.0, 1.15)
-    desired_shift = 3.4 * vertical
-    vertical_scale = 1.0 - 0.026 * abs(vertical)
+    desired_shift = 6.6 * vertical
+    vertical_scale = 1.0 - 0.05 * abs(vertical)
     inverse_offset = (yy - cy - desired_shift) / vertical_scale - (yy - cy)
     dy += inverse_offset * region
 
@@ -84,8 +84,8 @@ def add_body_pitch(dy, xx, yy, vertical):
         return
     cx, cy = 178.0, 300.0
     region = soft_ellipse(xx, yy, cx, cy, 150.0, 112.0, 1.35)
-    desired_shift = 0.55 * vertical
-    vertical_scale = 1.0 - 0.008 * abs(vertical)
+    desired_shift = 0.9 * vertical
+    vertical_scale = 1.0 - 0.012 * abs(vertical)
     inverse_offset = (yy - cy - desired_shift) / vertical_scale - (yy - cy)
     dy += inverse_offset * region
 
@@ -132,19 +132,19 @@ def make_look(source, horizontal, vertical):
     # 眼神比脸先多走一点，鼻尖和嘴只跟随半步，避免五官像贴纸般一起滑动。
     for eye_x in (151.0, 204.0):
         eye = soft_ellipse(xx, yy, eye_x, 153.0, 14.0, 10.0, 1.4)
-        add_shift(dx, dy, xx, yy, eye, move_x=1.75 * horizontal, move_y=1.25 * vertical)
+        add_shift(dx, dy, xx, yy, eye, move_x=1.75 * horizontal, move_y=2.6 * vertical)
     nose_mouth = soft_ellipse(xx, yy, 178.0, 184.0, 24.0, 28.0, 1.3)
-    add_shift(dx, dy, xx, yy, nose_mouth, move_x=0.85 * horizontal, move_y=0.65 * vertical)
+    add_shift(dx, dy, xx, yy, nose_mouth, move_x=0.85 * horizontal, move_y=1.25 * vertical)
 
     # 刘海内层产生小于一像素的视差，外轮廓保持稳定。
     inner_hair = soft_ellipse(xx, yy, 178.0, 125.0, 50.0, 36.0, 1.7)
-    add_shift(dx, dy, xx, yy, inner_hair, move_x=1.0 * horizontal, move_y=0.5 * vertical)
+    add_shift(dx, dy, xx, yy, inner_hair, move_x=1.0 * horizontal, move_y=0.9 * vertical)
 
     # 颈部、衣领与披风上半部跟随左转；位移在腰部前完全衰减。
     neck = soft_ellipse(xx, yy, 178.0, 238.0, 48.0, 42.0, 1.2)
-    add_shift(dx, dy, xx, yy, neck, move_x=2.1 * horizontal, move_y=1.2 * vertical)
+    add_shift(dx, dy, xx, yy, neck, move_x=2.1 * horizontal, move_y=2.0 * vertical)
     collar_and_pendants = soft_ellipse(xx, yy, 178.0, 272.0, 92.0, 70.0, 1.3)
-    add_shift(dx, dy, xx, yy, collar_and_pendants, move_x=1.35 * horizontal, move_y=0.7 * vertical)
+    add_shift(dx, dy, xx, yy, collar_and_pendants, move_x=1.35 * horizontal, move_y=1.15 * vertical)
     add_body_yaw(dx, xx, yy, horizontal)
     add_body_pitch(dy, xx, yy, vertical)
 

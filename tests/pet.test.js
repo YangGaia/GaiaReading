@@ -270,6 +270,8 @@ test('鼠标转向试验帧采用局部语义变形并保留透明边缘', () =>
   assert.ok(script.includes('desired_shift = 4.6 * horizontal'), '脸部偏转必须达到肉眼可辨识的幅度');
   assert.ok(script.includes('move_x=1.75 * horizontal'), '眼神应明显领先脸部转向');
   assert.ok(script.includes('add_face_pitch'), '上下方向应使用独立的脸部俯仰透视');
+  assert.ok(script.includes('desired_shift = 6.6 * vertical'), '上下方向必须达到实际桌宠尺寸下肉眼可辨识的幅度');
+  assert.ok(script.includes('move_y=2.6 * vertical'), '上下眼神应额外领先脸部俯仰');
   assert.ok(script.includes('add_body_yaw'), '身体应使用绕竖轴的局部透视，而不是整体倾斜');
   assert.ok(script.includes('right_move = 0.9 * horizontal - 0.55 * abs(horizontal)'), '远侧肩线应有可辨识的透视内收');
   assert.ok(!script.includes('left_shoulder, move_y=') && !script.includes('right_shoulder, move_y='), '身体转向不应制造高低肩');
