@@ -15,8 +15,11 @@ from scipy.ndimage import map_coordinates
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "renderer" / "images" / "pet" / "parts" / "full.png"
+FACES = ROOT / "src" / "renderer" / "images" / "pet" / "faces"
 OUTPUT = ROOT / "docs" / "pet-direction-pilot"
 GAZE_OUTPUT = ROOT / "src" / "renderer" / "images" / "pet" / "gaze"
+FACE_ORIGIN = (111, 116)
+DEFAULT_EXPRESSION = "日常表情"
 DIRECTIONS = {
     "left": -1.0,
     "center": 0.0,
@@ -141,6 +144,15 @@ def make_horizontal_look(source, horizontal):
     return warp_rgba_premultiplied(source, dx, dy)
 
 
+def compose_expression(source, face, expression):
+    """先把表情合入整个人物，再统一变形，彻底避免运行时贴片接缝。"""
+    if expression == DEFAULT_EXPRESSION:
+        return source.copy()
+    composed = source.copy()
+    composed.alpha_composite(face, FACE_ORIGIN)
+    return composed
+
+
 def checkerboard(size, cell=12):
     width, height = size
     yy, xx = np.mgrid[0:height, 0:width]
@@ -218,10 +230,19 @@ def main():
     make_direction_grid(frames).save(OUTPUT / "pilot-directions-grid.png")
     make_direction_grid(frames, detail=True).save(OUTPUT / "pilot-directions-detail.png")
     GAZE_OUTPUT.mkdir(parents=True, exist_ok=True)
-    for filename, horizontal in GAZE_STEPS:
-        frame = source.copy() if horizontal == 0 else make_horizontal_look(source, horizontal)
-        frame.save(GAZE_OUTPUT / filename)
-    print(f"saved {len(frames)} previews and {len(GAZE_STEPS)} animation frames")
+    for old_flat_frame in GAZE_OUTPUT.glob("*.png"):
+        old_flat_frame.unlink()
+    expression_count = 0
+    for face_path in sorted(FACES.glob("*.png")):
+        expression = face_path.stem
+        composed = compose_expression(source, Image.open(face_path).convert("RGBA"), expression)
+        expression_output = GAZE_OUTPUT / expression
+        expression_output.mkdir(parents=True, exist_ok=True)
+        for filename, horizontal in GAZE_STEPS:
+            frame = composed.copy() if horizontal == 0 else make_horizontal_look(composed, horizontal)
+            frame.save(expression_output / filename)
+        expression_count += 1
+    print(f"saved {len(frames)} previews and {expression_count * len(GAZE_STEPS)} expression gaze frames")
 
 
 if __name__ == "__main__":

@@ -395,6 +395,10 @@ body.eye {
   opacity: 1;
   z-index: 0;
 }
+.gaia-pet-face-window.gaze-active > .gaia-pet-face:not(.gaia-pet-blink-face) {
+  opacity: 0 !important;
+  transition: none;
+}
 .gaia-pet-blink-face {
   z-index: 1;
   opacity: 0;

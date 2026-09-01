@@ -83,6 +83,8 @@
   let dragOffset = { x: 0, y: 0 };
   let gazePointer = null;
   let gazeFrame = 0;
+  let gazeBankRequest = 0;
+  let gazeLoadPromise = Promise.resolve(false);
   let displayedGazeFrame = 4;
   const gazeMotion = { x: 0, y: 0, vx: 0, vy: 0, lastAt: 0 };
 
@@ -98,10 +100,39 @@
     });
   }
 
+  function loadGazeBank(name) {
+    const request = ++gazeBankRequest;
+    const frames = GAZE_FRAMES.map((filename, index) => {
+      const frame = new Image();
+      frame.className = 'gaia-pet-gaze-frame';
+      frame.dataset.gazeFrame = String(index);
+      frame.draggable = false;
+      frame.alt = '';
+      frame.src = GAZE_IMG + encodeURIComponent(name) + '/' + filename;
+      return frame;
+    });
+    gazeLoadPromise = Promise.all(frames.map((frame) => new Promise((resolve, reject) => {
+      if (frame.complete && frame.naturalWidth) resolve();
+      else {
+        frame.addEventListener('load', resolve, { once: true });
+        frame.addEventListener('error', reject, { once: true });
+      }
+    }))).then(() => {
+      if (request !== gazeBankRequest || !ui.face || ui.face.dataset.exp !== name) return false;
+      ui.gazeSprites.replaceChildren(...frames);
+      ui.gazeFrames = frames;
+      ui.gazeExpression = name;
+      renderGaze();
+      return true;
+    }).catch(() => false);
+    return gazeLoadPromise;
+  }
+
   function applyExpression(name) {
     if (!ui.face || !name || ui.face.dataset.exp === name) return;
     const file = FACE_IMG + encodeURIComponent(name + '.png');
     ui.face.dataset.exp = name;
+    loadGazeBank(name);
     const img = new Image();
     img.onload = () => {
       if (ui.face.dataset.exp !== name) return;
@@ -144,7 +175,9 @@
 
   function renderGaze() {
     if (!ui.headGaze || !ui.halfbody || !ui.head || !ui.faceWindow || !ui.face || !ui.blinkFace || !ui.root) return;
-    const framesReady = ui.gazeFrames && ui.gazeFrames.every((frame) => frame.complete && frame.naturalWidth);
+    const framesReady = ui.gazeFrames && ui.gazeFrames.length === GAZE_FRAMES.length &&
+      ui.gazeExpression === ui.face.dataset.exp &&
+      ui.gazeFrames.every((frame) => frame.complete && frame.naturalWidth);
     const active = framesReady && !gazeIsSuppressed();
     const x = active ? Math.max(-1, Math.min(1, gazeMotion.x)) : 0;
     const framePosition = (x + 1) * 4;
@@ -157,16 +190,16 @@
     const baseOpacity = active ? '0' : '1';
     ui.halfbody.style.opacity = baseOpacity;
     ui.head.style.opacity = baseOpacity;
+    ui.faceWindow.classList.toggle('gaze-active', active);
     const faceX = active ? (displayedGazeFrame - 4) / 4 : 0;
     const faceScaleX = 1 - Math.abs(faceX) * 0.045;
     const faceTurn = `translate3d(${(faceX * 1.9).toFixed(2)}px, 0, 0) scaleX(${faceScaleX.toFixed(4)}) skewY(${(faceX * -0.28).toFixed(2)}deg)`;
-    ui.face.style.transformOrigin = `${(50 - faceX * 6).toFixed(2)}% 50%`;
-    ui.blinkFace.style.transformOrigin = ui.face.style.transformOrigin;
-    ui.face.style.transform = faceTurn;
+    ui.blinkFace.style.transformOrigin = `${(50 - faceX * 6).toFixed(2)}% 50%`;
     ui.blinkFace.style.transform = faceTurn;
     ui.root.dataset.gazeX = x.toFixed(3);
     ui.root.dataset.gazeY = '0.000';
     ui.root.dataset.gazeFrame = String(displayedGazeFrame);
+    ui.root.dataset.gazeExpression = active ? ui.gazeExpression : '';
   }
 
   function springToward(motion, target, stiffness, damping, elapsed) {
@@ -821,17 +854,7 @@
     halfbody.src = PART_IMG + 'body.png';
     const gazeSprites = document.createElement('div');
     gazeSprites.className = 'gaia-pet-gaze-sprites';
-    const gazeFrames = GAZE_FRAMES.map((filename, index) => {
-      const frame = document.createElement('img');
-      frame.className = 'gaia-pet-gaze-frame';
-      frame.dataset.gazeFrame = String(index);
-      frame.src = GAZE_IMG + filename;
-      frame.draggable = false;
-      frame.alt = '';
-      frame.addEventListener('load', renderGaze);
-      gazeSprites.appendChild(frame);
-      return frame;
-    });
+    const gazeFrames = [];
     const headRig = document.createElement('div');
     headRig.className = 'gaia-pet-head-rig';
     const headGaze = document.createElement('div');
@@ -893,6 +916,7 @@
     ui.root.hidden = !saved.on;
     manualLabel = '';
     setState(PET_STATES.IDLE, '日常表情');
+    await gazeLoadPromise;
     resetActivity(Date.now());
     updateConsole();
     window.setInterval(tick, 500);

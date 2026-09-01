@@ -452,6 +452,7 @@ function createWindow() {
             const petBodyGaze = document.querySelector('.gaia-pet-body-gaze');
             const petHeadGaze = document.querySelector('.gaia-pet-head-gaze');
             const petGazeFrames = document.querySelectorAll('.gaia-pet-gaze-frame');
+            const face = document.querySelector('.gaia-pet-face:not(.gaia-pet-blink-face)');
             const blinkFace = document.querySelector('.gaia-pet-blink-face');
             const layeredPet = !!petBodyLayer && petBodyLayer.src.endsWith('/parts/body.png') && !!petHeadLayer && petHeadLayer.src.endsWith('/parts/head.png') && !!petHeadRig && petHeadRig.offsetHeight > 0;
             const gazeLayers = !!petBodyGaze && !!petHeadGaze && petGazeFrames.length === 9;
@@ -545,8 +546,12 @@ function createWindow() {
               gazeLeft.frame <= 1 && gazeRight.frame >= 7 &&
               Math.abs(gazeUp.x) < 0.1 && Math.abs(gazeUp.y) < 0.1 && gazeUp.frame === 4 &&
               Math.abs(gazeDown.x) < 0.1 && Math.abs(gazeDown.y) < 0.1 && gazeDown.frame === 4;
+            const visibleGazeFrames = Array.from(document.querySelectorAll('.gaia-pet-gaze-frame'))
+              .filter((frame) => Number(getComputedStyle(frame).opacity) > 0.99).length;
+            const gazeComposite = petRoot.dataset.gazeExpression === face.dataset.exp &&
+              Number(getComputedStyle(face).opacity) === 0 && visibleGazeFrames === 1;
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, gazeLayers, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, gazeLeft, gazeRight, gazeUp, gazeDown, gazeDirections };
+            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, gazeLayers, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, gazeLeft, gazeRight, gazeUp, gazeDown, gazeDirections, gazeComposite };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -579,7 +584,8 @@ function createWindow() {
             petStatus.angryExpressionMatched === true &&
             petStatus.angryPerformanceCleared === true &&
             petStatus.spriteBlinkStarted === true &&
-            petStatus.gazeDirections === true;
+            petStatus.gazeDirections === true &&
+            petStatus.gazeComposite === true;
           if (!debugOk) console.error('PET_SMOKE_CHECKS_FAILED:', JSON.stringify(petStatus));
         }
         const errors = messages.filter((m) => m.level >= 3);
