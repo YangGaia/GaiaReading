@@ -451,6 +451,25 @@ function createWindow() {
             const petHeadRig = document.querySelector('.gaia-pet-head-rig');
             const blinkFace = document.querySelector('.gaia-pet-blink-face');
             const layeredPet = !!petBodyLayer && petBodyLayer.src.endsWith('/parts/body.png') && !!petHeadLayer && petHeadLayer.src.endsWith('/parts/head.png') && !!petHeadRig && petHeadRig.offsetHeight > 0;
+            if (petBodyLayer && (!petBodyLayer.complete || !petBodyLayer.naturalWidth)) {
+              await new Promise((resolve) => {
+                petBodyLayer.addEventListener('load', resolve, { once: true });
+                petBodyLayer.addEventListener('error', resolve, { once: true });
+              });
+            }
+            let headCutoutClean = false;
+            if (petBodyLayer && petBodyLayer.naturalWidth) {
+              const cutoutCanvas = document.createElement('canvas');
+              cutoutCanvas.width = petBodyLayer.naturalWidth;
+              cutoutCanvas.height = petBodyLayer.naturalHeight;
+              const cutoutContext = cutoutCanvas.getContext('2d', { willReadFrequently: true });
+              cutoutContext.drawImage(petBodyLayer, 0, 0);
+              const cutoutPixels = cutoutContext.getImageData(88, 0, 180, 223).data;
+              headCutoutClean = true;
+              for (let i = 3; i < cutoutPixels.length; i += 4) {
+                if (cutoutPixels[i] !== 0) { headCutoutClean = false; break; }
+              }
+            }
             const oldLidRemoved = !document.querySelector('.gaia-pet-lid');
             GaiaPet.runEmotion('sleeping');
             await new Promise((resolve) => setTimeout(resolve, 80));
@@ -484,7 +503,7 @@ function createWindow() {
             GaiaPet.runAction('blink');
             const spriteBlinkStarted = !!blinkFace && blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted };
+            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -492,6 +511,7 @@ function createWindow() {
             petStatus.emotionButtons === 8 &&
             petStatus.actionButtons === 6 &&
             petStatus.layeredPet === true &&
+            petStatus.headCutoutClean === true &&
             petStatus.oldLidRemoved === true &&
             petStatus.sleeping === true &&
             petStatus.sleepExpression === '安心' &&
@@ -542,6 +562,14 @@ function createWindow() {
         await mainWindow.webContents.executeJavaScript('window.__gaiaDebug.waitHome()');
         await wait(1700);
         await capture('home.png');
+        await mainWindow.webContents.executeJavaScript("GaiaPet.runAction('tilt')");
+        await wait(260);
+        await capture('pet_tilt_early.png');
+        await wait(260);
+        await capture('pet_tilt_peak.png');
+        await wait(390);
+        await capture('pet_tilt_return.png');
+        await wait(270);
         await mainWindow.webContents.executeJavaScript("__gaiaDebug.showView('library')");
         await wait(900);
         await capture('bookshelf.png');

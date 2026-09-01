@@ -162,6 +162,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'pet.js'), 'utf8');
   const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'styles.css'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'app.js'), 'utf8');
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
   assert.ok(renderer.includes("addEventListener('contextmenu', openConsole)"), '桌宠应支持右键打开控制台');
   assert.ok(renderer.includes('whenReady:'), '桌宠初始化应提供可等待的就绪状态');
   assert.ok(renderer.includes("key === 'sleeping'"), '控制台应能手动睡觉');
@@ -197,10 +198,13 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(css.includes('@keyframes pet-head-wake'), '缺少分层唤醒动画');
   assert.ok(!css.includes('.gaia-pet-lid'), '矩形眼皮样式应彻底移除');
   assert.ok(app.includes('window.GaiaPet.init().then(updatePetUI)'), '桌宠初始化后应同步设置开关文字');
+  assert.ok(main.includes('petStatus.headCutoutClean === true'), '冒烟测试应逐像素验证身体层没有旧头部残影');
 });
 
-test('头身分层羽化由外向内减淡，避免歪头后留下旧位置残影', () => {
+test('头身分层完整挖空头部活动区，仅在颈部保留窄幅重叠', () => {
   const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'make-pet-head-parts.py'), 'utf8');
-  assert.ok(script.includes('int(a[y, x, 3]) * (pad - d) / (pad + 1)'), '身体挖空羽化方向错误或存在 uint8 乘法溢出');
-  assert.ok(!script.includes('(d + 1) / (pad + 1)'), '不应保留由内向外增强的不透明残影环');
+  assert.ok(script.includes('HEAD = (88, 0, 268, 235)'), '头部裁切应完整覆盖帽子、头发和颈部');
+  assert.ok(script.includes('BOTTOM_OVERLAP = 12'), '颈部只应保留窄幅接缝重叠');
+  assert.ok(script.includes('a[y0:min(y1 - BOTTOM_OVERLAP, H), x0:min(x1, W), 3] = 0'), '身体层的头部活动区域必须完全透明');
+  assert.ok(!script.includes('d = min('), '不应在旧头部四周保留残影羽化环');
 });

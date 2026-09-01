@@ -333,7 +333,7 @@ body.eye {
   top: 0;
   width: 100%;
   pointer-events: none;
-  transform-origin: 50% 94%;
+  transform-origin: 50% 96%;
   transition: transform 0.65s ease;
   overflow: visible;
 }

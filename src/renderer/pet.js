@@ -49,7 +49,7 @@
     tile: { w: 134, h: 118, cx: 67.5, cy: 59.5 },
     sheet: { w: 356, h: 647 },
   };
-  const HEAD = { x: 100, y: 0, w: 170, h: 220 };
+  const HEAD = { x: 88, y: 0, w: 180, h: 235 };
   const ACTION_CLASSES = ['poke', 'drop', 'perk', 'recoil', 'shiver', 'stretch', 'lean', 'drowse', 'wake'];
   const PERFORMANCE_CLASSES = ['performance-tilt', 'performance-thinking', 'performance-peek', 'performance-listen', 'performance-shy', 'performance-angry', 'performance-bored', 'performance-drowse', 'performance-wake'];
   const ACTION_MS = { poke: 350, tilt: 1100, drop: 400, perk: 500, recoil: 360, shiver: 420, stretch: 820, lean: 600, drowse: 1100, wake: 900 };

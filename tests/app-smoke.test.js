@@ -10,11 +10,15 @@ const root = path.join(__dirname, '..');
 test('项目关键文件齐全', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.ok(fs.existsSync(path.join(root, pkg.main)), '主进程入口缺失');
+  const main = fs.readFileSync(path.join(root, pkg.main), 'utf8');
   assert.ok(pkg.scripts.start, '缺少 start 脚本');
   assert.ok(pkg.scripts.test, '缺少 test 脚本');
   assert.ok(pkg.scripts.smoke, '缺少 smoke 脚本');
   assert.ok(pkg.scripts['smoke:open'], '缺少 smoke:open 脚本');
   assert.ok(pkg.scripts.shot, '缺少 shot 截图脚本');
+  for (const frame of ['pet_tilt_early.png', 'pet_tilt_peak.png', 'pet_tilt_return.png']) {
+    assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少歪头动作帧 ${frame}`);
+  }
   for (const f of [
     'src/preload.js',
     'src/shared/bookmarks.js',
