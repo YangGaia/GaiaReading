@@ -16,6 +16,9 @@ from scipy.ndimage import map_coordinates
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "renderer" / "images" / "pet" / "parts" / "full.png"
 OUTPUT = ROOT / "docs" / "pet-direction-pilot"
+HEAD_BOX = (88, 0, 268, 235)
+HEAD_BOTTOM_OVERLAP = 12
+MAX_PITCH_DEGREES = 9.0
 DIRECTIONS = {
     "up-left": (-0.82, -0.82),
     "up": (0.0, -1.0),
@@ -52,16 +55,6 @@ def add_face_yaw(dx, xx, yy, horizontal):
     horizontal_scale = 1.0 - 0.045 * abs(horizontal)
     inverse_offset = (xx - cx - desired_shift) / horizontal_scale - (xx - cx)
     dx += inverse_offset * region
-
-
-def add_face_pitch(dy, xx, yy, vertical):
-    """在脸内平移五官形成俯仰，不改变脸长或脸宽。"""
-    if vertical == 0:
-        return
-    cx, cy = 178.0, 169.0
-    region = soft_ellipse(xx, yy, cx, cy, 55.0, 77.0, 1.15)
-    face_pitch_shift = 5.4 * vertical
-    dy -= face_pitch_shift * region
 
 
 def add_body_yaw(dx, xx, yy, horizontal):
@@ -105,32 +98,33 @@ def warp_rgba_premultiplied(image, dx, dy):
     return Image.fromarray(quantized, "RGBA")
 
 
-def make_look(source, horizontal, vertical):
+def make_horizontal_look(source, horizontal):
+    if horizontal == 0:
+        return source.copy()
     width, height = source.size
     yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
     dx = np.zeros((height, width), dtype=np.float32)
     dy = np.zeros((height, width), dtype=np.float32)
 
-    # 脸型先产生偏转和俯仰透视；帽子轮廓与外侧长发不参与。
+    # 脸型先产生左右偏转透视；帽子轮廓与外侧长发不参与。
     add_face_yaw(dx, xx, yy, horizontal)
-    add_face_pitch(dy, xx, yy, vertical)
 
     # 眼神比脸先多走一点，鼻尖和嘴只跟随半步，避免五官像贴纸般一起滑动。
     for eye_x in (151.0, 204.0):
         eye = soft_ellipse(xx, yy, eye_x, 153.0, 14.0, 10.0, 1.4)
-        add_shift(dx, dy, xx, yy, eye, move_x=1.75 * horizontal, move_y=1.5 * vertical)
+        add_shift(dx, dy, xx, yy, eye, move_x=1.75 * horizontal)
     nose_mouth = soft_ellipse(xx, yy, 178.0, 184.0, 24.0, 28.0, 1.3)
-    add_shift(dx, dy, xx, yy, nose_mouth, move_x=0.85 * horizontal, move_y=0.75 * vertical)
+    add_shift(dx, dy, xx, yy, nose_mouth, move_x=0.85 * horizontal)
 
     # 刘海内层产生小于一像素的视差，外轮廓保持稳定。
     inner_hair = soft_ellipse(xx, yy, 178.0, 125.0, 50.0, 36.0, 1.7)
-    add_shift(dx, dy, xx, yy, inner_hair, move_x=1.0 * horizontal, move_y=0.45 * vertical)
+    add_shift(dx, dy, xx, yy, inner_hair, move_x=1.0 * horizontal)
 
     # 颈部、衣领与披风上半部跟随左转；位移在腰部前完全衰减。
     neck = soft_ellipse(xx, yy, 178.0, 238.0, 48.0, 42.0, 1.2)
-    add_shift(dx, dy, xx, yy, neck, move_x=2.1 * horizontal, move_y=0.8 * vertical)
+    add_shift(dx, dy, xx, yy, neck, move_x=2.1 * horizontal)
     collar_and_pendants = soft_ellipse(xx, yy, 178.0, 272.0, 92.0, 70.0, 1.3)
-    add_shift(dx, dy, xx, yy, collar_and_pendants, move_x=1.35 * horizontal, move_y=0.35 * vertical)
+    add_shift(dx, dy, xx, yy, collar_and_pendants, move_x=1.35 * horizontal)
     add_body_yaw(dx, xx, yy, horizontal)
 
     # 远侧肩膀向内收，近侧肩膀只跟随半步；不再制造高低肩。
@@ -142,6 +136,84 @@ def make_look(source, horizontal, vertical):
     add_shift(dx, dy, xx, yy, right_shoulder, move_x=right_move)
 
     return warp_rgba_premultiplied(source, dx, dy)
+
+
+def head_depth_map(width, height):
+    """构造头部正面深度：鼻面最前，外发和帽子更靠后，颈根为旋转轴。"""
+    yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
+    outer_head = soft_ellipse(xx, yy, 90.0, 116.0, 92.0, 132.0, 0.8)
+    face = soft_ellipse(xx, yy, 90.0, 166.0, 55.0, 75.0, 1.0)
+    nose_plane = soft_ellipse(xx, yy, 90.0, 175.0, 28.0, 40.0, 1.25)
+    depth = 13.0 * outer_head + 34.0 * face + 11.0 * nose_plane
+    # 颈部最后 24px 平滑回到零，保证与衣领的固定轴不分离。
+    neck_falloff = np.clip((224.0 - yy) / 24.0, 0.0, 1.0)
+    depth *= neck_falloff
+    return depth
+
+
+def render_head_pitch(head, angle_degrees):
+    """依据头部深度绕衣领处水平轴旋转，而非液化五官。"""
+    rgba = np.asarray(head.convert("RGBA"), dtype=np.float32) / 255.0
+    alpha = rgba[:, :, 3:4]
+    premultiplied = np.concatenate((rgba[:, :, :3] * alpha, alpha), axis=2)
+    height, width = rgba.shape[:2]
+    yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
+    depth = head_depth_map(width, height)
+    pivot_y = 224.0
+    angle = np.deg2rad(angle_degrees)
+    sin_angle = np.sin(angle)
+    cos_angle = np.cos(angle)
+
+    # 反解旋转后的纵坐标；迭代深度使脸、外发和帽子遵守同一空间旋转。
+    source_y = yy.copy()
+    for _ in range(5):
+        sampled_depth = map_coordinates(depth, np.array([source_y, xx]), order=1, mode="nearest")
+        source_y = pivot_y + (yy - pivot_y + sin_angle * sampled_depth) / cos_angle
+    source_y = np.clip(source_y, 0, height - 1)
+    coords = np.array([source_y, xx])
+
+    warped = np.empty_like(premultiplied)
+    for channel in range(4):
+        warped[:, :, channel] = map_coordinates(
+            premultiplied[:, :, channel], coords, order=3, mode="constant", cval=0.0, prefilter=True
+        )
+    warped = np.clip(warped, 0.0, 1.0)
+    out_alpha = warped[:, :, 3:4]
+    out_rgb = np.divide(
+        warped[:, :, :3], out_alpha, out=np.zeros_like(warped[:, :, :3]), where=out_alpha > 1e-5
+    )
+    out = np.concatenate((np.clip(out_rgb, 0.0, 1.0), out_alpha), axis=2)
+    quantized = np.rint(out * 255.0).astype(np.uint8)
+    quantized[quantized[:, :, 3] == 0, :3] = 0
+    return Image.fromarray(quantized, "RGBA")
+
+
+def add_pitched_head(frame, vertical):
+    """挖掉原头部并放回绕颈根旋转后的完整头层。"""
+    if vertical == 0:
+        return frame
+    x0, y0, x1, y1 = HEAD_BOX
+    head = frame.crop(HEAD_BOX).convert("RGBA")
+    head_pixels = np.asarray(head).copy()
+    for y in range(head.height - HEAD_BOTTOM_OVERLAP, head.height):
+        fade = (head.height - y) / HEAD_BOTTOM_OVERLAP
+        head_pixels[y, :, 3] = np.rint(head_pixels[y, :, 3].astype(np.float32) * fade).astype(np.uint8)
+    head = Image.fromarray(head_pixels, "RGBA")
+
+    body_pixels = np.asarray(frame).copy()
+    body_pixels[y0 : y1 - HEAD_BOTTOM_OVERLAP, x0:x1, 3] = 0
+    body = Image.fromarray(body_pixels, "RGBA")
+    # vertical=-1 表示向上看，对应绕水平轴的正角度。
+    pitched = render_head_pitch(head, -vertical * MAX_PITCH_DEGREES)
+    body.alpha_composite(pitched, (x0, y0))
+    result = np.asarray(body).copy()
+    result[result[:, :, 3] == 0, :3] = 0
+    return Image.fromarray(result, "RGBA")
+
+
+def make_look(source, horizontal, vertical):
+    horizontal_frame = make_horizontal_look(source, horizontal)
+    return add_pitched_head(horizontal_frame, vertical)
 
 
 def checkerboard(size, cell=12):

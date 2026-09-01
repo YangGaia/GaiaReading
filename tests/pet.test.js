@@ -269,11 +269,12 @@ test('鼠标转向试验帧采用局部语义变形并保留透明边缘', () =>
   assert.ok(script.includes('for eye_x in (151.0, 204.0)'), '双眼应拥有比头部更早的视线偏移');
   assert.ok(script.includes('desired_shift = 4.6 * horizontal'), '脸部偏转必须达到肉眼可辨识的幅度');
   assert.ok(script.includes('move_x=1.75 * horizontal'), '眼神应明显领先脸部转向');
-  assert.ok(script.includes('add_face_pitch'), '上下方向应使用独立的脸部俯仰透视');
-  assert.ok(script.includes('face_pitch_shift = 5.4 * vertical'), '上下方向必须达到实际桌宠尺寸下肉眼可辨识的幅度');
-  assert.ok(script.includes('move_y=1.5 * vertical'), '上下眼神应额外领先脸部俯仰');
+  assert.ok(script.includes('head_depth_map'), '上下方向应建立帽子、脸面和鼻口的头部深度');
+  assert.ok(script.includes('render_head_pitch'), '上下方向应绕水平轴旋转完整头层');
+  assert.ok(script.includes('pivot_y = 224.0'), '抬头低头必须以衣领附近作为固定旋转轴');
+  assert.ok(script.includes('MAX_PITCH_DEGREES = 9.0'), '头部俯仰应达到肉眼可辨识的角度');
+  assert.ok(!script.includes('face_pitch_shift'), '上下俯仰不应再通过移动五官模拟');
   assert.ok(!script.includes('vertical_scale'), '上下俯仰不应压扁或拉长脸部和身体');
-  assert.ok(!script.includes('add_body_pitch'), '上下俯仰不应拉伸披风冒充身体动作');
   assert.ok(script.includes('add_body_yaw'), '身体应使用绕竖轴的局部透视，而不是整体倾斜');
   assert.ok(script.includes('right_move = 0.9 * horizontal - 0.55 * abs(horizontal)'), '远侧肩线应有可辨识的透视内收');
   assert.ok(!script.includes('left_shoulder, move_y=') && !script.includes('right_shoulder, move_y='), '身体转向不应制造高低肩');
