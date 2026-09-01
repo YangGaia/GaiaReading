@@ -154,13 +154,18 @@
     return !!(ui.root && ui.root.animate && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches));
   }
 
-  /** 从目标位置左侧滑入，方向固定为从左到右。 */
-  function animateSettingsEntry() {
-    if (!canAnimateSettings()) return;
+  /** FLIP：从原顶栏坐标平滑移动到抽屉左侧的避让坐标。 */
+  function animateSettingsEntry(fromRect) {
+    if (!canAnimateSettings() || !fromRect) return;
+    const toRect = ui.root.getBoundingClientRect();
+    const dx = fromRect.left - toRect.left;
+    const dy = fromRect.top - toRect.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
     settingsAnimation = ui.root.animate([
-      { transform: 'translateX(-36px)', opacity: 0.45 },
+      { transform: `translate(${dx}px, ${dy}px)`, opacity: 0.95 },
       { transform: 'translateX(0)', opacity: 0.96 },
     ], { duration: SETTINGS_SLIDE_MS, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    settingsAnimation.id = 'bgm-settings-entry-flip';
   }
 
   /** FLIP：先恢复顶栏布局，再从旧位置向右滑到新位置。 */
@@ -175,6 +180,7 @@
       { transform: `translate(${dx}px, ${dy}px)`, opacity: 0.96 },
       { transform: 'translate(0, 0)', opacity: finalOpacity },
     ], { duration: SETTINGS_SLIDE_MS, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    settingsAnimation.id = 'bgm-settings-restore-flip';
   }
 
   /** 设置抽屉打开时把胶囊移到抽屉左侧，关闭后恢复到当前视图原位。 */
@@ -185,7 +191,7 @@
     if (!ui.root) return;
     ui.root.dataset.settingsOpen = settingsOpen ? '1' : '0';
     positionBgm(currentView);
-    if (settingsOpen) animateSettingsEntry();
+    if (settingsOpen) animateSettingsEntry(fromRect);
     else animateSettingsRestore(fromRect);
   }
 

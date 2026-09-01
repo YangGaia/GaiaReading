@@ -202,7 +202,8 @@ test('BGM 胶囊封面与阅读进度条细节', () => {
   assert.ok(css.includes('.bgm-capsule[data-settings-open="1"]'), '设置打开时应有胶囊避让样式');
   assert.ok(css.includes('calc(var(--settings-drawer-width) + 24px)'), '胶囊应移动到设置抽屉左侧');
   assert.ok(css.includes('@media (max-width: 760px)'), '窄窗口下应隐藏无空间避让的胶囊');
-  assert.ok(bgm.includes("transform: 'translateX(-36px)'"), '打开设置时胶囊应从左向右滑入');
+  assert.ok(bgm.includes('function animateSettingsEntry(fromRect)'), '打开设置时应从胶囊原位置开始移动');
+  assert.ok(bgm.includes("settingsAnimation.id = 'bgm-settings-entry-flip'"), '打开设置应使用真实位置间的 FLIP 动画');
   assert.ok(bgm.includes('function animateSettingsRestore(fromRect)'), '关闭设置时胶囊应平滑返回原位');
   assert.ok(bgm.includes("matchMedia('(prefers-reduced-motion: reduce)')"), '胶囊动画应尊重系统减少动态效果设置');
   assert.ok(css.includes('bgmWave'), '歌名播放时应带波浪形浮动动画');

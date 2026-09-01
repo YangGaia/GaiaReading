@@ -282,7 +282,10 @@ function createWindow() {
               __gaiaDebug.setMode('spread');
               __gaiaDebug.openSettings();
               const settingsCapsule = document.getElementById('bgm-capsule');
-              const bgmSettingsOpeningAnimation = settingsCapsule.getAnimations().some((a) => a.playState === 'running');
+              const settingsOpeningAnimation = settingsCapsule.getAnimations().find((a) => a.id === 'bgm-settings-entry-flip');
+              const settingsOpeningFrames = settingsOpeningAnimation && settingsOpeningAnimation.effect.getKeyframes();
+              const bgmSettingsOpeningAnimation = !!settingsOpeningAnimation && settingsOpeningAnimation.playState === 'running';
+              const bgmSettingsOpeningFromOriginal = !!settingsOpeningFrames && settingsOpeningFrames.length >= 2 && settingsOpeningFrames[0].transform.startsWith('translate(');
               await new Promise((r) => setTimeout(r, 350));
               const drawerOpen = __gaiaDebug.isSettingsOpen();
               const settingsDrawer = document.getElementById('settings-drawer');
@@ -291,7 +294,8 @@ function createWindow() {
               const bgmAvoidsSettings = settingsCapsuleRect.right <= settingsDrawerRect.left - 16;
               const bgmSettingsState = settingsCapsule.dataset.settingsOpen === '1' && settingsCapsule.parentElement === document.body;
               __gaiaDebug.closeSettings();
-              const bgmSettingsClosingAnimation = settingsCapsule.getAnimations().some((a) => a.playState === 'running');
+              const settingsClosingAnimation = settingsCapsule.getAnimations().find((a) => a.id === 'bgm-settings-restore-flip');
+              const bgmSettingsClosingAnimation = !!settingsClosingAnimation && settingsClosingAnimation.playState === 'running';
               const drawerClosed = !__gaiaDebug.isSettingsOpen();
               const bgmSettingsRestored = settingsCapsule.dataset.settingsOpen === '0' && !!document.querySelector('#reader-view .topbar .bgm-capsule');
               await __gaiaDebug.setLineHeight(2);
@@ -345,7 +349,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -364,6 +368,7 @@ function createWindow() {
               parsed.bgmSettingsState === true &&
               parsed.bgmSettingsRestored === true &&
               parsed.bgmSettingsOpeningAnimation === true &&
+              parsed.bgmSettingsOpeningFromOriginal === true &&
               parsed.bgmSettingsClosingAnimation === true &&
               parsed.epW > 0 &&
               parsed.epH > 0 &&
