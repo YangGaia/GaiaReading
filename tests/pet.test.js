@@ -34,14 +34,14 @@ test('初始大脑为待机状态', () => {
   });
 });
 
-test('鼠标注视方向包含脸部中心静止区与四向幅度限制', () => {
+test('鼠标注视只保留左右方向，上下移动保持回正', () => {
   const rect = { left: 100, top: 100, width: 150, height: 270 };
   assert.deepStrictEqual(gazeTargetForPoint(175, 181, rect), { x: 0, y: 0 });
   assert.deepStrictEqual(gazeTargetForPoint(190, 195, rect), { x: 0, y: 0 });
   assert.deepStrictEqual(gazeTargetForPoint(-300, 181, rect), { x: -1, y: 0 });
   assert.deepStrictEqual(gazeTargetForPoint(650, 181, rect), { x: 1, y: 0 });
-  assert.deepStrictEqual(gazeTargetForPoint(175, -200, rect), { x: 0, y: -1 });
-  assert.deepStrictEqual(gazeTargetForPoint(175, 600, rect), { x: 0, y: 1 });
+  assert.deepStrictEqual(gazeTargetForPoint(175, -200, rect), { x: 0, y: 0 });
+  assert.deepStrictEqual(gazeTargetForPoint(175, 600, rect), { x: 0, y: 0 });
 });
 
 test('滑过、离开和唤醒使用各自的表情池', () => {
@@ -184,11 +184,14 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes('gaia-pet-body-gaze'), '桌宠应有不干扰呼吸动画的身体注视层');
   assert.ok(renderer.includes('gaia-pet-head-gaze'), '桌宠应有不干扰表情动作的头部注视层');
   assert.ok(renderer.includes('window.requestAnimationFrame(animateGaze)'), '鼠标跟随应逐帧平滑更新');
-  assert.ok(renderer.includes('perspective(520px) rotateY'), '头部跟随应使用轻微透视扭转，而不是平面位移');
+  assert.ok(renderer.includes("'look-m100.png'") && renderer.includes("'look-p100.png'"), '左右注视应使用烘焙方向帧');
+  assert.ok(renderer.includes('framePosition = (x + 1) * 4'), '左右动画应在九张水平帧间连续插值');
+  assert.ok(renderer.includes("ui.root.dataset.gazeY = '0.000'"), '鼠标跟随必须取消上下方向');
+  assert.ok(!renderer.includes('perspective(520px) rotateY'), '不应继续使用 CSS 透视扭曲头部');
   assert.ok(renderer.includes('springToward(faceMotion, target, 76, 16'), '面部应先于头部看向鼠标');
   assert.ok(renderer.includes('springToward(gazeMotion, target, 38, 11'), '头部应克制地慢半拍跟随面部');
   assert.ok(renderer.includes('ui.face.style.transform = faceTurn'), '面部五官应在头发内部产生视差');
-  assert.ok(renderer.includes('x * -0.35'), '肩部应进行极轻微的反向重心补偿');
+  assert.ok(renderer.includes('ui.gazeFrames.forEach'), '方向帧应通过逐帧透明度平滑混合');
   assert.ok(!renderer.includes('x * 3.8'), '不应继续把整颗头平移到鼠标方向');
   assert.ok(renderer.includes('brain.state === PET_STATES.SLEEPING'), '睡觉时应暂停鼠标跟随');
   assert.ok(renderer.includes("ui.body.classList.contains('no-breathe')"), '专用动作播放时应暂停鼠标跟随');
@@ -218,6 +221,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
   assert.ok(css.includes('.gaia-pet-body-gaze'), '缺少身体跟随层样式');
   assert.ok(css.includes('.gaia-pet-head-gaze'), '缺少头部跟随层样式');
+  assert.ok(css.includes('.gaia-pet-gaze-frame'), '缺少左右注视烘焙帧样式');
   assert.ok(css.includes('@keyframes pet-sleep-breathe'), '缺少睡眠呼吸动画');
   assert.ok(css.includes('@keyframes pet-head-drowse'), '缺少困倦点头的头部动画');
   assert.ok(css.includes('52%, 66% { transform: translateY(7px) rotate(1.8deg) scaleY(0.955); }'), '困倦动作应有明显的缓慢低头停顿');
@@ -244,7 +248,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes('petStatus.yawnTextVisible === true'), '冒烟测试应验证打哈欠文字已显示');
   assert.ok(main.includes('petStatus.drowseStarted === true'), '冒烟测试应验证困倦低头和闭眼阶段');
   assert.ok(main.includes('petStatus.drowseCleared === true'), '冒烟测试应验证困倦动作恢复半睁眼');
-  assert.ok(main.includes('petStatus.gazeDirections === true'), '冒烟测试应验证鼠标上下左右跟随');
+  assert.ok(main.includes('petStatus.gazeDirections === true'), '冒烟测试应验证鼠标仅左右跟随');
 });
 
 test('头身分层完整挖空头部活动区，仅在颈部保留窄幅重叠', () => {
@@ -295,4 +299,16 @@ test('鼠标左右看试验输出齐全、尺寸正确且均非原图副本', ()
   }
   assert.ok(fs.existsSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', 'pilot-directions-grid.png')), '缺少左右看全身预览');
   assert.ok(fs.existsSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', 'pilot-directions-detail.png')), '缺少左右看局部预览');
+});
+
+test('鼠标左右动画包含九张正式过渡帧', () => {
+  const gazeDir = path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'gaze');
+  const files = fs.readdirSync(gazeDir).filter((name) => name.endsWith('.png')).sort();
+  assert.deepStrictEqual(files, [
+    'look-center.png', 'look-m025.png', 'look-m050.png', 'look-m075.png', 'look-m100.png',
+    'look-p025.png', 'look-p050.png', 'look-p075.png', 'look-p100.png',
+  ]);
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'parts', 'full.png'));
+  const center = fs.readFileSync(path.join(gazeDir, 'look-center.png'));
+  assert.deepStrictEqual(center, source, '正式正中帧必须保持原始立绘不变');
 });

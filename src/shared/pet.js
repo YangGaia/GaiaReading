@@ -297,9 +297,7 @@
     const height = Number(rect.height) || 0;
     if (width <= 0 || height <= 0) return { x: 0, y: 0 };
     const left = Number(rect.left) || 0;
-    const top = Number(rect.top) || 0;
     const dx = clientX - (left + width * 0.5);
-    const dy = clientY - (top + height * 0.3);
     const deadZone = 24;
     const normalize = (delta, range) => {
       const amount = Math.abs(delta);
@@ -308,7 +306,7 @@
     };
     return {
       x: normalize(dx, Math.max(240, width * 2.2)),
-      y: normalize(dy, Math.max(180, height * 0.85)),
+      y: 0,
     };
   }
 

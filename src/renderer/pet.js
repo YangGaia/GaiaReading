@@ -36,6 +36,11 @@
 
   const FACE_IMG = 'images/pet/faces/';
   const PART_IMG = 'images/pet/parts/';
+  const GAZE_IMG = 'images/pet/gaze/';
+  const GAZE_FRAMES = [
+    'look-m100.png', 'look-m075.png', 'look-m050.png', 'look-m025.png', 'look-center.png',
+    'look-p025.png', 'look-p050.png', 'look-p075.png', 'look-p100.png',
+  ];
   const DEFAULT_STATE = {
     on: true,
     x: null,
@@ -140,22 +145,33 @@
   }
 
   function renderGaze() {
-    if (!ui.headGaze || !ui.halfbody || !ui.face || !ui.blinkFace || !ui.root) return;
-    const x = gazeMotion.x;
-    const y = gazeMotion.y;
-    const faceX = faceMotion.x;
-    const faceY = faceMotion.y;
-    const faceScaleX = 1 - Math.abs(faceX) * 0.012;
-    const faceScaleY = 1 - Math.abs(faceY) * 0.006;
-    ui.halfbody.style.transform = `translateX(${(x * -0.35).toFixed(2)}px) skewX(${(x * -0.22).toFixed(2)}deg)`;
-    ui.headGaze.style.transform = `perspective(520px) rotateY(${(x * 3.2).toFixed(2)}deg) rotateX(${(y * -2.2).toFixed(2)}deg)`;
-    const faceTurn = `translate3d(${(faceX * 1.25).toFixed(2)}px, ${(faceY * 0.75).toFixed(2)}px, 0) scale(${faceScaleX.toFixed(4)}, ${faceScaleY.toFixed(4)}) skewY(${(faceX * -0.28).toFixed(2)}deg)`;
+    if (!ui.headGaze || !ui.halfbody || !ui.head || !ui.face || !ui.blinkFace || !ui.root) return;
+    const framesReady = ui.gazeFrames && ui.gazeFrames.every((frame) => frame.complete && frame.naturalWidth);
+    const active = framesReady && !gazeIsSuppressed();
+    const x = active ? Math.max(-1, Math.min(1, gazeMotion.x)) : 0;
+    const faceX = active ? faceMotion.x : 0;
+    const framePosition = (x + 1) * 4;
+    const lowerFrame = Math.floor(framePosition);
+    const upperFrame = Math.ceil(framePosition);
+    const blend = framePosition - lowerFrame;
+    ui.gazeFrames.forEach((frame, index) => {
+      let opacity = 0;
+      if (active && index === lowerFrame) opacity = 1 - blend;
+      if (active && index === upperFrame) opacity = Math.max(opacity, blend || 1);
+      frame.style.opacity = opacity.toFixed(3);
+    });
+    const baseOpacity = active ? '0' : '1';
+    ui.halfbody.style.opacity = baseOpacity;
+    ui.head.style.opacity = baseOpacity;
+    const faceScaleX = 1 - Math.abs(faceX) * 0.045;
+    const faceTurn = `translate3d(${(faceX * 1.9).toFixed(2)}px, 0, 0) scaleX(${faceScaleX.toFixed(4)}) skewY(${(faceX * -0.28).toFixed(2)}deg)`;
     ui.face.style.transformOrigin = `${(50 - faceX * 6).toFixed(2)}% 50%`;
     ui.blinkFace.style.transformOrigin = ui.face.style.transformOrigin;
     ui.face.style.transform = faceTurn;
     ui.blinkFace.style.transform = faceTurn;
     ui.root.dataset.gazeX = x.toFixed(3);
-    ui.root.dataset.gazeY = y.toFixed(3);
+    ui.root.dataset.gazeY = '0.000';
+    ui.root.dataset.gazeFrame = String(Math.round(framePosition));
   }
 
   function springToward(motion, target, stiffness, damping, elapsed) {
@@ -809,6 +825,19 @@
       clampPosition();
     });
     halfbody.src = PART_IMG + 'body.png';
+    const gazeSprites = document.createElement('div');
+    gazeSprites.className = 'gaia-pet-gaze-sprites';
+    const gazeFrames = GAZE_FRAMES.map((filename, index) => {
+      const frame = document.createElement('img');
+      frame.className = 'gaia-pet-gaze-frame';
+      frame.dataset.gazeFrame = String(index);
+      frame.src = GAZE_IMG + filename;
+      frame.draggable = false;
+      frame.alt = '';
+      frame.addEventListener('load', renderGaze);
+      gazeSprites.appendChild(frame);
+      return frame;
+    });
     const headRig = document.createElement('div');
     headRig.className = 'gaia-pet-head-rig';
     const headGaze = document.createElement('div');
@@ -834,11 +863,11 @@
     zzz.hidden = true;
     headRig.append(head, face, blinkFace);
     headGaze.append(headRig);
-    body.append(halfbody, headGaze);
+    body.append(halfbody, gazeSprites, headGaze);
     bodyGaze.append(body);
     root.append(bubble, bodyGaze, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, bodyGaze, body, halfbody, headGaze, headRig, head, face, blinkFace, zzz };
+    ui = { root, bubble, bodyGaze, body, halfbody, gazeSprites, gazeFrames, headGaze, headRig, head, face, blinkFace, zzz };
     buildConsole();
   }
 

@@ -451,9 +451,10 @@ function createWindow() {
             const petHeadRig = document.querySelector('.gaia-pet-head-rig');
             const petBodyGaze = document.querySelector('.gaia-pet-body-gaze');
             const petHeadGaze = document.querySelector('.gaia-pet-head-gaze');
+            const petGazeFrames = document.querySelectorAll('.gaia-pet-gaze-frame');
             const blinkFace = document.querySelector('.gaia-pet-blink-face');
             const layeredPet = !!petBodyLayer && petBodyLayer.src.endsWith('/parts/body.png') && !!petHeadLayer && petHeadLayer.src.endsWith('/parts/head.png') && !!petHeadRig && petHeadRig.offsetHeight > 0;
-            const gazeLayers = !!petBodyGaze && !!petHeadGaze;
+            const gazeLayers = !!petBodyGaze && !!petHeadGaze && petGazeFrames.length === 9;
             if (petBodyLayer && (!petBodyLayer.complete || !petBodyLayer.naturalWidth)) {
               await new Promise((resolve) => {
                 petBodyLayer.addEventListener('load', resolve, { once: true });
@@ -530,6 +531,7 @@ function createWindow() {
               return {
                 x: Number(petRoot.dataset.gazeX),
                 y: Number(petRoot.dataset.gazeY),
+                frame: Number(petRoot.dataset.gazeFrame),
               };
             };
             const gazeOriginX = petRect.left + petRect.width * 0.5;
@@ -540,7 +542,9 @@ function createWindow() {
             const gazeDown = await gazeAt(gazeOriginX, petRect.bottom + 300);
             const gazeDirections = gazeLeft.x < -0.7 && Math.abs(gazeLeft.y) < 0.1 &&
               gazeRight.x > 0.7 && Math.abs(gazeRight.y) < 0.1 &&
-              gazeUp.y < -0.7 && gazeDown.y > 0.7;
+              gazeLeft.frame <= 1 && gazeRight.frame >= 7 &&
+              Math.abs(gazeUp.x) < 0.1 && Math.abs(gazeUp.y) < 0.1 && gazeUp.frame === 4 &&
+              Math.abs(gazeDown.x) < 0.1 && Math.abs(gazeDown.y) < 0.1 && gazeDown.frame === 4;
             GaiaPet.closeConsole();
             return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, gazeLayers, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, gazeLeft, gazeRight, gazeUp, gazeDown, gazeDirections };
           })()`);

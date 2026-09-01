@@ -16,11 +16,23 @@ from scipy.ndimage import map_coordinates
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "renderer" / "images" / "pet" / "parts" / "full.png"
 OUTPUT = ROOT / "docs" / "pet-direction-pilot"
+GAZE_OUTPUT = ROOT / "src" / "renderer" / "images" / "pet" / "gaze"
 DIRECTIONS = {
     "left": -1.0,
     "center": 0.0,
     "right": 1.0,
 }
+GAZE_STEPS = (
+    ("look-m100.png", -1.0),
+    ("look-m075.png", -0.75),
+    ("look-m050.png", -0.5),
+    ("look-m025.png", -0.25),
+    ("look-center.png", 0.0),
+    ("look-p025.png", 0.25),
+    ("look-p050.png", 0.5),
+    ("look-p075.png", 0.75),
+    ("look-p100.png", 1.0),
+)
 
 
 def soft_ellipse(xx, yy, cx, cy, rx, ry, power=2.0):
@@ -205,7 +217,11 @@ def main():
     make_detail_comparison(source, frames["left"]).save(OUTPUT / "pilot-detail-3x.png")
     make_direction_grid(frames).save(OUTPUT / "pilot-directions-grid.png")
     make_direction_grid(frames, detail=True).save(OUTPUT / "pilot-directions-detail.png")
-    print(f"saved {len(frames)} horizontal direction frames to {OUTPUT}")
+    GAZE_OUTPUT.mkdir(parents=True, exist_ok=True)
+    for filename, horizontal in GAZE_STEPS:
+        frame = source.copy() if horizontal == 0 else make_horizontal_look(source, horizontal)
+        frame.save(GAZE_OUTPUT / filename)
+    print(f"saved {len(frames)} previews and {len(GAZE_STEPS)} animation frames")
 
 
 if __name__ == "__main__":

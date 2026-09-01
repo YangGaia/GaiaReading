@@ -332,11 +332,30 @@ body.eye {
 .gaia-pet-body.poke { animation: pet-poke 0.35s ease; }
 .gaia-pet-halfbody {
   display: block;
+  position: relative;
+  z-index: 0;
   width: 100%;
   height: auto;
   pointer-events: none;
   transform-origin: 50% 30%;
   will-change: transform;
+  transition: opacity 0.1s linear;
+}
+.gaia-pet-gaze-sprites {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.gaia-pet-gaze-frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: auto;
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
 }
 .gaia-pet-head-gaze {
   position: absolute;
@@ -344,8 +363,6 @@ body.eye {
   z-index: 1;
   pointer-events: none;
   transform-origin: 50% 92%;
-  transform-style: preserve-3d;
-  will-change: transform;
 }
 .gaia-pet-head-rig {
   position: absolute;
@@ -361,6 +378,7 @@ body.eye {
   position: absolute;
   height: auto;
   pointer-events: none;
+  transition: opacity 0.1s linear;
 }
 .gaia-pet-face {
   position: absolute;
