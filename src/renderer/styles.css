@@ -321,8 +321,6 @@ body.eye {
 .gaia-pet-body-gaze {
   position: relative;
   width: 100%;
-  transform-origin: 50% 88%;
-  will-change: transform;
 }
 .gaia-pet-body {
   position: relative;
@@ -332,13 +330,21 @@ body.eye {
 }
 .gaia-pet-body.no-breathe { animation: none; }
 .gaia-pet-body.poke { animation: pet-poke 0.35s ease; }
-.gaia-pet-halfbody { display: block; width: 100%; height: auto; pointer-events: none; }
+.gaia-pet-halfbody {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  transform-origin: 50% 30%;
+  will-change: transform;
+}
 .gaia-pet-head-gaze {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  transform-origin: 50% 34%;
+  transform-origin: 50% 92%;
+  transform-style: preserve-3d;
   will-change: transform;
 }
 .gaia-pet-head-rig {

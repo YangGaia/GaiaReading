@@ -79,6 +79,7 @@
   let gazePointer = null;
   let gazeFrame = 0;
   const gazeMotion = { x: 0, y: 0, vx: 0, vy: 0, lastAt: 0 };
+  const faceMotion = { x: 0, y: 0, vx: 0, vy: 0 };
 
   function save() {
     window.api.stateSet('pet', {
@@ -139,13 +140,38 @@
   }
 
   function renderGaze() {
-    if (!ui.bodyGaze || !ui.headGaze || !ui.root) return;
+    if (!ui.headGaze || !ui.halfbody || !ui.face || !ui.blinkFace || !ui.root) return;
     const x = gazeMotion.x;
     const y = gazeMotion.y;
-    ui.bodyGaze.style.transform = `translate3d(${(x * 1.6).toFixed(2)}px, ${(y * 0.9).toFixed(2)}px, 0) rotate(${(x * 1.25).toFixed(2)}deg) scaleY(${(1 - y * 0.006).toFixed(4)})`;
-    ui.headGaze.style.transform = `translate3d(${(x * 3.8).toFixed(2)}px, ${(y * 4.8).toFixed(2)}px, 0) rotate(${(x * 2.3).toFixed(2)}deg) scaleY(${(1 - y * 0.016).toFixed(4)})`;
+    const faceX = faceMotion.x;
+    const faceY = faceMotion.y;
+    const faceScaleX = 1 - Math.abs(faceX) * 0.012;
+    const faceScaleY = 1 - Math.abs(faceY) * 0.006;
+    ui.halfbody.style.transform = `translateX(${(x * -0.35).toFixed(2)}px) skewX(${(x * -0.22).toFixed(2)}deg)`;
+    ui.headGaze.style.transform = `perspective(520px) rotateY(${(x * 3.2).toFixed(2)}deg) rotateX(${(y * -2.2).toFixed(2)}deg)`;
+    const faceTurn = `translate3d(${(faceX * 1.25).toFixed(2)}px, ${(faceY * 0.75).toFixed(2)}px, 0) scale(${faceScaleX.toFixed(4)}, ${faceScaleY.toFixed(4)}) skewY(${(faceX * -0.28).toFixed(2)}deg)`;
+    ui.face.style.transformOrigin = `${(50 - faceX * 6).toFixed(2)}% 50%`;
+    ui.blinkFace.style.transformOrigin = ui.face.style.transformOrigin;
+    ui.face.style.transform = faceTurn;
+    ui.blinkFace.style.transform = faceTurn;
     ui.root.dataset.gazeX = x.toFixed(3);
     ui.root.dataset.gazeY = y.toFixed(3);
+  }
+
+  function springToward(motion, target, stiffness, damping, elapsed) {
+    const drag = Math.exp(-damping * elapsed);
+    motion.vx = (motion.vx + (target.x - motion.x) * stiffness * elapsed) * drag;
+    motion.vy = (motion.vy + (target.y - motion.y) * stiffness * elapsed) * drag;
+    motion.x += motion.vx * elapsed;
+    motion.y += motion.vy * elapsed;
+    if (Math.abs(target.x - motion.x) < 0.0005 && Math.abs(motion.vx) < 0.002) {
+      motion.x = target.x;
+      motion.vx = 0;
+    }
+    if (Math.abs(target.y - motion.y) < 0.0005 && Math.abs(motion.vy) < 0.002) {
+      motion.y = target.y;
+      motion.vy = 0;
+    }
   }
 
   function animateGaze(at) {
@@ -156,20 +182,8 @@
     if (gazePointer && !gazeIsSuppressed()) {
       target = gazeTargetForPoint(gazePointer.x, gazePointer.y, ui.root.getBoundingClientRect());
     }
-    const stiffness = 52;
-    const drag = Math.exp(-12 * elapsed);
-    gazeMotion.vx = (gazeMotion.vx + (target.x - gazeMotion.x) * stiffness * elapsed) * drag;
-    gazeMotion.vy = (gazeMotion.vy + (target.y - gazeMotion.y) * stiffness * elapsed) * drag;
-    gazeMotion.x += gazeMotion.vx * elapsed;
-    gazeMotion.y += gazeMotion.vy * elapsed;
-    if (Math.abs(target.x - gazeMotion.x) < 0.0005 && Math.abs(gazeMotion.vx) < 0.002) {
-      gazeMotion.x = target.x;
-      gazeMotion.vx = 0;
-    }
-    if (Math.abs(target.y - gazeMotion.y) < 0.0005 && Math.abs(gazeMotion.vy) < 0.002) {
-      gazeMotion.y = target.y;
-      gazeMotion.vy = 0;
-    }
+    springToward(faceMotion, target, 76, 16, elapsed);
+    springToward(gazeMotion, target, 38, 11, elapsed);
     renderGaze();
     gazeFrame = window.requestAnimationFrame(animateGaze);
   }

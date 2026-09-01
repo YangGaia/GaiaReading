@@ -184,6 +184,12 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes('gaia-pet-body-gaze'), '桌宠应有不干扰呼吸动画的身体注视层');
   assert.ok(renderer.includes('gaia-pet-head-gaze'), '桌宠应有不干扰表情动作的头部注视层');
   assert.ok(renderer.includes('window.requestAnimationFrame(animateGaze)'), '鼠标跟随应逐帧平滑更新');
+  assert.ok(renderer.includes('perspective(520px) rotateY'), '头部跟随应使用轻微透视扭转，而不是平面位移');
+  assert.ok(renderer.includes('springToward(faceMotion, target, 76, 16'), '面部应先于头部看向鼠标');
+  assert.ok(renderer.includes('springToward(gazeMotion, target, 38, 11'), '头部应克制地慢半拍跟随面部');
+  assert.ok(renderer.includes('ui.face.style.transform = faceTurn'), '面部五官应在头发内部产生视差');
+  assert.ok(renderer.includes('x * -0.35'), '肩部应进行极轻微的反向重心补偿');
+  assert.ok(!renderer.includes('x * 3.8'), '不应继续把整颗头平移到鼠标方向');
   assert.ok(renderer.includes('brain.state === PET_STATES.SLEEPING'), '睡觉时应暂停鼠标跟随');
   assert.ok(renderer.includes("ui.body.classList.contains('no-breathe')"), '专用动作播放时应暂停鼠标跟随');
   assert.ok(renderer.includes('gaia-pet-blink-face'), '眨眼应使用闭眼脸部贴片');

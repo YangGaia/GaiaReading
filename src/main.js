@@ -638,14 +638,16 @@ function createWindow() {
         await wait(850);
         await capture('pet_drowse_return.png');
         await wait(550);
-        await mainWindow.webContents.executeJavaScript("GaiaPet.runEmotion('idle')");
-        await wait(220);
         const aimPetGaze = async (direction) => mainWindow.webContents.executeJavaScript(`(() => {
           const pet = document.getElementById('gaia-pet');
           if (!window.__gaiaPetShotPosition) {
             window.__gaiaPetShotPosition = { left: pet.style.left, top: pet.style.top };
             pet.style.left = Math.round(innerWidth * 0.56) + 'px';
             pet.style.top = Math.round(innerHeight * 0.52) + 'px';
+            const face = pet.querySelector('.gaia-pet-face:not(.gaia-pet-blink-face)');
+            face.dataset.exp = '倾听';
+            face.src = 'images/pet/faces/' + encodeURIComponent('倾听.png');
+            pet.querySelector('.gaia-pet-blink-face').style.display = 'none';
           }
           const rect = pet.getBoundingClientRect();
           const points = {
@@ -677,6 +679,7 @@ function createWindow() {
             pet.style.top = position.top;
             delete window.__gaiaPetShotPosition;
           }
+          pet.querySelector('.gaia-pet-blink-face').style.removeProperty('display');
           const rect = pet.getBoundingClientRect();
           document.dispatchEvent(new PointerEvent('pointermove', {
             clientX: rect.left + rect.width * 0.5,
