@@ -266,6 +266,9 @@ test('鼠标转向试验帧采用局部语义变形并保留透明边缘', () =>
   const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'make-pet-look-pilot.py'), 'utf8');
   assert.ok(script.includes('add_face_yaw'), '脸部应使用独立的轻微偏转透视');
   assert.ok(script.includes('for eye_x in (151.0, 204.0)'), '双眼应拥有比头部更早的视线偏移');
+  assert.ok(script.includes('desired_shift = -4.6'), '脸部偏转必须达到肉眼可辨识的幅度');
+  assert.ok(script.includes('move_x=-1.75'), '眼神应明显领先脸部转向');
+  assert.ok(script.includes('move_y=1.15') && script.includes('move_y=-1.15'), '两侧肩线应提供可辨识的反向升降');
   assert.ok(script.includes('left_shoulder') && script.includes('right_shoulder'), '身体转向应包含两侧肩线配合');
   assert.ok(script.includes('premultiplied'), '透明素材重采样必须使用预乘 Alpha，避免黑边');
   assert.ok(!script.includes('Image.AFFINE'), '试验帧不应使用整图仿射变形');

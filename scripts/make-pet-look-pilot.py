@@ -35,8 +35,8 @@ def add_face_yaw(dx, xx, yy):
     """以左脸侧为视觉支点，轻微收拢远侧脸，形成左转透视。"""
     cx, cy = 178.0, 169.0
     region = soft_ellipse(xx, yy, cx, cy, 55.0, 77.0, 1.15)
-    desired_shift = -2.6
-    horizontal_scale = 0.972
+    desired_shift = -4.6
+    horizontal_scale = 0.955
     inverse_offset = (xx - cx - desired_shift) / horizontal_scale - (xx - cx)
     dx += inverse_offset * region
 
@@ -82,25 +82,25 @@ def make_left_look(source):
     # 眼神比脸先多走一点，鼻尖和嘴只跟随半步，避免五官像贴纸般一起滑动。
     for eye_x in (151.0, 204.0):
         eye = soft_ellipse(xx, yy, eye_x, 153.0, 14.0, 10.0, 1.4)
-        add_shift(dx, dy, xx, yy, eye, move_x=-0.9)
+        add_shift(dx, dy, xx, yy, eye, move_x=-1.75)
     nose_mouth = soft_ellipse(xx, yy, 178.0, 184.0, 24.0, 28.0, 1.3)
-    add_shift(dx, dy, xx, yy, nose_mouth, move_x=-0.45)
+    add_shift(dx, dy, xx, yy, nose_mouth, move_x=-0.85)
 
     # 刘海内层产生小于一像素的视差，外轮廓保持稳定。
     inner_hair = soft_ellipse(xx, yy, 178.0, 125.0, 50.0, 36.0, 1.7)
-    add_shift(dx, dy, xx, yy, inner_hair, move_x=-0.55)
+    add_shift(dx, dy, xx, yy, inner_hair, move_x=-1.0)
 
     # 颈部和披风上半部跟随左转；位移在腰部前完全衰减。
     neck = soft_ellipse(xx, yy, 178.0, 238.0, 48.0, 42.0, 1.2)
-    add_shift(dx, dy, xx, yy, neck, move_x=-1.15)
+    add_shift(dx, dy, xx, yy, neck, move_x=-2.1)
     upper_body = soft_ellipse(xx, yy, 178.0, 315.0, 170.0, 128.0, 1.55)
-    add_shift(dx, dy, xx, yy, upper_body, move_x=-0.65)
+    add_shift(dx, dy, xx, yy, upper_body, move_x=-1.3)
 
     # 两侧肩线做相反的亚像素升降，给出身体绕竖轴微转的感觉。
     left_shoulder = soft_ellipse(xx, yy, 91.0, 278.0, 73.0, 52.0, 1.45)
     right_shoulder = soft_ellipse(xx, yy, 263.0, 278.0, 73.0, 52.0, 1.45)
-    add_shift(dx, dy, xx, yy, left_shoulder, move_y=0.65)
-    add_shift(dx, dy, xx, yy, right_shoulder, move_y=-0.65)
+    add_shift(dx, dy, xx, yy, left_shoulder, move_y=1.15)
+    add_shift(dx, dy, xx, yy, right_shoulder, move_y=-1.15)
 
     return warp_rgba_premultiplied(source, dx, dy)
 
