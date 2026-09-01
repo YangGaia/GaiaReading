@@ -270,6 +270,10 @@ test('鼠标转向试验帧采用局部语义变形并保留透明边缘', () =>
   assert.ok(script.includes('desired_shift = 4.6 * horizontal'), '脸部偏转必须达到肉眼可辨识的幅度');
   assert.ok(script.includes('move_x=1.75 * horizontal'), '眼神应明显领先脸部转向');
   assert.ok(script.includes('head_depth_map'), '上下方向应建立帽子、脸面和鼻口的头部深度');
+  assert.ok(script.includes('rigid_jaw_depth'), '下巴与颌线必须使用统一刚性深度，避免俯仰时变尖');
+  assert.ok(script.includes('depth * (1.0 - jaw_blend) + rigid_jaw_depth * jaw_blend'), '鼻面深度必须在颌线前平滑退出');
+  assert.ok(script.includes('round_chin_for_pitch'), '俯仰专用头层必须补绘圆弧颌线');
+  assert.ok(script.includes('half_widths = (17, 15, 13, 11, 8, 5, 2)'), '下巴轮廓应逐行平滑圆收而非骤缩成尖角');
   assert.ok(script.includes('render_head_pitch'), '上下方向应绕水平轴旋转完整头层');
   assert.ok(script.includes('pivot_y = 224.0'), '抬头低头必须以衣领附近作为固定旋转轴');
   assert.ok(script.includes('MAX_PITCH_DEGREES = 9.0'), '头部俯仰应达到肉眼可辨识的角度');

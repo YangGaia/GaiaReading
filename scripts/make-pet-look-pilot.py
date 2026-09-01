@@ -145,6 +145,11 @@ def head_depth_map(width, height):
     face = soft_ellipse(xx, yy, 90.0, 166.0, 55.0, 75.0, 1.0)
     nose_plane = soft_ellipse(xx, yy, 90.0, 175.0, 28.0, 40.0, 1.25)
     depth = 13.0 * outer_head + 34.0 * face + 11.0 * nose_plane
+    # 下巴与颌线必须作为统一浅层转动；禁止鼻面中心深度把下巴拉成尖锥。
+    jaw_blend = np.clip((yy - 196.0) / 20.0, 0.0, 1.0)
+    jaw_blend = jaw_blend * jaw_blend * (3.0 - 2.0 * jaw_blend)
+    rigid_jaw_depth = np.full_like(depth, 12.0)
+    depth = depth * (1.0 - jaw_blend) + rigid_jaw_depth * jaw_blend
     # 颈部最后 24px 平滑回到零，保证与衣领的固定轴不分离。
     neck_falloff = np.clip((224.0 - yy) / 24.0, 0.0, 1.0)
     depth *= neck_falloff
@@ -188,6 +193,41 @@ def render_head_pitch(head, angle_degrees):
     return Image.fromarray(quantized, "RGBA")
 
 
+def round_chin_for_pitch(head):
+    """补绘俯仰专用圆弧颌线，避免原图末端两像素尖角被姿态放大。"""
+    pixels = np.asarray(head.convert("RGBA")).copy()
+    rgb = pixels[:, :, :3].astype(np.int16)
+    alpha = pixels[:, :, 3]
+    skin = (
+        (rgb[:, :, 0] > 170)
+        & (rgb[:, :, 1] > 110)
+        & (rgb[:, :, 2] > 70)
+        & (rgb[:, :, 0] >= rgb[:, :, 1])
+        & (rgb[:, :, 1] >= rgb[:, :, 2])
+        & ((rgb[:, :, 0] - rgb[:, :, 2]) > 30)
+        & (alpha > 40)
+    )
+    lower_y, lower_x = np.where(skin & (np.indices(skin.shape)[0] >= 198))
+    if lower_y.size == 0:
+        return head
+    bottom = int(lower_y.max())
+    center = int(round(float(np.median(lower_x[lower_y >= bottom - 10]))))
+    # 从上到下逐渐圆收；只补像素，不削掉原有面部。
+    half_widths = (17, 15, 13, 11, 8, 5, 2)
+    first_y = bottom - len(half_widths) + 1
+    for index, half_width in enumerate(half_widths):
+        y = first_y + index
+        existing = np.where(skin[y])[0]
+        if existing.size == 0:
+            continue
+        for x in range(max(0, center - half_width), min(head.width, center + half_width + 1)):
+            if skin[y, x]:
+                continue
+            nearest = int(existing[np.argmin(np.abs(existing - x))])
+            pixels[y, x] = pixels[y, nearest]
+    return Image.fromarray(pixels, "RGBA")
+
+
 def add_pitched_head(frame, vertical):
     """挖掉原头部并放回绕颈根旋转后的完整头层。"""
     if vertical == 0:
@@ -198,7 +238,7 @@ def add_pitched_head(frame, vertical):
     for y in range(head.height - HEAD_BOTTOM_OVERLAP, head.height):
         fade = (head.height - y) / HEAD_BOTTOM_OVERLAP
         head_pixels[y, :, 3] = np.rint(head_pixels[y, :, 3].astype(np.float32) * fade).astype(np.uint8)
-    head = Image.fromarray(head_pixels, "RGBA")
+    head = round_chin_for_pitch(Image.fromarray(head_pixels, "RGBA"))
 
     body_pixels = np.asarray(frame).copy()
     body_pixels[y0 : y1 - HEAD_BOTTOM_OVERLAP, x0:x1, 3] = 0
