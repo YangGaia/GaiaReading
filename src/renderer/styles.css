@@ -318,6 +318,12 @@ body.eye {
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
 }
 .gaia-pet.dragging { cursor: grabbing; }
+.gaia-pet-body-gaze {
+  position: relative;
+  width: 100%;
+  transform-origin: 50% 88%;
+  will-change: transform;
+}
 .gaia-pet-body {
   position: relative;
   width: 100%;
@@ -327,6 +333,14 @@ body.eye {
 .gaia-pet-body.no-breathe { animation: none; }
 .gaia-pet-body.poke { animation: pet-poke 0.35s ease; }
 .gaia-pet-halfbody { display: block; width: 100%; height: auto; pointer-events: none; }
+.gaia-pet-head-gaze {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  transform-origin: 50% 34%;
+  will-change: transform;
+}
 .gaia-pet-head-rig {
   position: absolute;
   left: 0;

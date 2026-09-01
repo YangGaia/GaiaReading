@@ -31,6 +31,7 @@
     pickIdleExpression,
     nextAutoDelay,
     pickAutoBehavior,
+    gazeTargetForPoint,
   } = shared;
 
   const FACE_IMG = 'images/pet/faces/';
@@ -75,6 +76,9 @@
   let effectVersion = 0;
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
+  let gazePointer = null;
+  let gazeFrame = 0;
+  const gazeMotion = { x: 0, y: 0, vx: 0, vy: 0, lastAt: 0 };
 
   function save() {
     window.api.stateSet('pet', {
@@ -127,6 +131,53 @@
   function updateBubbleSide() {
     if (!ui.bubble) return;
     ui.bubble.classList.toggle('flip', saved.x < 260);
+  }
+
+  function gazeIsSuppressed() {
+    return !saved.on || dragging || brain.state === PET_STATES.SLEEPING ||
+      !ui.body || ui.body.classList.contains('no-breathe');
+  }
+
+  function renderGaze() {
+    if (!ui.bodyGaze || !ui.headGaze || !ui.root) return;
+    const x = gazeMotion.x;
+    const y = gazeMotion.y;
+    ui.bodyGaze.style.transform = `translate3d(${(x * 1.6).toFixed(2)}px, ${(y * 0.9).toFixed(2)}px, 0) rotate(${(x * 1.25).toFixed(2)}deg) scaleY(${(1 - y * 0.006).toFixed(4)})`;
+    ui.headGaze.style.transform = `translate3d(${(x * 3.8).toFixed(2)}px, ${(y * 4.8).toFixed(2)}px, 0) rotate(${(x * 2.3).toFixed(2)}deg) scaleY(${(1 - y * 0.016).toFixed(4)})`;
+    ui.root.dataset.gazeX = x.toFixed(3);
+    ui.root.dataset.gazeY = y.toFixed(3);
+  }
+
+  function animateGaze(at) {
+    if (!ui.root) return;
+    const elapsed = gazeMotion.lastAt ? Math.min(0.04, Math.max(0.001, (at - gazeMotion.lastAt) / 1000)) : 0.016;
+    gazeMotion.lastAt = at;
+    let target = { x: 0, y: 0 };
+    if (gazePointer && !gazeIsSuppressed()) {
+      target = gazeTargetForPoint(gazePointer.x, gazePointer.y, ui.root.getBoundingClientRect());
+    }
+    const stiffness = 52;
+    const drag = Math.exp(-12 * elapsed);
+    gazeMotion.vx = (gazeMotion.vx + (target.x - gazeMotion.x) * stiffness * elapsed) * drag;
+    gazeMotion.vy = (gazeMotion.vy + (target.y - gazeMotion.y) * stiffness * elapsed) * drag;
+    gazeMotion.x += gazeMotion.vx * elapsed;
+    gazeMotion.y += gazeMotion.vy * elapsed;
+    if (Math.abs(target.x - gazeMotion.x) < 0.0005 && Math.abs(gazeMotion.vx) < 0.002) {
+      gazeMotion.x = target.x;
+      gazeMotion.vx = 0;
+    }
+    if (Math.abs(target.y - gazeMotion.y) < 0.0005 && Math.abs(gazeMotion.vy) < 0.002) {
+      gazeMotion.y = target.y;
+      gazeMotion.vy = 0;
+    }
+    renderGaze();
+    gazeFrame = window.requestAnimationFrame(animateGaze);
+  }
+
+  function startGazeTracking() {
+    if (gazeFrame) return;
+    gazeMotion.lastAt = 0;
+    gazeFrame = window.requestAnimationFrame(animateGaze);
   }
 
   function hideBubble(immediate) {
@@ -544,6 +595,13 @@
     ui.root.addEventListener('pointerleave', onLeave);
     ui.root.addEventListener('click', onClick);
     ui.root.addEventListener('contextmenu', openConsole);
+    document.addEventListener('pointermove', (ev) => {
+      gazePointer = { x: ev.clientX, y: ev.clientY };
+    }, { passive: true });
+    document.addEventListener('pointerout', (ev) => {
+      if (!ev.relatedTarget) gazePointer = null;
+    });
+    window.addEventListener('blur', () => { gazePointer = null; });
     ui.root.addEventListener('pointerdown', (ev) => {
       if (ev.button !== 0) return;
       const r = ui.root.getBoundingClientRect();
@@ -726,6 +784,8 @@
     bubble.hidden = true;
     const body = document.createElement('div');
     body.className = 'gaia-pet-body';
+    const bodyGaze = document.createElement('div');
+    bodyGaze.className = 'gaia-pet-body-gaze';
     const halfbody = document.createElement('img');
     halfbody.className = 'gaia-pet-halfbody';
     halfbody.draggable = false;
@@ -737,6 +797,8 @@
     halfbody.src = PART_IMG + 'body.png';
     const headRig = document.createElement('div');
     headRig.className = 'gaia-pet-head-rig';
+    const headGaze = document.createElement('div');
+    headGaze.className = 'gaia-pet-head-gaze';
     const head = document.createElement('img');
     head.className = 'gaia-pet-head';
     head.src = PART_IMG + 'head.png';
@@ -757,10 +819,12 @@
     zzz.textContent = 'Zzz';
     zzz.hidden = true;
     headRig.append(head, face, blinkFace);
-    body.append(halfbody, headRig);
-    root.append(bubble, body, zzz);
+    headGaze.append(headRig);
+    body.append(halfbody, headGaze);
+    bodyGaze.append(body);
+    root.append(bubble, bodyGaze, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, body, halfbody, headRig, head, face, blinkFace, zzz };
+    ui = { root, bubble, bodyGaze, body, halfbody, headGaze, headRig, head, face, blinkFace, zzz };
     buildConsole();
   }
 
@@ -793,6 +857,7 @@
     updateConsole();
     window.setInterval(tick, 500);
     scheduleBlink();
+    startGazeTracking();
   }
 
   function init() {

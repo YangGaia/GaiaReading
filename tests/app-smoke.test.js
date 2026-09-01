@@ -26,6 +26,9 @@ test('项目关键文件齐全', () => {
   for (const frame of ['pet_drowse_early.png', 'pet_drowse_peak.png', 'pet_drowse_return.png']) {
     assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少困倦点头动作帧 ${frame}`);
   }
+  for (const direction of ['left', 'right', 'up', 'down']) {
+    assert.ok(main.includes(`capture('pet_gaze_${direction}.png')`), `截图验收缺少鼠标跟随方向 ${direction}`);
+  }
   for (const f of [
     'src/preload.js',
     'src/shared/bookmarks.js',

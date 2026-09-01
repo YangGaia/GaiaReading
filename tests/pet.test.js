@@ -21,6 +21,7 @@ const {
   lineFor,
   pick,
   pickIdleExpression,
+  gazeTargetForPoint,
 } = pet;
 
 test('初始大脑为待机状态', () => {
@@ -31,6 +32,16 @@ test('初始大脑为待机状态', () => {
     pokeCount: 0,
     lastPokeAt: 0,
   });
+});
+
+test('鼠标注视方向包含脸部中心静止区与四向幅度限制', () => {
+  const rect = { left: 100, top: 100, width: 150, height: 270 };
+  assert.deepStrictEqual(gazeTargetForPoint(175, 181, rect), { x: 0, y: 0 });
+  assert.deepStrictEqual(gazeTargetForPoint(190, 195, rect), { x: 0, y: 0 });
+  assert.deepStrictEqual(gazeTargetForPoint(-300, 181, rect), { x: -1, y: 0 });
+  assert.deepStrictEqual(gazeTargetForPoint(650, 181, rect), { x: 1, y: 0 });
+  assert.deepStrictEqual(gazeTargetForPoint(175, -200, rect), { x: 0, y: -1 });
+  assert.deepStrictEqual(gazeTargetForPoint(175, 600, rect), { x: 0, y: 1 });
 });
 
 test('滑过、离开和唤醒使用各自的表情池', () => {
@@ -170,6 +181,11 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes('saved.autoSleep'), '控制台应能关闭自动睡觉');
   assert.ok(renderer.includes("PART_IMG + 'body.png'"), '桌宠身体应使用挖空头部的分层素材');
   assert.ok(renderer.includes("PART_IMG + 'head.png'"), '桌宠应加载独立头部素材');
+  assert.ok(renderer.includes('gaia-pet-body-gaze'), '桌宠应有不干扰呼吸动画的身体注视层');
+  assert.ok(renderer.includes('gaia-pet-head-gaze'), '桌宠应有不干扰表情动作的头部注视层');
+  assert.ok(renderer.includes('window.requestAnimationFrame(animateGaze)'), '鼠标跟随应逐帧平滑更新');
+  assert.ok(renderer.includes('brain.state === PET_STATES.SLEEPING'), '睡觉时应暂停鼠标跟随');
+  assert.ok(renderer.includes("ui.body.classList.contains('no-breathe')"), '专用动作播放时应暂停鼠标跟随');
   assert.ok(renderer.includes('gaia-pet-blink-face'), '眨眼应使用闭眼脸部贴片');
   assert.ok(!renderer.includes("lid.className = 'gaia-pet-lid'"), '不应继续使用会产生黑线的矩形眼皮');
   assert.ok(renderer.includes("playPerformance('thinking'"), '思考应有专用动画');
@@ -194,6 +210,8 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(!renderer.includes("['stretch', '伸懒腰']"), '不应保留失败的伸懒腰入口');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
+  assert.ok(css.includes('.gaia-pet-body-gaze'), '缺少身体跟随层样式');
+  assert.ok(css.includes('.gaia-pet-head-gaze'), '缺少头部跟随层样式');
   assert.ok(css.includes('@keyframes pet-sleep-breathe'), '缺少睡眠呼吸动画');
   assert.ok(css.includes('@keyframes pet-head-drowse'), '缺少困倦点头的头部动画');
   assert.ok(css.includes('52%, 66% { transform: translateY(7px) rotate(1.8deg) scaleY(0.955); }'), '困倦动作应有明显的缓慢低头停顿');
@@ -220,6 +238,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes('petStatus.yawnTextVisible === true'), '冒烟测试应验证打哈欠文字已显示');
   assert.ok(main.includes('petStatus.drowseStarted === true'), '冒烟测试应验证困倦低头和闭眼阶段');
   assert.ok(main.includes('petStatus.drowseCleared === true'), '冒烟测试应验证困倦动作恢复半睁眼');
+  assert.ok(main.includes('petStatus.gazeDirections === true'), '冒烟测试应验证鼠标上下左右跟随');
 });
 
 test('头身分层完整挖空头部活动区，仅在颈部保留窄幅重叠', () => {
