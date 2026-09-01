@@ -99,7 +99,7 @@
     ui.lid.style.width = lidW + 'px';
     ui.lid.style.height = lidH + 'px';
     ui.lid.style.left = Math.round(faceLeft + (faceW - lidW) / 2) + 'px';
-    ui.lid.style.top = Math.round(faceTop + faceH * 0.38 - lidH / 2) + 'px';
+    ui.lid.style.top = Math.round(faceTop + faceH * 0.33 - lidH / 2) + 'px';
   }
 
   function showBubble(text) {
