@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""烘焙桌宠九方向注视试验帧。
+"""烘焙桌宠正中、左看、右看三方向试验帧。
 
 这不是把整张立绘平移、旋转或压扁，而是在原始像素上分别处理脸部透视、
 眼神、内侧头发、颈肩线与披风上半部。所有位移在区域边缘平滑归零，帽子
@@ -16,19 +16,10 @@ from scipy.ndimage import map_coordinates
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "renderer" / "images" / "pet" / "parts" / "full.png"
 OUTPUT = ROOT / "docs" / "pet-direction-pilot"
-HEAD_BOX = (88, 0, 268, 235)
-HEAD_BOTTOM_OVERLAP = 12
-MAX_PITCH_DEGREES = 9.0
 DIRECTIONS = {
-    "up-left": (-0.82, -0.82),
-    "up": (0.0, -1.0),
-    "up-right": (0.82, -0.82),
-    "left": (-1.0, 0.0),
-    "center": (0.0, 0.0),
-    "right": (1.0, 0.0),
-    "down-left": (-0.82, 0.82),
-    "down": (0.0, 1.0),
-    "down-right": (0.82, 0.82),
+    "left": -1.0,
+    "center": 0.0,
+    "right": 1.0,
 }
 
 
@@ -138,124 +129,6 @@ def make_horizontal_look(source, horizontal):
     return warp_rgba_premultiplied(source, dx, dy)
 
 
-def head_depth_map(width, height):
-    """构造头部正面深度：鼻面最前，外发和帽子更靠后，颈根为旋转轴。"""
-    yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
-    outer_head = soft_ellipse(xx, yy, 90.0, 116.0, 92.0, 132.0, 0.8)
-    face = soft_ellipse(xx, yy, 90.0, 166.0, 55.0, 75.0, 1.0)
-    nose_plane = soft_ellipse(xx, yy, 90.0, 175.0, 28.0, 40.0, 1.25)
-    depth = 13.0 * outer_head + 34.0 * face + 11.0 * nose_plane
-    # 下巴与颌线必须作为统一浅层转动；禁止鼻面中心深度把下巴拉成尖锥。
-    jaw_blend = np.clip((yy - 196.0) / 20.0, 0.0, 1.0)
-    jaw_blend = jaw_blend * jaw_blend * (3.0 - 2.0 * jaw_blend)
-    rigid_jaw_depth = np.full_like(depth, 12.0)
-    depth = depth * (1.0 - jaw_blend) + rigid_jaw_depth * jaw_blend
-    # 颈部最后 24px 平滑回到零，保证与衣领的固定轴不分离。
-    neck_falloff = np.clip((224.0 - yy) / 24.0, 0.0, 1.0)
-    depth *= neck_falloff
-    return depth
-
-
-def render_head_pitch(head, angle_degrees):
-    """依据头部深度绕衣领处水平轴旋转，而非液化五官。"""
-    rgba = np.asarray(head.convert("RGBA"), dtype=np.float32) / 255.0
-    alpha = rgba[:, :, 3:4]
-    premultiplied = np.concatenate((rgba[:, :, :3] * alpha, alpha), axis=2)
-    height, width = rgba.shape[:2]
-    yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
-    depth = head_depth_map(width, height)
-    pivot_y = 224.0
-    angle = np.deg2rad(angle_degrees)
-    sin_angle = np.sin(angle)
-    cos_angle = np.cos(angle)
-
-    # 反解旋转后的纵坐标；迭代深度使脸、外发和帽子遵守同一空间旋转。
-    source_y = yy.copy()
-    for _ in range(5):
-        sampled_depth = map_coordinates(depth, np.array([source_y, xx]), order=1, mode="nearest")
-        source_y = pivot_y + (yy - pivot_y + sin_angle * sampled_depth) / cos_angle
-    source_y = np.clip(source_y, 0, height - 1)
-    coords = np.array([source_y, xx])
-
-    warped = np.empty_like(premultiplied)
-    for channel in range(4):
-        warped[:, :, channel] = map_coordinates(
-            premultiplied[:, :, channel], coords, order=3, mode="constant", cval=0.0, prefilter=True
-        )
-    warped = np.clip(warped, 0.0, 1.0)
-    out_alpha = warped[:, :, 3:4]
-    out_rgb = np.divide(
-        warped[:, :, :3], out_alpha, out=np.zeros_like(warped[:, :, :3]), where=out_alpha > 1e-5
-    )
-    out = np.concatenate((np.clip(out_rgb, 0.0, 1.0), out_alpha), axis=2)
-    quantized = np.rint(out * 255.0).astype(np.uint8)
-    quantized[quantized[:, :, 3] == 0, :3] = 0
-    return Image.fromarray(quantized, "RGBA")
-
-
-def round_chin_for_pitch(head):
-    """补绘俯仰专用圆弧颌线，避免原图末端两像素尖角被姿态放大。"""
-    pixels = np.asarray(head.convert("RGBA")).copy()
-    rgb = pixels[:, :, :3].astype(np.int16)
-    alpha = pixels[:, :, 3]
-    skin = (
-        (rgb[:, :, 0] > 170)
-        & (rgb[:, :, 1] > 110)
-        & (rgb[:, :, 2] > 70)
-        & (rgb[:, :, 0] >= rgb[:, :, 1])
-        & (rgb[:, :, 1] >= rgb[:, :, 2])
-        & ((rgb[:, :, 0] - rgb[:, :, 2]) > 30)
-        & (alpha > 40)
-    )
-    lower_y, lower_x = np.where(skin & (np.indices(skin.shape)[0] >= 198))
-    if lower_y.size == 0:
-        return head
-    bottom = int(lower_y.max())
-    center = int(round(float(np.median(lower_x[lower_y >= bottom - 10]))))
-    # 从上到下逐渐圆收；只补像素，不削掉原有面部。
-    half_widths = (17, 15, 13, 11, 8, 5, 2)
-    first_y = bottom - len(half_widths) + 1
-    for index, half_width in enumerate(half_widths):
-        y = first_y + index
-        existing = np.where(skin[y])[0]
-        if existing.size == 0:
-            continue
-        for x in range(max(0, center - half_width), min(head.width, center + half_width + 1)):
-            if skin[y, x]:
-                continue
-            nearest = int(existing[np.argmin(np.abs(existing - x))])
-            pixels[y, x] = pixels[y, nearest]
-    return Image.fromarray(pixels, "RGBA")
-
-
-def add_pitched_head(frame, vertical):
-    """挖掉原头部并放回绕颈根旋转后的完整头层。"""
-    if vertical == 0:
-        return frame
-    x0, y0, x1, y1 = HEAD_BOX
-    head = frame.crop(HEAD_BOX).convert("RGBA")
-    head_pixels = np.asarray(head).copy()
-    for y in range(head.height - HEAD_BOTTOM_OVERLAP, head.height):
-        fade = (head.height - y) / HEAD_BOTTOM_OVERLAP
-        head_pixels[y, :, 3] = np.rint(head_pixels[y, :, 3].astype(np.float32) * fade).astype(np.uint8)
-    head = round_chin_for_pitch(Image.fromarray(head_pixels, "RGBA"))
-
-    body_pixels = np.asarray(frame).copy()
-    body_pixels[y0 : y1 - HEAD_BOTTOM_OVERLAP, x0:x1, 3] = 0
-    body = Image.fromarray(body_pixels, "RGBA")
-    # vertical=-1 表示向上看，对应绕水平轴的正角度。
-    pitched = render_head_pitch(head, -vertical * MAX_PITCH_DEGREES)
-    body.alpha_composite(pitched, (x0, y0))
-    result = np.asarray(body).copy()
-    result[result[:, :, 3] == 0, :3] = 0
-    return Image.fromarray(result, "RGBA")
-
-
-def make_look(source, horizontal, vertical):
-    horizontal_frame = make_horizontal_look(source, horizontal)
-    return add_pitched_head(horizontal_frame, vertical)
-
-
 def checkerboard(size, cell=12):
     width, height = size
     yy, xx = np.mgrid[0:height, 0:width]
@@ -294,12 +167,8 @@ def make_detail_comparison(center, left):
 
 
 def make_direction_grid(frames, detail=False):
-    """生成九宫格总览；detail 模式放大脸、颈部和肩线。"""
-    order = (
-        ("up-left", "up", "up-right"),
-        ("left", "center", "right"),
-        ("down-left", "down", "down-right"),
-    )
+    """生成左、正中、右三方向总览；detail 模式放大脸、颈部和肩线。"""
+    order = ("left", "center", "right")
     margin, gap, label_height = 20, 18, 28
     if detail:
         crop_box = (92, 92, 264, 330)
@@ -311,23 +180,22 @@ def make_direction_grid(frames, detail=False):
         cell_frames = frames
     cell_width, cell_height = next(iter(cell_frames.values())).size
     width = margin * 2 + cell_width * 3 + gap * 2
-    height = margin * 2 + (cell_height + label_height) * 3 + gap * 2
+    height = margin * 2 + cell_height + label_height
     canvas = checkerboard((width, height))
     draw = ImageDraw.Draw(canvas)
-    for row, names in enumerate(order):
-        for column, name in enumerate(names):
-            x = margin + column * (cell_width + gap)
-            y = margin + row * (cell_height + label_height + gap)
-            draw.text((x, y + 6), name.upper(), fill=(224, 228, 238, 255))
-            canvas.alpha_composite(cell_frames[name], (x, y + label_height))
+    for column, name in enumerate(order):
+        x = margin + column * (cell_width + gap)
+        y = margin
+        draw.text((x, y + 6), name.upper(), fill=(224, 228, 238, 255))
+        canvas.alpha_composite(cell_frames[name], (x, y + label_height))
     return canvas
 
 
 def main():
     source = Image.open(SOURCE).convert("RGBA")
     frames = {
-        name: source.copy() if name == "center" else make_look(source, horizontal, vertical)
-        for name, (horizontal, vertical) in DIRECTIONS.items()
+        name: source.copy() if name == "center" else make_horizontal_look(source, horizontal)
+        for name, horizontal in DIRECTIONS.items()
     }
     OUTPUT.mkdir(parents=True, exist_ok=True)
     for name, frame in frames.items():
@@ -337,7 +205,7 @@ def main():
     make_detail_comparison(source, frames["left"]).save(OUTPUT / "pilot-detail-3x.png")
     make_direction_grid(frames).save(OUTPUT / "pilot-directions-grid.png")
     make_direction_grid(frames, detail=True).save(OUTPUT / "pilot-directions-detail.png")
-    print(f"saved {len(frames)} direction frames to {OUTPUT}")
+    print(f"saved {len(frames)} horizontal direction frames to {OUTPUT}")
 
 
 if __name__ == "__main__":

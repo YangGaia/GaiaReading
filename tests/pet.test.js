@@ -2,7 +2,6 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const pet = require('../src/shared/pet');
@@ -269,16 +268,8 @@ test('鼠标转向试验帧采用局部语义变形并保留透明边缘', () =>
   assert.ok(script.includes('for eye_x in (151.0, 204.0)'), '双眼应拥有比头部更早的视线偏移');
   assert.ok(script.includes('desired_shift = 4.6 * horizontal'), '脸部偏转必须达到肉眼可辨识的幅度');
   assert.ok(script.includes('move_x=1.75 * horizontal'), '眼神应明显领先脸部转向');
-  assert.ok(script.includes('head_depth_map'), '上下方向应建立帽子、脸面和鼻口的头部深度');
-  assert.ok(script.includes('rigid_jaw_depth'), '下巴与颌线必须使用统一刚性深度，避免俯仰时变尖');
-  assert.ok(script.includes('depth * (1.0 - jaw_blend) + rigid_jaw_depth * jaw_blend'), '鼻面深度必须在颌线前平滑退出');
-  assert.ok(script.includes('round_chin_for_pitch'), '俯仰专用头层必须补绘圆弧颌线');
-  assert.ok(script.includes('half_widths = (17, 15, 13, 11, 8, 5, 2)'), '下巴轮廓应逐行平滑圆收而非骤缩成尖角');
-  assert.ok(script.includes('render_head_pitch'), '上下方向应绕水平轴旋转完整头层');
-  assert.ok(script.includes('pivot_y = 224.0'), '抬头低头必须以衣领附近作为固定旋转轴');
-  assert.ok(script.includes('MAX_PITCH_DEGREES = 9.0'), '头部俯仰应达到肉眼可辨识的角度');
-  assert.ok(!script.includes('face_pitch_shift'), '上下俯仰不应再通过移动五官模拟');
-  assert.ok(!script.includes('vertical_scale'), '上下俯仰不应压扁或拉长脸部和身体');
+  assert.ok(!script.includes('head_depth_map'), '只保留左右看时不应残留失败的头部俯仰逻辑');
+  assert.ok(!script.includes('render_head_pitch'), '只保留左右看时不应生成上下方向素材');
   assert.ok(script.includes('add_body_yaw'), '身体应使用绕竖轴的局部透视，而不是整体倾斜');
   assert.ok(script.includes('right_move = 0.9 * horizontal - 0.55 * abs(horizontal)'), '远侧肩线应有可辨识的透视内收');
   assert.ok(!script.includes('left_shoulder, move_y=') && !script.includes('right_shoulder, move_y='), '身体转向不应制造高低肩');
@@ -287,20 +278,21 @@ test('鼠标转向试验帧采用局部语义变形并保留透明边缘', () =>
   assert.ok(!script.includes('Image.AFFINE'), '试验帧不应使用整图仿射变形');
 });
 
-test('鼠标九方向试验输出齐全、尺寸正确且均非原图副本', () => {
+test('鼠标左右看试验输出齐全、尺寸正确且均非原图副本', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'parts', 'full.png'));
   const center = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', 'pilot-center.png'));
   const pngSize = (buffer) => ({ width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) });
-  const directions = ['up-left', 'up', 'up-right', 'left', 'right', 'down-left', 'down', 'down-right'];
-  const hashes = new Set();
+  const directions = ['left', 'right'];
+  const generatedDirectionFiles = fs.readdirSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot'))
+    .filter((name) => /^pilot-look-.*\.png$/.test(name))
+    .sort();
+  assert.deepStrictEqual(generatedDirectionFiles, ['pilot-look-left.png', 'pilot-look-right.png'], '只能保留左右看素材');
   assert.deepStrictEqual(center, source, '正中帧必须保持原始立绘不变');
   for (const direction of directions) {
     const pilot = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', `pilot-look-${direction}.png`));
     assert.deepStrictEqual(pngSize(pilot), pngSize(source), `${direction} 帧尺寸应与原图一致`);
     assert.notDeepStrictEqual(pilot, source, `${direction} 帧不能只是原始帧的副本`);
-    hashes.add(crypto.createHash('sha256').update(pilot).digest('hex'));
   }
-  assert.strictEqual(hashes.size, directions.length, '八个转向帧必须各自拥有独立画面');
-  assert.ok(fs.existsSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', 'pilot-directions-grid.png')), '缺少九宫格全身预览');
-  assert.ok(fs.existsSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', 'pilot-directions-detail.png')), '缺少九宫格局部预览');
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', 'pilot-directions-grid.png')), '缺少左右看全身预览');
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', 'pilot-directions-detail.png')), '缺少左右看局部预览');
 });
