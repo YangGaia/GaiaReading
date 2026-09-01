@@ -25,6 +25,8 @@
   let ui = {};
   let loaded = false;
   let errorSkip = false;
+  let currentView = 'home';
+  let settingsOpen = false;
 
   function srcFor(track) {
     return 'bgm://local/' + encodeURIComponent(track.file);
@@ -122,9 +124,15 @@
 
   function positionBgm(name) {
     if (!ui.root) return;
-    ui.root.dataset.view = name || 'home';
-    ui.root.hidden = name === 'splash';
-    const topbarSelector = name === 'reader' ? '#reader-view .topbar' : (name === 'library' ? '#library-view .topbar' : null);
+    currentView = name || 'home';
+    ui.root.dataset.view = currentView;
+    ui.root.hidden = currentView === 'splash';
+    if (settingsOpen && currentView !== 'splash') {
+      ui.root.classList.remove('in-topbar');
+      if (ui.root.parentElement !== document.body) document.body.appendChild(ui.root);
+      return;
+    }
+    const topbarSelector = currentView === 'reader' ? '#reader-view .topbar' : (currentView === 'library' ? '#library-view .topbar' : null);
     const topbar = topbarSelector ? document.querySelector(topbarSelector) : null;
     if (topbar) {
       ui.root.classList.add('in-topbar');
@@ -133,6 +141,14 @@
       ui.root.classList.remove('in-topbar');
       if (ui.root.parentElement !== document.body) document.body.appendChild(ui.root);
     }
+  }
+
+  /** 设置抽屉打开时把胶囊移到抽屉左侧，关闭后恢复到当前视图原位。 */
+  function setSettingsOpen(open) {
+    settingsOpen = !!open;
+    if (!ui.root) return;
+    ui.root.dataset.settingsOpen = settingsOpen ? '1' : '0';
+    positionBgm(currentView);
   }
 
   function mkBtn(text, tip) {
@@ -149,6 +165,7 @@
     root.className = 'bgm-capsule';
     root.dataset.view = 'home';
     root.dataset.playing = '0';
+    root.dataset.settingsOpen = '0';
 
     const cover = document.createElement('img');
     cover.className = 'bgm-cover';
@@ -239,6 +256,7 @@
   return {
     initBgm,
     positionBgm,
+    setSettingsOpen,
     toggle,
     next,
     setVolume,

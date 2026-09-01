@@ -384,11 +384,13 @@ function openSettings() {
   els.drawerFuncs.hidden = !inReader;
   els.drawerSpread.hidden = !inReader;
   if (inReader) updateSettingsValues();
+  if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(true);
   els.settingsOverlay.hidden = false;
 }
 
 function closeSettings() {
   els.settingsOverlay.hidden = true;
+  if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(false);
 }
 
 function isSettingsOpen() {
