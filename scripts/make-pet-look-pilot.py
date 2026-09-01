@@ -41,6 +41,16 @@ def add_face_yaw(dx, xx, yy):
     dx += inverse_offset * region
 
 
+def add_body_yaw(dx, xx, yy):
+    """让披风上半部绕竖轴微转，而不是让两侧肩膀一高一低。"""
+    cx, cy = 178.0, 316.0
+    region = soft_ellipse(xx, yy, cx, cy, 174.0, 142.0, 1.1)
+    desired_shift = -1.55
+    horizontal_scale = 0.982
+    inverse_offset = (xx - cx - desired_shift) / horizontal_scale - (xx - cx)
+    dx += inverse_offset * region
+
+
 def warp_rgba_premultiplied(image, dx, dy):
     """用预乘 Alpha 进行三次插值，避免透明边缘出现黑线。"""
     rgba = np.asarray(image.convert("RGBA"), dtype=np.float32) / 255.0
@@ -90,17 +100,18 @@ def make_left_look(source):
     inner_hair = soft_ellipse(xx, yy, 178.0, 125.0, 50.0, 36.0, 1.7)
     add_shift(dx, dy, xx, yy, inner_hair, move_x=-1.0)
 
-    # 颈部和披风上半部跟随左转；位移在腰部前完全衰减。
+    # 颈部、衣领与披风上半部跟随左转；位移在腰部前完全衰减。
     neck = soft_ellipse(xx, yy, 178.0, 238.0, 48.0, 42.0, 1.2)
     add_shift(dx, dy, xx, yy, neck, move_x=-2.1)
-    upper_body = soft_ellipse(xx, yy, 178.0, 315.0, 170.0, 128.0, 1.55)
-    add_shift(dx, dy, xx, yy, upper_body, move_x=-1.3)
+    collar_and_pendants = soft_ellipse(xx, yy, 178.0, 272.0, 92.0, 70.0, 1.3)
+    add_shift(dx, dy, xx, yy, collar_and_pendants, move_x=-1.35)
+    add_body_yaw(dx, xx, yy)
 
-    # 两侧肩线做相反的亚像素升降，给出身体绕竖轴微转的感觉。
+    # 远侧肩膀向内收，近侧肩膀只跟随半步；不再制造高低肩。
     left_shoulder = soft_ellipse(xx, yy, 91.0, 278.0, 73.0, 52.0, 1.45)
     right_shoulder = soft_ellipse(xx, yy, 263.0, 278.0, 73.0, 52.0, 1.45)
-    add_shift(dx, dy, xx, yy, left_shoulder, move_y=1.15)
-    add_shift(dx, dy, xx, yy, right_shoulder, move_y=-1.15)
+    add_shift(dx, dy, xx, yy, left_shoulder, move_x=-0.35)
+    add_shift(dx, dy, xx, yy, right_shoulder, move_x=-1.45)
 
     return warp_rgba_premultiplied(source, dx, dy)
 
