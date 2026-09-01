@@ -83,8 +83,8 @@
   let dragOffset = { x: 0, y: 0 };
   let gazePointer = null;
   let gazeFrame = 0;
+  let displayedGazeFrame = 4;
   const gazeMotion = { x: 0, y: 0, vx: 0, vy: 0, lastAt: 0 };
-  const faceMotion = { x: 0, y: 0, vx: 0, vy: 0 };
 
   function save() {
     window.api.stateSet('pet', {
@@ -149,20 +149,17 @@
     const framesReady = ui.gazeFrames && ui.gazeFrames.every((frame) => frame.complete && frame.naturalWidth);
     const active = framesReady && !gazeIsSuppressed();
     const x = active ? Math.max(-1, Math.min(1, gazeMotion.x)) : 0;
-    const faceX = active ? faceMotion.x : 0;
     const framePosition = (x + 1) * 4;
-    const lowerFrame = Math.floor(framePosition);
-    const upperFrame = Math.ceil(framePosition);
-    const blend = framePosition - lowerFrame;
+    if (!active) displayedGazeFrame = 4;
+    while (displayedGazeFrame < 8 && framePosition >= displayedGazeFrame + 0.6) displayedGazeFrame += 1;
+    while (displayedGazeFrame > 0 && framePosition <= displayedGazeFrame - 0.6) displayedGazeFrame -= 1;
     ui.gazeFrames.forEach((frame, index) => {
-      let opacity = 0;
-      if (active && index === lowerFrame) opacity = 1 - blend;
-      if (active && index === upperFrame) opacity = Math.max(opacity, blend || 1);
-      frame.style.opacity = opacity.toFixed(3);
+      frame.style.opacity = active && index === displayedGazeFrame ? '1' : '0';
     });
     const baseOpacity = active ? '0' : '1';
     ui.halfbody.style.opacity = baseOpacity;
     ui.head.style.opacity = baseOpacity;
+    const faceX = active ? (displayedGazeFrame - 4) / 4 : 0;
     const faceScaleX = 1 - Math.abs(faceX) * 0.045;
     const faceTurn = `translate3d(${(faceX * 1.9).toFixed(2)}px, 0, 0) scaleX(${faceScaleX.toFixed(4)}) skewY(${(faceX * -0.28).toFixed(2)}deg)`;
     ui.face.style.transformOrigin = `${(50 - faceX * 6).toFixed(2)}% 50%`;
@@ -171,7 +168,7 @@
     ui.blinkFace.style.transform = faceTurn;
     ui.root.dataset.gazeX = x.toFixed(3);
     ui.root.dataset.gazeY = '0.000';
-    ui.root.dataset.gazeFrame = String(Math.round(framePosition));
+    ui.root.dataset.gazeFrame = String(displayedGazeFrame);
   }
 
   function springToward(motion, target, stiffness, damping, elapsed) {
@@ -198,7 +195,6 @@
     if (gazePointer && !gazeIsSuppressed()) {
       target = gazeTargetForPoint(gazePointer.x, gazePointer.y, ui.root.getBoundingClientRect());
     }
-    springToward(faceMotion, target, 76, 16, elapsed);
     springToward(gazeMotion, target, 38, 11, elapsed);
     renderGaze();
     gazeFrame = window.requestAnimationFrame(animateGaze);

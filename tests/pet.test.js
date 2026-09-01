@@ -185,13 +185,14 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes('gaia-pet-head-gaze'), '桌宠应有不干扰表情动作的头部注视层');
   assert.ok(renderer.includes('window.requestAnimationFrame(animateGaze)'), '鼠标跟随应逐帧平滑更新');
   assert.ok(renderer.includes("'look-m100.png'") && renderer.includes("'look-p100.png'"), '左右注视应使用烘焙方向帧');
-  assert.ok(renderer.includes('framePosition = (x + 1) * 4'), '左右动画应在九张水平帧间连续插值');
+  assert.ok(renderer.includes('framePosition = (x + 1) * 4'), '左右动画应按弹簧位置推进九张水平帧');
+  assert.ok(renderer.includes('framePosition >= displayedGazeFrame + 0.6'), '序列帧切换应带迟滞，避免边界来回闪动');
+  assert.ok(renderer.includes("index === displayedGazeFrame ? '1' : '0'"), '任意时刻只能显示一张完整人物帧');
   assert.ok(renderer.includes("ui.root.dataset.gazeY = '0.000'"), '鼠标跟随必须取消上下方向');
   assert.ok(!renderer.includes('perspective(520px) rotateY'), '不应继续使用 CSS 透视扭曲头部');
-  assert.ok(renderer.includes('springToward(faceMotion, target, 76, 16'), '面部应先于头部看向鼠标');
   assert.ok(renderer.includes('springToward(gazeMotion, target, 38, 11'), '头部应克制地慢半拍跟随面部');
   assert.ok(renderer.includes('ui.face.style.transform = faceTurn'), '面部五官应在头发内部产生视差');
-  assert.ok(renderer.includes('ui.gazeFrames.forEach'), '方向帧应通过逐帧透明度平滑混合');
+  assert.ok(renderer.includes('ui.gazeFrames.forEach'), '方向帧应按弹簧位置逐张播放');
   assert.ok(!renderer.includes('x * 3.8'), '不应继续把整颗头平移到鼠标方向');
   assert.ok(renderer.includes('brain.state === PET_STATES.SLEEPING'), '睡觉时应暂停鼠标跟随');
   assert.ok(renderer.includes("ui.body.classList.contains('no-breathe')"), '专用动作播放时应暂停鼠标跟随');

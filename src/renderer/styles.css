@@ -339,7 +339,6 @@ body.eye {
   pointer-events: none;
   transform-origin: 50% 30%;
   will-change: transform;
-  transition: opacity 0.1s linear;
 }
 .gaia-pet-gaze-sprites {
   position: absolute;
@@ -378,7 +377,6 @@ body.eye {
   position: absolute;
   height: auto;
   pointer-events: none;
-  transition: opacity 0.1s linear;
 }
 .gaia-pet-face {
   position: absolute;
