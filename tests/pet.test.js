@@ -182,10 +182,13 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("playPerformance('peek'"), '自动偷看应有专用动画');
   assert.ok(renderer.includes("applyExpression('倾听')"), '自动倾听动作应匹配倾听表情');
   assert.ok(renderer.includes("playPerformance('listen'"), '自动倾听应有专用动画');
-  assert.ok(renderer.includes("['stretch', '伸懒腰']"), '控制台应提供伸懒腰动作');
-  assert.ok(renderer.includes("playPerformance('stretch'"), '伸懒腰应使用头、身体和手臂协同的专用动画');
-  assert.ok(renderer.includes("PART_IMG + 'stretch-left-arm.png'"), '伸懒腰应加载独立左手臂素材');
-  assert.ok(renderer.includes("PART_IMG + 'stretch-right-arm.png'"), '伸懒腰应加载独立右手臂素材');
+  assert.ok(renderer.includes("['yawn', '打哈欠']"), '控制台应提供打哈欠动作');
+  assert.ok(renderer.includes("playPerformance('yawn'"), '打哈欠应使用头和身体协同的专用动画');
+  assert.ok(renderer.includes("{ at: 260, expression: '打哈欠' }"), '打哈欠张嘴表情应与动作阶段同步');
+  assert.ok(renderer.includes("hideBubble(true);\n      applyExpression('眼睛微张')"), '打哈欠开始前应清除上一条气泡');
+  assert.ok(renderer.includes("showBubble(lineFor('yawn'), 1300)"), '打哈欠张嘴阶段应显示与动作同步收尾的文字');
+  assert.ok(renderer.includes("resetActivity(now);\n    transientUntil = 0;\n    triggerAction(name, true)"), '手动动作不应被上一段临时状态的收尾计时中断');
+  assert.ok(!renderer.includes("['stretch', '伸懒腰']"), '不应保留失败的伸懒腰入口');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
   assert.ok(css.includes('@keyframes pet-sleep-breathe'), '缺少睡眠呼吸动画');
@@ -199,13 +202,17 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(css.includes('@keyframes pet-head-shy'), '缺少害羞头部动画');
   assert.ok(css.includes('@keyframes pet-head-angry'), '缺少生气头部动画');
   assert.ok(css.includes('@keyframes pet-head-wake'), '缺少分层唤醒动画');
-  assert.ok(css.includes('@keyframes pet-left-arm-stretch'), '缺少伸懒腰左手臂动画');
-  assert.ok(css.includes('@keyframes pet-right-arm-stretch'), '缺少伸懒腰右手臂动画');
+  assert.ok(css.includes('@keyframes pet-head-yawn'), '缺少打哈欠头部动画');
+  assert.ok(css.includes('@keyframes pet-body-yawn'), '缺少打哈欠身体呼吸动画');
+  assert.ok(!css.includes('pet-left-arm-stretch'), '不应保留失败的伸懒腰手臂动画');
   assert.ok(css.includes('42% { transform: translateY(0) rotate(-0.5deg) scaleY(1.018); }'), '唤醒峰值时头部不应相对衣领继续上移并产生缝隙');
   assert.ok(!css.includes('.gaia-pet-lid'), '矩形眼皮样式应彻底移除');
   assert.ok(app.includes('window.GaiaPet.init().then(updatePetUI)'), '桌宠初始化后应同步设置开关文字');
   assert.ok(main.includes('petStatus.headCutoutClean === true'), '冒烟测试应逐像素验证身体层没有旧头部残影');
-  assert.ok(main.includes('petStatus.stretchStarted === true'), '冒烟测试应验证双手臂伸展动画已启动');
+  assert.ok(main.includes("petRoot.style.pointerEvents = 'none'"), '桌宠冒烟测试应隔离真实鼠标输入');
+  assert.ok(!main.includes("new PointerEvent('pointerenter', { clientX: 0, clientY: 0 })"), '睡眠冒烟测试不应受真实鼠标进入事件干扰');
+  assert.ok(main.includes('petStatus.yawnStarted === true'), '冒烟测试应验证打哈欠动画已启动');
+  assert.ok(main.includes('petStatus.yawnTextVisible === true'), '冒烟测试应验证打哈欠文字已显示');
 });
 
 test('头身分层完整挖空头部活动区，仅在颈部保留窄幅重叠', () => {
@@ -216,9 +223,9 @@ test('头身分层完整挖空头部活动区，仅在颈部保留窄幅重叠',
   assert.ok(!script.includes('d = min('), '不应在旧头部四周保留残影羽化环');
 });
 
-test('伸懒腰素材生成器分别处理手臂提取和原位置修补', () => {
-  const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'make-pet-stretch-parts.py'), 'utf8');
-  assert.ok(script.includes('ARM_POLYGONS'), '缺少左右手臂提取遮罩');
-  assert.ok(script.includes('REPAIR_POLYGONS'), '缺少手臂原位置修补遮罩');
-  assert.ok(script.includes('f"stretch-{name}-arm.png"'), '生成器没有按左右手臂名称输出素材');
+test('打哈欠专用表情只替换闭眼脸部的嘴型区域', () => {
+  const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'make-pet-yawn-face.py'), 'utf8');
+  assert.ok(script.includes('叹气.png'), '打哈欠表情应以闭眼脸部为基础');
+  assert.ok(script.includes('严肃说话.png'), '打哈欠表情应采用清晰的圆口嘴型');
+  assert.ok(script.includes('ellipse((55, 70, 79, 99)'), '嘴型合成范围应限制在脸部下半区');
 });

@@ -50,9 +50,9 @@
     sheet: { w: 356, h: 647 },
   };
   const HEAD = { x: 88, y: 0, w: 180, h: 235 };
-  const ACTION_CLASSES = ['poke', 'drop', 'perk', 'recoil', 'shiver', 'stretch', 'lean', 'drowse', 'wake'];
-  const PERFORMANCE_CLASSES = ['performance-tilt', 'performance-thinking', 'performance-peek', 'performance-listen', 'performance-shy', 'performance-angry', 'performance-bored', 'performance-drowse', 'performance-wake', 'performance-stretch'];
-  const ACTION_MS = { poke: 350, tilt: 1100, drop: 400, perk: 500, recoil: 360, shiver: 420, stretch: 1400, lean: 600, drowse: 1100, wake: 900 };
+  const ACTION_CLASSES = ['poke', 'drop', 'perk', 'recoil', 'shiver', 'lean', 'drowse', 'wake'];
+  const PERFORMANCE_CLASSES = ['performance-tilt', 'performance-thinking', 'performance-peek', 'performance-listen', 'performance-shy', 'performance-angry', 'performance-bored', 'performance-drowse', 'performance-wake', 'performance-yawn'];
+  const ACTION_MS = { poke: 350, tilt: 1100, drop: 400, perk: 500, recoil: 360, shiver: 420, yawn: 1700, lean: 600, drowse: 1100, wake: 900 };
   const STATE_LABELS = {
     idle: '待机', hover: '注视', poke: '被戳', bored: '无聊', sleepy: '困倦',
     sleeping: '睡觉', wake: '唤醒', manual: '手动',
@@ -142,7 +142,7 @@
     }, 180);
   }
 
-  function showBubble(text) {
+  function showBubble(text, duration) {
     if (!ui.bubble || !text) return;
     window.clearTimeout(bubbleTimer);
     ui.bubble.textContent = text;
@@ -150,7 +150,7 @@
     ui.bubble.classList.remove('show');
     void ui.bubble.offsetWidth;
     ui.bubble.classList.add('show');
-    bubbleTimer = window.setTimeout(() => hideBubble(false), 2600);
+    bubbleTimer = window.setTimeout(() => hideBubble(false), duration || 2600);
   }
 
   function clearActions() {
@@ -176,7 +176,7 @@
   }
 
   function playPerformance(name, duration, stages) {
-    if (!ui.body || !ui.headRig) return;
+    if (!ui.body || !ui.headRig) return null;
     const token = ++effectVersion;
     const cls = 'performance-' + name;
     clearActions();
@@ -194,6 +194,7 @@
       ui.body.classList.remove(cls, 'no-breathe');
       ui.headRig.classList.remove(cls);
     }, duration);
+    return token;
   }
 
   function triggerBlink() {
@@ -211,7 +212,7 @@
     }, 2600 + Math.random() * 2600);
   }
 
-  function triggerAction(name) {
+  function triggerAction(name, manual) {
     if (name === 'blink') {
       triggerBlink();
       return;
@@ -221,9 +222,17 @@
       playPerformance('tilt', ACTION_MS.tilt);
       return;
     }
-    if (name === 'stretch') {
-      applyExpression('安心');
-      playPerformance('stretch', ACTION_MS.stretch, [{ at: 1080, expression: '日常表情' }]);
+    if (name === 'yawn') {
+      hideBubble(true);
+      applyExpression('眼睛微张');
+      const token = playPerformance('yawn', ACTION_MS.yawn, [
+        { at: 260, expression: '打哈欠' },
+        { at: 1180, expression: '安心' },
+        { at: 1480, expression: '日常表情' },
+      ]);
+      window.setTimeout(() => {
+        if (token === effectVersion && (manual || saved.autoSpeech)) showBubble(lineFor('yawn'), 1300);
+      }, 280);
       return;
     }
     if (name === 'sleep') return;
@@ -231,7 +240,7 @@
   }
 
   function idlePerformance() {
-    const performance = pick(['thinking', 'peek', 'listen', 'stretch']);
+    const performance = pick(['thinking', 'peek', 'listen', 'yawn']);
     if (performance === 'thinking') {
       applyExpression('思考');
       playPerformance('thinking', 1200);
@@ -242,8 +251,7 @@
       applyExpression('倾听');
       playPerformance('listen', 700);
     } else {
-      applyExpression('日常表情');
-      triggerAction('stretch');
+      triggerAction('yawn', false);
     }
   }
 
@@ -498,7 +506,8 @@
     const now = Date.now();
     if (brain.state === PET_STATES.SLEEPING) wakeUp(now);
     resetActivity(now);
-    triggerAction(name);
+    transientUntil = 0;
+    triggerAction(name, true);
   }
 
   function toggleEmotionLock() {
@@ -639,7 +648,7 @@
     actionTitle.textContent = '单独动作';
     const actions = document.createElement('div');
     actions.className = 'gaia-pet-console-grid actions';
-    for (const item of [['tilt', '歪头'], ['perk', '一怔'], ['recoil', '回弹'], ['shiver', '发抖'], ['stretch', '伸懒腰'], ['blink', '眨眼']]) {
+    for (const item of [['tilt', '歪头'], ['perk', '一怔'], ['recoil', '回弹'], ['shiver', '发抖'], ['yawn', '打哈欠'], ['blink', '眨眼']]) {
       const button = makeButton(item[1]);
       button.dataset.action = item[0];
       button.addEventListener('click', () => runManualAction(item[0]));
@@ -718,21 +727,6 @@
       clampPosition();
     });
     halfbody.src = PART_IMG + 'body.png';
-    const stretchBody = document.createElement('img');
-    stretchBody.className = 'gaia-pet-stretch-body';
-    stretchBody.src = PART_IMG + 'stretch-body.png';
-    stretchBody.draggable = false;
-    stretchBody.alt = '';
-    const leftArm = document.createElement('img');
-    leftArm.className = 'gaia-pet-arm gaia-pet-arm-left';
-    leftArm.src = PART_IMG + 'stretch-left-arm.png';
-    leftArm.draggable = false;
-    leftArm.alt = '';
-    const rightArm = document.createElement('img');
-    rightArm.className = 'gaia-pet-arm gaia-pet-arm-right';
-    rightArm.src = PART_IMG + 'stretch-right-arm.png';
-    rightArm.draggable = false;
-    rightArm.alt = '';
     const headRig = document.createElement('div');
     headRig.className = 'gaia-pet-head-rig';
     const head = document.createElement('img');
@@ -755,10 +749,10 @@
     zzz.textContent = 'Zzz';
     zzz.hidden = true;
     headRig.append(head, face, blinkFace);
-    body.append(halfbody, leftArm, rightArm, stretchBody, headRig);
+    body.append(halfbody, headRig);
     root.append(bubble, body, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, body, halfbody, stretchBody, leftArm, rightArm, headRig, head, face, blinkFace, zzz };
+    ui = { root, bubble, body, halfbody, headRig, head, face, blinkFace, zzz };
     buildConsole();
   }
 

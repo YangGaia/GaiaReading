@@ -449,12 +449,8 @@ function createWindow() {
             const petBodyLayer = document.querySelector('.gaia-pet-halfbody');
             const petHeadLayer = document.querySelector('.gaia-pet-head');
             const petHeadRig = document.querySelector('.gaia-pet-head-rig');
-            const petStretchBody = document.querySelector('.gaia-pet-stretch-body');
-            const petLeftArm = document.querySelector('.gaia-pet-arm-left');
-            const petRightArm = document.querySelector('.gaia-pet-arm-right');
             const blinkFace = document.querySelector('.gaia-pet-blink-face');
             const layeredPet = !!petBodyLayer && petBodyLayer.src.endsWith('/parts/body.png') && !!petHeadLayer && petHeadLayer.src.endsWith('/parts/head.png') && !!petHeadRig && petHeadRig.offsetHeight > 0;
-            const stretchArms = !!petStretchBody && petStretchBody.src.endsWith('/parts/stretch-body.png') && !!petLeftArm && petLeftArm.src.endsWith('/parts/stretch-left-arm.png') && !!petRightArm && petRightArm.src.endsWith('/parts/stretch-right-arm.png');
             if (petBodyLayer && (!petBodyLayer.complete || !petBodyLayer.naturalWidth)) {
               await new Promise((resolve) => {
                 petBodyLayer.addEventListener('load', resolve, { once: true });
@@ -475,15 +471,14 @@ function createWindow() {
               }
             }
             const oldLidRemoved = !document.querySelector('.gaia-pet-lid');
+            const petRoot = document.getElementById('gaia-pet');
+            petRoot.style.pointerEvents = 'none';
             GaiaPet.runEmotion('sleeping');
-            await new Promise((resolve) => setTimeout(resolve, 80));
             const sleeping = GaiaPet.getBrain().state === 'sleeping';
             const sleepExpression = document.querySelector('.gaia-pet-face').dataset.exp;
             const sleepAnimation = document.querySelector('.gaia-pet-body').classList.contains('sleeping');
             const sleepHeadPose = petHeadRig.classList.contains('sleeping');
             const zzzVisible = !document.querySelector('.gaia-pet-zzz').hidden;
-            const petRoot = document.getElementById('gaia-pet');
-            petRoot.dispatchEvent(new PointerEvent('pointerenter', { clientX: 0, clientY: 0 }));
             petRoot.dispatchEvent(new MouseEvent('click', { clientX: 0, clientY: 0 }));
             const firstClickOnlyWakes = GaiaPet.getBrain().state === 'wake';
             GaiaPet.runEmotion('wake');
@@ -498,12 +493,16 @@ function createWindow() {
             const bodyAfterAction = document.querySelector('.gaia-pet-body');
             const actionCleared = !petHeadRig.classList.contains('performance-tilt') && !bodyAfterAction.classList.contains('no-breathe');
             const breathingRestored = getComputedStyle(bodyAfterAction).animationName === 'pet-breathe';
-            GaiaPet.runAction('stretch');
-            const stretchStarted = petHeadRig.classList.contains('performance-stretch') &&
-              getComputedStyle(petLeftArm).animationName === 'pet-left-arm-stretch' &&
-              getComputedStyle(petRightArm).animationName === 'pet-right-arm-stretch';
-            await new Promise((resolve) => setTimeout(resolve, 1460));
-            const stretchCleared = !petHeadRig.classList.contains('performance-stretch') && !bodyAfterAction.classList.contains('no-breathe');
+            GaiaPet.runAction('yawn');
+            await new Promise((resolve) => setTimeout(resolve, 340));
+            const yawnHeadActive = petHeadRig.classList.contains('performance-yawn');
+            const yawnBodyAnimation = getComputedStyle(bodyAfterAction).animationName;
+            const yawnExpression = document.querySelector('.gaia-pet-face').dataset.exp;
+            const yawnStarted = yawnHeadActive && yawnBodyAnimation === 'pet-body-yawn' && yawnExpression === '打哈欠';
+            const yawnBubble = document.querySelector('.gaia-pet-bubble');
+            const yawnTextVisible = yawnBubble.classList.contains('show') && yawnBubble.textContent.length > 0;
+            await new Promise((resolve) => setTimeout(resolve, 1420));
+            const yawnCleared = !petHeadRig.classList.contains('performance-yawn') && !bodyAfterAction.classList.contains('no-breathe');
             GaiaPet.runEmotion('angry');
             const angryPerformanceStarted = petHeadRig.classList.contains('performance-angry') && document.querySelector('.gaia-pet-face').dataset.exp === '冷脸';
             await new Promise((resolve) => setTimeout(resolve, 230));
@@ -513,7 +512,7 @@ function createWindow() {
             GaiaPet.runAction('blink');
             const spriteBlinkStarted = !!blinkFace && blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, stretchArms, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, stretchStarted, stretchCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted };
+            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -521,7 +520,6 @@ function createWindow() {
             petStatus.emotionButtons === 8 &&
             petStatus.actionButtons === 6 &&
             petStatus.layeredPet === true &&
-            petStatus.stretchArms === true &&
             petStatus.headCutoutClean === true &&
             petStatus.oldLidRemoved === true &&
             petStatus.sleeping === true &&
@@ -537,8 +535,9 @@ function createWindow() {
             petStatus.actionStarted === true &&
             petStatus.actionCleared === true &&
             petStatus.breathingRestored === true &&
-            petStatus.stretchStarted === true &&
-            petStatus.stretchCleared === true &&
+            petStatus.yawnStarted === true &&
+            petStatus.yawnTextVisible === true &&
+            petStatus.yawnCleared === true &&
             petStatus.angryPerformanceStarted === true &&
             petStatus.angryExpressionMatched === true &&
             petStatus.angryPerformanceCleared === true &&
@@ -589,14 +588,14 @@ function createWindow() {
         await wait(390);
         await capture('pet_tilt_return.png');
         await wait(270);
-        await mainWindow.webContents.executeJavaScript("GaiaPet.runAction('stretch')");
+        await mainWindow.webContents.executeJavaScript("GaiaPet.runAction('yawn')");
         await wait(260);
-        await capture('pet_stretch_early.png');
+        await capture('pet_yawn_early.png');
         await wait(420);
-        await capture('pet_stretch_peak.png');
+        await capture('pet_yawn_peak.png');
         await wait(500);
-        await capture('pet_stretch_return.png');
-        await wait(260);
+        await capture('pet_yawn_return.png');
+        await wait(560);
         await mainWindow.webContents.executeJavaScript("__gaiaDebug.showView('library')");
         await wait(900);
         await capture('bookshelf.png');

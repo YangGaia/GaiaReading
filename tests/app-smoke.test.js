@@ -20,8 +20,8 @@ test('项目关键文件齐全', () => {
     assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少歪头动作帧 ${frame}`);
   }
   assert.ok(main.includes("capture('pet_wake_peak.png')"), '截图验收应包含唤醒动作峰值帧');
-  for (const frame of ['pet_stretch_early.png', 'pet_stretch_peak.png', 'pet_stretch_return.png']) {
-    assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少伸懒腰动作帧 ${frame}`);
+  for (const frame of ['pet_yawn_early.png', 'pet_yawn_peak.png', 'pet_yawn_return.png']) {
+    assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少打哈欠动作帧 ${frame}`);
   }
   for (const f of [
     'src/preload.js',
@@ -58,12 +58,9 @@ test('桌宠素材与映射表完整', () => {
   }
   const mapping = JSON.parse(fs.readFileSync(path.join(petDir, 'pet-expressions.json'), 'utf8'));
   assert.strictEqual(Object.keys(mapping.cells).length, 21, '映射表条目数不为 21');
-  const partsDir = path.join(petDir, 'parts');
-  for (const name of ['stretch-body.png', 'stretch-left-arm.png', 'stretch-right-arm.png']) {
-    const file = path.join(partsDir, name);
-    assert.ok(fs.existsSync(file), `缺少伸懒腰分层素材 ${name}`);
-    assert.ok(fs.statSync(file).size > 3000, `伸懒腰分层素材异常 ${name}`);
-  }
+  const yawnFace = path.join(petDir, 'faces', '打哈欠.png');
+  assert.ok(fs.existsSync(yawnFace), '缺少打哈欠专用表情贴片');
+  assert.ok(fs.statSync(yawnFace).size > 10000, '打哈欠专用表情贴片异常');
 });
 
 test('版本号为 0.5.1 且界面同步', () => {
