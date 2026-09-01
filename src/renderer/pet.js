@@ -60,24 +60,18 @@
     });
   }
 
-  /** 切换表情：短暂淡出后换图淡入。 */
+  /** 切换表情：始终不透明、加载完成直接换图，避免淡出露出半身照原脸的阴影。 */
   function applyExpression(name, instant) {
     if (!ui.face || !name) return;
     const file = FACE_IMG + encodeURIComponent(name + '.png');
     if (ui.face.dataset.exp === name) return;
     ui.face.dataset.exp = name;
-    if (instant) {
+    const img = new Image();
+    img.onload = () => {
       ui.face.src = file;
       ui.face.style.opacity = '1';
-      return;
-    }
-    ui.face.style.opacity = '0';
-    window.setTimeout(() => {
-      ui.face.src = file;
-      ui.face.onload = () => {
-        ui.face.style.opacity = '1';
-      };
-    }, 150);
+    };
+    img.src = file;
   }
 
   /** 表情层布局：把表情格的脸中心对齐到半身照的脸中心，按宽度等比缩放。 */
