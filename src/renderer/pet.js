@@ -94,12 +94,12 @@
     const faceTop = (hbCy - tile.cy) * s;
     const faceW = tile.w * s;
     const faceH = tile.h * s;
-    const lidW = Math.round(faceW * 0.5);
+    const lidW = Math.round(faceW * 0.46);
     const lidH = Math.max(2, Math.round(5 * s));
     ui.lid.style.width = lidW + 'px';
     ui.lid.style.height = lidH + 'px';
     ui.lid.style.left = Math.round(faceLeft + (faceW - lidW) / 2) + 'px';
-    ui.lid.style.top = Math.round(faceTop + faceH * 0.44 - lidH / 2) + 'px';
+    ui.lid.style.top = Math.round(faceTop + faceH * 0.38 - lidH / 2) + 'px';
   }
 
   function showBubble(text) {
