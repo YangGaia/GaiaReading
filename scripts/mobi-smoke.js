@@ -50,6 +50,7 @@
       prevIdx = curIdx;
       prevScroll = curScroll;
     }
+    const wheelsAfterNav = __gaiaDebug.countBoundWheels();
     // 书签内容锚点：长章节加书签 → 改行距重排 → 回章首再跳回，应回到同一段
     await __gaiaDebug.addBookmark();
     await new Promise((r) => setTimeout(r, 400));
@@ -88,7 +89,7 @@
     const habitTheme = __gaiaDebug.getTheme();
     const habitSpread = __gaiaDebug.getSpreadMode();
     const habitOk = habitTheme === 'eye' && habitSpread === true;
-    return JSON.stringify({ status, contentLen, chapters, tocCount, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, moved, crossed, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
+    return JSON.stringify({ status, contentLen, chapters, tocCount, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, moved, crossed, wheelsAfterNav, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
   } catch (e) {
     console.error('MOBI_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';

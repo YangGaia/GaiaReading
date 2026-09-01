@@ -469,6 +469,7 @@ async function openEpub(book) {
     applyReaderStyles(contents);
     bindReaderKeyboard(contents.document || contents.window);
   });
+  rendition.on('rendered', () => bindEpubWheel());
 
   applyEpubTypography();
   const saved = state.progress[book.path];
@@ -476,8 +477,7 @@ async function openEpub(book) {
   state.current.locationsDone = false;
   updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(2) + '%');
   await rendition.display(saved && saved.loc ? saved.loc : undefined);
-  const epubFrame = els.readerContent.querySelector('iframe');
-  if (epubFrame && epubFrame.contentWindow) bindReaderWheel(epubFrame.contentWindow);
+  bindEpubWheel();
   if (state.readMode === 'spread') {
     try { rendition.spread('auto', 700); } catch (e) {}
   }
@@ -878,6 +878,15 @@ function bindReaderKeyboard(target) {
 function bindReaderWheel(target) {
   if (!target || target.__gaiaWheelBound) return;
   try { target.addEventListener('wheel', onReaderWheel, { passive: false }); target.__gaiaWheelBound = true; } catch (e) {}
+}
+
+function bindEpubWheel() {
+  if (!state.current || !state.current.rendition) return;
+  const frames = els.readerContent.querySelectorAll('iframe');
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    if (frame.contentWindow) bindReaderWheel(frame.contentWindow);
+  }
 }
 
 function bindReaderInputs(target) {
@@ -1624,6 +1633,18 @@ window.__gaiaDebug = {
   removeBookmarkAt,
   togglePanel,
   toggleSpread,
+  countBoundWheels: () => {
+    let n = 0;
+    const frames = els.readerContent.querySelectorAll('iframe');
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i];
+      if (
+        (f.contentWindow && f.contentWindow.__gaiaWheelBound) ||
+        (f.contentDocument && f.contentDocument.__gaiaWheelBound)
+      ) n += 1;
+    }
+    return n;
+  },
   getSpreadMode: () => state.readMode === 'spread',
   getReadMode: () => state.readMode,
   setMode: (mode) => {
