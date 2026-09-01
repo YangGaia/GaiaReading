@@ -12,6 +12,8 @@ const {
 const { paragraphsToHtml } = window.GaiaTxtHtml;
 const { splitTxtParagraphs, detectTxtChapters, chapterTitleForParagraph } = window.GaiaTxtChapters;
 const { epubDisplayPercent } = window.GaiaEpubProgress;
+const { normalizeWheelDelta, createWheelGate } = window.GaiaReaderInput;
+const readerWheelGate = createWheelGate({ threshold: 60, cooldown: 250 });
 
 const FONTS = {
   default: '',
@@ -430,6 +432,7 @@ async function openBook(book) {
   if (state.manageMode) exitManageMode();
   closeSettings();
   closeReaderContent();
+  readerWheelGate.reset();
   showView('reader');
   els.readerTitle.textContent = book.title || book.path;
   els.tocPanel.hidden = true;
@@ -464,6 +467,7 @@ async function openEpub(book) {
   state.current.rendition = rendition;
   rendition.hooks.content.register((contents) => {
     applyReaderStyles(contents);
+    bindReaderKeyboard(contents.document || contents.window);
   });
 
   applyEpubTypography();
@@ -472,6 +476,8 @@ async function openEpub(book) {
   state.current.locationsDone = false;
   updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(2) + '%');
   await rendition.display(saved && saved.loc ? saved.loc : undefined);
+  const epubFrame = els.readerContent.querySelector('iframe');
+  if (epubFrame && epubFrame.contentWindow) bindReaderWheel(epubFrame.contentWindow);
   if (state.readMode === 'spread') {
     try { rendition.spread('auto', 700); } catch (e) {}
   }
@@ -666,6 +672,7 @@ async function loadMobiChapter(chapterIndex, opts) {
     if (c.paginator) {
       if (c.flow) c.flow.gotoChapter(clamped);
       await c.paginator.render(html, ch.cssText || '');
+      bindReaderInputs(c.paginator.doc);
       const total = c.paginator.totalPages || 1;
       if (c.flow) c.flow.setPages(clamped, total);
       c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
@@ -767,6 +774,7 @@ async function openTxt(book) {
   state.current.txtChapters = detectTxtChapters(paragraphs);
   const html = paragraphsToHtml(res.text) || '<p></p>';
   await state.current.paginator.render(html, '');
+  bindReaderInputs(state.current.paginator.doc);
   if (state.current.flow) state.current.flow.setPages(0, state.current.paginator.totalPages || 1);
   state.current.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
   const saved = state.progress[book.path];
@@ -829,6 +837,53 @@ function prevPage() {
       }
     }
   }
+}
+
+function isReaderTyping(target) {
+  if (!target) return false;
+  const tag = (target.tagName || '').toLowerCase();
+  return tag === 'input' || tag === 'select' || tag === 'textarea' || target.isContentEditable === true;
+}
+
+function onReaderKey(ev) {
+  if (ev.key === 'Escape') {
+    if (isSettingsOpen()) { ev.preventDefault(); closeSettings(); return; }
+    if (els.contextMenu && !els.contextMenu.hidden) { ev.preventDefault(); hideContextMenu(); return; }
+    if (!views.reader.hidden) { ev.preventDefault(); backToLibrary(); }
+    return;
+  }
+  if (isReaderTyping(ev.target)) return;
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  if (views.reader.hidden) return;
+  if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') { ev.preventDefault(); prevPage(); }
+  else if (ev.key === 'ArrowRight' || ev.key === 'PageDown') { ev.preventDefault(); nextPage(); }
+}
+
+function onReaderWheel(ev) {
+  if (views.reader.hidden) return;
+  if (isReaderTyping(ev.target)) return;
+  const d = normalizeWheelDelta(ev);
+  if (Math.abs(d) < 0.01) return;
+  ev.preventDefault();
+  const dir = readerWheelGate.feed(d, Date.now());
+  if (dir === 'next') nextPage();
+  else if (dir === 'prev') prevPage();
+}
+
+function bindReaderKeyboard(target) {
+  if (!target || target.__gaiaKeyBound) return;
+  try { target.addEventListener('keydown', onReaderKey); target.__gaiaKeyBound = true; } catch (e) {}
+}
+
+function bindReaderWheel(target) {
+  if (!target || target.__gaiaWheelBound) return;
+  try { target.addEventListener('wheel', onReaderWheel, { passive: false }); target.__gaiaWheelBound = true; } catch (e) {}
+}
+
+function bindReaderInputs(target) {
+  if (!target) return;
+  bindReaderKeyboard(target);
+  bindReaderWheel(target);
 }
 
 function adjustFont(delta) {
@@ -1494,15 +1549,7 @@ function bindEvents() {
   });
 
   $('btn-back').addEventListener('click', backToLibrary);
-  window.addEventListener('keydown', (ev) => {
-    const tag = (ev.target && ev.target.tagName || '').toLowerCase();
-    const typing = tag === 'input' || tag === 'select' || tag === 'textarea' || (ev.target && ev.target.isContentEditable);
-    if (typing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
-    if (views.reader.hidden) return;
-    if (ev.key === 'ArrowLeft') { ev.preventDefault(); prevPage(); }
-    else if (ev.key === 'ArrowRight') { ev.preventDefault(); nextPage(); }
-    else if (ev.key === 'Escape') { ev.preventDefault(); backToLibrary(); }
-  });
+
   $('btn-font-minus').addEventListener('click', () => adjustFont(-1));
   $('btn-font-plus').addEventListener('click', () => adjustFont(1));
   $('btn-line-height').addEventListener('click', cycleLineHeight);
@@ -1558,25 +1605,8 @@ function bindEvents() {
     if (!ev.target.closest('#context-menu')) hideContextMenu();
   });
 
-  document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape') {
-      if (isSettingsOpen()) {
-        closeSettings();
-        return;
-      }
-      hideContextMenu();
-      return;
-    }
-    const c = state.current;
-    if (!c) return;
-    if (ev.key === 'ArrowRight' || ev.key === 'PageDown') {
-      ev.preventDefault();
-      nextPage();
-    } else if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') {
-      ev.preventDefault();
-      prevPage();
-    }
-  });
+  bindReaderKeyboard(document);
+  bindReaderWheel(els.readerContent);
   window.addEventListener('resize', () => {
     const c = state.current;
     if (c && c.format === 'pdf') renderPdfPage();

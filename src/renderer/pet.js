@@ -36,6 +36,7 @@
   let saved = Object.assign({}, DEFAULT_STATE);
   let loaded = false;
   let bubbleTimer = null;
+  let blinkTimer = null;
   let animTimer = null;
   let lastIdleExp = Date.now();
   let speechSince = Date.now();
