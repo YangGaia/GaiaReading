@@ -30,7 +30,7 @@ for x in range(0, 6):
     a[:, -(x + 1), 3] = (a[:, -(x + 1), 3] * t).astype(np.uint8)
 Image.fromarray(a).save(os.path.join(OUT, 'head.png'))
 
-# 2) 身体: 挖空头部矩形, 边缘 16px 羽化
+# 2) 身体: 挖空头部矩形。边缘由外向内从不透明降至透明，避免留下旧头部残影。
 body = im.copy()
 a = np.array(body)
 x0, y0, x1, y1 = HEAD
@@ -41,6 +41,6 @@ for y in range(y0, min(y1 + 1, H)):
         if d >= pad:
             a[y, x, 3] = 0
         elif d >= 0:
-            a[y, x, 3] = (a[y, x, 3] * (d + 1) / (pad + 1)).astype(np.uint8)
+            a[y, x, 3] = np.uint8(int(a[y, x, 3]) * (pad - d) / (pad + 1))
 Image.fromarray(a).save(os.path.join(OUT, 'body.png'))
 print('head/body regenerated with wider feather')

@@ -198,3 +198,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(!css.includes('.gaia-pet-lid'), '矩形眼皮样式应彻底移除');
   assert.ok(app.includes('window.GaiaPet.init().then(updatePetUI)'), '桌宠初始化后应同步设置开关文字');
 });
+
+test('头身分层羽化由外向内减淡，避免歪头后留下旧位置残影', () => {
+  const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'make-pet-head-parts.py'), 'utf8');
+  assert.ok(script.includes('int(a[y, x, 3]) * (pad - d) / (pad + 1)'), '身体挖空羽化方向错误或存在 uint8 乘法溢出');
+  assert.ok(!script.includes('(d + 1) / (pad + 1)'), '不应保留由内向外增强的不透明残影环');
+});
