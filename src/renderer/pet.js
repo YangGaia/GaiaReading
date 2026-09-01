@@ -51,8 +51,8 @@
   };
   const HEAD = { x: 88, y: 0, w: 180, h: 235 };
   const ACTION_CLASSES = ['poke', 'drop', 'perk', 'recoil', 'shiver', 'stretch', 'lean', 'drowse', 'wake'];
-  const PERFORMANCE_CLASSES = ['performance-tilt', 'performance-thinking', 'performance-peek', 'performance-listen', 'performance-shy', 'performance-angry', 'performance-bored', 'performance-drowse', 'performance-wake'];
-  const ACTION_MS = { poke: 350, tilt: 1100, drop: 400, perk: 500, recoil: 360, shiver: 420, stretch: 820, lean: 600, drowse: 1100, wake: 900 };
+  const PERFORMANCE_CLASSES = ['performance-tilt', 'performance-thinking', 'performance-peek', 'performance-listen', 'performance-shy', 'performance-angry', 'performance-bored', 'performance-drowse', 'performance-wake', 'performance-stretch'];
+  const ACTION_MS = { poke: 350, tilt: 1100, drop: 400, perk: 500, recoil: 360, shiver: 420, stretch: 1400, lean: 600, drowse: 1100, wake: 900 };
   const STATE_LABELS = {
     idle: '待机', hover: '注视', poke: '被戳', bored: '无聊', sleepy: '困倦',
     sleeping: '睡觉', wake: '唤醒', manual: '手动',
@@ -219,6 +219,11 @@
     if (name === 'tilt') {
       applyExpression('倾听');
       playPerformance('tilt', ACTION_MS.tilt);
+      return;
+    }
+    if (name === 'stretch') {
+      applyExpression('安心');
+      playPerformance('stretch', ACTION_MS.stretch, [{ at: 1080, expression: '日常表情' }]);
       return;
     }
     if (name === 'sleep') return;
@@ -713,6 +718,21 @@
       clampPosition();
     });
     halfbody.src = PART_IMG + 'body.png';
+    const stretchBody = document.createElement('img');
+    stretchBody.className = 'gaia-pet-stretch-body';
+    stretchBody.src = PART_IMG + 'stretch-body.png';
+    stretchBody.draggable = false;
+    stretchBody.alt = '';
+    const leftArm = document.createElement('img');
+    leftArm.className = 'gaia-pet-arm gaia-pet-arm-left';
+    leftArm.src = PART_IMG + 'stretch-left-arm.png';
+    leftArm.draggable = false;
+    leftArm.alt = '';
+    const rightArm = document.createElement('img');
+    rightArm.className = 'gaia-pet-arm gaia-pet-arm-right';
+    rightArm.src = PART_IMG + 'stretch-right-arm.png';
+    rightArm.draggable = false;
+    rightArm.alt = '';
     const headRig = document.createElement('div');
     headRig.className = 'gaia-pet-head-rig';
     const head = document.createElement('img');
@@ -735,10 +755,10 @@
     zzz.textContent = 'Zzz';
     zzz.hidden = true;
     headRig.append(head, face, blinkFace);
-    body.append(halfbody, headRig);
+    body.append(halfbody, leftArm, rightArm, stretchBody, headRig);
     root.append(bubble, body, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, body, halfbody, headRig, head, face, blinkFace, zzz };
+    ui = { root, bubble, body, halfbody, stretchBody, leftArm, rightArm, headRig, head, face, blinkFace, zzz };
     buildConsole();
   }
 

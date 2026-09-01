@@ -182,7 +182,10 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("playPerformance('peek'"), '自动偷看应有专用动画');
   assert.ok(renderer.includes("applyExpression('倾听')"), '自动倾听动作应匹配倾听表情');
   assert.ok(renderer.includes("playPerformance('listen'"), '自动倾听应有专用动画');
-  assert.ok(renderer.includes("['stretch', '伸懒腰']"), '应保留原有伸懒腰动作');
+  assert.ok(renderer.includes("['stretch', '伸懒腰']"), '控制台应提供伸懒腰动作');
+  assert.ok(renderer.includes("playPerformance('stretch'"), '伸懒腰应使用头、身体和手臂协同的专用动画');
+  assert.ok(renderer.includes("PART_IMG + 'stretch-left-arm.png'"), '伸懒腰应加载独立左手臂素材');
+  assert.ok(renderer.includes("PART_IMG + 'stretch-right-arm.png'"), '伸懒腰应加载独立右手臂素材');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
   assert.ok(css.includes('@keyframes pet-sleep-breathe'), '缺少睡眠呼吸动画');
@@ -196,10 +199,13 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(css.includes('@keyframes pet-head-shy'), '缺少害羞头部动画');
   assert.ok(css.includes('@keyframes pet-head-angry'), '缺少生气头部动画');
   assert.ok(css.includes('@keyframes pet-head-wake'), '缺少分层唤醒动画');
+  assert.ok(css.includes('@keyframes pet-left-arm-stretch'), '缺少伸懒腰左手臂动画');
+  assert.ok(css.includes('@keyframes pet-right-arm-stretch'), '缺少伸懒腰右手臂动画');
   assert.ok(css.includes('42% { transform: translateY(0) rotate(-0.5deg) scaleY(1.018); }'), '唤醒峰值时头部不应相对衣领继续上移并产生缝隙');
   assert.ok(!css.includes('.gaia-pet-lid'), '矩形眼皮样式应彻底移除');
   assert.ok(app.includes('window.GaiaPet.init().then(updatePetUI)'), '桌宠初始化后应同步设置开关文字');
   assert.ok(main.includes('petStatus.headCutoutClean === true'), '冒烟测试应逐像素验证身体层没有旧头部残影');
+  assert.ok(main.includes('petStatus.stretchStarted === true'), '冒烟测试应验证双手臂伸展动画已启动');
 });
 
 test('头身分层完整挖空头部活动区，仅在颈部保留窄幅重叠', () => {
@@ -208,4 +214,11 @@ test('头身分层完整挖空头部活动区，仅在颈部保留窄幅重叠',
   assert.ok(script.includes('BOTTOM_OVERLAP = 12'), '颈部只应保留窄幅接缝重叠');
   assert.ok(script.includes('a[y0:min(y1 - BOTTOM_OVERLAP, H), x0:min(x1, W), 3] = 0'), '身体层的头部活动区域必须完全透明');
   assert.ok(!script.includes('d = min('), '不应在旧头部四周保留残影羽化环');
+});
+
+test('伸懒腰素材生成器分别处理手臂提取和原位置修补', () => {
+  const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'make-pet-stretch-parts.py'), 'utf8');
+  assert.ok(script.includes('ARM_POLYGONS'), '缺少左右手臂提取遮罩');
+  assert.ok(script.includes('REPAIR_POLYGONS'), '缺少手臂原位置修补遮罩');
+  assert.ok(script.includes('f"stretch-{name}-arm.png"'), '生成器没有按左右手臂名称输出素材');
 });
