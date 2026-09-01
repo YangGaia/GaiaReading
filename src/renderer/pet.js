@@ -89,15 +89,17 @@
     ui.face.style.height = Math.round(tile.h * s) + 'px';
     ui.face.style.left = Math.round((hbCx - tile.cx) * s) + 'px';
     ui.face.style.top = Math.round((hbCy - tile.cy) * s) + 'px';
-    // 眼皮(眨眼)遮罩: 覆盖表情层眼睛区域, 与脸部中心对齐
-    const exCy = ex.y + ex.h / 2;
-    const eyeY = ex.y + ex.h * 0.44;
-    const lidW = Math.round(ex.w * 0.72 * s);
-    const lidH = Math.round(10 * s);
+    // 眼皮(眨眼)遮罩: 以表情层实际渲染矩形为基准，水平居中、置于眼线处，压细避免"灰色火腿肠"
+    const faceLeft = (hbCx - tile.cx) * s;
+    const faceTop = (hbCy - tile.cy) * s;
+    const faceW = tile.w * s;
+    const faceH = tile.h * s;
+    const lidW = Math.round(faceW * 0.5);
+    const lidH = Math.max(2, Math.round(5 * s));
     ui.lid.style.width = lidW + 'px';
     ui.lid.style.height = lidH + 'px';
-    ui.lid.style.left = Math.round((hbCx - ex.w * 0.36) * s) + 'px';
-    ui.lid.style.top = Math.round((hbCy - (exCy - eyeY)) * s - lidH / 2) + 'px';
+    ui.lid.style.left = Math.round(faceLeft + (faceW - lidW) / 2) + 'px';
+    ui.lid.style.top = Math.round(faceTop + faceH * 0.44 - lidH / 2) + 'px';
   }
 
   function showBubble(text) {

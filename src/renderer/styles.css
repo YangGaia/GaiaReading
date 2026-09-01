@@ -401,8 +401,8 @@ body.eye {
 .gaia-pet-lid.blink { animation: pet-blink 0.28s ease; }
 @keyframes pet-blink {
   0% { opacity: 0; }
-  45% { opacity: 0.95; }
-  55% { opacity: 0.95; }
+  45% { opacity: 0.7; }
+  55% { opacity: 0.7; }
   100% { opacity: 0; }
 }
 .gaia-pet-body.tilt { animation: pet-tilt 0.7s ease; }
