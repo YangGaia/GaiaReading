@@ -1,7 +1,7 @@
 # Gaia Reading
 
 电子书阅读器，基于 Electron，支持 **EPUB / PDF / TXT / MOBI / AZW3** 五种格式，绿色免安装；内置《魔法使之夜》主题赛博桌宠「久远寺有珠」，阅读之余有她作伴。
-当前版本：**0.5.0**
+当前版本：**0.5.1**
 
 ## 功能亮点
 
@@ -63,7 +63,7 @@
 
 ### 方式一：绿色版 exe（推荐，无需安装环境）
 
-在 GitHub Releases 下载最新版 `Gaia Reading 0.5.0.exe`，双击即可运行，无需安装 Node.js。
+在 GitHub Releases 下载最新版 `Gaia Reading 0.5.1.exe`，双击即可运行，无需安装 Node.js。
 
 ### 方式二：源码运行
 
