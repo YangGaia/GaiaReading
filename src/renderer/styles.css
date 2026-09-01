@@ -437,12 +437,6 @@ body.eye {
   62% { opacity: 1; }
   100% { opacity: 0; }
 }
-.gaia-pet-body.tilt { animation: pet-tilt 0.7s ease; }
-@keyframes pet-tilt {
-  0%, 100% { transform: rotate(0deg); }
-  30% { transform: rotate(2.2deg) translateY(-2px); }
-  70% { transform: rotate(-1.6deg) translateY(1px); }
-}
 .gaia-pet-body.drop { animation: pet-drop 0.4s ease; }
 @keyframes pet-drop {
   0% { transform: scale(1.06, 0.94) translateY(4px); }
@@ -516,6 +510,21 @@ body.eye {
 }
 
 /* 情绪表演使用独立头部层，不再只对整张人物图做统一缩放。 */
+.gaia-pet-head-rig.performance-tilt { animation: pet-head-tilt 1.1s cubic-bezier(0.22, 0.75, 0.25, 1); }
+@keyframes pet-head-tilt {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  14% { transform: translate(-0.5px, -0.5px) rotate(-0.9deg); }
+  44% { transform: translate(1px, 1px) rotate(5.6deg); }
+  72% { transform: translate(1px, 1px) rotate(5.2deg); }
+  88% { transform: translate(0.3px, 0.4px) rotate(2deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+.gaia-pet-body.performance-tilt { animation: pet-body-tilt 1.1s ease; }
+@keyframes pet-body-tilt {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  42%, 72% { transform: translateX(-0.8px) rotate(-0.25deg); }
+}
+
 .gaia-pet-head-rig.performance-thinking { animation: pet-head-thinking 1.2s ease; }
 @keyframes pet-head-thinking {
   0%, 100% { transform: translateY(0) rotate(0deg); }

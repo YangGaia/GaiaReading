@@ -175,6 +175,8 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("playPerformance('shy'"), '害羞应有专用动画');
   assert.ok(renderer.includes("playPerformance('angry'"), '生气应有专用动画');
   assert.ok(renderer.includes("playPerformance('wake'"), '唤醒应有专用动画');
+  assert.ok(renderer.includes("playPerformance('tilt'"), '歪头应使用独立头部动画');
+  assert.ok(renderer.includes("applyExpression('倾听')"), '歪头应匹配倾听表情');
   assert.ok(renderer.includes("applyExpression('偷看')"), '自动偷看动作应匹配偷看表情');
   assert.ok(renderer.includes("playPerformance('peek'"), '自动偷看应有专用动画');
   assert.ok(renderer.includes("applyExpression('倾听')"), '自动倾听动作应匹配倾听表情');
@@ -187,6 +189,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(css.includes('@keyframes pet-wake'), '缺少唤醒动画');
   assert.ok(css.includes('@keyframes pet-eye-sprite-blink'), '眨眼应使用闭眼贴片动画');
   assert.ok(css.includes('@keyframes pet-head-thinking'), '缺少思考头部动画');
+  assert.ok(css.includes('@keyframes pet-head-tilt'), '缺少独立头部歪头动画');
+  assert.ok(css.includes('@keyframes pet-body-tilt'), '歪头时身体应进行反向平衡');
+  assert.ok(!css.includes('@keyframes pet-tilt'), '旧的整身摇摆歪头动画应移除');
   assert.ok(css.includes('@keyframes pet-head-shy'), '缺少害羞头部动画');
   assert.ok(css.includes('@keyframes pet-head-angry'), '缺少生气头部动画');
   assert.ok(css.includes('@keyframes pet-head-wake'), '缺少分层唤醒动画');

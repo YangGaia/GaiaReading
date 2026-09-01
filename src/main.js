@@ -470,10 +470,10 @@ function createWindow() {
             const sleepAnimationCleared = !document.querySelector('.gaia-pet-body').classList.contains('sleeping');
             const zzzHidden = document.querySelector('.gaia-pet-zzz').hidden;
             GaiaPet.runAction('tilt');
-            const actionStarted = document.querySelector('.gaia-pet-body').classList.contains('tilt');
-            await new Promise((resolve) => setTimeout(resolve, 760));
+            const actionStarted = petHeadRig.classList.contains('performance-tilt') && document.querySelector('.gaia-pet-face').dataset.exp === '倾听';
+            await new Promise((resolve) => setTimeout(resolve, 1160));
             const bodyAfterAction = document.querySelector('.gaia-pet-body');
-            const actionCleared = !bodyAfterAction.classList.contains('tilt') && !bodyAfterAction.classList.contains('no-breathe');
+            const actionCleared = !petHeadRig.classList.contains('performance-tilt') && !bodyAfterAction.classList.contains('no-breathe');
             const breathingRestored = getComputedStyle(bodyAfterAction).animationName === 'pet-breathe';
             GaiaPet.runEmotion('angry');
             const angryPerformanceStarted = petHeadRig.classList.contains('performance-angry') && document.querySelector('.gaia-pet-face').dataset.exp === '冷脸';
