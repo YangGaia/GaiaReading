@@ -1,7 +1,7 @@
 {
   "name": "gaia-reading",
   "version": "0.5.0",
-  "description": "电子书阅读器 Demo（Electron + epub.js）",
+  "description": "电子书阅读器（Electron + epub.js）",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
