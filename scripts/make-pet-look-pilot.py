@@ -10,13 +10,11 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import binary_closing, binary_fill_holes, distance_transform_edt, gaussian_filter, map_coordinates
+from scipy.ndimage import map_coordinates
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "renderer" / "images" / "pet" / "parts" / "full.png"
-DEFAULT_FACE = ROOT / "src" / "renderer" / "images" / "pet" / "faces" / "日常表情.png"
-FACE_BACKING = ROOT / "src" / "renderer" / "images" / "pet" / "parts" / "face-backing.png"
 OUTPUT = ROOT / "docs" / "pet-direction-pilot"
 GAZE_OUTPUT = ROOT / "src" / "renderer" / "images" / "pet" / "gaze"
 DIRECTIONS = {
@@ -143,55 +141,6 @@ def make_horizontal_look(source, horizontal):
     return warp_rgba_premultiplied(source, dx, dy)
 
 
-def make_featureless_face_backing(face):
-    """生成跟随贴片下方的补色层，移动时只露出肤色、发影和围巾纹理。"""
-    rgba = np.asarray(face.convert("RGBA"), dtype=np.float32)
-    height, width = rgba.shape[:2]
-    yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
-
-    # 只清除五官；头发、脸型边线和围巾完整保留，露边时不会出现矩形色块。
-    feature_core = np.zeros((height, width), dtype=bool)
-    for cx, cy, rx, ry in (
-        (35.0, 40.0, 20.0, 14.0),
-        (98.0, 40.0, 20.0, 14.0),
-        (67.0, 59.0, 10.0, 11.0),
-        (67.0, 82.0, 18.0, 8.0),
-    ):
-        feature_core |= ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 <= 1.0
-
-    rgb = rgba[:, :, :3]
-    alpha = rgba[:, :, 3]
-    face_region = ((xx - 67.0) / 50.0) ** 2 + ((yy - 60.0) / 52.0) ** 2 <= 1.0
-    skin = (
-        face_region
-        & (alpha > 245)
-        & (rgb[:, :, 0] > 175)
-        & (rgb[:, :, 1] > 135)
-        & (rgb[:, :, 2] > 110)
-        & ((rgb[:, :, 0] - rgb[:, :, 1]) < 72)
-    )
-    feather = gaussian_filter(feature_core.astype(np.float32), sigma=1.15)
-    blend_mask = np.maximum(feature_core.astype(np.float32), feather)
-    donors = skin & (blend_mask < 0.01)
-    if not np.any(donors):
-        raise RuntimeError("无法从默认脸贴片中取得肤色样本")
-
-    # 每个五官像素从最近的干净脸颊取色，再用 1–2 像素羽化融入周围肤色。
-    _, nearest = distance_transform_edt(~donors, return_indices=True)
-    sampled_skin = rgb[nearest[0], nearest[1]]
-    for channel in range(3):
-        sampled_skin[:, :, channel] = gaussian_filter(sampled_skin[:, :, channel], sigma=2.2)
-    skin_silhouette = binary_fill_holes(binary_closing(skin, structure=np.ones((7, 7), dtype=bool)))
-    blend = np.clip(blend_mask, 0.0, 1.0)[:, :, None]
-    paint_region = (skin_silhouette | (feature_core & (yy >= 30.0))) & face_region & (alpha > 0)
-    blend *= paint_region[:, :, None]
-    output = rgba.copy()
-    output[:, :, :3] = rgb * (1.0 - blend) + sampled_skin * blend
-    output = np.rint(np.clip(output, 0.0, 255.0)).astype(np.uint8)
-    output[output[:, :, 3] == 0, :3] = 0
-    return Image.fromarray(output, "RGBA")
-
-
 def checkerboard(size, cell=12):
     width, height = size
     yy, xx = np.mgrid[0:height, 0:width]
@@ -256,7 +205,6 @@ def make_direction_grid(frames, detail=False):
 
 def main():
     source = Image.open(SOURCE).convert("RGBA")
-    face_backing = make_featureless_face_backing(Image.open(DEFAULT_FACE).convert("RGBA"))
     frames = {
         name: source.copy() if name == "center" else make_horizontal_look(source, horizontal)
         for name, horizontal in DIRECTIONS.items()
@@ -273,8 +221,6 @@ def main():
     for filename, horizontal in GAZE_STEPS:
         frame = source.copy() if horizontal == 0 else make_horizontal_look(source, horizontal)
         frame.save(GAZE_OUTPUT / filename)
-    FACE_BACKING.parent.mkdir(parents=True, exist_ok=True)
-    face_backing.save(FACE_BACKING)
     print(f"saved {len(frames)} previews and {len(GAZE_STEPS)} animation frames")
 
 
