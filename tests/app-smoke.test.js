@@ -16,6 +16,7 @@ test('项目关键文件齐全', () => {
   assert.ok(pkg.scripts.smoke, '缺少 smoke 脚本');
   assert.ok(pkg.scripts['smoke:open'], '缺少 smoke:open 脚本');
   assert.ok(pkg.scripts.shot, '缺少 shot 截图脚本');
+  assert.ok(main.includes("capture('pet_console.png')"), '截图验收应包含有珠控制台界面');
   for (const frame of ['pet_tilt_early.png', 'pet_tilt_peak.png', 'pet_tilt_return.png']) {
     assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少歪头动作帧 ${frame}`);
   }
@@ -81,7 +82,7 @@ test('版本号为 0.5.2 且界面同步', () => {
 
 test('README 界面截图存在且已引用', () => {
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
-  const shots = ['PixPin_2026-09-01_20-10-31', 'PixPin_2026-09-01_20-10-44', 'PixPin_2026-09-01_20-10-57', 'PixPin_2026-09-01_20-11-17'];
+  const shots = ['pet_console_0.5.2', 'PixPin_2026-09-01_20-10-31', 'PixPin_2026-09-01_20-10-44', 'PixPin_2026-09-01_20-10-57', 'PixPin_2026-09-01_20-11-17'];
   for (const s of shots) {
     assert.ok(readme.includes('docs/screenshots/' + s + '.png'), 'README 缺少 ' + s + ' 截图引用');
     const f = path.join(root, 'docs', 'screenshots', s + '.png');

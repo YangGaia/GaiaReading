@@ -618,6 +618,16 @@ function createWindow() {
         await mainWindow.webContents.executeJavaScript('window.__gaiaDebug.waitHome()');
         await wait(1700);
         await capture('home.png');
+        await mainWindow.webContents.executeJavaScript(`(() => {
+          const pet = document.getElementById('gaia-pet');
+          const rect = pet.getBoundingClientRect();
+          pet.style.left = Math.round(innerWidth - rect.width - 48) + 'px';
+          pet.style.top = Math.round(Math.max(72, innerHeight * 0.34)) + 'px';
+          GaiaPet.openConsole();
+        })()`);
+        await wait(450);
+        await capture('pet_console.png');
+        await mainWindow.webContents.executeJavaScript('GaiaPet.closeConsole()');
         await mainWindow.webContents.executeJavaScript("GaiaPet.runEmotion('sleeping')");
         await wait(100);
         await mainWindow.webContents.executeJavaScript("GaiaPet.runEmotion('wake')");
