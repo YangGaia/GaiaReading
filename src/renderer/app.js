@@ -117,7 +117,7 @@ function showView(name) {
   fxCanvas.hidden = !(name === 'home' || name === 'library');
   if (name !== 'home' && name !== 'library') clearFx();
   if (window.GaiaBgm && window.GaiaBgm.positionBgm) window.GaiaBgm.positionBgm(name);
-  window.GaiaPet.init();
+  window.GaiaPet.init().then(updatePetUI);
 }
 
 function finishSplash() {
@@ -384,6 +384,7 @@ function openSettings() {
   els.drawerFuncs.hidden = !inReader;
   els.drawerSpread.hidden = !inReader;
   if (inReader) updateSettingsValues();
+  updatePetUI();
   if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(true);
   els.settingsOverlay.hidden = false;
 }

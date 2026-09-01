@@ -312,6 +312,7 @@ body.eye {
   z-index: 9000;
   width: 150px;
   cursor: grab;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
@@ -394,10 +395,6 @@ body.eye {
   animation: pet-zzz 2.2s ease-in-out infinite;
   pointer-events: none;
 }
-@keyframes pet-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.015, 0.988); }
-}
 @keyframes pet-poke {
   0% { transform: scale(1, 1); }
   30% { transform: scale(0.92, 1.06); }
@@ -443,6 +440,14 @@ body.eye {
   50% { transform: translateY(-2px) translateX(-2px) scale(1.006, 0.994); }
   75% { transform: translateY(-1px) translateX(1.5px) scale(1.01, 0.99); }
 }
+.gaia-pet-body.sleeping {
+  animation: pet-sleep-breathe 5.4s ease-in-out infinite;
+  transform-origin: 50% 82%;
+}
+@keyframes pet-sleep-breathe {
+  0%, 100% { transform: translateY(1px) rotate(0deg) scale(1, 0.995); }
+  50% { transform: translateY(4px) rotate(-0.7deg) scale(1.008, 0.982); }
+}
 
 /* 新增桌宠互动/待机动作: 一怔 / 缩回 / 发抖 / 伸懒腰 / 歪头 */
 .gaia-pet-body.perk { animation: pet-perk 0.5s ease; }
@@ -477,4 +482,117 @@ body.eye {
   0%, 100% { transform: rotate(0deg); }
   40% { transform: rotate(3deg); }
   70% { transform: rotate(-2deg); }
+}
+.gaia-pet-body.drowse { animation: pet-drowse 1.1s ease; }
+@keyframes pet-drowse {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  45% { transform: translateY(5px) rotate(-1.4deg) scaleY(0.985); }
+  72% { transform: translateY(3px) rotate(-0.8deg); }
+}
+.gaia-pet-body.wake { animation: pet-wake 0.9s ease; }
+@keyframes pet-wake {
+  0% { transform: translateY(4px) rotate(-0.7deg) scaleY(0.982); }
+  42% { transform: translateY(-5px) rotate(1deg) scaleY(1.035); }
+  72% { transform: translateY(1px) rotate(-0.4deg); }
+  100% { transform: translateY(0) rotate(0deg) scaleY(1); }
+}
+
+/* ===== 桌宠右键控制台 ===== */
+.gaia-pet-console {
+  position: fixed;
+  z-index: 9100;
+  width: 264px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: 12px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(16px);
+  user-select: none;
+}
+.gaia-pet-console[hidden] { display: none; }
+.gaia-pet-console-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+.gaia-pet-console-close {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-soft);
+  background: transparent;
+  font-size: 20px;
+  line-height: 24px;
+  cursor: pointer;
+}
+.gaia-pet-console-close:hover { color: var(--text); background: var(--accent-soft); }
+.gaia-pet-console-state {
+  margin: 5px 0 10px;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+.gaia-pet-console-label {
+  margin: 10px 0 6px;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.gaia-pet-console-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.gaia-pet-console-grid.actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.gaia-pet-console-button,
+.gaia-pet-console-lock {
+  min-height: 30px;
+  padding: 5px 4px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.gaia-pet-console-button:hover,
+.gaia-pet-console-lock:hover,
+.gaia-pet-console-lock.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.gaia-pet-console-toggle,
+.gaia-pet-console-select-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 31px;
+  font-size: 12px;
+}
+.gaia-pet-console-toggle input { accent-color: var(--accent); cursor: pointer; }
+.gaia-pet-console-select-row select {
+  max-width: 126px;
+  height: 27px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 11px;
+}
+.gaia-pet-console-lock { width: 100%; margin-top: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gaia-pet-body,
+  .gaia-pet-zzz,
+  .gaia-pet-lid { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }

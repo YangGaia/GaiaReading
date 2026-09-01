@@ -6,91 +6,120 @@ const fs = require('node:fs');
 const path = require('node:path');
 const pet = require('../src/shared/pet');
 
-const { PET_STATES, EVENTS, TIMERS, createBrain, decideState, timeoutState, lineFor, pick, idleExpressionDue, pickIdleExpression, speechDue, nextMood } = pet;
+const {
+  PET_STATES,
+  EVENTS,
+  TIMERS,
+  AUTO_BEHAVIORS,
+  createBrain,
+  decideState,
+  timeoutState,
+  inactivityState,
+  autoTimeline,
+  nextAutoDelay,
+  pickAutoBehavior,
+  lineFor,
+  pick,
+  pickIdleExpression,
+} = pet;
 
 test('初始大脑为待机状态', () => {
-  const now = 1000000;
-  const brain = createBrain(now);
-  assert.strictEqual(brain.state, PET_STATES.IDLE);
-  assert.strictEqual(brain.lastInteract, now);
-  assert.strictEqual(brain.pokeCount, 0);
-  assert.strictEqual(brain.moodAt, 0);
-  assert.deepStrictEqual(brain.moodCycle, []);
+  const brain = createBrain(1000);
+  assert.deepStrictEqual(brain, {
+    state: PET_STATES.IDLE,
+    lastInteract: 1000,
+    pokeCount: 0,
+    lastPokeAt: 0,
+  });
 });
 
-test('滑过进入 hover 并使用 hover 表情池', () => {
+test('滑过、离开和唤醒使用各自的表情池', () => {
   const brain = createBrain(0);
-  const d = decideState(brain, EVENTS.HOVER, 10);
-  assert.strictEqual(d.state, PET_STATES.HOVER);
-  assert.ok(pet.STATE_EXPRESSIONS.hover.includes(d.expression));
+  const hover = decideState(brain, EVENTS.HOVER, 10);
+  const leave = decideState(brain, EVENTS.LEAVE, 20);
+  const wake = decideState(brain, EVENTS.INTERACT, 30);
+  assert.strictEqual(hover.state, PET_STATES.HOVER);
+  assert.ok(pet.STATE_EXPRESSIONS.hover.includes(hover.expression));
+  assert.strictEqual(leave.state, PET_STATES.IDLE);
+  assert.ok(pet.STATE_EXPRESSIONS.idle.includes(leave.expression));
+  assert.strictEqual(wake.state, PET_STATES.WAKE);
+  assert.ok(pet.STATE_EXPRESSIONS.wake.includes(wake.expression));
 });
 
-test('离开回到待机', () => {
+test('连续点击 5 次触发生气表情，2.5 秒后重置', () => {
   const brain = createBrain(0);
-  const d = decideState(brain, EVENTS.LEAVE, 10);
-  assert.strictEqual(d.state, PET_STATES.IDLE);
-});
-
-test('连续点击 5 次触发 pokeMany 表情池', () => {
-  const brain = createBrain(0);
-  let d = null;
-  for (let i = 1; i <= 5; i++) {
-    d = decideState(brain, EVENTS.CLICK, i * 100);
-    brain.pokeCount = d.pokeCount;
+  let result;
+  for (let i = 1; i <= 5; i += 1) {
+    result = decideState(brain, EVENTS.CLICK, i * 100);
+    brain.pokeCount = result.pokeCount;
     brain.lastPokeAt = i * 100;
   }
-  assert.ok(d.pokeMany);
-  assert.ok(pet.STATE_EXPRESSIONS.pokeMany.includes(d.expression));
+  assert.strictEqual(result.pokeMany, true);
+  assert.ok(pet.STATE_EXPRESSIONS.pokeMany.includes(result.expression));
+  const reset = decideState(brain, EVENTS.CLICK, 3000);
+  assert.strictEqual(reset.pokeCount, 1);
+  assert.strictEqual(reset.pokeMany, false);
 });
 
-test('点击间隔超过 2.5 秒后连击计数重置', () => {
-  const brain = createBrain(0);
-  const d1 = decideState(brain, EVENTS.CLICK, 100);
-  brain.pokeCount = d1.pokeCount;
-  brain.lastPokeAt = 100;
-  const d2 = decideState(brain, EVENTS.CLICK, 5000);
-  assert.strictEqual(d2.pokeCount, 1);
-  assert.strictEqual(d2.pokeMany, false);
+test('默认自动时间轴为 15 秒无聊、25 秒困倦、35 秒睡觉', () => {
+  assert.deepStrictEqual(autoTimeline(TIMERS.SLEEP_AFTER), {
+    bored: 15000,
+    sleepy: 25000,
+    sleeping: 35000,
+  });
+  assert.strictEqual(inactivityState(0, 14999), PET_STATES.IDLE);
+  assert.strictEqual(inactivityState(0, 15000), PET_STATES.BORED);
+  assert.strictEqual(inactivityState(0, 25000), PET_STATES.SLEEPY);
+  assert.strictEqual(inactivityState(0, 35000), PET_STATES.SLEEPING);
 });
 
-test('15秒无互动触发情绪状态, 未满15秒不触发', () => {
-  const brain = createBrain(0);
-  const moods = [PET_STATES.BORED, PET_STATES.SLEEPY, PET_STATES.SLEEPING];
-  assert.strictEqual(timeoutState(brain, TIMERS.MOOD_AFTER - 1), null);
-  const d1 = timeoutState(brain, TIMERS.MOOD_AFTER, () => 0);
-  assert.ok(moods.includes(d1.state));
-  assert.strictEqual(d1.expression, pet.STATE_EXPRESSIONS[d1.state][0]);
-  assert.strictEqual(timeoutState(brain, TIMERS.MOOD_AFTER + 5000), null);
-  const d2 = timeoutState(brain, TIMERS.MOOD_AFTER * 2, () => 0.99);
-  assert.ok(moods.includes(d2.state));
-  assert.notStrictEqual(d2.state, d1.state);
+test('快速和舒缓入睡选项保持同一条线性时间轴', () => {
+  assert.deepStrictEqual(autoTimeline(20000), { bored: 8571, sleepy: 14286, sleeping: 20000 });
+  assert.deepStrictEqual(autoTimeline(60000), { bored: 25714, sleepy: 42857, sleeping: 60000 });
 });
 
-test('情绪状态第一次等概率随机, 之后上次状态降至15%其余对半分', () => {
+test('超时迁移只沿时间轴向前并为每个阶段提供表情', () => {
   const brain = createBrain(0);
-  assert.strictEqual(nextMood(brain, () => 0), PET_STATES.BORED);
-  assert.strictEqual(nextMood(brain, () => 0.05), PET_STATES.BORED);
-  const other = nextMood(brain, () => 0.99);
-  assert.notStrictEqual(other, PET_STATES.BORED);
-  assert.ok([PET_STATES.SLEEPY, PET_STATES.SLEEPING].includes(other));
+  assert.strictEqual(timeoutState(brain, 14999, 35000, () => 0), null);
+  const bored = timeoutState(brain, 15000, 35000, () => 0);
+  assert.strictEqual(bored.state, PET_STATES.BORED);
+  assert.strictEqual(bored.expression, pet.STATE_EXPRESSIONS.bored[0]);
+  brain.state = bored.state;
+  assert.strictEqual(timeoutState(brain, 20000, 35000, () => 0), null);
+  const sleepy = timeoutState(brain, 25000, 35000, () => 0);
+  assert.strictEqual(sleepy.state, PET_STATES.SLEEPY);
+  brain.state = sleepy.state;
+  const sleeping = timeoutState(brain, 35000, 35000, () => 0);
+  assert.strictEqual(sleeping.state, PET_STATES.SLEEPING);
 });
 
-test('三个情绪状态轮完一圈后重置为等概率随机', () => {
-  const brain = createBrain(0);
-  assert.strictEqual(nextMood(brain, () => 0), PET_STATES.BORED);
-  assert.strictEqual(nextMood(brain, () => 0.999), PET_STATES.SLEEPING);
-  assert.strictEqual(nextMood(brain, () => 0.99), PET_STATES.SLEEPY);
-  assert.strictEqual(brain.moodCycle.length, 3);
-  assert.strictEqual(nextMood(brain, () => 0), PET_STATES.BORED);
-  assert.strictEqual(brain.moodCycle.length, 1);
+test('睡觉使用闭眼表情，不再把半身照当表情', () => {
+  assert.deepStrictEqual(pet.STATE_EXPRESSIONS.sleeping, ['安心']);
+  assert.ok(!pet.STATE_EXPRESSIONS.sleeping.includes('半身照'));
+  assert.strictEqual(pet.STATE_EXPRESSIONS.wake[0], '眼睛微张');
 });
 
-test('互动可唤醒睡眠中的桌宠', () => {
-  const brain = createBrain(0);
-  brain.state = PET_STATES.SLEEPING;
-  const d = decideState(brain, EVENTS.INTERACT, 100);
-  assert.strictEqual(d.state, PET_STATES.WAKE);
-  assert.ok(pet.STATE_EXPRESSIONS.wake.includes(d.expression));
+test('自动行为间隔限制在 6 到 10 秒', () => {
+  assert.strictEqual(nextAutoDelay(() => 0), TIMERS.AUTO_MIN);
+  assert.strictEqual(nextAutoDelay(() => 0.999999), TIMERS.AUTO_MAX);
+});
+
+test('自动行为按 40% 换脸、30% 动作、30% 说话分配', () => {
+  assert.strictEqual(pickAutoBehavior(() => 0), AUTO_BEHAVIORS.EXPRESSION);
+  assert.strictEqual(pickAutoBehavior(() => 0.3999), AUTO_BEHAVIORS.EXPRESSION);
+  assert.strictEqual(pickAutoBehavior(() => 0.4), AUTO_BEHAVIORS.ACTION);
+  assert.strictEqual(pickAutoBehavior(() => 0.6999), AUTO_BEHAVIORS.ACTION);
+  assert.strictEqual(pickAutoBehavior(() => 0.7), AUTO_BEHAVIORS.SPEECH);
+  assert.strictEqual(pickAutoBehavior(() => 0.9999), AUTO_BEHAVIORS.SPEECH);
+});
+
+test('控制台情绪均有名称和可用表情', () => {
+  for (const key of ['idle', 'thinking', 'shy', 'angry', 'sleepy', 'sleeping', 'wake']) {
+    const config = pet.CONTROL_EMOTIONS[key];
+    assert.ok(config && config.label, key + ' 缺少名称');
+    assert.ok(Array.isArray(config.expressions) && config.expressions.length > 0, key + ' 缺少表情');
+  }
+  assert.strictEqual(pet.CONTROL_EMOTIONS.sleeping.hold, true);
 });
 
 test('台词库各场景均有非空台词', () => {
@@ -100,73 +129,45 @@ test('台词库各场景均有非空台词', () => {
   }
 });
 
-test('待机碎碎念台词库充足且每条非空', () => {
-  assert.ok(pet.LINES.idle.length >= 8, '待机碎碎念台词不足 8 条');
-  for (const line of pet.LINES.idle) {
-    assert.ok(typeof line === 'string' && line.length > 0, '存在空台词');
-  }
-});
-
-test('pick 从列表取项并尊重随机源', () => {
+test('pick 和待机表情选择尊重随机源并避开当前表情', () => {
   assert.strictEqual(pick(['a', 'b'], () => 0), 'a');
   assert.strictEqual(pick(['a', 'b'], () => 0.99), 'b');
   assert.strictEqual(pick([], () => 0), null);
-  assert.strictEqual(pick(null), null);
-});
-
-test('第一句 3 秒内必说', () => {
-  assert.strictEqual(speechDue(0, 2999, () => 0, 0), false);
-  assert.strictEqual(speechDue(0, 3000, () => 0.99, 0), true);
-});
-
-test('第二句 2 秒后每轮 80%, 没说保持 80%', () => {
-  assert.strictEqual(speechDue(0, 1999, () => 0, 1), false);
-  assert.strictEqual(speechDue(0, 2000, () => 0.79, 1), true);
-  assert.strictEqual(speechDue(0, 2000, () => 0.8, 1), false);
-  assert.strictEqual(speechDue(0, 4000, () => 0.8, 1), false);
-  assert.strictEqual(speechDue(0, 4000, () => 0.79, 1), true);
-});
-
-test('pickIdleExpression 避开当前表情且来自待机池', () => {
   const current = pet.STATE_EXPRESSIONS.idle[0];
-  const exp = pickIdleExpression(current, () => 0.99);
-  assert.notStrictEqual(exp, current);
-  assert.ok(pet.STATE_EXPRESSIONS.idle.includes(exp));
+  const expression = pickIdleExpression(current, () => 0.99);
+  assert.notStrictEqual(expression, current);
+  assert.ok(pet.STATE_EXPRESSIONS.idle.includes(expression));
 });
 
-test('待机表情满 5 秒到期换一次, 未到期不换', () => {
-  assert.strictEqual(idleExpressionDue(0, 4999, () => 0), null);
-  const due = idleExpressionDue(0, 5000, () => 0);
-  assert.ok(pet.STATE_EXPRESSIONS.idle.includes(due.expression));
-});
-
-test('待机表情到期时避开当前表情', () => {
-  const current = pet.STATE_EXPRESSIONS.idle[0];
-  const due = idleExpressionDue(0, 5000, () => 0, current);
-  assert.notStrictEqual(due.expression, current);
-  assert.ok(pet.STATE_EXPRESSIONS.idle.includes(due.expression));
-});
-
-test('表情池引用的每个表情都有对应贴片文件', () => {
+test('所有状态与控制台表情都有对应贴片文件', () => {
   const facesDir = path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'faces');
-  for (const pool of Object.values(pet.STATE_EXPRESSIONS)) {
-    for (const name of pool) {
-      assert.ok(fs.existsSync(path.join(facesDir, name + '.png')), '缺少贴片: ' + name);
-    }
+  const names = new Set();
+  for (const pool of Object.values(pet.STATE_EXPRESSIONS)) pool.forEach((name) => names.add(name));
+  for (const config of Object.values(pet.CONTROL_EMOTIONS)) config.expressions.forEach((name) => names.add(name));
+  for (const name of names) {
+    assert.ok(fs.existsSync(path.join(facesDir, name + '.png')), '缺少贴片: ' + name);
   }
 });
 
 test('表情清单覆盖映射表中的全部表情', () => {
   const mapping = require('../src/renderer/images/pet/pet-expressions.json');
-  const files = Object.values(mapping.cells).map((f) => f.replace(/\.png$/, ''));
-  for (const name of files) {
-    assert.ok(pet.EXPRESSIONS.includes(name), '表情清单缺少 ' + name);
-  }
+  const files = Object.values(mapping.cells).map((file) => file.replace(/\.png$/, ''));
+  for (const name of files) assert.ok(pet.EXPRESSIONS.includes(name), '表情清单缺少 ' + name);
 });
 
-test('互动场景台词充足', () => {
-  for (const key of ['hover', 'poke', 'pokeMany', 'wake']) {
-    assert.ok(pet.LINES[key] && pet.LINES[key].length >= 10, key + ' 互动台词不足 10 条');
-  }
-  assert.ok(pet.LINES.idle.length >= 15, '待机碎碎念台词不足 15 条');
+test('渲染层包含自动控制台、睡眠循环和动作收尾', () => {
+  const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'pet.js'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'styles.css'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'app.js'), 'utf8');
+  assert.ok(renderer.includes("addEventListener('contextmenu', openConsole)"), '桌宠应支持右键打开控制台');
+  assert.ok(renderer.includes('whenReady:'), '桌宠初始化应提供可等待的就绪状态');
+  assert.ok(renderer.includes("key === 'sleeping'"), '控制台应能手动睡觉');
+  assert.ok(renderer.includes('saved.autoSpeech'), '控制台应能关闭自动说话');
+  assert.ok(renderer.includes('saved.autoSleep'), '控制台应能关闭自动睡觉');
+  assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
+  assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
+  assert.ok(css.includes('@keyframes pet-sleep-breathe'), '缺少睡眠呼吸动画');
+  assert.ok(css.includes('@keyframes pet-drowse'), '缺少困倦过渡动画');
+  assert.ok(css.includes('@keyframes pet-wake'), '缺少唤醒动画');
+  assert.ok(app.includes('window.GaiaPet.init().then(updatePetUI)'), '桌宠初始化后应同步设置开关文字');
 });

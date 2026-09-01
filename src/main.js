@@ -435,6 +435,59 @@ function createWindow() {
           }
           }
         }
+        if (!DEBUG_OPEN_PATH) {
+          const petStatus = await mainWindow.webContents.executeJavaScript(`(async () => {
+            await __gaiaDebug.waitHome();
+            await GaiaPet.whenReady();
+            GaiaPet.openConsole();
+            const panel = document.querySelector('.gaia-pet-console');
+            const emotionButtons = panel ? panel.querySelectorAll('[data-emotion]').length : 0;
+            const actionButtons = panel ? panel.querySelectorAll('[data-action]').length : 0;
+            const panelVisible = !!panel && !panel.hidden && panel.offsetWidth > 0 && panel.offsetHeight > 0;
+            const rect = panel ? panel.getBoundingClientRect() : null;
+            const panelInViewport = !!rect && rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight;
+            GaiaPet.runEmotion('sleeping');
+            await new Promise((resolve) => setTimeout(resolve, 80));
+            const sleeping = GaiaPet.getBrain().state === 'sleeping';
+            const sleepExpression = document.querySelector('.gaia-pet-face').dataset.exp;
+            const sleepAnimation = document.querySelector('.gaia-pet-body').classList.contains('sleeping');
+            const zzzVisible = !document.querySelector('.gaia-pet-zzz').hidden;
+            const petRoot = document.getElementById('gaia-pet');
+            petRoot.dispatchEvent(new PointerEvent('pointerenter', { clientX: 0, clientY: 0 }));
+            petRoot.dispatchEvent(new MouseEvent('click', { clientX: 0, clientY: 0 }));
+            const firstClickOnlyWakes = GaiaPet.getBrain().state === 'wake';
+            GaiaPet.runEmotion('wake');
+            await new Promise((resolve) => setTimeout(resolve, 30));
+            const awake = GaiaPet.getBrain().state === 'wake';
+            const sleepAnimationCleared = !document.querySelector('.gaia-pet-body').classList.contains('sleeping');
+            const zzzHidden = document.querySelector('.gaia-pet-zzz').hidden;
+            GaiaPet.runAction('tilt');
+            const actionStarted = document.querySelector('.gaia-pet-body').classList.contains('tilt');
+            await new Promise((resolve) => setTimeout(resolve, 760));
+            const bodyAfterAction = document.querySelector('.gaia-pet-body');
+            const actionCleared = !bodyAfterAction.classList.contains('tilt') && !bodyAfterAction.classList.contains('no-breathe');
+            const breathingRestored = getComputedStyle(bodyAfterAction).animationName === 'pet-breathe';
+            GaiaPet.closeConsole();
+            return { panelVisible, panelInViewport, emotionButtons, actionButtons, sleeping, sleepExpression, sleepAnimation, zzzVisible, firstClickOnlyWakes, awake, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored };
+          })()`);
+          debugOk =
+            petStatus.panelVisible === true &&
+            petStatus.panelInViewport === true &&
+            petStatus.emotionButtons === 8 &&
+            petStatus.actionButtons === 6 &&
+            petStatus.sleeping === true &&
+            petStatus.sleepExpression === '安心' &&
+            petStatus.sleepAnimation === true &&
+            petStatus.zzzVisible === true &&
+            petStatus.firstClickOnlyWakes === true &&
+            petStatus.awake === true &&
+            petStatus.sleepAnimationCleared === true &&
+            petStatus.zzzHidden === true &&
+            petStatus.actionStarted === true &&
+            petStatus.actionCleared === true &&
+            petStatus.breathingRestored === true;
+          if (!debugOk) console.error('PET_SMOKE_CHECKS_FAILED:', JSON.stringify(petStatus));
+        }
         const errors = messages.filter((m) => m.level >= 3);
         if (errors.length || !debugOk) {
           if (errors.length) console.error('SMOKE_ERRORS:', JSON.stringify(errors.map((e) => e.message)));
