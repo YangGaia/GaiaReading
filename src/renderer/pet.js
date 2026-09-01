@@ -154,6 +154,29 @@
     }, 700);
   }
 
+  function playEffect(cls, ms) {
+    if (!ui.body) return;
+    ui.body.classList.remove(cls);
+    void ui.body.offsetWidth;
+    ui.body.classList.add('no-breathe', cls);
+    window.setTimeout(() => {
+      ui.body.classList.remove(cls, 'no-breathe');
+    }, ms);
+  }
+  function perk() { playEffect('perk', 500); }
+  function recoil() { playEffect('recoil', 360); }
+  function shiver() { playEffect('shiver', 420); }
+  function stretch() { playEffect('stretch', 820); }
+  function lean() { playEffect('lean', 600); }
+
+  const IDLE_ACTIONS = ['perk', 'lean', 'tilt', 'stretch'];
+  const IDLE_ACTION_MS = { perk: 500, lean: 600, tilt: 700, stretch: 820 };
+  function idleAction() {
+    const name = IDLE_ACTIONS[Math.floor(Math.random() * IDLE_ACTIONS.length)];
+    if (name === 'tilt') { triggerTilt(); return; }
+    playEffect(name, IDLE_ACTION_MS[name] || 600);
+  }
+
   function wakeUp() {
     const asleep = brain.state === PET_STATES.SLEEPING || brain.state === PET_STATES.SLEEPY;
     if (ui.zzz) ui.zzz.hidden = true;
@@ -163,6 +186,7 @@
       brain.state = d.state;
       applyExpression(d.expression);
       showBubble(lineFor('wake'));
+      stretch();
     }
   }
 
@@ -175,6 +199,7 @@
       brain.state = d.state;
       applyExpression(d.expression);
       showBubble(lineFor('hover'));
+      perk();
     }
   }
 
@@ -205,7 +230,7 @@
       brain.lastPokeAt = Date.now();
       applyExpression(d.expression);
       showBubble(lineFor(d.pokeMany ? 'pokeMany' : 'poke'));
-      pokeBounce();
+      if (d.pokeMany) shiver(); else pokeBounce();
     }
   }
 
@@ -247,8 +272,8 @@
         lastIdleExp = now;
         applyExpression(pickIdleExpression(ui.face && ui.face.dataset.exp));
       }
-    } else if (Math.random() < 0.12) {
-      triggerTilt();
+    } else if (Math.random() < 0.16) {
+      idleAction();
     }
   }
 

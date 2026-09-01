@@ -163,3 +163,10 @@ test('表情清单覆盖映射表中的全部表情', () => {
     assert.ok(pet.EXPRESSIONS.includes(name), '表情清单缺少 ' + name);
   }
 });
+
+test('互动场景台词充足', () => {
+  for (const key of ['hover', 'poke', 'pokeMany', 'wake']) {
+    assert.ok(pet.LINES[key] && pet.LINES[key].length >= 10, key + ' 互动台词不足 10 条');
+  }
+  assert.ok(pet.LINES.idle.length >= 15, '待机碎碎念台词不足 15 条');
+});

@@ -423,3 +423,38 @@ body.eye {
   50% { transform: translateY(-2px) translateX(-2px) scale(1.006, 0.994); }
   75% { transform: translateY(-1px) translateX(1.5px) scale(1.01, 0.99); }
 }
+
+/* 新增桌宠互动/待机动作: 一怔 / 缩回 / 发抖 / 伸懒腰 / 歪头 */
+.gaia-pet-body.perk { animation: pet-perk 0.5s ease; }
+@keyframes pet-perk {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  40% { transform: translateY(-3px) rotate(1.8deg); }
+}
+.gaia-pet-body.recoil { animation: pet-recoil 0.36s ease; }
+@keyframes pet-recoil {
+  0% { transform: scale(1, 1); }
+  35% { transform: scale(1.05, 0.94) translateY(2px); }
+  70% { transform: scale(0.97, 1.04) translateY(-1px); }
+  100% { transform: scale(1, 1) translateY(0); }
+}
+.gaia-pet-body.shiver { animation: pet-shiver 0.42s linear; }
+@keyframes pet-shiver {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-2px); }
+  40% { transform: translateX(2px); }
+  60% { transform: translateX(-1.5px); }
+  80% { transform: translateX(1.5px); }
+}
+.gaia-pet-body.stretch { animation: pet-stretch 0.82s ease; }
+@keyframes pet-stretch {
+  0% { transform: translateY(0); }
+  35% { transform: translateY(-5px) scaleY(1.04); }
+  60% { transform: translateY(1px); }
+  100% { transform: translateY(0); }
+}
+.gaia-pet-body.lean { animation: pet-lean 0.6s ease; }
+@keyframes pet-lean {
+  0%, 100% { transform: rotate(0deg); }
+  40% { transform: rotate(3deg); }
+  70% { transform: rotate(-2deg); }
+}
