@@ -74,12 +74,12 @@
   /** 控制台展示的是情绪，不让主人面对 21 个没有组织的表情按钮。 */
   const CONTROL_EMOTIONS = {
     idle: { label: '待机', expressions: STATE_EXPRESSIONS.idle, line: 'idle' },
-    thinking: { label: '思考', expressions: ['思考', '倾听', '严肃说话'], line: 'idle', action: 'tilt' },
-    shy: { label: '害羞', expressions: ['害羞', '安心'], line: 'hover', action: 'tilt' },
-    angry: { label: '生气', expressions: STATE_EXPRESSIONS.pokeMany, line: 'pokeMany', action: 'shiver' },
-    sleepy: { label: '困倦', expressions: STATE_EXPRESSIONS.sleepy, line: 'sleepy', action: 'drowse' },
-    sleeping: { label: '睡觉', expressions: STATE_EXPRESSIONS.sleeping, action: 'sleep', hold: true },
-    wake: { label: '唤醒', expressions: STATE_EXPRESSIONS.wake, line: 'wake', action: 'stretch' },
+    thinking: { label: '思考', expressions: ['思考'], line: 'idle', performance: 'thinking' },
+    shy: { label: '害羞', expressions: ['愣住', '害羞'], line: 'hover', performance: 'shy' },
+    angry: { label: '生气', expressions: ['冷脸', '生气'], line: 'pokeMany', performance: 'angry' },
+    sleepy: { label: '困倦', expressions: ['眼睛微张'], line: 'sleepy', performance: 'drowse' },
+    sleeping: { label: '睡觉', expressions: STATE_EXPRESSIONS.sleeping, performance: 'sleeping', hold: true },
+    wake: { label: '唤醒', expressions: ['眼睛微张', '日常表情'], line: 'wake', performance: 'wake' },
   };
 
   /** 有珠风格台词库：贴近原作，以官方语音与设定为底。她怕生、安静，爱红茶与书与夜，说话简短。 */

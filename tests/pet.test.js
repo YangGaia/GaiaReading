@@ -119,6 +119,9 @@ test('控制台情绪均有名称和可用表情', () => {
     assert.ok(config && config.label, key + ' 缺少名称');
     assert.ok(Array.isArray(config.expressions) && config.expressions.length > 0, key + ' 缺少表情');
   }
+  for (const key of ['thinking', 'shy', 'angry', 'sleepy', 'sleeping', 'wake']) {
+    assert.ok(pet.CONTROL_EMOTIONS[key].performance, key + ' 缺少专用表演');
+  }
   assert.strictEqual(pet.CONTROL_EMOTIONS.sleeping.hold, true);
 });
 
@@ -155,7 +158,7 @@ test('表情清单覆盖映射表中的全部表情', () => {
   for (const name of files) assert.ok(pet.EXPRESSIONS.includes(name), '表情清单缺少 ' + name);
 });
 
-test('渲染层包含自动控制台、睡眠循环和动作收尾', () => {
+test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () => {
   const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'pet.js'), 'utf8');
   const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'styles.css'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'app.js'), 'utf8');
@@ -164,10 +167,29 @@ test('渲染层包含自动控制台、睡眠循环和动作收尾', () => {
   assert.ok(renderer.includes("key === 'sleeping'"), '控制台应能手动睡觉');
   assert.ok(renderer.includes('saved.autoSpeech'), '控制台应能关闭自动说话');
   assert.ok(renderer.includes('saved.autoSleep'), '控制台应能关闭自动睡觉');
+  assert.ok(renderer.includes("PART_IMG + 'body.png'"), '桌宠身体应使用挖空头部的分层素材');
+  assert.ok(renderer.includes("PART_IMG + 'head.png'"), '桌宠应加载独立头部素材');
+  assert.ok(renderer.includes('gaia-pet-blink-face'), '眨眼应使用闭眼脸部贴片');
+  assert.ok(!renderer.includes("lid.className = 'gaia-pet-lid'"), '不应继续使用会产生黑线的矩形眼皮');
+  assert.ok(renderer.includes("playPerformance('thinking'"), '思考应有专用动画');
+  assert.ok(renderer.includes("playPerformance('shy'"), '害羞应有专用动画');
+  assert.ok(renderer.includes("playPerformance('angry'"), '生气应有专用动画');
+  assert.ok(renderer.includes("playPerformance('wake'"), '唤醒应有专用动画');
+  assert.ok(renderer.includes("applyExpression('偷看')"), '自动偷看动作应匹配偷看表情');
+  assert.ok(renderer.includes("playPerformance('peek'"), '自动偷看应有专用动画');
+  assert.ok(renderer.includes("applyExpression('倾听')"), '自动倾听动作应匹配倾听表情');
+  assert.ok(renderer.includes("playPerformance('listen'"), '自动倾听应有专用动画');
+  assert.ok(renderer.includes("['stretch', '伸懒腰']"), '应保留原有伸懒腰动作');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
   assert.ok(css.includes('@keyframes pet-sleep-breathe'), '缺少睡眠呼吸动画');
   assert.ok(css.includes('@keyframes pet-drowse'), '缺少困倦过渡动画');
   assert.ok(css.includes('@keyframes pet-wake'), '缺少唤醒动画');
+  assert.ok(css.includes('@keyframes pet-eye-sprite-blink'), '眨眼应使用闭眼贴片动画');
+  assert.ok(css.includes('@keyframes pet-head-thinking'), '缺少思考头部动画');
+  assert.ok(css.includes('@keyframes pet-head-shy'), '缺少害羞头部动画');
+  assert.ok(css.includes('@keyframes pet-head-angry'), '缺少生气头部动画');
+  assert.ok(css.includes('@keyframes pet-head-wake'), '缺少分层唤醒动画');
+  assert.ok(!css.includes('.gaia-pet-lid'), '矩形眼皮样式应彻底移除');
   assert.ok(app.includes('window.GaiaPet.init().then(updatePetUI)'), '桌宠初始化后应同步设置开关文字');
 });

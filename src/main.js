@@ -446,11 +446,18 @@ function createWindow() {
             const panelVisible = !!panel && !panel.hidden && panel.offsetWidth > 0 && panel.offsetHeight > 0;
             const rect = panel ? panel.getBoundingClientRect() : null;
             const panelInViewport = !!rect && rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight;
+            const petBodyLayer = document.querySelector('.gaia-pet-halfbody');
+            const petHeadLayer = document.querySelector('.gaia-pet-head');
+            const petHeadRig = document.querySelector('.gaia-pet-head-rig');
+            const blinkFace = document.querySelector('.gaia-pet-blink-face');
+            const layeredPet = !!petBodyLayer && petBodyLayer.src.endsWith('/parts/body.png') && !!petHeadLayer && petHeadLayer.src.endsWith('/parts/head.png') && !!petHeadRig && petHeadRig.offsetHeight > 0;
+            const oldLidRemoved = !document.querySelector('.gaia-pet-lid');
             GaiaPet.runEmotion('sleeping');
             await new Promise((resolve) => setTimeout(resolve, 80));
             const sleeping = GaiaPet.getBrain().state === 'sleeping';
             const sleepExpression = document.querySelector('.gaia-pet-face').dataset.exp;
             const sleepAnimation = document.querySelector('.gaia-pet-body').classList.contains('sleeping');
+            const sleepHeadPose = petHeadRig.classList.contains('sleeping');
             const zzzVisible = !document.querySelector('.gaia-pet-zzz').hidden;
             const petRoot = document.getElementById('gaia-pet');
             petRoot.dispatchEvent(new PointerEvent('pointerenter', { clientX: 0, clientY: 0 }));
@@ -459,6 +466,7 @@ function createWindow() {
             GaiaPet.runEmotion('wake');
             await new Promise((resolve) => setTimeout(resolve, 30));
             const awake = GaiaPet.getBrain().state === 'wake';
+            const wakePerformance = petHeadRig.classList.contains('performance-wake');
             const sleepAnimationCleared = !document.querySelector('.gaia-pet-body').classList.contains('sleeping');
             const zzzHidden = document.querySelector('.gaia-pet-zzz').hidden;
             GaiaPet.runAction('tilt');
@@ -467,25 +475,41 @@ function createWindow() {
             const bodyAfterAction = document.querySelector('.gaia-pet-body');
             const actionCleared = !bodyAfterAction.classList.contains('tilt') && !bodyAfterAction.classList.contains('no-breathe');
             const breathingRestored = getComputedStyle(bodyAfterAction).animationName === 'pet-breathe';
+            GaiaPet.runEmotion('angry');
+            const angryPerformanceStarted = petHeadRig.classList.contains('performance-angry') && document.querySelector('.gaia-pet-face').dataset.exp === '冷脸';
+            await new Promise((resolve) => setTimeout(resolve, 230));
+            const angryExpressionMatched = document.querySelector('.gaia-pet-face').dataset.exp === '生气';
+            await new Promise((resolve) => setTimeout(resolve, 650));
+            const angryPerformanceCleared = !petHeadRig.classList.contains('performance-angry');
+            GaiaPet.runAction('blink');
+            const spriteBlinkStarted = !!blinkFace && blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, emotionButtons, actionButtons, sleeping, sleepExpression, sleepAnimation, zzzVisible, firstClickOnlyWakes, awake, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored };
+            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
             petStatus.panelInViewport === true &&
             petStatus.emotionButtons === 8 &&
             petStatus.actionButtons === 6 &&
+            petStatus.layeredPet === true &&
+            petStatus.oldLidRemoved === true &&
             petStatus.sleeping === true &&
             petStatus.sleepExpression === '安心' &&
             petStatus.sleepAnimation === true &&
+            petStatus.sleepHeadPose === true &&
             petStatus.zzzVisible === true &&
             petStatus.firstClickOnlyWakes === true &&
             petStatus.awake === true &&
+            petStatus.wakePerformance === true &&
             petStatus.sleepAnimationCleared === true &&
             petStatus.zzzHidden === true &&
             petStatus.actionStarted === true &&
             petStatus.actionCleared === true &&
-            petStatus.breathingRestored === true;
+            petStatus.breathingRestored === true &&
+            petStatus.angryPerformanceStarted === true &&
+            petStatus.angryExpressionMatched === true &&
+            petStatus.angryPerformanceCleared === true &&
+            petStatus.spriteBlinkStarted === true;
           if (!debugOk) console.error('PET_SMOKE_CHECKS_FAILED:', JSON.stringify(petStatus));
         }
         const errors = messages.filter((m) => m.level >= 3);

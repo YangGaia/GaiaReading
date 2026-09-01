@@ -33,8 +33,8 @@
     pickAutoBehavior,
   } = shared;
 
-  const IMG = 'images/pet/cells/';
   const FACE_IMG = 'images/pet/faces/';
+  const PART_IMG = 'images/pet/parts/';
   const DEFAULT_STATE = {
     on: true,
     x: null,
@@ -49,9 +49,10 @@
     tile: { w: 134, h: 118, cx: 67.5, cy: 59.5 },
     sheet: { w: 356, h: 647 },
   };
+  const HEAD = { x: 100, y: 0, w: 170, h: 220 };
   const ACTION_CLASSES = ['poke', 'tilt', 'drop', 'perk', 'recoil', 'shiver', 'stretch', 'lean', 'drowse', 'wake'];
+  const PERFORMANCE_CLASSES = ['performance-thinking', 'performance-peek', 'performance-listen', 'performance-shy', 'performance-angry', 'performance-bored', 'performance-drowse', 'performance-wake'];
   const ACTION_MS = { poke: 350, tilt: 700, drop: 400, perk: 500, recoil: 360, shiver: 420, stretch: 820, lean: 600, drowse: 1100, wake: 900 };
-  const IDLE_ACTIONS = ['perk', 'lean', 'tilt', 'stretch'];
   const STATE_LABELS = {
     idle: '待机', hover: '注视', poke: '被戳', bored: '无聊', sleepy: '困倦',
     sleeping: '睡觉', wake: '唤醒', manual: '手动',
@@ -101,7 +102,7 @@
   }
 
   function layoutFace() {
-    if (!ui.face || !ui.halfbody) return;
+    if (!ui.face || !ui.halfbody || !ui.headRig || !ui.head) return;
     const hb = FACE.halfbody;
     const tile = FACE.tile;
     const s = (ui.body.clientWidth || 150) / FACE.sheet.w;
@@ -111,16 +112,16 @@
     const faceTop = (hbCy - tile.cy) * s;
     const faceW = tile.w * s;
     const faceH = tile.h * s;
-    const lidW = Math.round(faceW * 0.46);
-    const lidH = Math.max(2, Math.round(5 * s));
-    ui.face.style.width = Math.round(faceW) + 'px';
-    ui.face.style.height = Math.round(faceH) + 'px';
-    ui.face.style.left = Math.round(faceLeft) + 'px';
-    ui.face.style.top = Math.round(faceTop) + 'px';
-    ui.lid.style.width = lidW + 'px';
-    ui.lid.style.height = lidH + 'px';
-    ui.lid.style.left = Math.round(faceLeft + (faceW - lidW) / 2) + 'px';
-    ui.lid.style.top = Math.round(faceTop + faceH * 0.33 - lidH / 2) + 'px';
+    ui.headRig.style.height = Math.round(HEAD.h * s) + 'px';
+    ui.head.style.width = Math.round(HEAD.w * s) + 'px';
+    ui.head.style.left = Math.round(HEAD.x * s) + 'px';
+    ui.head.style.top = Math.round(HEAD.y * s) + 'px';
+    for (const layer of [ui.face, ui.blinkFace]) {
+      layer.style.width = Math.round(faceW) + 'px';
+      layer.style.height = Math.round(faceH) + 'px';
+      layer.style.left = Math.round(faceLeft) + 'px';
+      layer.style.top = Math.round(faceTop) + 'px';
+    }
   }
 
   function updateBubbleSide() {
@@ -155,6 +156,10 @@
   function clearActions() {
     if (!ui.body) return;
     for (const cls of ACTION_CLASSES) ui.body.classList.remove(cls);
+    if (ui.headRig) {
+      for (const cls of PERFORMANCE_CLASSES) ui.headRig.classList.remove(cls);
+    }
+    for (const cls of PERFORMANCE_CLASSES) ui.body.classList.remove(cls);
     ui.body.classList.remove('no-breathe');
   }
 
@@ -170,11 +175,32 @@
     }, duration || ACTION_MS[cls] || 600);
   }
 
+  function playPerformance(name, duration, stages) {
+    if (!ui.body || !ui.headRig) return;
+    const token = ++effectVersion;
+    const cls = 'performance-' + name;
+    clearActions();
+    void ui.body.offsetWidth;
+    void ui.headRig.offsetWidth;
+    ui.body.classList.add('no-breathe', cls);
+    ui.headRig.classList.add(cls);
+    for (const stage of stages || []) {
+      window.setTimeout(() => {
+        if (token === effectVersion) applyExpression(stage.expression);
+      }, stage.at);
+    }
+    window.setTimeout(() => {
+      if (token !== effectVersion) return;
+      ui.body.classList.remove(cls, 'no-breathe');
+      ui.headRig.classList.remove(cls);
+    }, duration);
+  }
+
   function triggerBlink() {
-    if (!ui.lid || !saved.on || dragging || brain.state === PET_STATES.SLEEPING) return;
-    ui.lid.classList.remove('blink');
-    void ui.lid.offsetWidth;
-    ui.lid.classList.add('blink');
+    if (!ui.blinkFace || !saved.on || dragging || brain.state === PET_STATES.SLEEPING) return;
+    ui.blinkFace.classList.remove('blink');
+    void ui.blinkFace.offsetWidth;
+    ui.blinkFace.classList.add('blink');
   }
 
   function scheduleBlink() {
@@ -194,8 +220,21 @@
     playEffect(name, ACTION_MS[name]);
   }
 
-  function idleAction() {
-    triggerAction(pick(IDLE_ACTIONS));
+  function idlePerformance() {
+    const performance = pick(['thinking', 'peek', 'listen', 'stretch']);
+    if (performance === 'thinking') {
+      applyExpression('思考');
+      playPerformance('thinking', 1200);
+    } else if (performance === 'peek') {
+      applyExpression('偷看');
+      playPerformance('peek', 850);
+    } else if (performance === 'listen') {
+      applyExpression('倾听');
+      playPerformance('listen', 700);
+    } else {
+      applyExpression('日常表情');
+      triggerAction('stretch');
+    }
   }
 
   function currentStateLabel() {
@@ -230,6 +269,7 @@
       }
       ui.body.classList.toggle('sleeping', sleeping);
     }
+    if (ui.headRig) ui.headRig.classList.toggle('sleeping', sleeping);
     if (ui.zzz) ui.zzz.hidden = !sleeping;
     applyExpression(expression);
     updateConsole();
@@ -242,6 +282,8 @@
   }
 
   function returnToIdle(now) {
+    ++effectVersion;
+    clearActions();
     manualHeld = false;
     manualLabel = '';
     transientUntil = 0;
@@ -256,35 +298,39 @@
     manualLocked = false;
     manualLabel = '';
     const d = decideState(brain, EVENTS.INTERACT, now);
-    setState(d.state, d.expression);
+    setState(d.state, '眼睛微张');
     showBubble(lineFor('wake'));
-    playEffect('wake', ACTION_MS.wake);
+    playPerformance('wake', ACTION_MS.wake, [{ at: 360, expression: '日常表情' }]);
     transientUntil = now + TIMERS.TRANSIENT_AFTER;
     resetActivity(now);
     return true;
   }
 
   function enterAutoState(change) {
-    setState(change.state, change.expression);
     if (change.state === PET_STATES.BORED) {
+      setState(change.state, change.expression);
       if (saved.autoSpeech) showBubble(lineFor('bored'));
-      triggerAction('lean');
+      playPerformance('bored', 900);
     } else if (change.state === PET_STATES.SLEEPY) {
+      setState(change.state, '眼睛微张');
       if (saved.autoSpeech) showBubble(lineFor('sleepy'));
-      triggerAction('drowse');
+      playPerformance('drowse', ACTION_MS.drowse);
     } else if (change.state === PET_STATES.SLEEPING) {
+      setState(change.state, '安心');
       hideBubble(false);
     }
   }
 
   function runIdleBehavior() {
     const behavior = pickAutoBehavior();
-    applyExpression(pickIdleExpression(ui.face && ui.face.dataset.exp));
-    if (behavior === AUTO_BEHAVIORS.ACTION) {
-      idleAction();
+    if (behavior === AUTO_BEHAVIORS.EXPRESSION) {
+      applyExpression(pickIdleExpression(ui.face && ui.face.dataset.exp));
+    } else if (behavior === AUTO_BEHAVIORS.ACTION) {
+      idlePerformance();
     } else if (behavior === AUTO_BEHAVIORS.SPEECH) {
+      applyExpression(pickIdleExpression(ui.face && ui.face.dataset.exp));
       if (saved.autoSpeech) showBubble(lineFor('idle'));
-      else idleAction();
+      else idlePerformance();
     }
   }
 
@@ -407,9 +453,9 @@
     }
     if (key === 'wake') {
       manualHeld = false;
-      setState(PET_STATES.WAKE, pick(config.expressions));
+      setState(PET_STATES.WAKE, '眼睛微张');
       showBubble(lineFor(config.line));
-      triggerAction(config.action);
+      playPerformance('wake', ACTION_MS.wake, [{ at: 360, expression: '日常表情' }]);
       transientUntil = now + TIMERS.TRANSIENT_AFTER;
       return;
     }
@@ -421,9 +467,20 @@
     }
 
     manualHeld = false;
-    setState(key === 'sleepy' ? PET_STATES.SLEEPY : PET_STATES.MANUAL, pick(config.expressions));
+    if (key === 'thinking') {
+      setState(PET_STATES.MANUAL, '思考');
+      playPerformance('thinking', 1200);
+    } else if (key === 'shy') {
+      setState(PET_STATES.MANUAL, '愣住');
+      playPerformance('shy', 900, [{ at: 180, expression: '害羞' }]);
+    } else if (key === 'angry') {
+      setState(PET_STATES.MANUAL, '冷脸');
+      playPerformance('angry', 820, [{ at: 180, expression: '生气' }]);
+    } else if (key === 'sleepy') {
+      setState(PET_STATES.SLEEPY, '眼睛微张');
+      playPerformance('drowse', ACTION_MS.drowse);
+    }
     if (config.line) showBubble(lineFor(config.line));
-    if (config.action) triggerAction(config.action);
     transientUntil = manualLocked ? 0 : now + TIMERS.MANUAL_AFTER;
   }
 
@@ -644,24 +701,39 @@
     body.className = 'gaia-pet-body';
     const halfbody = document.createElement('img');
     halfbody.className = 'gaia-pet-halfbody';
-    halfbody.src = IMG + encodeURIComponent('半身照.png');
     halfbody.draggable = false;
     halfbody.alt = '';
+    halfbody.addEventListener('load', () => {
+      layoutFace();
+      clampPosition();
+    });
+    halfbody.src = PART_IMG + 'body.png';
+    const headRig = document.createElement('div');
+    headRig.className = 'gaia-pet-head-rig';
+    const head = document.createElement('img');
+    head.className = 'gaia-pet-head';
+    head.src = PART_IMG + 'head.png';
+    head.draggable = false;
+    head.alt = '';
     const face = document.createElement('img');
     face.className = 'gaia-pet-face';
     face.src = FACE_IMG + encodeURIComponent('日常表情.png');
     face.draggable = false;
     face.alt = '';
-    const lid = document.createElement('div');
-    lid.className = 'gaia-pet-lid';
+    const blinkFace = document.createElement('img');
+    blinkFace.className = 'gaia-pet-face gaia-pet-blink-face';
+    blinkFace.src = FACE_IMG + encodeURIComponent('安心.png');
+    blinkFace.draggable = false;
+    blinkFace.alt = '';
     const zzz = document.createElement('div');
     zzz.className = 'gaia-pet-zzz';
     zzz.textContent = 'Zzz';
     zzz.hidden = true;
-    body.append(halfbody, face, lid);
+    headRig.append(head, face, blinkFace);
+    body.append(halfbody, headRig);
     root.append(bubble, body, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, body, halfbody, face, lid, zzz };
+    ui = { root, bubble, body, halfbody, headRig, head, face, blinkFace, zzz };
     buildConsole();
   }
 
