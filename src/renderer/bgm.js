@@ -124,8 +124,9 @@
     if (!ui.root) return;
     ui.root.dataset.view = name || 'home';
     ui.root.hidden = name === 'splash';
-    const topbar = document.querySelector('#reader-view .topbar');
-    if (name === 'reader' && topbar) {
+    const topbarSelector = name === 'reader' ? '#reader-view .topbar' : (name === 'library' ? '#library-view .topbar' : null);
+    const topbar = topbarSelector ? document.querySelector(topbarSelector) : null;
+    if (topbar) {
       ui.root.classList.add('in-topbar');
       if (ui.root.parentElement !== topbar) topbar.appendChild(ui.root);
     } else {
