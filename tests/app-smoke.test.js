@@ -69,11 +69,11 @@ test('桌宠素材与映射表完整', () => {
   assert.ok(fs.statSync(yawnFace).size > 10000, '打哈欠专用表情贴片异常');
 });
 
-test('版本号为 0.5.1 且界面同步', () => {
+test('版本号为 0.5.2 且界面同步', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '0.5.1');
+  assert.strictEqual(pkg.version, '0.5.2');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.ok(html.includes('Gaia Reading 0.5.1'), '关于面板版本号未同步');
+  assert.ok(html.includes('Gaia Reading 0.5.2'), '关于面板版本号未同步');
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
   assert.ok(html.includes('btn-theme'), '缺少主题切换');
   assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
