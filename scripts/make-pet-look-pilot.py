@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""烘焙桌宠“微微向左看”的试验帧。
+"""烘焙桌宠九方向注视试验帧。
 
 这不是把整张立绘平移、旋转或压扁，而是在原始像素上分别处理脸部透视、
 眼神、内侧头发、颈肩线与披风上半部。所有位移在区域边缘平滑归零，帽子
-外轮廓、腰部和下摆保持不动，方便先验证自然度再扩展其他方向。
+外轮廓、腰部和下摆保持不动。
 """
 
 from pathlib import Path
@@ -16,6 +16,17 @@ from scipy.ndimage import map_coordinates
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "renderer" / "images" / "pet" / "parts" / "full.png"
 OUTPUT = ROOT / "docs" / "pet-direction-pilot"
+DIRECTIONS = {
+    "up-left": (-0.82, -0.82),
+    "up": (0.0, -1.0),
+    "up-right": (0.82, -0.82),
+    "left": (-1.0, 0.0),
+    "center": (0.0, 0.0),
+    "right": (1.0, 0.0),
+    "down-left": (-0.82, 0.82),
+    "down": (0.0, 1.0),
+    "down-right": (0.82, 0.82),
+}
 
 
 def soft_ellipse(xx, yy, cx, cy, rx, ry, power=2.0):
@@ -31,24 +42,52 @@ def add_shift(dx, dy, xx, yy, region, move_x=0.0, move_y=0.0):
     dy -= move_y * region
 
 
-def add_face_yaw(dx, xx, yy):
-    """以左脸侧为视觉支点，轻微收拢远侧脸，形成左转透视。"""
+def add_face_yaw(dx, xx, yy, horizontal):
+    """以近侧脸为视觉支点，收拢远侧脸形成左右偏转透视。"""
+    if horizontal == 0:
+        return
     cx, cy = 178.0, 169.0
     region = soft_ellipse(xx, yy, cx, cy, 55.0, 77.0, 1.15)
-    desired_shift = -4.6
-    horizontal_scale = 0.955
+    desired_shift = 4.6 * horizontal
+    horizontal_scale = 1.0 - 0.045 * abs(horizontal)
     inverse_offset = (xx - cx - desired_shift) / horizontal_scale - (xx - cx)
     dx += inverse_offset * region
 
 
-def add_body_yaw(dx, xx, yy):
+def add_face_pitch(dy, xx, yy, vertical):
+    """在头部轮廓内改变五官纵向透视，形成抬头或低头。"""
+    if vertical == 0:
+        return
+    cx, cy = 178.0, 169.0
+    region = soft_ellipse(xx, yy, cx, cy, 55.0, 77.0, 1.15)
+    desired_shift = 3.4 * vertical
+    vertical_scale = 1.0 - 0.026 * abs(vertical)
+    inverse_offset = (yy - cy - desired_shift) / vertical_scale - (yy - cy)
+    dy += inverse_offset * region
+
+
+def add_body_yaw(dx, xx, yy, horizontal):
     """让披风上半部绕竖轴微转，而不是让两侧肩膀一高一低。"""
+    if horizontal == 0:
+        return
     cx, cy = 178.0, 316.0
     region = soft_ellipse(xx, yy, cx, cy, 174.0, 142.0, 1.1)
-    desired_shift = -1.55
-    horizontal_scale = 0.982
+    desired_shift = 1.55 * horizontal
+    horizontal_scale = 1.0 - 0.018 * abs(horizontal)
     inverse_offset = (xx - cx - desired_shift) / horizontal_scale - (xx - cx)
     dx += inverse_offset * region
+
+
+def add_body_pitch(dy, xx, yy, vertical):
+    """只让衣领附近顺着上下视线轻微收放，下摆保持固定。"""
+    if vertical == 0:
+        return
+    cx, cy = 178.0, 300.0
+    region = soft_ellipse(xx, yy, cx, cy, 150.0, 112.0, 1.35)
+    desired_shift = 0.55 * vertical
+    vertical_scale = 1.0 - 0.008 * abs(vertical)
+    inverse_offset = (yy - cy - desired_shift) / vertical_scale - (yy - cy)
+    dy += inverse_offset * region
 
 
 def warp_rgba_premultiplied(image, dx, dy):
@@ -80,38 +119,42 @@ def warp_rgba_premultiplied(image, dx, dy):
     return Image.fromarray(quantized, "RGBA")
 
 
-def make_left_look(source):
+def make_look(source, horizontal, vertical):
     width, height = source.size
     yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
     dx = np.zeros((height, width), dtype=np.float32)
     dy = np.zeros((height, width), dtype=np.float32)
 
-    # 脸型先产生极轻的偏转透视；帽子轮廓与外侧长发不参与。
-    add_face_yaw(dx, xx, yy)
+    # 脸型先产生偏转和俯仰透视；帽子轮廓与外侧长发不参与。
+    add_face_yaw(dx, xx, yy, horizontal)
+    add_face_pitch(dy, xx, yy, vertical)
 
     # 眼神比脸先多走一点，鼻尖和嘴只跟随半步，避免五官像贴纸般一起滑动。
     for eye_x in (151.0, 204.0):
         eye = soft_ellipse(xx, yy, eye_x, 153.0, 14.0, 10.0, 1.4)
-        add_shift(dx, dy, xx, yy, eye, move_x=-1.75)
+        add_shift(dx, dy, xx, yy, eye, move_x=1.75 * horizontal, move_y=1.25 * vertical)
     nose_mouth = soft_ellipse(xx, yy, 178.0, 184.0, 24.0, 28.0, 1.3)
-    add_shift(dx, dy, xx, yy, nose_mouth, move_x=-0.85)
+    add_shift(dx, dy, xx, yy, nose_mouth, move_x=0.85 * horizontal, move_y=0.65 * vertical)
 
     # 刘海内层产生小于一像素的视差，外轮廓保持稳定。
     inner_hair = soft_ellipse(xx, yy, 178.0, 125.0, 50.0, 36.0, 1.7)
-    add_shift(dx, dy, xx, yy, inner_hair, move_x=-1.0)
+    add_shift(dx, dy, xx, yy, inner_hair, move_x=1.0 * horizontal, move_y=0.5 * vertical)
 
     # 颈部、衣领与披风上半部跟随左转；位移在腰部前完全衰减。
     neck = soft_ellipse(xx, yy, 178.0, 238.0, 48.0, 42.0, 1.2)
-    add_shift(dx, dy, xx, yy, neck, move_x=-2.1)
+    add_shift(dx, dy, xx, yy, neck, move_x=2.1 * horizontal, move_y=1.2 * vertical)
     collar_and_pendants = soft_ellipse(xx, yy, 178.0, 272.0, 92.0, 70.0, 1.3)
-    add_shift(dx, dy, xx, yy, collar_and_pendants, move_x=-1.35)
-    add_body_yaw(dx, xx, yy)
+    add_shift(dx, dy, xx, yy, collar_and_pendants, move_x=1.35 * horizontal, move_y=0.7 * vertical)
+    add_body_yaw(dx, xx, yy, horizontal)
+    add_body_pitch(dy, xx, yy, vertical)
 
     # 远侧肩膀向内收，近侧肩膀只跟随半步；不再制造高低肩。
     left_shoulder = soft_ellipse(xx, yy, 91.0, 278.0, 73.0, 52.0, 1.45)
     right_shoulder = soft_ellipse(xx, yy, 263.0, 278.0, 73.0, 52.0, 1.45)
-    add_shift(dx, dy, xx, yy, left_shoulder, move_x=-0.35)
-    add_shift(dx, dy, xx, yy, right_shoulder, move_x=-1.45)
+    left_move = 0.9 * horizontal + 0.55 * abs(horizontal)
+    right_move = 0.9 * horizontal - 0.55 * abs(horizontal)
+    add_shift(dx, dy, xx, yy, left_shoulder, move_x=left_move)
+    add_shift(dx, dy, xx, yy, right_shoulder, move_x=right_move)
 
     return warp_rgba_premultiplied(source, dx, dy)
 
@@ -153,15 +196,51 @@ def make_detail_comparison(center, left):
     return make_comparison(center_crop, left_crop)
 
 
+def make_direction_grid(frames, detail=False):
+    """生成九宫格总览；detail 模式放大脸、颈部和肩线。"""
+    order = (
+        ("up-left", "up", "up-right"),
+        ("left", "center", "right"),
+        ("down-left", "down", "down-right"),
+    )
+    margin, gap, label_height = 20, 18, 28
+    if detail:
+        crop_box = (92, 92, 264, 330)
+        cell_frames = {
+            name: frame.crop(crop_box).resize((344, 476), Image.Resampling.NEAREST)
+            for name, frame in frames.items()
+        }
+    else:
+        cell_frames = frames
+    cell_width, cell_height = next(iter(cell_frames.values())).size
+    width = margin * 2 + cell_width * 3 + gap * 2
+    height = margin * 2 + (cell_height + label_height) * 3 + gap * 2
+    canvas = checkerboard((width, height))
+    draw = ImageDraw.Draw(canvas)
+    for row, names in enumerate(order):
+        for column, name in enumerate(names):
+            x = margin + column * (cell_width + gap)
+            y = margin + row * (cell_height + label_height + gap)
+            draw.text((x, y + 6), name.upper(), fill=(224, 228, 238, 255))
+            canvas.alpha_composite(cell_frames[name], (x, y + label_height))
+    return canvas
+
+
 def main():
     source = Image.open(SOURCE).convert("RGBA")
-    left = make_left_look(source)
+    frames = {
+        name: source.copy() if name == "center" else make_look(source, horizontal, vertical)
+        for name, (horizontal, vertical) in DIRECTIONS.items()
+    }
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    source.save(OUTPUT / "pilot-center.png")
-    left.save(OUTPUT / "pilot-look-left.png")
-    make_comparison(source, left).save(OUTPUT / "pilot-comparison.png")
-    make_detail_comparison(source, left).save(OUTPUT / "pilot-detail-3x.png")
-    print(f"saved pilot frames to {OUTPUT}")
+    for name, frame in frames.items():
+        filename = "pilot-center.png" if name == "center" else f"pilot-look-{name}.png"
+        frame.save(OUTPUT / filename)
+    make_comparison(source, frames["left"]).save(OUTPUT / "pilot-comparison.png")
+    make_detail_comparison(source, frames["left"]).save(OUTPUT / "pilot-detail-3x.png")
+    make_direction_grid(frames).save(OUTPUT / "pilot-directions-grid.png")
+    make_direction_grid(frames, detail=True).save(OUTPUT / "pilot-directions-detail.png")
+    print(f"saved {len(frames)} direction frames to {OUTPUT}")
 
 
 if __name__ == "__main__":
