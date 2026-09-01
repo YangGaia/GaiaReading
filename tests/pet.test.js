@@ -187,12 +187,17 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("{ at: 260, expression: '打哈欠' }"), '打哈欠张嘴表情应与动作阶段同步');
   assert.ok(renderer.includes("hideBubble(true);\n      applyExpression('眼睛微张')"), '打哈欠开始前应清除上一条气泡');
   assert.ok(renderer.includes("showBubble(lineFor('yawn'), 1300)"), '打哈欠张嘴阶段应显示与动作同步收尾的文字');
+  assert.ok(renderer.includes("drowse: 2200"), '困倦点头动作应有足够缓慢的节奏');
+  assert.ok(renderer.includes("{ at: 620, expression: '安心' }"), '困倦低头阶段应闭眼');
+  assert.ok(renderer.includes("{ at: 1650, expression: '眼睛微张' }"), '困倦抬头阶段应恢复半睁眼');
   assert.ok(renderer.includes("resetActivity(now);\n    transientUntil = 0;\n    triggerAction(name, true)"), '手动动作不应被上一段临时状态的收尾计时中断');
   assert.ok(!renderer.includes("['stretch', '伸懒腰']"), '不应保留失败的伸懒腰入口');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
   assert.ok(css.includes('@keyframes pet-sleep-breathe'), '缺少睡眠呼吸动画');
-  assert.ok(css.includes('@keyframes pet-drowse'), '缺少困倦过渡动画');
+  assert.ok(css.includes('@keyframes pet-head-drowse'), '缺少困倦点头的头部动画');
+  assert.ok(css.includes('52%, 66% { transform: translateY(7px) rotate(1.8deg) scaleY(0.955); }'), '困倦动作应有明显的缓慢低头停顿');
+  assert.ok(css.includes('76% { transform: translateY(-1px) rotate(-0.6deg) scaleY(1.01); }'), '困倦动作应有突然清醒抬头的回弹');
   assert.ok(css.includes('@keyframes pet-wake'), '缺少唤醒动画');
   assert.ok(css.includes('@keyframes pet-eye-sprite-blink'), '眨眼应使用闭眼贴片动画');
   assert.ok(css.includes('@keyframes pet-head-thinking'), '缺少思考头部动画');
@@ -213,6 +218,8 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(!main.includes("new PointerEvent('pointerenter', { clientX: 0, clientY: 0 })"), '睡眠冒烟测试不应受真实鼠标进入事件干扰');
   assert.ok(main.includes('petStatus.yawnStarted === true'), '冒烟测试应验证打哈欠动画已启动');
   assert.ok(main.includes('petStatus.yawnTextVisible === true'), '冒烟测试应验证打哈欠文字已显示');
+  assert.ok(main.includes('petStatus.drowseStarted === true'), '冒烟测试应验证困倦低头和闭眼阶段');
+  assert.ok(main.includes('petStatus.drowseCleared === true'), '冒烟测试应验证困倦动作恢复半睁眼');
 });
 
 test('头身分层完整挖空头部活动区，仅在颈部保留窄幅重叠', () => {

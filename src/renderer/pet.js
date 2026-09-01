@@ -52,7 +52,7 @@
   const HEAD = { x: 88, y: 0, w: 180, h: 235 };
   const ACTION_CLASSES = ['poke', 'drop', 'perk', 'recoil', 'shiver', 'lean', 'drowse', 'wake'];
   const PERFORMANCE_CLASSES = ['performance-tilt', 'performance-thinking', 'performance-peek', 'performance-listen', 'performance-shy', 'performance-angry', 'performance-bored', 'performance-drowse', 'performance-wake', 'performance-yawn'];
-  const ACTION_MS = { poke: 350, tilt: 1100, drop: 400, perk: 500, recoil: 360, shiver: 420, yawn: 1700, lean: 600, drowse: 1100, wake: 900 };
+  const ACTION_MS = { poke: 350, tilt: 1100, drop: 400, perk: 500, recoil: 360, shiver: 420, yawn: 1700, lean: 600, drowse: 2200, wake: 900 };
   const STATE_LABELS = {
     idle: '待机', hover: '注视', poke: '被戳', bored: '无聊', sleepy: '困倦',
     sleeping: '睡觉', wake: '唤醒', manual: '手动',
@@ -255,6 +255,14 @@
     }
   }
 
+  function playDrowsePerformance() {
+    applyExpression('眼睛微张');
+    return playPerformance('drowse', ACTION_MS.drowse, [
+      { at: 620, expression: '安心' },
+      { at: 1650, expression: '眼睛微张' },
+    ]);
+  }
+
   function currentStateLabel() {
     if (brain.state === PET_STATES.MANUAL && manualLabel) return manualLabel;
     return STATE_LABELS[brain.state] || '待机';
@@ -332,7 +340,7 @@
     } else if (change.state === PET_STATES.SLEEPY) {
       setState(change.state, '眼睛微张');
       if (saved.autoSpeech) showBubble(lineFor('sleepy'));
-      playPerformance('drowse', ACTION_MS.drowse);
+      playDrowsePerformance();
     } else if (change.state === PET_STATES.SLEEPING) {
       setState(change.state, '安心');
       hideBubble(false);
@@ -496,7 +504,7 @@
       playPerformance('angry', 820, [{ at: 180, expression: '生气' }]);
     } else if (key === 'sleepy') {
       setState(PET_STATES.SLEEPY, '眼睛微张');
-      playPerformance('drowse', ACTION_MS.drowse);
+      playDrowsePerformance();
     }
     if (config.line) showBubble(lineFor(config.line));
     transientUntil = manualLocked ? 0 : now + TIMERS.MANUAL_AFTER;

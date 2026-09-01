@@ -503,6 +503,15 @@ function createWindow() {
             const yawnTextVisible = yawnBubble.classList.contains('show') && yawnBubble.textContent.length > 0;
             await new Promise((resolve) => setTimeout(resolve, 1420));
             const yawnCleared = !petHeadRig.classList.contains('performance-yawn') && !bodyAfterAction.classList.contains('no-breathe');
+            GaiaPet.runEmotion('sleepy');
+            await new Promise((resolve) => setTimeout(resolve, 800));
+            const drowseStarted = petHeadRig.classList.contains('performance-drowse') &&
+              getComputedStyle(bodyAfterAction).animationName === 'pet-body-drowse' &&
+              document.querySelector('.gaia-pet-face').dataset.exp === '安心';
+            await new Promise((resolve) => setTimeout(resolve, 1460));
+            const drowseCleared = !petHeadRig.classList.contains('performance-drowse') &&
+              !bodyAfterAction.classList.contains('no-breathe') &&
+              document.querySelector('.gaia-pet-face').dataset.exp === '眼睛微张';
             GaiaPet.runEmotion('angry');
             const angryPerformanceStarted = petHeadRig.classList.contains('performance-angry') && document.querySelector('.gaia-pet-face').dataset.exp === '冷脸';
             await new Promise((resolve) => setTimeout(resolve, 230));
@@ -512,7 +521,7 @@ function createWindow() {
             GaiaPet.runAction('blink');
             const spriteBlinkStarted = !!blinkFace && blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted };
+            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -538,6 +547,8 @@ function createWindow() {
             petStatus.yawnStarted === true &&
             petStatus.yawnTextVisible === true &&
             petStatus.yawnCleared === true &&
+            petStatus.drowseStarted === true &&
+            petStatus.drowseCleared === true &&
             petStatus.angryPerformanceStarted === true &&
             petStatus.angryExpressionMatched === true &&
             petStatus.angryPerformanceCleared === true &&
@@ -596,6 +607,14 @@ function createWindow() {
         await wait(500);
         await capture('pet_yawn_return.png');
         await wait(560);
+        await mainWindow.webContents.executeJavaScript("GaiaPet.runEmotion('sleepy')");
+        await wait(260);
+        await capture('pet_drowse_early.png');
+        await wait(600);
+        await capture('pet_drowse_peak.png');
+        await wait(850);
+        await capture('pet_drowse_return.png');
+        await wait(550);
         await mainWindow.webContents.executeJavaScript("__gaiaDebug.showView('library')");
         await wait(900);
         await capture('bookshelf.png');
