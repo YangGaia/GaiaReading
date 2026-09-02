@@ -117,7 +117,10 @@ function showView(name) {
   fxCanvas.hidden = !(name === 'home' || name === 'library');
   if (name !== 'home' && name !== 'library') clearFx();
   if (window.GaiaBgm && window.GaiaBgm.positionBgm) window.GaiaBgm.positionBgm(name);
-  window.GaiaPet.init().then(updatePetUI);
+  window.GaiaPet.init().then(() => {
+    window.GaiaPet.setView(name);
+    updatePetUI();
+  });
 }
 
 function finishSplash() {
@@ -1390,6 +1393,14 @@ function togglePet() {
   updatePetUI();
 }
 
+function openPetConsole() {
+  if (!window.GaiaPet) return;
+  if (!window.GaiaPet.getState().on) window.GaiaPet.setEnabled(true);
+  updatePetUI();
+  closeSettings();
+  window.GaiaPet.openConsole();
+}
+
 async function cycleTheme() {
   const order = ['light', 'eye', 'dark'];
   const idx = order.indexOf(state.prefs.theme);
@@ -1569,6 +1580,7 @@ function bindEvents() {
   $('btn-spread').addEventListener('click', toggleSpread);
   $('btn-theme').addEventListener('click', cycleTheme);
   $('btn-pet-toggle').addEventListener('click', togglePet);
+  $('btn-pet-console').addEventListener('click', openPetConsole);
   els.fontSelect.addEventListener('change', (ev) => {
     state.fontName = ev.target.value;
     const c = state.current;

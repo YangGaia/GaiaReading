@@ -155,7 +155,7 @@ body.dark {
 #settings-drawer h3 { font-size: 12px; color: var(--text-soft); margin: 18px 0 8px; letter-spacing: 1px; }
 .drawer-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 #font-value, #line-height-value, #spread-value, #night-value { min-width: 44px; font-size: 13px; color: var(--text-soft); text-align: center; }
-.appearance-row { align-items: center; gap: 16px; }
+.appearance-row { align-items: center; gap: 12px 16px; flex-wrap: wrap; }
 .appearance-control { display: flex; align-items: center; gap: 8px; min-height: 30px; }
 .appearance-control .btn { min-width: 52px; height: 30px; }
 #theme-value, #pet-value { min-width: 36px; font-size: 13px; line-height: 30px; color: var(--text-soft); text-align: center; }
@@ -316,8 +316,20 @@ body.eye {
   user-select: none;
   -webkit-user-select: none;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
+  pointer-events: none;
 }
 .gaia-pet.dragging { cursor: grabbing; }
+.gaia-pet-hitbox {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  cursor: grab;
+  pointer-events: auto;
+  outline: none;
+  clip-path: polygon(25% 2%, 78% 2%, 91% 28%, 86% 54%, 96% 100%, 8% 100%, 16% 55%, 10% 30%);
+}
+.gaia-pet-hitbox:focus-visible { filter: drop-shadow(0 0 5px var(--accent)); }
+.gaia-pet.dragging .gaia-pet-hitbox { cursor: grabbing; }
 .gaia-pet-body {
   position: relative;
   width: 100%;
@@ -369,12 +381,16 @@ body.eye {
   padding: 7px 12px;
   font-size: 12px;
   line-height: 1.45;
-  white-space: nowrap;
+  width: max-content;
+  white-space: normal;
   max-width: 230px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
   overflow: hidden;
-  text-overflow: ellipsis;
   opacity: 0;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
   transition: opacity 0.18s ease, transform 0.18s ease;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
@@ -735,6 +751,28 @@ body.eye {
   font-size: 11px;
 }
 .gaia-pet-console-lock { width: 100%; margin-top: 8px; }
+.gaia-pet-console-history-title { display: flex; align-items: center; justify-content: space-between; }
+.gaia-pet-console-history-clear {
+  padding: 2px 6px;
+  border: 0;
+  color: var(--text-soft);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+}
+.gaia-pet-console-history {
+  max-height: 92px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-soft);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.gaia-pet-console-history > div + div { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
+.gaia-pet-console-empty { opacity: 0.7; }
 
 @media (prefers-reduced-motion: reduce) {
   .gaia-pet-body,

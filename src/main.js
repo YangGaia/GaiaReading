@@ -472,16 +472,18 @@ function createWindow() {
             }
             const oldLidRemoved = !document.querySelector('.gaia-pet-lid');
             const petRoot = document.getElementById('gaia-pet');
+            const petTarget = petRoot.querySelector('.gaia-pet-hitbox');
             petRoot.style.pointerEvents = 'none';
+            petTarget.style.pointerEvents = 'none';
             GaiaPet.runEmotion('sleeping');
             const sleeping = GaiaPet.getBrain().state === 'sleeping';
             const sleepExpression = document.querySelector('.gaia-pet-face').dataset.exp;
             const sleepAnimation = document.querySelector('.gaia-pet-body').classList.contains('sleeping');
             const sleepHeadPose = petHeadRig.classList.contains('sleeping');
             const zzzVisible = !document.querySelector('.gaia-pet-zzz').hidden;
-            petRoot.dispatchEvent(new PointerEvent('pointerenter', { clientX: 0, clientY: 0 }));
+            petTarget.dispatchEvent(new PointerEvent('pointerenter', { clientX: 0, clientY: 0 }));
             const hoverKeepsSleeping = GaiaPet.getBrain().state === 'sleeping';
-            petRoot.dispatchEvent(new MouseEvent('click', { clientX: 0, clientY: 0 }));
+            petTarget.dispatchEvent(new MouseEvent('click', { clientX: 0, clientY: 0 }));
             const firstClickOnlyWakes = GaiaPet.getBrain().state === 'wake';
             GaiaPet.runEmotion('wake');
             await new Promise((resolve) => setTimeout(resolve, 30));

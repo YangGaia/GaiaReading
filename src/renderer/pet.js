@@ -41,11 +41,16 @@
     on: true,
     x: null,
     y: null,
+    xRatio: null,
+    yRatio: null,
     auto: true,
     autoSpeech: true,
     autoSleep: true,
     sleepAfter: TIMERS.SLEEP_AFTER,
     lockedMood: null,
+    scale: 1,
+    opacity: 1,
+    readerMode: 'normal',
   };
   const FACE = {
     halfbody: { x: 134, y: 137, w: 89, h: 78 },
@@ -84,6 +89,8 @@
   let pointerInside = false;
   let consoleOpen = false;
   let dragging = false;
+  let currentView = 'home';
+  let speechHistory = [];
   let effectVersion = 0;
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
@@ -94,12 +101,49 @@
       on: saved.on,
       x: Number.isFinite(saved.x) ? saved.x : null,
       y: Number.isFinite(saved.y) ? saved.y : null,
+      xRatio: Number.isFinite(saved.xRatio) ? saved.xRatio : null,
+      yRatio: Number.isFinite(saved.yRatio) ? saved.yRatio : null,
       auto: saved.auto,
       autoSpeech: saved.autoSpeech,
       autoSleep: saved.autoSleep,
       sleepAfter: saved.sleepAfter,
       lockedMood: lockedEmotion,
+      scale: saved.scale,
+      opacity: saved.opacity,
+      readerMode: saved.readerMode,
     });
+  }
+
+  function updateVisibility() {
+    if (!ui.root) return;
+    const hiddenInReader = currentView === 'reader' && saved.readerMode === 'hidden';
+    ui.root.hidden = !saved.on || hiddenInReader;
+    ui.root.classList.toggle('reader-dim', currentView === 'reader' && saved.readerMode === 'dim');
+    ui.root.style.opacity = String(saved.opacity * (ui.root.classList.contains('reader-dim') ? 0.55 : 1));
+  }
+
+  function updatePositionRatios() {
+    if (!ui.root) return;
+    const maxX = Math.max(0, window.innerWidth - ui.root.offsetWidth);
+    const maxY = Math.max(0, window.innerHeight - ui.root.offsetHeight);
+    saved.xRatio = maxX ? saved.x / maxX : 0;
+    saved.yRatio = maxY ? saved.y / maxY : 0;
+  }
+
+  function restorePositionFromRatios() {
+    if (!ui.root || !Number.isFinite(saved.xRatio) || !Number.isFinite(saved.yRatio)) return false;
+    saved.x = saved.xRatio * Math.max(0, window.innerWidth - ui.root.offsetWidth);
+    saved.y = saved.yRatio * Math.max(0, window.innerHeight - ui.root.offsetHeight);
+    return true;
+  }
+
+  function applyAppearance(restorePosition) {
+    if (!ui.root) return;
+    ui.root.style.width = Math.round(150 * saved.scale) + 'px';
+    layoutFace();
+    if (restorePosition) restorePositionFromRatios();
+    clampPosition();
+    updateVisibility();
   }
 
   function applyExpression(name) {
@@ -160,11 +204,31 @@
     if (!ui.bubble || !text) return;
     window.clearTimeout(bubbleTimer);
     ui.bubble.textContent = text;
+    ui.bubble.title = text;
+    speechHistory = [text, ...speechHistory.filter((line) => line !== text)].slice(0, 10);
+    renderSpeechHistory();
     ui.bubble.hidden = false;
     ui.bubble.classList.remove('show');
     void ui.bubble.offsetWidth;
     ui.bubble.classList.add('show');
     bubbleTimer = window.setTimeout(() => hideBubble(false), duration || 2600);
+  }
+
+  function renderSpeechHistory() {
+    if (!ui.speechHistory) return;
+    ui.speechHistory.replaceChildren();
+    if (!speechHistory.length) {
+      const empty = document.createElement('span');
+      empty.className = 'gaia-pet-console-empty';
+      empty.textContent = '还没有台词';
+      ui.speechHistory.appendChild(empty);
+      return;
+    }
+    for (const line of speechHistory) {
+      const item = document.createElement('div');
+      item.textContent = line;
+      ui.speechHistory.appendChild(item);
+    }
   }
 
   function clearActions() {
@@ -298,6 +362,9 @@
       ui.sleepSelect.value = String(saved.sleepAfter);
       ui.sleepSelect.disabled = !saved.auto || !saved.autoSleep;
     }
+    if (ui.scaleSelect) ui.scaleSelect.value = String(saved.scale);
+    if (ui.opacitySelect) ui.opacitySelect.value = String(saved.opacity);
+    if (ui.readerModeSelect) ui.readerModeSelect.value = saved.readerMode;
     if (ui.lockButton) {
       const canLock = LOCKABLE_EMOTIONS.includes(manualEmotionKey);
       ui.lockButton.disabled = !canLock;
@@ -456,7 +523,10 @@
 
   function onClick(ev) {
     if (Math.abs(ev.clientX - downPos.x) > 4 || Math.abs(ev.clientY - downPos.y) > 4) return;
-    const now = Date.now();
+    interact(Date.now());
+  }
+
+  function interact(now) {
     if (wakeUp(now)) return;
     resetActivity(now);
     if (lockedEmotion) {
@@ -608,11 +678,35 @@
   }
 
   function bind() {
-    ui.root.addEventListener('pointerenter', onHover);
-    ui.root.addEventListener('pointerleave', onLeave);
-    ui.root.addEventListener('click', onClick);
-    ui.root.addEventListener('contextmenu', openConsole);
-    ui.root.addEventListener('pointerdown', (ev) => {
+    const target = ui.hitbox;
+    target.addEventListener('pointerenter', onHover);
+    target.addEventListener('pointerleave', onLeave);
+    target.addEventListener('click', onClick);
+    target.addEventListener('contextmenu', openConsole);
+    target.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        ev.stopPropagation();
+        interact(Date.now());
+        return;
+      }
+      if (ev.key === 'F10' && ev.shiftKey) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openConsole(ev);
+        return;
+      }
+      const movement = { ArrowLeft: [-8, 0], ArrowRight: [8, 0], ArrowUp: [0, -8], ArrowDown: [0, 8] }[ev.key];
+      if (!movement) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      saved.x += movement[0];
+      saved.y += movement[1];
+      clampPosition();
+      updatePositionRatios();
+      save();
+    });
+    target.addEventListener('pointerdown', (ev) => {
       if (ev.button !== 0) return;
       const r = ui.root.getBoundingClientRect();
       downPos = { x: ev.clientX, y: ev.clientY };
@@ -633,6 +727,7 @@
       closeConsole(true);
     }, true);
     window.addEventListener('resize', () => {
+      restorePositionFromRatios();
       clampPosition();
       positionConsole();
       save();
@@ -665,6 +760,7 @@
       ui.root.classList.remove('dragging');
       returnToIdle(Date.now());
       triggerAction('drop');
+      updatePositionRatios();
       save();
     }
   }
@@ -773,10 +869,61 @@
     });
     sleepRow.append(sleepLabel, sleepSelect);
 
+    const displayTitle = document.createElement('div');
+    displayTitle.className = 'gaia-pet-console-label';
+    displayTitle.textContent = '显示设置';
+    const makeSelectRow = (label, options, onChange) => {
+      const row = document.createElement('label');
+      row.className = 'gaia-pet-console-select-row';
+      const text = document.createElement('span');
+      text.textContent = label;
+      const select = document.createElement('select');
+      for (const [value, name] of options) {
+        const option = document.createElement('option');
+        option.value = String(value);
+        option.textContent = name;
+        select.appendChild(option);
+      }
+      select.addEventListener('change', () => onChange(select.value));
+      row.append(text, select);
+      return { row, select };
+    };
+    const scale = makeSelectRow('尺寸', [[0.75, '75%'], [1, '100%'], [1.25, '125%'], [1.5, '150%']], (value) => {
+      updatePositionRatios();
+      saved.scale = Number(value) || 1;
+      applyAppearance(true);
+      save();
+      positionConsole();
+    });
+    const opacity = makeSelectRow('透明度', [[0.4, '40%'], [0.6, '60%'], [0.8, '80%'], [1, '100%']], (value) => {
+      saved.opacity = Number(value) || 1;
+      updateVisibility();
+      save();
+    });
+    const readerMode = makeSelectRow('阅读页', [['normal', '正常显示'], ['dim', '半透明'], ['hidden', '自动隐藏']], (value) => {
+      saved.readerMode = ['normal', 'dim', 'hidden'].includes(value) ? value : 'normal';
+      updateVisibility();
+      save();
+    });
+
+    const historyTitle = document.createElement('div');
+    historyTitle.className = 'gaia-pet-console-label gaia-pet-console-history-title';
+    const historyLabel = document.createElement('span');
+    historyLabel.textContent = '最近台词';
+    const clearHistory = makeButton('清空', 'gaia-pet-console-history-clear');
+    clearHistory.addEventListener('click', () => {
+      speechHistory = [];
+      renderSpeechHistory();
+    });
+    historyTitle.append(historyLabel, clearHistory);
+    const history = document.createElement('div');
+    history.className = 'gaia-pet-console-history';
+
     const lock = makeButton('锁定当前情绪', 'gaia-pet-console-lock');
     lock.addEventListener('click', toggleEmotionLock);
     panel.append(header, state, emotionTitle, emotions, actionTitle, actions, autoTitle,
-      autoToggle.row, speechToggle.row, sleepToggle.row, sleepRow, lock);
+      autoToggle.row, speechToggle.row, sleepToggle.row, sleepRow, lock, displayTitle,
+      scale.row, opacity.row, readerMode.row, historyTitle, history);
     document.body.appendChild(panel);
     ui.console = panel;
     ui.consoleState = state;
@@ -786,6 +933,11 @@
     ui.sleepToggle = sleepToggle.input;
     ui.sleepSelect = sleepSelect;
     ui.lockButton = lock;
+    ui.scaleSelect = scale.select;
+    ui.opacitySelect = opacity.select;
+    ui.readerModeSelect = readerMode.select;
+    ui.speechHistory = history;
+    renderSpeechHistory();
   }
 
   function build() {
@@ -793,9 +945,18 @@
     root.id = 'gaia-pet';
     root.className = 'gaia-pet';
     root.title = '久远寺有珠 · 右键打开控制台';
+    const hitbox = document.createElement('div');
+    hitbox.className = 'gaia-pet-hitbox';
+    hitbox.tabIndex = 0;
+    hitbox.setAttribute('role', 'button');
+    hitbox.setAttribute('aria-label', '久远寺有珠桌宠。按回车互动，按 Shift+F10 打开控制台。');
+    hitbox.title = root.title;
     const bubble = document.createElement('div');
     bubble.className = 'gaia-pet-bubble';
     bubble.hidden = true;
+    bubble.setAttribute('role', 'status');
+    bubble.setAttribute('aria-live', 'polite');
+    bubble.addEventListener('click', () => hideBubble(false));
     const body = document.createElement('div');
     body.className = 'gaia-pet-body';
     const halfbody = document.createElement('img');
@@ -830,9 +991,9 @@
     zzz.hidden = true;
     headRig.append(head, face, blinkFace);
     body.append(halfbody, headRig);
-    root.append(bubble, body, zzz);
+    root.append(bubble, body, zzz, hitbox);
     document.body.appendChild(root);
-    ui = { root, bubble, body, halfbody, headRig, head, face, blinkFace, zzz };
+    ui = { root, hitbox, bubble, body, halfbody, headRig, head, face, blinkFace, zzz };
     buildConsole();
   }
 
@@ -845,21 +1006,30 @@
       saved.autoSleep = savedState.autoSleep !== false;
       if (LOCKABLE_EMOTIONS.includes(savedState.lockedMood)) saved.lockedMood = savedState.lockedMood;
       if ([20000, 35000, 60000].includes(savedState.sleepAfter)) saved.sleepAfter = savedState.sleepAfter;
+      if ([0.75, 1, 1.25, 1.5].includes(savedState.scale)) saved.scale = savedState.scale;
+      if ([0.4, 0.6, 0.8, 1].includes(savedState.opacity)) saved.opacity = savedState.opacity;
+      if (['normal', 'dim', 'hidden'].includes(savedState.readerMode)) saved.readerMode = savedState.readerMode;
+      if (Number.isFinite(savedState.xRatio) && Number.isFinite(savedState.yRatio)) {
+        saved.xRatio = Math.max(0, Math.min(1, savedState.xRatio));
+        saved.yRatio = Math.max(0, Math.min(1, savedState.yRatio));
+      }
       if (Number.isFinite(savedState.x) && Number.isFinite(savedState.y)) {
         saved.x = savedState.x;
         saved.y = savedState.y;
       }
     }
     build();
+    ui.root.style.width = Math.round(150 * saved.scale) + 'px';
     layoutFace();
     bind();
-    if (saved.x == null || saved.y == null) {
+    if (!restorePositionFromRatios() && (saved.x == null || saved.y == null)) {
       const r = ui.root.getBoundingClientRect();
       saved.x = Math.max(8, window.innerWidth - r.width - 24);
       saved.y = Math.max(8, window.innerHeight - r.height - 24);
     }
     clampPosition();
-    ui.root.hidden = !saved.on;
+    updatePositionRatios();
+    updateVisibility();
     manualLabel = '';
     if (saved.lockedMood) {
       lockedEmotion = saved.lockedMood;
@@ -874,6 +1044,7 @@
     updateConsole();
     window.setInterval(tick, 500);
     scheduleBlink();
+    save();
   }
 
   function init() {
@@ -883,7 +1054,7 @@
 
   function setEnabled(on) {
     saved.on = !!on;
-    if (ui.root) ui.root.hidden = !saved.on;
+    updateVisibility();
     if (!saved.on) {
       closeConsole(false);
       hideBubble(true);
@@ -896,10 +1067,16 @@
     save();
   }
 
+  function setView(view) {
+    currentView = view || 'home';
+    updateVisibility();
+  }
+
   return {
     init,
     whenReady: () => initPromise || Promise.resolve(),
     setEnabled,
+    setView,
     getState: () => Object.assign({}, saved),
     getBrain: () => Object.assign({}, brain),
     openConsole: () => openConsole({ preventDefault() {} }),

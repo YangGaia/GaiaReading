@@ -98,6 +98,7 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
   assert.ok(html.includes('font-select'), '缺少字体选择');
   assert.ok(html.includes('btn-theme'), '缺少主题切换');
+  assert.ok(html.includes('btn-pet-console'), '设置页缺少有珠控制台入口');
   assert.ok(html.includes('progress-fill'), '缺少阅读进度条');
   assert.match(html, /class="drawer-row appearance-row"[\s\S]*?class="appearance-control"[\s\S]*?id="btn-theme"[\s\S]*?<\/div>\s*<div class="appearance-control">[\s\S]*?id="btn-pet-toggle"/, '主题与桌宠应为同一行内的同级控制组');
   assert.ok(css.includes('.appearance-control { display: flex; align-items: center;'), '主题与桌宠控制组应垂直居中');

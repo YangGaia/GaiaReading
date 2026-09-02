@@ -174,6 +174,15 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'app.js'), 'utf8');
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
   assert.ok(renderer.includes("addEventListener('contextmenu', openConsole)"), '桌宠应支持右键打开控制台');
+  assert.ok(renderer.includes("hitbox.setAttribute('role', 'button')"), '桌宠应提供键盘可聚焦的交互区域');
+  assert.ok(renderer.includes("ev.key === 'F10' && ev.shiftKey"), '桌宠应支持 Shift+F10 打开控制台');
+  assert.ok(renderer.includes('updatePositionRatios()'), '桌宠位置应使用窗口比例保存');
+  assert.ok(renderer.includes("readerMode: 'normal'"), '桌宠应支持阅读页显示策略');
+  assert.ok(renderer.includes("['hidden', '自动隐藏']"), '桌宠应支持阅读时自动隐藏');
+  assert.ok(renderer.includes("['dim', '半透明']"), '桌宠应支持阅读时半透明');
+  assert.ok(renderer.includes("scale = makeSelectRow('尺寸'"), '控制台应提供尺寸设置');
+  assert.ok(renderer.includes("opacity = makeSelectRow('透明度'"), '控制台应提供透明度设置');
+  assert.ok(renderer.includes("speechHistory = [text"), '控制台应记录最近台词');
   assert.ok(renderer.includes('whenReady:'), '桌宠初始化应提供可等待的就绪状态');
   assert.ok(renderer.includes("key === 'sleeping'"), '控制台应能手动睡觉');
   assert.ok(renderer.includes('saved.autoSpeech'), '控制台应能关闭自动说话');
@@ -217,6 +226,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(!renderer.includes("['stretch', '伸懒腰']"), '不应保留失败的伸懒腰入口');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
+  assert.ok(css.includes('.gaia-pet-hitbox'), '缺少桌宠轮廓交互区域');
+  assert.ok(css.includes('pointer-events: none;'), '桌宠透明根区域应允许点击穿透');
+  assert.ok(css.includes('-webkit-line-clamp: 3'), '桌宠台词应允许最多三行显示');
   assert.ok(css.includes('@keyframes pet-sleep-breathe'), '缺少睡眠呼吸动画');
   assert.ok(css.includes('@keyframes pet-head-drowse'), '缺少困倦点头的头部动画');
   assert.ok(css.includes('52%, 66% { transform: translateY(7px) rotate(1.8deg) scaleY(0.955); }'), '困倦动作应有明显的缓慢低头停顿');
@@ -235,7 +247,8 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(!css.includes('pet-left-arm-stretch'), '不应保留失败的伸懒腰手臂动画');
   assert.ok(css.includes('42% { transform: translateY(0) rotate(-0.5deg) scaleY(1.018); }'), '唤醒峰值时头部不应相对衣领继续上移并产生缝隙');
   assert.ok(!css.includes('.gaia-pet-lid'), '矩形眼皮样式应彻底移除');
-  assert.ok(app.includes('window.GaiaPet.init().then(updatePetUI)'), '桌宠初始化后应同步设置开关文字');
+  assert.ok(app.includes('window.GaiaPet.setView(name)'), '桌宠初始化后应同步当前页面与显示状态');
+  assert.ok(app.includes("$('btn-pet-console').addEventListener('click', openPetConsole)"), '设置页应能打开有珠控制台');
   assert.ok(main.includes('petStatus.headCutoutClean === true'), '冒烟测试应逐像素验证身体层没有旧头部残影');
   assert.ok(main.includes("petRoot.style.pointerEvents = 'none'"), '桌宠冒烟测试应隔离真实鼠标输入');
   assert.ok(main.includes('petStatus.yawnStarted === true'), '冒烟测试应验证打哈欠动画已启动');
