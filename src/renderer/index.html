@@ -53,35 +53,41 @@
   <div id="stats-view" hidden>
     <header class="topbar">
       <button id="btn-stats-back" class="btn">← 返回</button>
-      <span class="page-title">阅读目标</span>
+      <span class="page-title">有珠的阅读记录</span>
     </header>
     <main class="stats-scroll">
       <section class="stats-hero stats-card">
-        <div>
-          <p class="stats-eyebrow">今日阅读</p>
+        <span class="stats-sigil stats-sigil-a">◇</span><span class="stats-sigil stats-sigil-b">✦</span>
+        <div class="stats-hero-copy">
+          <p class="stats-eyebrow">ALICE'S READING RECORD · 今日</p>
           <div id="stats-today" class="stats-today">0分钟</div>
           <p id="stats-goal-copy" class="stats-secondary">每日目标 30 分钟</p>
+          <p id="stats-alice-line" class="stats-alice-line">书页还很安静。开始之后，我会替你记着。</p>
         </div>
-        <div id="stats-ring" class="stats-ring" style="--goal-progress: 0deg">
-          <div class="stats-ring-center"><strong id="stats-ring-percent">0%</strong><span>已完成</span></div>
+        <div class="stats-hero-visual">
+          <img class="stats-alice" src="images/pet/cells/半身照.png" alt="久远寺有珠">
+          <div id="stats-ring" class="stats-ring" style="--goal-progress: 0deg">
+            <span class="stats-ring-diamond">◆</span>
+            <div class="stats-ring-center"><strong id="stats-ring-percent">0%</strong><span>今日仪式</span></div>
+          </div>
         </div>
       </section>
-      <section class="stats-card">
-        <div class="stats-section-head"><div><p class="stats-eyebrow">本周</p><h2>阅读时间</h2></div><strong id="stats-week-total">0分钟</strong></div>
+      <section class="stats-card stats-trace-card">
+        <div class="stats-section-head"><div><p class="stats-eyebrow">WEEKLY TRACE · 本周轨迹</p><h2>阅读时间</h2></div><strong id="stats-week-total">0分钟</strong></div>
         <div id="stats-week-chart" class="stats-week-chart"></div>
       </section>
       <section class="stats-streak-grid">
-        <div class="stats-card stats-streak"><span>🔥</span><div><strong id="stats-current-streak">0 天</strong><small>当前连续阅读</small></div></div>
-        <div class="stats-card stats-streak"><span>🏆</span><div><strong id="stats-longest-streak">0 天</strong><small>最长连续阅读</small></div></div>
+        <div class="stats-card stats-streak"><span class="stats-streak-mark">◆</span><div><strong id="stats-current-streak">0 天</strong><small>CURRENT · 当前连续阅读</small></div></div>
+        <div class="stats-card stats-streak"><span class="stats-streak-mark">✦</span><div><strong id="stats-longest-streak">0 天</strong><small>LONGEST · 最长连续阅读</small></div></div>
       </section>
       <section class="stats-card">
-        <div class="stats-section-head"><div><p class="stats-eyebrow">阅读目标</p><h2>每天留一点时间给书</h2></div></div>
+        <div class="stats-section-head"><div><p class="stats-eyebrow">DAILY RITUAL · 每日仪式</p><h2>每天留一点时间给书</h2></div></div>
         <div id="stats-goal-options" class="stats-goal-options" role="group" aria-label="每日阅读目标">
           <button data-goal-minutes="15">15 分钟</button><button data-goal-minutes="30">30 分钟</button><button data-goal-minutes="45">45 分钟</button><button data-goal-minutes="60">60 分钟</button>
         </div>
       </section>
       <section class="stats-card">
-        <div class="stats-section-head"><div><p class="stats-eyebrow">今年</p><h2>读完的书</h2></div><strong id="stats-finished-count">0 本</strong></div>
+        <div class="stats-section-head"><div><p class="stats-eyebrow">ARCHIVE · 今年</p><h2>读完的书</h2></div><strong id="stats-finished-count">0 本</strong></div>
         <div id="stats-finished-books" class="stats-finished-books"><p class="stats-empty">读完一本书后，它会出现在这里。</p></div>
       </section>
     </main>

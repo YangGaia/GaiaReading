@@ -19,6 +19,7 @@ const {
   addReadingTime,
   buildReadingSummary,
   formatDuration,
+  readingCompanionLine,
 } = window.GaiaReadingStats;
 const {
   listFor: annotationsForBook,
@@ -51,6 +52,7 @@ const els = {
   selectionToolbar: $('selection-toolbar'),
   statsToday: $('stats-today'),
   statsGoalCopy: $('stats-goal-copy'),
+  statsAliceLine: $('stats-alice-line'),
   statsRing: $('stats-ring'),
   statsRingPercent: $('stats-ring-percent'),
   statsWeekTotal: $('stats-week-total'),
@@ -2085,6 +2087,7 @@ function renderReadingStats() {
   const progress = summary.goalMs ? Math.min(1, summary.todayMs / summary.goalMs) : 0;
   els.statsToday.textContent = formatDuration(summary.todayMs);
   els.statsGoalCopy.textContent = '每日目标 ' + summary.goalMinutes + ' 分钟';
+  els.statsAliceLine.textContent = readingCompanionLine(summary);
   els.statsRing.style.setProperty('--goal-progress', Math.round(progress * 360) + 'deg');
   els.statsRingPercent.textContent = Math.round(progress * 100) + '%';
   els.statsCurrentStreak.textContent = summary.currentStreak + ' 天';

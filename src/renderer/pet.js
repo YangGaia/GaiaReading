@@ -134,7 +134,8 @@
   function updateVisibility() {
     if (!ui.root) return;
     const hiddenInReader = currentView === 'reader' && saved.readerMode === 'hidden';
-    ui.root.hidden = !saved.on || hiddenInReader;
+    const embeddedInStats = currentView === 'stats';
+    ui.root.hidden = !saved.on || hiddenInReader || embeddedInStats;
     ui.root.classList.toggle('reader-dim', currentView === 'reader' && saved.readerMode === 'dim');
     ui.root.style.opacity = String(saved.opacity * (ui.root.classList.contains('reader-dim') ? 0.55 : 1));
     syncFpsMeter();

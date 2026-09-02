@@ -771,6 +771,18 @@ function createWindow() {
         await mainWindow.webContents.executeJavaScript("__gaiaDebug.showView('library')");
         await wait(900);
         await capture('bookshelf.png');
+        await mainWindow.webContents.executeJavaScript("document.getElementById('btn-reading-stats').click()");
+        await wait(500);
+        await capture('reading_stats.png');
+        await mainWindow.webContents.executeJavaScript("__gaiaDebug.setTheme('eye')");
+        await wait(350);
+        await capture('reading_stats_eye.png');
+        await mainWindow.webContents.executeJavaScript("__gaiaDebug.setTheme('dark')");
+        await wait(350);
+        await capture('reading_stats_dark.png');
+        await mainWindow.webContents.executeJavaScript("document.getElementById('btn-stats-back').click()");
+        await mainWindow.webContents.executeJavaScript("__gaiaDebug.setTheme('day')");
+        await wait(350);
 
         if (DEBUG_OPEN_PATH && /\.(mobi|azw3|txt)$/i.test(DEBUG_OPEN_PATH)) {
           const ext = path.extname(DEBUG_OPEN_PATH).toLowerCase().slice(1);

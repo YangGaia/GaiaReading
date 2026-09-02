@@ -125,5 +125,17 @@
     return totalMinutes + '分钟';
   }
 
-  return { DEFAULT_GOAL_MINUTES, dateKey, createReadingStats, setGoalMinutes, addReadingTime, buildReadingSummary, formatDuration };
+  function readingCompanionLine(summary) {
+    const data = summary || {};
+    const todayMs = Math.max(0, Number(data.todayMs) || 0);
+    const goalMs = Math.max(1, Number(data.goalMs) || DEFAULT_GOAL_MINUTES * 60000);
+    const streak = Math.max(0, Number(data.currentStreak) || 0);
+    if (todayMs >= goalMs && streak >= 7) return '连续七天以上。看来，这已经不是一时兴起了。';
+    if (todayMs >= goalMs) return '今天的目标完成了。……做得不错。';
+    if (todayMs === 0) return '书页还很安静。开始之后，我会替你记着。';
+    if (todayMs / goalMs >= 0.6) return '离今天的目标不远了。读完这一段，再休息。';
+    return '已经开始了。不必着急，照自己的节奏读下去。';
+  }
+
+  return { DEFAULT_GOAL_MINUTES, dateKey, createReadingStats, setGoalMinutes, addReadingTime, buildReadingSummary, formatDuration, readingCompanionLine };
 });

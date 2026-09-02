@@ -2,12 +2,15 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 const {
   createReadingStats,
   setGoalMinutes,
   addReadingTime,
   buildReadingSummary,
   formatDuration,
+  readingCompanionLine,
 } = require('../src/shared/reading-stats');
 
 test('阅读时长按本地日期和书籍累计，单次异常跨度受限', () => {
@@ -18,6 +21,13 @@ test('阅读时长按本地日期和书籍累计，单次异常跨度受限', ()
   const summary = buildReadingSummary(stats, at);
   assert.strictEqual(summary.todayMs, 85000);
   assert.strictEqual(stats.days['2026-09-02'].byBook['a.epub'], 85000);
+});
+
+test('有珠阅读台词随目标完成度和连续天数变化', () => {
+  assert.match(readingCompanionLine({ todayMs: 0, goalMs: 1800000 }), /书页还很安静/);
+  assert.match(readingCompanionLine({ todayMs: 1200000, goalMs: 1800000 }), /离今天的目标不远/);
+  assert.match(readingCompanionLine({ todayMs: 1800000, goalMs: 1800000 }), /做得不错/);
+  assert.match(readingCompanionLine({ todayMs: 1800000, goalMs: 1800000, currentStreak: 7 }), /不是一时兴起/);
 });
 
 test('本周、连续阅读和年度读完书籍统计正确', () => {
@@ -44,4 +54,17 @@ test('阅读目标只接受预设档位，时长格式稳定', () => {
   assert.strictEqual(setGoalMinutes({}, 22).goalMinutes, 30);
   assert.strictEqual(formatDuration(0), '0分钟');
   assert.strictEqual(formatDuration(90 * 60000), '1小时30分钟');
+});
+
+test('阅读仪表盘使用有珠主题素材并兼容三种阅读模式', () => {
+  const root = path.join(__dirname, '..');
+  const html = fs.readFileSync(path.join(root, 'src/renderer/index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'src/renderer/styles.css'), 'utf8');
+  const app = fs.readFileSync(path.join(root, 'src/renderer/app.js'), 'utf8');
+  assert.ok(html.includes('有珠的阅读记录'), '仪表盘标题应体现有珠主题');
+  assert.ok(html.includes('images/pet/cells/半身照.png'), '仪表盘应使用完整有珠半身立绘');
+  assert.ok(html.includes('id="stats-alice-line"'), '缺少有珠动态阅读台词');
+  assert.ok(css.includes('body.eye #stats-view') && css.includes('body.dark #stats-view'), '有珠仪表盘应分别适配护眼和夜间模式');
+  assert.ok(css.includes('@keyframes statsOrbit'), '目标仪式盘应具有低干扰轨道动画');
+  assert.ok(app.includes('readingCompanionLine(summary)'), '仪表盘应按阅读状态刷新有珠台词');
 });
