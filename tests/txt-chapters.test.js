@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { splitTxtParagraphs, detectTxtChapters, chapterAt, chapterTitleForParagraph, paragraphCharOffset, paragraphForCharOffset } = require('../src/shared/txt-chapters');
+const { splitTxtParagraphs, detectTxtChapters, isChapterTitle, chapterAt, chapterTitleForParagraph, paragraphCharOffset, paragraphForCharOffset } = require('../src/shared/txt-chapters');
 const { paragraphsToHtml } = require('../src/shared/txt-html');
 
 function escapeForTest(str) {
@@ -44,6 +44,12 @@ test('detectTxtChapters 识别常见章节标题', () => {
 test('detectTxtChapters 不误判长段落与普通句子', () => {
   const paras = ['第一章 风起云涌的漫长开篇' + '字'.repeat(40), '这是一个普通的句子，第一章并不是标题', '他说道：第二十三章开始了'];
   assert.deepStrictEqual(detectTxtChapters(paras), []);
+});
+
+test('isChapterTitle 可供电子书正文标题复用', () => {
+  assert.strictEqual(isChapterTitle('第一章 前往斯泰尔斯'), true);
+  assert.strictEqual(isChapterTitle('Chapter IV The Journey'), true);
+  assert.strictEqual(isChapterTitle('这是正文中的普通句子'), false);
 });
 
 test('chapterTitleForParagraph 命中章节区间', () => {

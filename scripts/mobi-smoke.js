@@ -14,6 +14,9 @@
     // 跳到第 10 章（长正文）验证章内连续翻页与进度逐页推进
     await __gaiaDebug.jumpToMobiChapter(10);
     await new Promise((r) => setTimeout(r, 600));
+    const aiSource = __gaiaDebug.getAiChapterSource();
+    const aiContentLen = aiSource && aiSource.content ? aiSource.content.length : 0;
+    const aiChapterTitle = aiSource && aiSource.chapterTitle;
     const longScrolls = [];
     const progressTrace = [];
     for (let k = 0; k < 8; k++) {
@@ -22,6 +25,9 @@
       longScrolls.push(__gaiaDebug.getReaderScrollTop());
       progressTrace.push(__gaiaDebug.getStatus());
     }
+    const aiSourceAfterPaging = __gaiaDebug.getAiChapterSource();
+    const aiContentLenAfterPaging = aiSourceAfterPaging && aiSourceAfterPaging.content ? aiSourceAfterPaging.content.length : 0;
+    const aiChapterTitleAfterPaging = aiSourceAfterPaging && aiSourceAfterPaging.chapterTitle;
     const pctOf = (s) => {
       const m = s.match(/进度\s+([\d.]+)%/);
       return m ? parseFloat(m[1]) : -1;
@@ -94,7 +100,7 @@
     __gaiaDebug.showPaginatorLastPage();
     await new Promise((r) => setTimeout(r, 200));
     const endPercent = __gaiaDebug.getPercent();
-    return JSON.stringify({ status, contentLen, chapters, tocCount, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
+    return JSON.stringify({ status, contentLen, aiContentLen, aiChapterTitle, aiContentLenAfterPaging, aiChapterTitleAfterPaging, chapters, tocCount, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
   } catch (e) {
     console.error('MOBI_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';

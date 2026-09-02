@@ -40,3 +40,25 @@ test('目录章节跨越多个底层文档时沿用最近目录标题且不扩�
   assert.strictEqual(scope.startOffset, 0);
   assert.strictEqual(scope.endOffset, null);
 });
+
+test('AZW3 目录锚点前的少量排版字符归入当前章', () => {
+  const entries = [
+    { label: '第三章', containerIndex: 8, startOffset: 0, order: 0 },
+    { label: '第四章', containerIndex: 9, startOffset: 1, order: 1 },
+  ];
+  const scope = selectChapterScope(entries, 9, 0);
+  assert.strictEqual(scope.selected.label, '第四章');
+  assert.strictEqual(scope.selected.continued, undefined);
+  assert.strictEqual(scope.endOffset, null);
+});
+
+test('目录锚点前仍有较长正文时保持上一章范围', () => {
+  const entries = [
+    { label: '第三章', containerIndex: 8, startOffset: 0, order: 0 },
+    { label: '第四章', containerIndex: 9, startOffset: 1800, order: 1 },
+  ];
+  const scope = selectChapterScope(entries, 9, 400);
+  assert.strictEqual(scope.selected.label, '第三章');
+  assert.strictEqual(scope.selected.continued, true);
+  assert.strictEqual(scope.endOffset, 1800);
+});

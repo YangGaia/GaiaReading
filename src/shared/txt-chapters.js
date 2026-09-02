@@ -11,6 +11,12 @@
 
   const CHAPTER_RE = /^(?:正文\s*)?(?:第\s*[0-9零〇一二三四五六七八九十百千万两]+\s*[章节回卷部篇集]|(?:Chapter|Part|Book)\s+[0-9IVXLCDMivxlcdm]+|序章|序言|楔子|引子|尾声|终章|后记|番外|[卷部篇]\s*[0-9零〇一二三四五六七八九十百千万两]+|(?:[0-9]{1,4}|[零〇一二三四五六七八九十百千万两]{1,8})[、.．]\s*\S+)/i;
 
+  function isChapterTitle(value) {
+    const text = String(value || '').trim();
+    if (!text || text.length > 80) return false;
+    return CHAPTER_RE.test(text.split('\n')[0].trim());
+  }
+
   /**
    * 与 txt-html 的分段规则保持一致：
    * - 有空行：空行分段，段内单个换行保留
@@ -35,7 +41,7 @@
       const t = String(paragraphs[i] || '').trim();
       if (!t || t.length > 40) continue;
       const firstLine = t.split('\n')[0].trim();
-      if (CHAPTER_RE.test(firstLine)) chapters.push({ title: firstLine, paraIndex: i });
+      if (isChapterTitle(firstLine)) chapters.push({ title: firstLine, paraIndex: i });
     }
     return chapters;
   }
@@ -76,5 +82,5 @@
     return { paraIndex: list.length - 1, charInPara: String(list[list.length - 1]).length };
   }
 
-  return { splitTxtParagraphs, detectTxtChapters, chapterAt, chapterTitleForParagraph, paragraphCharOffset, paragraphForCharOffset };
+  return { splitTxtParagraphs, detectTxtChapters, isChapterTitle, chapterAt, chapterTitleForParagraph, paragraphCharOffset, paragraphForCharOffset };
 });

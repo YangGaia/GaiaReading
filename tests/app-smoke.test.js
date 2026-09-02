@@ -119,8 +119,11 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(app.includes('resolveEpubTocTarget(epub.spine && epub.spine.spineItems, item.href)'), 'EPUB 目录跳转前应把目录路径解析为 spine 目标');
   assert.ok(app.includes('selectChapterScope(entries, index, currentOffset)'), 'EPUB 总结应按目录边界截取当前小章');
   assert.ok(app.includes('selectChapterScope(entries, chapter, currentOffset)'), 'MOBI/AZW3 总结应按目录边界截取当前小章');
+  assert.ok(app.includes("semanticChapterEntries(root, chapter, c.format + ':' + chapter"), '目录缺少小章时，MOBI/AZW3 应按正文标题识别章节');
+  assert.ok(app.includes("return holder.textContent || ''"), '章节正文提取不得受 AZW3 排版 CSS 的 innerText 可见性影响');
   assert.ok(app.includes("selector: item.selector || ''"), 'MOBI/AZW3 目录跳转应定位到同一底层文档内的小章起点');
   assert.ok(app.includes('未识别到 TXT 章节标题'), 'TXT 未识别章节时不得把全文发送给 AI');
+  assert.ok(main.includes('parsed.aiContentLenAfterPaging || 0) > 100'), 'MOBI/AZW3 冒烟必须验证 AI 确实读到正文，不能只读到空格或页码');
   assert.ok(css.includes('.ai-content-stage { flex: 1; min-height: 0; overflow: hidden; }'), 'AI 页签内容区不得覆盖标题和状态文字');
   assert.ok(css.includes('min-width: 0 !important; min-height: 0 !important;'), 'AI 最小化时必须覆盖普通窗口的最小尺寸');
   assert.ok(css.includes('.ai-summary-panel.minimized #btn-ai-chat-clear'), 'AI 最小化时应隐藏清空与排版按钮');

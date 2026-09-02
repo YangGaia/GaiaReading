@@ -10,7 +10,7 @@ const {
   removeEntries: removeEntriesFromMap,
 } = window.GaiaLibrary;
 const { paragraphsToHtml } = window.GaiaTxtHtml;
-const { splitTxtParagraphs, detectTxtChapters, chapterAt, chapterTitleForParagraph } = window.GaiaTxtChapters;
+const { splitTxtParagraphs, detectTxtChapters, isChapterTitle, chapterAt, chapterTitleForParagraph } = window.GaiaTxtChapters;
 const { epubDisplayPercent, findEpubNavLabel, resolveEpubTocTarget } = window.GaiaEpubProgress;
 const { flattenToc: flattenChapterToc, selectChapterScope } = window.GaiaChapterScope;
 const { normalizeWheelDelta, createWheelGate } = window.GaiaReaderInput;
@@ -2989,10 +2989,34 @@ function textBetweenChapterNodes(root, startNode, endNode) {
     if (endNode && root.contains(endNode)) range.setEndBefore(endNode);
     const holder = doc.createElement('div');
     holder.appendChild(range.cloneContents());
-    return holder.innerText || holder.textContent || '';
+    // cloneContents() 得到的是脱离布局的片段；AZW3 的排版 CSS 可能让 innerText
+    // 只返回一个可见标题。textContent 才能稳定取得边界内的全部正文。
+    return holder.textContent || '';
   } catch (error) {
     return root.innerText || root.textContent || '';
   }
+}
+
+function semanticChapterEntries(root, containerIndex, prefix, orderStart) {
+  if (!root) return [];
+  const out = [];
+  const headings = root.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  for (const node of headings) {
+    const label = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!label || label.length > 160) continue;
+    if (node.tagName !== 'H1' && !isChapterTitle(label)) continue;
+    const startOffset = textOffsetBeforeNode(root, node);
+    out.push({
+      label,
+      id: prefix + ':heading:' + startOffset + ':' + label,
+      containerIndex,
+      startOffset,
+      node,
+      depth: 0,
+      order: orderStart + out.length,
+    });
+  }
+  return out;
 }
 
 function epubChapterSummarySource(c) {
@@ -3011,7 +3035,7 @@ function epubChapterSummarySource(c) {
       if (range) currentOffset = textOffsetBeforePosition(root, range.startContainer, range.startOffset);
     } catch (error) {}
   }
-  const entries = flattenChapterToc(c.epubToc || []).map(({ item, depth, order }) => {
+  const tocEntries = flattenChapterToc(c.epubToc || []).map(({ item, depth, order }) => {
     let section = null;
     try {
       const target = resolveEpubTocTarget(c.epub.spine && c.epub.spine.spineItems, item.href);
@@ -3030,6 +3054,7 @@ function epubChapterSummarySource(c) {
       order,
     };
   });
+  const entries = tocEntries.concat(semanticChapterEntries(root, index, 'epub:' + index, tocEntries.length));
   const scope = selectChapterScope(entries, index, currentOffset);
   const selected = scope.selected;
   const content = textBetweenChapterNodes(root, selected && !selected.continued ? selected.node : null, scope.endEntry && scope.endEntry.node);
@@ -3048,7 +3073,7 @@ function mobiChapterSummarySource(c) {
   const root = c.paginator && c.paginator.doc && c.paginator.doc.body;
   const anchor = c.paginator && c.paginator.anchor();
   const currentOffset = anchor && Number.isFinite(anchor.off) ? anchor.off : 0;
-  const entries = flattenChapterToc((c.mobi && c.mobi.toc) || []).map(({ item, depth, order }) => {
+  const tocEntries = flattenChapterToc((c.mobi && c.mobi.toc) || []).map(({ item, depth, order }) => {
     let node = null;
     if (root && item.index === chapter && item.selector) {
       try { node = root.querySelector(item.selector); } catch (error) {}
@@ -3063,6 +3088,7 @@ function mobiChapterSummarySource(c) {
       order,
     };
   });
+  const entries = tocEntries.concat(semanticChapterEntries(root, chapter, c.format + ':' + chapter, tocEntries.length));
   const scope = selectChapterScope(entries, chapter, currentOffset);
   const selected = scope.selected;
   const content = textBetweenChapterNodes(root, selected && !selected.continued ? selected.node : null, scope.endEntry && scope.endEntry.node);
