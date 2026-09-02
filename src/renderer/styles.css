@@ -88,6 +88,8 @@ body.dark {
 /* ===== 书架页 ===== */
 #home-view, #library-view { font-family: Georgia, "Times New Roman", "SimSun", "Songti SC", serif; }
 .shelf-toolbar { display: flex; gap: 10px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.import-status { align-self: center; margin-left: auto; color: var(--text-soft); font-size: 12px; }
+.import-status.error { color: var(--danger); }
 .manage-bar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); font-size: 13px; }
 .manage-bar[hidden] { display: none; }
 .hint { text-align: center; color: var(--text-soft); margin-top: 80px; }

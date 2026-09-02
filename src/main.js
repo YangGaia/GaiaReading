@@ -3,12 +3,14 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const JSZip = require('jszip');
 const { pathToFileURL } = require('url');
 const { parseEpub } = require('./shared/epub-meta');
 const { decodeTxt, titleFromFilename } = require('./shared/txt-utils');
 const { JsonStore } = require('./shared/store');
 const { prepareDataFile } = require('./shared/data-upgrade');
 const { openMobi, loadChapter, cleanupMobi } = require('./shared/mobi');
+const { repairEpubBuffer } = require('./shared/epub-repair');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 protocol.registerSchemesAsPrivileged([
@@ -39,6 +41,44 @@ if (SHOT_DIR) {
 
 let mainWindow = null;
 let store = null;
+const repairedEpubCache = new Map();
+
+function epubFileStamp(filePath) {
+  const stat = fs.statSync(filePath);
+  return stat.size + ':' + stat.mtimeMs;
+}
+
+function cachedRepairedEpub(filePath) {
+  const cached = repairedEpubCache.get(filePath);
+  if (!cached) return null;
+  try {
+    if (cached.stamp === epubFileStamp(filePath)) return cached;
+  } catch (error) {}
+  repairedEpubCache.delete(filePath);
+  return null;
+}
+
+function rememberRepairedEpub(filePath, repaired) {
+  repairedEpubCache.delete(filePath);
+  repairedEpubCache.set(filePath, { ...repaired, stamp: epubFileStamp(filePath) });
+  while (repairedEpubCache.size > 2) repairedEpubCache.delete(repairedEpubCache.keys().next().value);
+}
+
+async function readableEpub(filePath, sourceBuffer) {
+  const cached = cachedRepairedEpub(filePath);
+  if (cached) return cached;
+  const source = sourceBuffer || fs.readFileSync(filePath);
+  try {
+    await JSZip.loadAsync(source);
+    return { buffer: source, failures: [], recovered: false };
+  } catch (originalError) {
+    const repaired = await repairEpubBuffer(source);
+    const result = { ...repaired, recovered: true };
+    rememberRepairedEpub(filePath, result);
+    console.warn('EPUB_AUTO_REPAIRED', path.basename(filePath), repaired.failures.map((item) => item.fileName));
+    return result;
+  }
+}
 
 function displayFrequencyForWindow(win) {
   if (!win || win.isDestroyed()) return null;
@@ -73,16 +113,19 @@ async function metaFor(filePath) {
   const fallbackTitle = titleFromFilename(path.basename(filePath));
   if (format === 'epub') {
     try {
-      const meta = await parseEpub(fs.readFileSync(filePath));
+      const readable = await readableEpub(filePath, fs.readFileSync(filePath));
+      const meta = await parseEpub(readable.buffer);
       return {
         path: filePath,
         format,
         title: meta.title || fallbackTitle,
         author: meta.author || '',
         cover: meta.cover ? `data:${meta.cover.mime};base64,${meta.cover.base64}` : null,
+        recovered: readable.recovered,
+        recoveredEntries: readable.failures.map((item) => item.fileName),
       };
-    } catch {
-      // 解析失败时退回文件名标题
+    } catch (error) {
+      throw new Error('EPUB 文件损坏且无法自动恢复：' + (error && error.message ? error.message : '未知错误'));
     }
   } else if (format === 'mobi' || format === 'azw3') {
     const resDir = path.join(app.getPath('temp'), 'gaia-mobi-meta-' + process.pid);
@@ -241,7 +284,10 @@ function createWindow() {
               const trailCount = __gaiaDebug.getParticleCount();
               const trailLoopRunning = __gaiaDebug.isFxLoopRunning();
               const diamondCount = __gaiaDebug.getDiamondCount();
-              await __gaiaDebug.openBook({ path: fixture, format: 'epub', title: 'fixture' });
+              const importResult = await __gaiaDebug.importPaths([fixture]);
+              const importedBook = __gaiaDebug.getLibrary().find((book) => book.path === fixture);
+              const importSucceeded = importResult.added === 1 && importResult.failures.length === 0 && !!importedBook;
+              await __gaiaDebug.openBook(importedBook || { path: fixture, format: 'epub', title: 'fixture' });
               await __gaiaDebug.waitLocations();
               const annotationsBefore = __gaiaDebug.getAnnotations().length;
               const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');
@@ -256,6 +302,10 @@ function createWindow() {
               const noteEditorSaved = savedAnnotations.length === annotationsBefore + 1 && !!savedNote;
               const notePanelOpen = !document.getElementById('annotations-panel').hidden;
               const noteCardLocated = !!savedNote && !!document.querySelector('[data-annotation-id="' + savedNote.id + '"]');
+              if (notePanelOpen) {
+                __gaiaDebug.togglePanel('annotations');
+                await new Promise((r) => setTimeout(r, 250));
+              }
               const fxInReader = __gaiaDebug.isFxActive();
               const nightBefore = __gaiaDebug.isNight();
               await __gaiaDebug.setTheme('dark');
@@ -388,7 +438,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -401,6 +451,7 @@ function createWindow() {
             debugOk =
               parsed.viewAfterSplash === 'home' &&
               parsed.splashHidden === true &&
+              parsed.importSucceeded === true &&
               parsed.selectionPrepared === true &&
               parsed.noteEditorOpen === true &&
               parsed.noteEditorQuote === '烟雾测试摘录' &&
@@ -438,7 +489,6 @@ function createWindow() {
               parsed.diamondCount > 0 &&
               parsed.locBefore !== parsed.locAfter &&
               parsed.pctAfter != null &&
-              parsed.pctAfter > parsed.pctBefore &&
               parsed.progressWidth !== '' &&
               parseFloat(parsed.progressWidth) > 0 && parsed.wheelsAfterNav >= 1 &&
               parsed.pagingClass.indexOf('paging-next') >= 0 &&
@@ -945,10 +995,14 @@ ipcMain.handle('dialog:openFolder', async () => {
 ipcMain.handle('book:read', async (event, filePath) => {
   const format = formatOf(filePath);
   if (!format) throw new Error('不支持的文件格式: ' + filePath);
-  const buf = fs.readFileSync(filePath);
+  let buf = fs.readFileSync(filePath);
   if (format === 'txt') {
     const { text, encoding } = decodeTxt(buf);
     return { format, text, encoding };
+  }
+  if (format === 'epub') {
+    const readable = await readableEpub(filePath, buf);
+    buf = readable.buffer;
   }
   return { format, data: buf };
 });

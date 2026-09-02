@@ -17,6 +17,8 @@ test('项目关键文件齐全', () => {
   assert.ok(pkg.scripts['smoke:open'], '缺少 smoke:open 脚本');
   assert.ok(pkg.scripts.shot, '缺少 shot 截图脚本');
   assert.ok(main.includes("capture('pet_console.png')"), '截图验收应包含有珠控制台界面');
+  assert.ok(main.includes('const importResult = await __gaiaDebug.importPaths([fixture])'), 'EPUB 烟雾测试应走真实导入流程');
+  assert.ok(main.includes('parsed.importSucceeded === true'), 'EPUB 烟雾测试应验证导入成功');
   for (const frame of ['pet_tilt_early.png', 'pet_tilt_peak.png', 'pet_tilt_return.png']) {
     assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少歪头动作帧 ${frame}`);
   }
@@ -30,6 +32,7 @@ test('项目关键文件齐全', () => {
   for (const f of [
     'src/preload.js',
     'src/shared/bookmarks.js',
+    'src/shared/epub-repair.js',
     'src/shared/library.js',
     'src/shared/pet.js',
     'src/renderer/index.html',

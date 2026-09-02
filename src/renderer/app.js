@@ -50,6 +50,7 @@ const els = {
   bookmarksPanel: $('bookmarks-panel'),
   annotationsPanel: $('annotations-panel'),
   selectionToolbar: $('selection-toolbar'),
+  importStatus: $('import-status'),
   noteEditorOverlay: $('note-editor-overlay'),
   noteEditorQuote: $('note-editor-quote'),
   noteEditorInput: $('note-editor-input'),
@@ -329,17 +330,36 @@ async function addToLibrary(meta) {
 async function importPaths(paths) {
   const existing = new Set(state.library.map((b) => b.path));
   let added = 0;
+  let recovered = 0;
+  const failures = [];
   for (const p of paths) {
     if (existing.has(p)) continue;
-    const meta = await window.api.metadata(p);
-    state.library.push(meta);
-    existing.add(p);
-    added += 1;
+    try {
+      const meta = await window.api.metadata(p);
+      if (!meta || !meta.path || !meta.format) throw new Error('无法读取图书信息');
+      state.library.push(meta);
+      existing.add(p);
+      added += 1;
+      if (meta.recovered) recovered += 1;
+    } catch (error) {
+      failures.push({ path: p, message: error && error.message ? error.message : '未知错误' });
+      console.error('导入失败', p, error);
+    }
   }
   if (added) {
     await saveLibrary();
     renderLibrary();
   }
+  if (els.importStatus) {
+    els.importStatus.classList.toggle('error', failures.length > 0);
+    const parts = [];
+    if (added) parts.push('已导入 ' + added + ' 本');
+    if (recovered) parts.push('自动恢复 ' + recovered + ' 本损坏的 EPUB');
+    if (failures.length) parts.push(failures.length + ' 本失败：' + failures.map((item) => item.path.split(/[\\/]/).pop()).join('、'));
+    if (!parts.length) parts.push('没有需要重复导入的图书');
+    els.importStatus.textContent = parts.join(' · ');
+  }
+  return { added, recovered, failures };
 }
 
 async function removeFromShelf(book, silent) {
@@ -921,9 +941,9 @@ function nextPage() {
   if (!c) return;
   noteReadingActivity();
   if (c.format === 'epub') {
-    if (c.rendition) { animatePage('next'); c.rendition.next(); }
+    if (c.rendition) { animatePage('next'); return c.rendition.next(); }
   } else if (c.format === 'pdf') {
-    if (c.page < c.pages) { c.page += 1; animatePage('next'); renderPdfPage(); }
+    if (c.page < c.pages) { c.page += 1; animatePage('next'); return renderPdfPage(); }
   } else if (c.paginator) {
     const step = state.readMode === 'spread' ? 2 : 1;
     const moved = c.paginator.next(step);
@@ -946,9 +966,9 @@ function prevPage() {
   if (!c) return;
   noteReadingActivity();
   if (c.format === 'epub') {
-    if (c.rendition) { animatePage('prev'); c.rendition.prev(); }
+    if (c.rendition) { animatePage('prev'); return c.rendition.prev(); }
   } else if (c.format === 'pdf') {
-    if (c.page > 1) { c.page -= 1; animatePage('prev'); renderPdfPage(); }
+    if (c.page > 1) { c.page -= 1; animatePage('prev'); return renderPdfPage(); }
   } else if (c.paginator) {
     const step = state.readMode === 'spread' ? 2 : 1;
     const moved = c.paginator.prev(step);
@@ -2572,6 +2592,7 @@ function bindEvents() {
 }
 
 window.__gaiaDebug = {
+  importPaths,
   openBook,
   backToLibrary,
   showView,
