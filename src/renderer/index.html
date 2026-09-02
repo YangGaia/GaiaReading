@@ -98,6 +98,7 @@
     <div id="reader-body">
       <nav id="toc-panel" class="side-panel" hidden></nav>
       <nav id="bookmarks-panel" class="side-panel" hidden></nav>
+      <aside id="annotations-panel" class="side-panel annotations-panel" hidden></aside>
       <div id="reader-content"></div>
     </div>
     <footer class="statusbar">
@@ -114,6 +115,16 @@
   <div id="context-menu" hidden>
     <button class="ctx-item" id="ctx-open">打开</button>
     <button class="ctx-item danger" id="ctx-remove">从书架移除</button>
+  </div>
+
+  <div id="selection-toolbar" class="selection-toolbar" hidden role="toolbar" aria-label="划线与笔记">
+    <button class="highlight-dot yellow" data-highlight-color="yellow" title="黄色划线" aria-label="黄色划线"></button>
+    <button class="highlight-dot green" data-highlight-color="green" title="绿色划线" aria-label="绿色划线"></button>
+    <button class="highlight-dot pink" data-highlight-color="pink" title="粉色划线" aria-label="粉色划线"></button>
+    <span class="selection-toolbar-divider"></span>
+    <button data-selection-action="note">笔记</button>
+    <button data-selection-action="copy">复制</button>
+    <button data-selection-action="delete" class="selection-delete" hidden>删除</button>
   </div>
 
   <div id="settings-overlay" hidden>
@@ -158,6 +169,7 @@
         <button id="btn-bookmarks" class="btn block">书签</button>
         <button id="btn-add-bookmark" class="btn block primary">添加书签</button>
         <button id="btn-reading-stats-reader" class="btn block">阅读目标</button>
+        <button id="btn-annotations" class="btn block">划线与笔记</button>
       </div>
       <div id="drawer-appearance">
         <h3>外观</h3>
@@ -196,6 +208,7 @@
   <script src="../shared/epub-progress.js"></script>
   <script src="../shared/reader-input.js"></script>
   <script src="../shared/reading-stats.js"></script>
+  <script src="../shared/annotations.js"></script>
   <script src="bgm.js"></script>
   <script src="pet.js"></script>
   <script src="app.js"></script>

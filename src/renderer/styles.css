@@ -136,6 +136,36 @@ body.dark {
 .pdf-canvas-base { box-shadow: 0 1px 6px rgba(0,0,0,.15); }
 #reader-content.pdf-dark .pdf-canvas-base { filter: invert(1) hue-rotate(180deg); }
 .pdf-image-overlay { z-index: 2; }
+.pdf-text-layer { position: absolute; inset: 0; z-index: 3; overflow: hidden; opacity: 1; line-height: 1; text-align: initial; }
+.pdf-text-layer span, .pdf-text-layer br { position: absolute; color: transparent; white-space: pre; transform-origin: 0 0; cursor: text; }
+.pdf-text-layer ::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* ===== 划线与笔记 ===== */
+.annotations-panel { width: 320px; color: var(--text); }
+.annotations-panel-head { display: flex; align-items: center; justify-content: space-between; margin: 2px 2px 12px; }
+.annotations-panel-head strong { font-size: 15px; }
+.annotation-card { border: 1px solid var(--border); border-left: 4px solid var(--annotation-color); border-radius: 10px; padding: 10px; margin-bottom: 10px; background: var(--bg); }
+.annotation-quote { margin: 0 0 8px; font-size: 13px; line-height: 1.55; color: var(--text); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.annotation-note { width: 100%; min-height: 58px; resize: vertical; border: 1px solid var(--border); border-radius: 7px; padding: 7px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; }
+.annotation-meta { display: flex; justify-content: space-between; gap: 8px; color: var(--text-soft); font-size: 11px; margin-top: 7px; }
+.annotation-actions { display: flex; gap: 6px; margin-top: 8px; }
+.annotation-actions button { flex: 1; padding: 4px 5px; font-size: 11px; }
+.annotation-colors { display: flex; gap: 5px; align-items: center; }
+.annotation-empty { color: var(--text-soft); text-align: center; line-height: 1.7; margin: 34px 8px; }
+.selection-toolbar { position: fixed; z-index: 190; display: flex; align-items: center; gap: 5px; padding: 7px; border: 1px solid var(--border-strong); border-radius: 11px; background: var(--surface); box-shadow: 0 8px 26px var(--shadow); }
+.selection-toolbar[hidden] { display: none; }
+.selection-toolbar button { border: 0; border-radius: 7px; padding: 6px 8px; background: transparent; color: var(--text); cursor: pointer; font-size: 12px; }
+.selection-toolbar button:hover { background: var(--bg); }
+.selection-toolbar .highlight-dot, .annotation-colors .highlight-dot { width: 22px; height: 22px; min-width: 22px; padding: 0; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--border-strong); }
+.highlight-dot.yellow { background: #f4d35e; }
+.highlight-dot.green { background: #78c6a3; }
+.highlight-dot.pink { background: #ef9aaf; }
+.selection-toolbar-divider { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+.selection-delete { color: var(--danger) !important; }
+.gaia-text-highlight { border-radius: 2px; color: inherit; padding: 0; cursor: pointer; }
+.gaia-highlight-yellow { background: rgba(244, 211, 94, .58); }
+.gaia-highlight-green { background: rgba(120, 198, 163, .52); }
+.gaia-highlight-pink { background: rgba(239, 154, 175, .52); }
 
 /* ===== 右键菜单 ===== */
 #context-menu { position: fixed; z-index: 100; min-width: 140px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: 0 4px 14px var(--shadow); padding: 4px; }

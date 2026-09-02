@@ -20,6 +20,15 @@ const {
   buildReadingSummary,
   formatDuration,
 } = window.GaiaReadingStats;
+const {
+  listFor: annotationsForBook,
+  addAnnotation: addAnnotationToMap,
+  updateAnnotation: updateAnnotationInMap,
+  removeAnnotation: removeAnnotationFromMap,
+  normalizeColor,
+  createTextAnchor,
+  resolveTextAnchor,
+} = window.GaiaAnnotations;
 const readerWheelGate = createWheelGate({ threshold: 60, cooldown: 250 });
 
 const FONTS = {
@@ -38,6 +47,8 @@ const els = {
   readerStatus: $('reader-status'),
   tocPanel: $('toc-panel'),
   bookmarksPanel: $('bookmarks-panel'),
+  annotationsPanel: $('annotations-panel'),
+  selectionToolbar: $('selection-toolbar'),
   statsToday: $('stats-today'),
   statsGoalCopy: $('stats-goal-copy'),
   statsRing: $('stats-ring'),
@@ -79,6 +90,7 @@ const state = {
   library: [],
   progress: {},
   bookmarks: {},
+  annotations: {},
   readingStats: createReadingStats(),
   current: null,
   manageMode: false,
@@ -92,6 +104,7 @@ const state = {
   homeReady: null,
   resolveHome: null,
   statsReturnView: 'library',
+  selectionContext: null,
 };
 
 state.homeReady = new Promise((resolve) => {
@@ -115,6 +128,10 @@ function saveLibrary() {
 
 function saveBookmarksNow() {
   return window.api.stateSet('bookmarks', state.bookmarks);
+}
+
+function saveAnnotationsNow() {
+  return window.api.stateSet('annotations', state.annotations);
 }
 
 function saveProgress(pathKey, value) {
@@ -172,17 +189,19 @@ function migrateHabitsFromLastBook() {
 
 async function init() {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
-  const [lib, progress, bookmarks, prefs, readingStats] = await Promise.all([
+  const [lib, progress, bookmarks, prefs, readingStats, annotations] = await Promise.all([
     window.api.stateGet('library'),
     window.api.stateGet('progress'),
     window.api.stateGet('bookmarks'),
     window.api.stateGet('prefs'),
     window.api.stateGet('readingStats'),
+    window.api.stateGet('annotations'),
   ]);
   state.library = lib || [];
   state.progress = progress || {};
   state.bookmarks = bookmarks || {};
   state.readingStats = createReadingStats(readingStats);
+  state.annotations = annotations && typeof annotations === 'object' ? annotations : {};
   state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single' }, prefs || {});
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
   migrateHabitsFromLastBook();
@@ -319,11 +338,13 @@ async function removeFromShelf(book, silent) {
   state.library = removeBookFromLibrary(state.library, book.path);
   state.progress = removeEntryFromMap(state.progress, book.path);
   state.bookmarks = removeEntryFromMap(state.bookmarks, book.path);
+  state.annotations = removeEntryFromMap(state.annotations, book.path);
   state.selected.delete(book.path);
   await Promise.all([
     saveLibrary(),
     window.api.stateSet('progress', state.progress),
     saveBookmarksNow(),
+    saveAnnotationsNow(),
   ]);
   renderLibrary();
   return true;
@@ -383,11 +404,13 @@ async function batchRemoveSelected(silent) {
   state.library = removeBooksFromLibrary(state.library, paths);
   state.progress = removeEntriesFromMap(state.progress, paths);
   state.bookmarks = removeEntriesFromMap(state.bookmarks, paths);
+  state.annotations = removeEntriesFromMap(state.annotations, paths);
   state.selected.clear();
   await Promise.all([
     saveLibrary(),
     window.api.stateSet('progress', state.progress),
     saveBookmarksNow(),
+    saveAnnotationsNow(),
   ]);
   if (!state.library.length) exitManageMode();
   else renderLibrary();
@@ -444,6 +467,7 @@ function closeReaderContent() {
     if (c.mobiSession) { try { window.api.mobiClose(c.mobiSession); } catch (e) {} }
   }
   els.readerContent.innerHTML = '';
+  hideSelectionToolbar();
   els.pageNav.hidden = true;
   state.current = null;
 }
@@ -471,6 +495,7 @@ async function openBook(book) {
   els.readerTitle.textContent = book.title || book.path;
   els.tocPanel.hidden = true;
   els.bookmarksPanel.hidden = true;
+  els.annotationsPanel.hidden = true;
   els.tocPanel.innerHTML = '';
   els.readerStatus.textContent = '加载中…';
   els.pageNav.hidden = false;
@@ -482,6 +507,7 @@ async function openBook(book) {
     updateProgress(savedProg.percent, '进度 ' + savedProg.percent.toFixed(2) + '%');
   }
   renderBookmarksPanel();
+  renderAnnotationsPanel();
   try {
     if (book.format === 'epub') await openEpub(book);
     else if (book.format === 'pdf') await openPdf(book);
@@ -505,6 +531,7 @@ async function openEpub(book) {
     bindReaderKeyboard(contents.document || contents.window);
   });
   rendition.on('rendered', () => bindEpubWheel());
+  rendition.on('selected', (cfiRange, contents) => captureEpubSelection(cfiRange, contents));
 
   applyEpubTypography();
   const saved = state.progress[book.path];
@@ -512,6 +539,7 @@ async function openEpub(book) {
   state.current.locationsDone = false;
   updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(2) + '%');
   await rendition.display(saved && saved.loc ? saved.loc : undefined);
+  restoreEpubAnnotations();
   bindEpubWheel();
   if (state.readMode === 'spread') {
     try { rendition.spread('auto', 700); } catch (e) {}
@@ -655,13 +683,46 @@ async function renderPdfPage() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   await page.render({ canvasContext: ctx, viewport }).promise;
 
+  const textLayer = await renderPdfTextLayer(page, viewport, wrap);
+  c.pdfTextRoot = textLayer;
+  c.pdfHasText = !!(textLayer && textLayer.textContent.trim());
+  if (textLayer) {
+    bindTextAnnotationInputs(document, textLayer);
+    restoreTextAnnotations();
+  }
+
   if (state.prefs.theme === 'dark') {
     const overlay = await buildPdfImageOverlay(page, viewport, dpr);
     if (overlay) wrap.appendChild(overlay);
   }
 
   updateProgress((c.page / c.pages) * 100, '第 ' + c.page + ' / ' + c.pages + ' 页');
+  if (!c.pdfHasText) els.readerStatus.textContent += ' · 本页无文字层，无法划线';
   saveProgress(c.path, { page: c.page, percent: (c.page / c.pages) * 100 });
+}
+
+async function renderPdfTextLayer(page, viewport, wrap) {
+  try {
+    const textContent = await page.getTextContent();
+    if (!textContent || !textContent.items || !textContent.items.some((item) => String(item.str || '').trim())) return null;
+    const layer = document.createElement('div');
+    layer.className = 'pdf-text-layer textLayer';
+    layer.style.width = Math.floor(viewport.width) + 'px';
+    layer.style.height = Math.floor(viewport.height) + 'px';
+    layer.style.setProperty('--scale-factor', String(viewport.scale));
+    wrap.appendChild(layer);
+    const task = window.pdfjsLib.renderTextLayer({
+      textContentSource: textContent,
+      container: layer,
+      viewport,
+      textDivs: [],
+    });
+    if (task && task.promise) await task.promise;
+    return layer;
+  } catch (err) {
+    console.error('PDF 文字层渲染失败', err);
+    return null;
+  }
 }
 
 async function openMobi(book) {
@@ -708,11 +769,13 @@ async function loadMobiChapter(chapterIndex, opts) {
       if (c.flow) c.flow.gotoChapter(clamped);
       await c.paginator.render(html, ch.cssText || '');
       bindReaderInputs(c.paginator.doc);
+      bindTextAnnotationInputs(c.paginator.doc, c.paginator.doc.body);
       const total = c.paginator.totalPages || 1;
       if (c.flow) c.flow.setPages(clamped, total);
       c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
       const p = opts.page === 'end' ? total - 1 : (typeof opts.page === 'number' ? opts.page : 0);
       c.paginator.showPage(p);
+      restoreTextAnnotations();
       if (c.flow) c.flow.page = Math.min(Math.max(0, p), total - 1);
       updateMobiProgress(true);
     }
@@ -810,10 +873,12 @@ async function openTxt(book) {
   const html = paragraphsToHtml(res.text) || '<p></p>';
   await state.current.paginator.render(html, '');
   bindReaderInputs(state.current.paginator.doc);
+  bindTextAnnotationInputs(state.current.paginator.doc, state.current.paginator.doc.body);
   if (state.current.flow) state.current.flow.setPages(0, state.current.paginator.totalPages || 1);
   state.current.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
   const saved = state.progress[book.path];
   if (saved && typeof saved.page === 'number') state.current.paginator.showPage(saved.page);
+  restoreTextAnnotations();
   updateMobiProgress(true);
 }
 
@@ -982,14 +1047,18 @@ function cycleMargin() {
 }
 
 function togglePanel(which) {
-  const isToc = which === 'toc';
-  const targetHidden = isToc ? els.tocPanel.hidden : els.bookmarksPanel.hidden;
+  const panels = { toc: els.tocPanel, bookmarks: els.bookmarksPanel, annotations: els.annotationsPanel };
+  const target = panels[which] || els.tocPanel;
+  const targetHidden = target.hidden;
+  hideSelectionToolbar();
+  els.tocPanel.hidden = true;
+  els.bookmarksPanel.hidden = true;
+  els.annotationsPanel.hidden = true;
   if (!targetHidden) {
-    els.tocPanel.hidden = true;
-    els.bookmarksPanel.hidden = true;
+    // 已打开时收起全部侧栏
   } else {
-    els.tocPanel.hidden = !isToc;
-    els.bookmarksPanel.hidden = isToc;
+    target.hidden = false;
+    if (which === 'annotations') renderAnnotationsPanel();
   }
   resizeEpubRendition();
 }
@@ -1223,6 +1292,406 @@ function getBookmarkCount() {
   return state.current ? (state.bookmarks[state.current.path] || []).length : 0;
 }
 
+const ANNOTATION_COLORS = {
+  yellow: 'rgba(244, 211, 94, .58)',
+  green: 'rgba(120, 198, 163, .52)',
+  pink: 'rgba(239, 154, 175, .52)',
+};
+
+function currentAnnotations() {
+  return state.current ? annotationsForBook(state.annotations, state.current.path) : [];
+}
+
+function annotationId() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+  return 'note-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
+}
+
+function textNodes(root) {
+  if (!root) return [];
+  const doc = root.ownerDocument || document;
+  const filter = doc.defaultView && doc.defaultView.NodeFilter ? doc.defaultView.NodeFilter.SHOW_TEXT : 4;
+  const walker = doc.createTreeWalker(root, filter);
+  const nodes = [];
+  let node;
+  while ((node = walker.nextNode())) nodes.push(node);
+  return nodes;
+}
+
+function rangeTextOffsets(root, range) {
+  if (!root || !range || !root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
+  let total = 0;
+  let start = -1;
+  let end = -1;
+  for (const node of textNodes(root)) {
+    const len = (node.textContent || '').length;
+    if (node === range.startContainer) start = total + range.startOffset;
+    if (node === range.endContainer) end = total + range.endOffset;
+    total += len;
+  }
+  return start >= 0 && end > start ? { start, end } : null;
+}
+
+function clearTextHighlights(root) {
+  if (!root) return;
+  for (const mark of Array.from(root.querySelectorAll('mark.gaia-text-highlight'))) {
+    mark.replaceWith(mark.ownerDocument.createTextNode(mark.textContent || ''));
+  }
+  root.normalize();
+}
+
+function applyTextHighlight(root, annotation) {
+  const resolved = resolveTextAnchor(root.textContent || '', annotation.anchor);
+  if (!resolved || resolved.end <= resolved.start) return false;
+  const nodes = textNodes(root);
+  let total = 0;
+  for (const node of nodes) {
+    const value = node.textContent || '';
+    const nodeStart = total;
+    const nodeEnd = total + value.length;
+    total = nodeEnd;
+    const from = Math.max(resolved.start, nodeStart);
+    const to = Math.min(resolved.end, nodeEnd);
+    if (to <= from || !node.parentNode) continue;
+    const localFrom = from - nodeStart;
+    const localTo = to - nodeStart;
+    const before = value.slice(0, localFrom);
+    const selected = value.slice(localFrom, localTo);
+    const after = value.slice(localTo);
+    const fragment = node.ownerDocument.createDocumentFragment();
+    if (before) fragment.appendChild(node.ownerDocument.createTextNode(before));
+    const mark = node.ownerDocument.createElement('mark');
+    mark.className = 'gaia-text-highlight gaia-highlight-' + normalizeColor(annotation.color);
+    mark.dataset.gaiaAnnotation = annotation.id;
+    mark.style.background = ANNOTATION_COLORS[normalizeColor(annotation.color)];
+    mark.style.color = 'inherit';
+    mark.style.cursor = 'pointer';
+    mark.style.borderRadius = '2px';
+    mark.textContent = selected;
+    fragment.appendChild(mark);
+    if (after) fragment.appendChild(node.ownerDocument.createTextNode(after));
+    node.replaceWith(fragment);
+  }
+  return true;
+}
+
+function restoreTextAnnotations() {
+  const c = state.current;
+  if (!c) return;
+  const root = c.format === 'pdf' ? c.pdfTextRoot : (c.paginator && c.paginator.doc && c.paginator.doc.body);
+  if (!root) return;
+  clearTextHighlights(root);
+  const chapter = c.flow ? c.flow.chapter : 0;
+  for (const annotation of currentAnnotations()) {
+    if (!annotation.anchor || annotation.anchor.kind === 'epub-cfi') continue;
+    if (c.format === 'pdf' && Number(annotation.anchor.page) !== Number(c.page)) continue;
+    if (c.format !== 'pdf' && Number(annotation.anchor.chapter || 0) !== Number(chapter)) continue;
+    applyTextHighlight(root, annotation);
+  }
+}
+
+function restoreEpubAnnotations() {
+  const c = state.current;
+  if (!c || c.format !== 'epub' || !c.rendition || !c.rendition.annotations) return;
+  const applied = c.epubAppliedAnnotations || new Map();
+  for (const cfi of applied.values()) {
+    try { c.rendition.annotations.remove(cfi, 'highlight'); } catch (e) {}
+  }
+  applied.clear();
+  for (const annotation of currentAnnotations()) {
+    if (!annotation.anchor || annotation.anchor.kind !== 'epub-cfi' || !annotation.anchor.cfi) continue;
+    const color = ANNOTATION_COLORS[normalizeColor(annotation.color)];
+    try {
+      c.rendition.annotations.highlight(
+        annotation.anchor.cfi,
+        { id: annotation.id },
+        (ev) => showExistingAnnotation(annotation.id, ev),
+        'gaia-epub-highlight',
+        { fill: color, 'fill-opacity': '1', 'mix-blend-mode': state.prefs.theme === 'dark' ? 'screen' : 'multiply' }
+      );
+      applied.set(annotation.id, annotation.anchor.cfi);
+    } catch (e) { console.error('EPUB 划线恢复失败', e); }
+  }
+  c.epubAppliedAnnotations = applied;
+}
+
+function eventPointInMainWindow(ev) {
+  let left = Number(ev && ev.clientX) || window.innerWidth / 2;
+  let top = Number(ev && ev.clientY) || window.innerHeight / 2;
+  const sourceWindow = ev && ev.view;
+  try {
+    if (sourceWindow && sourceWindow !== window && sourceWindow.frameElement) {
+      const frameRect = sourceWindow.frameElement.getBoundingClientRect();
+      left += frameRect.left;
+      top += frameRect.top;
+    }
+  } catch (e) {}
+  return { left, top, right: left, bottom: top };
+}
+
+function rectInMainWindow(rect, sourceWindow) {
+  const next = { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+  try {
+    if (sourceWindow && sourceWindow !== window && sourceWindow.frameElement) {
+      const frameRect = sourceWindow.frameElement.getBoundingClientRect();
+      next.left += frameRect.left;
+      next.right += frameRect.left;
+      next.top += frameRect.top;
+      next.bottom += frameRect.top;
+    }
+  } catch (e) {}
+  return next;
+}
+
+function showSelectionToolbar(context) {
+  state.selectionContext = context;
+  const toolbar = els.selectionToolbar;
+  toolbar.querySelector('[data-selection-action="delete"]').hidden = !context.existingId;
+  toolbar.hidden = false;
+  const rect = context.rect || { left: window.innerWidth / 2, right: window.innerWidth / 2, top: window.innerHeight / 2, bottom: window.innerHeight / 2 };
+  const width = toolbar.offsetWidth || 260;
+  const height = toolbar.offsetHeight || 42;
+  const center = (rect.left + rect.right) / 2;
+  toolbar.style.left = Math.max(8, Math.min(window.innerWidth - width - 8, center - width / 2)) + 'px';
+  const above = rect.top - height - 10;
+  toolbar.style.top = (above >= 8 ? above : Math.min(window.innerHeight - height - 8, rect.bottom + 10)) + 'px';
+}
+
+function hideSelectionToolbar() {
+  if (!els.selectionToolbar) return;
+  els.selectionToolbar.hidden = true;
+  state.selectionContext = null;
+}
+
+function currentTextChapterLabel() {
+  const c = state.current;
+  if (!c) return '未知位置';
+  if (c.format === 'pdf') return '第 ' + c.page + ' 页';
+  if (c.format === 'txt') return '全文';
+  return mobiChapterTitle(c.mobi, c.flow ? c.flow.chapter : 0);
+}
+
+function bindTextAnnotationInputs(sourceDoc, root) {
+  if (!sourceDoc || !root || root.__gaiaAnnotationBound) return;
+  root.__gaiaAnnotationBound = true;
+  root.addEventListener('mouseup', () => {
+    window.setTimeout(() => captureTextSelection(sourceDoc, root), 0);
+  });
+  root.addEventListener('click', (ev) => {
+    const mark = ev.target && ev.target.closest ? ev.target.closest('mark[data-gaia-annotation]') : null;
+    if (!mark) return;
+    showExistingAnnotation(mark.dataset.gaiaAnnotation, ev);
+  });
+}
+
+function captureTextSelection(sourceDoc, root) {
+  const selection = sourceDoc.getSelection && sourceDoc.getSelection();
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  const offsets = rangeTextOffsets(root, range);
+  const text = selection.toString().trim();
+  if (!offsets || !text) return;
+  const c = state.current;
+  const anchor = createTextAnchor(root.textContent || '', offsets.start, offsets.end);
+  anchor.kind = c.format === 'pdf' ? 'pdf-text' : 'chapter-text';
+  if (c.format === 'pdf') anchor.page = c.page;
+  else anchor.chapter = c.flow ? c.flow.chapter : 0;
+  showSelectionToolbar({
+    kind: 'text',
+    text,
+    anchor,
+    chapter: currentTextChapterLabel(),
+    rect: rectInMainWindow(range.getBoundingClientRect(), sourceDoc.defaultView),
+  });
+}
+
+function captureEpubSelection(cfiRange, contents) {
+  const selection = contents && contents.window && contents.window.getSelection();
+  const text = selection ? selection.toString().trim() : '';
+  if (!text || !cfiRange) return;
+  let rect = { left: window.innerWidth / 2, right: window.innerWidth / 2, top: 80, bottom: 80 };
+  try { rect = rectInMainWindow(selection.getRangeAt(0).getBoundingClientRect(), contents.window); } catch (e) {}
+  const loc = state.current && state.current.rendition && state.current.rendition.currentLocation();
+  const chapter = loc && loc.start ? epubChapterTitle(state.current.epub, loc.start.index) : '未知章节';
+  showSelectionToolbar({ kind: 'epub', text, anchor: { kind: 'epub-cfi', cfi: cfiRange }, chapter, rect });
+}
+
+function showExistingAnnotation(id, ev) {
+  const annotation = currentAnnotations().find((item) => item.id === id);
+  if (!annotation) return;
+  showSelectionToolbar({
+    kind: annotation.anchor && annotation.anchor.kind === 'epub-cfi' ? 'epub' : 'text',
+    text: annotation.text,
+    anchor: annotation.anchor,
+    chapter: annotation.chapter,
+    existingId: annotation.id,
+    rect: eventPointInMainWindow(ev),
+  });
+}
+
+async function saveSelectionAnnotation(color, requestNote) {
+  const c = state.current;
+  const context = state.selectionContext;
+  if (!c || !context) return;
+  const existing = context.existingId ? currentAnnotations().find((item) => item.id === context.existingId) : null;
+  let note = existing ? existing.note || '' : '';
+  if (requestNote) {
+    const value = window.prompt('写下这段文字旁边的笔记：', note);
+    if (value == null) return;
+    note = value.trim();
+  }
+  if (existing) {
+    state.annotations = updateAnnotationInMap(state.annotations, c.path, existing.id, {
+      color: normalizeColor(color || existing.color),
+      note,
+      updatedAt: Date.now(),
+    });
+  } else {
+    const annotation = {
+      id: annotationId(),
+      format: c.format,
+      text: context.text,
+      note,
+      color: normalizeColor(color),
+      chapter: context.chapter,
+      anchor: context.anchor,
+      createdAt: Date.now(),
+    };
+    state.annotations = addAnnotationToMap(state.annotations, c.path, annotation);
+  }
+  await saveAnnotationsNow();
+  hideSelectionToolbar();
+  restoreCurrentAnnotations();
+  renderAnnotationsPanel();
+  els.readerStatus.textContent = requestNote ? '笔记已保存' : '划线已保存';
+}
+
+async function removeSelectionAnnotation() {
+  const c = state.current;
+  const context = state.selectionContext;
+  if (!c || !context || !context.existingId) return;
+  state.annotations = removeAnnotationFromMap(state.annotations, c.path, context.existingId);
+  await saveAnnotationsNow();
+  hideSelectionToolbar();
+  restoreCurrentAnnotations();
+  renderAnnotationsPanel();
+  els.readerStatus.textContent = '划线与笔记已删除';
+}
+
+function restoreCurrentAnnotations() {
+  if (state.current && state.current.format === 'epub') restoreEpubAnnotations();
+  else restoreTextAnnotations();
+}
+
+function annotationChapterLabel(annotation) {
+  if (annotation.chapter) return annotation.chapter;
+  const anchor = annotation.anchor || {};
+  if (anchor.kind === 'pdf-text') return '第 ' + (anchor.page || 1) + ' 页';
+  if (anchor.kind === 'chapter-text') return '第 ' + ((anchor.chapter || 0) + 1) + ' 节';
+  return '未知章节';
+}
+
+function renderAnnotationsPanel() {
+  const panel = els.annotationsPanel;
+  panel.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'annotations-panel-head';
+  const title = document.createElement('strong');
+  title.textContent = '划线与笔记';
+  const count = document.createElement('span');
+  count.textContent = currentAnnotations().length + ' 条';
+  head.append(title, count);
+  panel.appendChild(head);
+  const list = currentAnnotations().slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  if (!list.length) {
+    const empty = document.createElement('p');
+    empty.className = 'annotation-empty';
+    empty.textContent = '选中正文后，可以划线、复制或添加笔记。';
+    panel.appendChild(empty);
+    return;
+  }
+  for (const annotation of list) {
+    const card = document.createElement('article');
+    card.className = 'annotation-card';
+    card.style.setProperty('--annotation-color', ANNOTATION_COLORS[normalizeColor(annotation.color)]);
+    const quote = document.createElement('p');
+    quote.className = 'annotation-quote';
+    quote.textContent = '“' + annotation.text + '”';
+    quote.title = '点击跳转到原文';
+    quote.addEventListener('click', () => jumpToAnnotation(annotation));
+    const note = document.createElement('textarea');
+    note.className = 'annotation-note';
+    note.placeholder = '添加笔记…';
+    note.value = annotation.note || '';
+    note.addEventListener('change', async () => {
+      state.annotations = updateAnnotationInMap(state.annotations, state.current.path, annotation.id, { note: note.value.trim(), updatedAt: Date.now() });
+      await saveAnnotationsNow();
+    });
+    const meta = document.createElement('div');
+    meta.className = 'annotation-meta';
+    const chapter = document.createElement('span');
+    chapter.textContent = annotationChapterLabel(annotation);
+    const time = document.createElement('span');
+    time.textContent = new Date(annotation.createdAt || Date.now()).toLocaleDateString('zh-CN');
+    meta.append(chapter, time);
+    const actions = document.createElement('div');
+    actions.className = 'annotation-actions';
+    const colors = document.createElement('div');
+    colors.className = 'annotation-colors';
+    for (const color of ['yellow', 'green', 'pink']) {
+      const button = document.createElement('button');
+      button.className = 'highlight-dot ' + color;
+      button.title = '改为' + ({ yellow: '黄色', green: '绿色', pink: '粉色' })[color];
+      button.addEventListener('click', async () => {
+        state.annotations = updateAnnotationInMap(state.annotations, state.current.path, annotation.id, { color, updatedAt: Date.now() });
+        await saveAnnotationsNow();
+        restoreCurrentAnnotations();
+        renderAnnotationsPanel();
+      });
+      colors.appendChild(button);
+    }
+    const jump = document.createElement('button');
+    jump.className = 'btn';
+    jump.textContent = '跳转';
+    jump.addEventListener('click', () => jumpToAnnotation(annotation));
+    const del = document.createElement('button');
+    del.className = 'btn danger';
+    del.textContent = '删除';
+    del.addEventListener('click', async () => {
+      state.annotations = removeAnnotationFromMap(state.annotations, state.current.path, annotation.id);
+      await saveAnnotationsNow();
+      restoreCurrentAnnotations();
+      renderAnnotationsPanel();
+    });
+    actions.append(colors, jump, del);
+    card.append(quote, note, meta, actions);
+    panel.appendChild(card);
+  }
+}
+
+async function jumpToAnnotation(annotation) {
+  const c = state.current;
+  if (!c || !annotation || !annotation.anchor) return;
+  hideSelectionToolbar();
+  const anchor = annotation.anchor;
+  if (anchor.kind === 'epub-cfi' && c.rendition) {
+    await c.rendition.display(anchor.cfi);
+  } else if (anchor.kind === 'pdf-text' && c.pdf) {
+    c.page = Math.max(1, Math.min(c.pages, Number(anchor.page) || 1));
+    await renderPdfPage();
+  } else if (anchor.kind === 'chapter-text' && c.paginator) {
+    const chapter = Number(anchor.chapter) || 0;
+    if (c.format === 'mobi' || c.format === 'azw3') await loadMobiChapter(chapter, {});
+    const resolved = resolveTextAnchor(c.paginator.doc.body.textContent || '', anchor);
+    if (resolved) {
+      const page = c.paginator.locate(resolved.start);
+      if (page >= 0) c.paginator.showPage(page);
+    }
+    updateMobiProgress(true);
+  }
+  noteReadingActivity();
+}
+
 async function jumpToBookmark(bm) {
   const c = state.current;
   if (!c || !bm) return;
@@ -1406,6 +1875,7 @@ async function applyTheme(theme) {
   }
   if (c && c.format === 'pdf') renderPdfPage();
   if (c && c.paginator) applyMobiTheme();
+  if (c && c.format === 'epub') restoreEpubAnnotations();
   await window.api.stateSet('prefs', state.prefs);
   rememberSettings();
 }
@@ -1781,7 +2251,33 @@ function bindEvents() {
     closeSettings();
     addBookmark();
   });
+  $('btn-annotations').addEventListener('click', () => {
+    closeSettings();
+    togglePanel('annotations');
+  });
   $('btn-reading-stats-reader').addEventListener('click', () => openReadingStats('reader'));
+  els.selectionToolbar.addEventListener('pointerdown', (ev) => ev.preventDefault());
+  els.selectionToolbar.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    const colorButton = ev.target.closest('[data-highlight-color]');
+    if (colorButton) {
+      await saveSelectionAnnotation(colorButton.dataset.highlightColor, false);
+      return;
+    }
+    const action = ev.target.closest('[data-selection-action]');
+    if (!action) return;
+    if (action.dataset.selectionAction === 'note') await saveSelectionAnnotation(null, true);
+    else if (action.dataset.selectionAction === 'delete') await removeSelectionAnnotation();
+    else if (action.dataset.selectionAction === 'copy' && state.selectionContext) {
+      try {
+        await navigator.clipboard.writeText(state.selectionContext.text || '');
+        els.readerStatus.textContent = '摘录已复制';
+      } catch (e) {
+        els.readerStatus.textContent = '复制失败';
+      }
+      hideSelectionToolbar();
+    }
+  });
   $('btn-prev-page').addEventListener('click', prevPage);
   $('btn-next-page').addEventListener('click', nextPage);
 
@@ -1805,6 +2301,7 @@ function bindEvents() {
   });
   document.addEventListener('click', (ev) => {
     if (!ev.target.closest('#context-menu')) hideContextMenu();
+    if (!ev.target.closest('#selection-toolbar') && !ev.target.closest('mark[data-gaia-annotation]')) hideSelectionToolbar();
   });
 
   bindReaderKeyboard(document);
@@ -1828,6 +2325,9 @@ window.__gaiaDebug = {
   tickReadingStats,
   noteReadingActivity,
   getReadingStats: () => createReadingStats(state.readingStats),
+  getAnnotations: () => (state.current ? currentAnnotations() : []),
+  renderAnnotationsPanel,
+  restoreCurrentAnnotations,
   addBookmark,
   removeBookmarkAt,
   togglePanel,
