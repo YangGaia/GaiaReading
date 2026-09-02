@@ -463,6 +463,15 @@ function createWindow() {
             panel.dispatchEvent(new WheelEvent('wheel', { deltaY: 100, bubbles: true }));
             document.removeEventListener('wheel', detectPanelWheel);
             const panelWheelIsolated = !panelWheelBubbled;
+            const fpsLabel = document.querySelector('.gaia-pet-fps');
+            const fpsToggle = panel.querySelector('[data-fps-toggle]');
+            fpsToggle.checked = false;
+            fpsToggle.dispatchEvent(new Event('change', { bubbles: true }));
+            const fpsToggleHides = fpsLabel.hidden && document.getElementById('gaia-pet').classList.contains('fps-hidden');
+            fpsToggle.checked = true;
+            fpsToggle.dispatchEvent(new Event('change', { bubbles: true }));
+            await new Promise((resolve) => setTimeout(resolve, 1300));
+            const fpsMeasured = !fpsLabel.hidden && /^FPS [0-9]+$/.test(fpsLabel.textContent) && ['good', 'warn', 'bad'].includes(fpsLabel.dataset.level);
             const petBodyLayer = document.querySelector('.gaia-pet-halfbody');
             const petHeadLayer = document.querySelector('.gaia-pet-head');
             const petHeadRig = document.querySelector('.gaia-pet-head-rig');
@@ -504,6 +513,7 @@ function createWindow() {
             const readingTimerAdvanced = careStatus.textContent.includes('00:30 / 01:00');
             window.dispatchEvent(new Event('blur'));
             const readingTimerResetOnBlur = careStatus.textContent.includes('00:00 / 01:00');
+            const fpsUnavailableOnBlur = fpsLabel.textContent === 'FPS --' && fpsLabel.dataset.level === 'idle';
             Date.now = readingDateNow;
             GaiaPet.setView('home');
             const readingTimerResetOnLeave = careStatus.textContent.includes('未在阅读');
@@ -604,7 +614,7 @@ function createWindow() {
             blinkFace.dispatchEvent(blinkEnd);
             const repeatedBlinkCleaned = !blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned };
+            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -613,6 +623,9 @@ function createWindow() {
             petStatus.panelScrollable === true &&
             petStatus.stickyConsoleTop === true &&
             petStatus.panelWheelIsolated === true &&
+            petStatus.fpsToggleHides === true &&
+            petStatus.fpsMeasured === true &&
+            petStatus.fpsUnavailableOnBlur === true &&
             petStatus.emotionButtons === 8 &&
             petStatus.actionButtons === 3 &&
             petStatus.readingCareControls === true &&

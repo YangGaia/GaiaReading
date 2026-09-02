@@ -50,6 +50,7 @@
     sleepAfter: TIMERS.SLEEP_AFTER,
     readerCare: true,
     readerCareAfter: TIMERS.READER_CARE_AFTER,
+    showFps: true,
     lockedMood: null,
     scale: 1,
     opacity: 1,
@@ -99,6 +100,10 @@
   let effectVersion = 0;
   let activePerformance = null;
   let readingStartedAt = 0;
+  let fpsRafId = 0;
+  let fpsSampleStarted = 0;
+  let fpsFrameCount = 0;
+  let fpsSamples = [];
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
 
@@ -116,6 +121,7 @@
       sleepAfter: saved.sleepAfter,
       readerCare: saved.readerCare,
       readerCareAfter: saved.readerCareAfter,
+      showFps: saved.showFps,
       lockedMood: lockedEmotion,
       scale: saved.scale,
       opacity: saved.opacity,
@@ -129,6 +135,67 @@
     ui.root.hidden = !saved.on || hiddenInReader;
     ui.root.classList.toggle('reader-dim', currentView === 'reader' && saved.readerMode === 'dim');
     ui.root.style.opacity = String(saved.opacity * (ui.root.classList.contains('reader-dim') ? 0.55 : 1));
+    syncFpsMeter();
+  }
+
+  function resetFpsSampling(markUnavailable) {
+    fpsSampleStarted = 0;
+    fpsFrameCount = 0;
+    fpsSamples = [];
+    if (markUnavailable && ui.fps && ui.fps.textContent !== 'FPS --') {
+      ui.fps.textContent = 'FPS --';
+      ui.fps.dataset.level = 'idle';
+    }
+  }
+
+  function renderFps(value) {
+    if (!ui.fps) return;
+    const fps = Math.max(0, Math.round(value));
+    ui.fps.textContent = 'FPS ' + fps;
+    ui.fps.dataset.level = fps >= 50 ? 'good' : fps >= 30 ? 'warn' : 'bad';
+  }
+
+  function sampleFps(now) {
+    fpsRafId = window.requestAnimationFrame(sampleFps);
+    if (document.hidden || !document.hasFocus()) {
+      resetFpsSampling(true);
+      return;
+    }
+    if (!fpsSampleStarted) {
+      fpsSampleStarted = now;
+      fpsFrameCount = 0;
+      return;
+    }
+    fpsFrameCount += 1;
+    const elapsed = now - fpsSampleStarted;
+    if (elapsed < 1000) return;
+    fpsSamples.push(fpsFrameCount * 1000 / elapsed);
+    fpsSamples = fpsSamples.slice(-3);
+    renderFps(fpsSamples.reduce((sum, fps) => sum + fps, 0) / fpsSamples.length);
+    fpsSampleStarted = now;
+    fpsFrameCount = 0;
+  }
+
+  function startFpsMeter() {
+    if (!ui.fps || fpsRafId) return;
+    ui.fps.hidden = false;
+    ui.root.classList.remove('fps-hidden');
+    resetFpsSampling(true);
+    fpsRafId = window.requestAnimationFrame(sampleFps);
+  }
+
+  function stopFpsMeter() {
+    if (fpsRafId) window.cancelAnimationFrame(fpsRafId);
+    fpsRafId = 0;
+    resetFpsSampling(true);
+    if (ui.fps) ui.fps.hidden = true;
+    if (ui.root) ui.root.classList.add('fps-hidden');
+  }
+
+  function syncFpsMeter() {
+    if (!ui.root || !ui.fps) return;
+    if (saved.showFps && saved.on && !ui.root.hidden) startFpsMeter();
+    else stopFpsMeter();
   }
 
   function updatePositionRatios() {
@@ -457,6 +524,7 @@
       ui.readingCareSelect.disabled = !saved.readerCare;
     }
     if (ui.readingCareTest) ui.readingCareTest.disabled = !saved.readerCare;
+    if (ui.fpsToggle) ui.fpsToggle.checked = saved.showFps;
     updateReadingCareStatus(Date.now());
     if (ui.scaleSelect) ui.scaleSelect.value = String(saved.scale);
     if (ui.opacitySelect) ui.opacitySelect.value = String(saved.opacity);
@@ -829,11 +897,22 @@
       ev.stopImmediatePropagation();
       closeConsole(true);
     }, true);
-    window.addEventListener('blur', resetReadingSession);
-    window.addEventListener('focus', () => startReadingSession(Date.now()));
+    window.addEventListener('blur', () => {
+      resetReadingSession();
+      resetFpsSampling(true);
+    });
+    window.addEventListener('focus', () => {
+      startReadingSession(Date.now());
+      resetFpsSampling(true);
+    });
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) resetReadingSession();
-      else startReadingSession(Date.now());
+      if (document.hidden) {
+        resetReadingSession();
+        resetFpsSampling(true);
+      } else {
+        startReadingSession(Date.now());
+        resetFpsSampling(true);
+      }
     });
     window.addEventListener('resize', () => {
       restorePositionFromRatios();
@@ -1021,6 +1100,15 @@
     const displayTitle = document.createElement('div');
     displayTitle.className = 'gaia-pet-console-label';
     displayTitle.textContent = '显示设置';
+    const fpsToggle = makeToggle('显示界面帧率', (checked) => {
+      saved.showFps = checked;
+      syncFpsMeter();
+      clampPosition();
+      updatePositionRatios();
+      save();
+      updateConsole();
+    });
+    fpsToggle.input.dataset.fpsToggle = 'true';
     const makeSelectRow = (label, options, onChange) => {
       const row = document.createElement('label');
       row.className = 'gaia-pet-console-select-row';
@@ -1073,7 +1161,7 @@
     panel.append(consoleTop, emotionTitle, emotions, actionTitle, actions, autoTitle,
       autoToggle.row, speechToggle.row, sleepToggle.row, sleepRow, careTitle, careToggle.row,
       careStatus, careRow, careTest, lock, displayTitle,
-      scale.row, opacity.row, readerMode.row, historyTitle, history);
+      fpsToggle.row, scale.row, opacity.row, readerMode.row, historyTitle, history);
     panel.addEventListener('wheel', (ev) => ev.stopPropagation(), { passive: true });
     document.body.appendChild(panel);
     ui.console = panel;
@@ -1087,6 +1175,7 @@
     ui.readingCareStatus = careStatus;
     ui.readingCareSelect = careSelect;
     ui.readingCareTest = careTest;
+    ui.fpsToggle = fpsToggle.input;
     ui.lockButton = lock;
     ui.scaleSelect = scale.select;
     ui.opacitySelect = opacity.select;
@@ -1144,11 +1233,16 @@
     zzz.className = 'gaia-pet-zzz';
     zzz.textContent = 'Zzz';
     zzz.hidden = true;
+    const fps = document.createElement('div');
+    fps.className = 'gaia-pet-fps';
+    fps.textContent = 'FPS --';
+    fps.dataset.level = 'idle';
+    fps.setAttribute('aria-label', '界面帧率');
     headRig.append(head, face, blinkFace);
     body.append(halfbody, headRig);
-    root.append(bubble, body, zzz, hitbox);
+    root.append(bubble, body, zzz, fps, hitbox);
     document.body.appendChild(root);
-    ui = { root, hitbox, bubble, body, halfbody, headRig, head, face, blinkFace, zzz };
+    ui = { root, hitbox, bubble, body, halfbody, headRig, head, face, blinkFace, zzz, fps };
     buildConsole();
   }
 
@@ -1160,6 +1254,7 @@
       saved.autoSpeech = savedState.autoSpeech !== false;
       saved.autoSleep = savedState.autoSleep !== false;
       saved.readerCare = savedState.readerCare !== false;
+      saved.showFps = savedState.showFps !== false;
       if (LOCKABLE_EMOTIONS.includes(savedState.lockedMood)) saved.lockedMood = savedState.lockedMood;
       if ([20000, 35000, 60000].includes(savedState.sleepAfter)) saved.sleepAfter = savedState.sleepAfter;
       if (READER_CARE_INTERVALS.includes(savedState.readerCareAfter)) saved.readerCareAfter = savedState.readerCareAfter;

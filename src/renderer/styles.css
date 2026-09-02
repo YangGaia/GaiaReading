@@ -317,17 +317,20 @@ body.eye {
   -webkit-user-select: none;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
   pointer-events: none;
+  padding-bottom: 18px;
 }
+.gaia-pet.fps-hidden { padding-bottom: 0; }
 .gaia-pet.dragging { cursor: grabbing; }
 .gaia-pet-hitbox {
   position: absolute;
-  inset: 0;
+  inset: 0 0 18px;
   z-index: 5;
   cursor: grab;
   pointer-events: auto;
   outline: none;
   clip-path: polygon(25% 2%, 78% 2%, 91% 28%, 86% 54%, 96% 100%, 8% 100%, 16% 55%, 10% 30%);
 }
+.gaia-pet.fps-hidden .gaia-pet-hitbox { bottom: 0; }
 .gaia-pet-hitbox:focus-visible { filter: drop-shadow(0 0 5px var(--accent)); }
 .gaia-pet.dragging .gaia-pet-hitbox { cursor: grabbing; }
 .gaia-pet-body {
@@ -367,6 +370,28 @@ body.eye {
   transition: none;
   clip-path: inset(20% 0 38% 0);
 }
+.gaia-pet-fps {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: 6;
+  min-width: 54px;
+  padding: 2px 7px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: #d8d4e8;
+  background: rgba(18, 15, 28, 0.78);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+  font: 600 10px/14px ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.gaia-pet-fps[data-level="good"] { color: #8df0ae; }
+.gaia-pet-fps[data-level="warn"] { color: #ffd76d; }
+.gaia-pet-fps[data-level="bad"] { color: #ff8585; }
 .gaia-pet-bubble {
   position: absolute;
   left: auto;

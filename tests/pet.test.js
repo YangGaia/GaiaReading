@@ -212,9 +212,17 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes('saved.autoSpeech'), '控制台应能关闭自动说话');
   assert.ok(renderer.includes('saved.autoSleep'), '控制台应能关闭自动睡觉');
   assert.ok(renderer.includes("makeToggle('连续阅读提醒'"), '控制台应提供阅读关怀独立开关');
+  assert.ok(renderer.includes("makeToggle('显示界面帧率'"), '控制台应提供帧率显示开关');
+  assert.ok(renderer.includes('showFps: true'), '帧率显示应默认开启');
+  assert.ok(renderer.includes('showFps: saved.showFps'), '帧率显示开关应持久化');
+  assert.ok(renderer.includes('window.requestAnimationFrame(sampleFps)'), '帧率应通过逐帧回调进行采样');
+  assert.ok(renderer.includes('if (elapsed < 1000) return'), '帧率数字最多每秒更新一次');
+  assert.ok(renderer.includes('fpsSamples = fpsSamples.slice(-3)'), '帧率应使用最近三秒平滑值');
+  assert.ok(renderer.includes("fps >= 50 ? 'good' : fps >= 30 ? 'warn' : 'bad'"), '帧率应按流畅程度分级着色');
+  assert.ok(renderer.includes("ui.fps.textContent = 'FPS --'"), '失焦或最小化后帧率应显示不可用');
   assert.ok(renderer.includes("[60000, '测试 · 1分钟']"), '控制台应提供一分钟验收间隔');
   assert.ok(renderer.includes("makeButton('立即测试提醒'"), '控制台应支持立即测试关怀台词');
-  assert.ok(renderer.includes("window.addEventListener('blur', resetReadingSession)"), '切换程序时应清零连续阅读计时');
+  assert.match(renderer, /window\.addEventListener\('blur', \(\) => \{\s+resetReadingSession\(\);\s+resetFpsSampling\(true\);/, '切换程序时应清零连续阅读计时并暂停帧率显示');
   assert.ok(renderer.includes("document.addEventListener('visibilitychange'"), '最小化窗口时应清零连续阅读计时');
   assert.ok(renderer.includes("if (nextView !== currentView) resetReadingSession()"), '离开阅读页时应清零连续阅读计时');
   assert.ok(renderer.includes("showBubble(lineFor('readingCare'), 4200)"), '阅读超时后应显示关怀台词');
@@ -267,6 +275,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(!renderer.includes("['stretch', '伸懒腰']"), '不应保留失败的伸懒腰入口');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
+  assert.ok(css.includes('.gaia-pet-fps') && css.includes('font-variant-numeric: tabular-nums'), '有珠下方应显示稳定宽度的帧率标签');
+  assert.ok(css.includes('.gaia-pet-fps[data-level="good"]') && css.includes('.gaia-pet-fps[data-level="bad"]'), '帧率标签应提供绿黄红状态色');
+  assert.ok(css.includes('pointer-events: none;'), '帧率标签不应影响桌宠交互');
   assert.ok(css.includes('width: 240px;') && css.includes('height: 420px;'), '控制台应使用紧凑的固定尺寸');
   assert.ok(css.includes('overscroll-behavior: contain;'), '控制台滚动到边缘时不应穿透到底层页面');
   assert.ok(css.includes('.gaia-pet-console-top') && css.includes('position: sticky;'), '控制台标题和状态应在滚动时固定');
@@ -306,6 +317,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes('petStatus.panelCompact === true'), '冒烟测试应验证控制台尺寸已经缩小');
   assert.ok(main.includes('petStatus.panelScrollable === true'), '冒烟测试应验证控制台内容可以滚动');
   assert.ok(main.includes('petStatus.panelWheelIsolated === true'), '冒烟测试应验证控制台滚轮不会穿透');
+  assert.ok(main.includes('petStatus.fpsToggleHides === true'), '冒烟测试应验证帧率显示可以关闭');
+  assert.ok(main.includes('petStatus.fpsMeasured === true'), '冒烟测试应验证帧率能够实际测量');
+  assert.ok(main.includes('petStatus.fpsUnavailableOnBlur === true'), '冒烟测试应验证失焦时不显示错误低帧率');
   assert.ok(main.includes('petStatus.readingTimerAdvanced === true'), '冒烟测试应验证连续阅读计时会推进');
   assert.ok(main.includes('petStatus.readingTimerResetOnBlur === true'), '冒烟测试应验证失焦会清零连续阅读计时');
   assert.ok(main.includes('petStatus.readingTimerResetOnLeave === true'), '冒烟测试应验证离开阅读页会清零连续阅读计时');
