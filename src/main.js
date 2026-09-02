@@ -451,6 +451,18 @@ function createWindow() {
             const panelVisible = !!panel && !panel.hidden && panel.offsetWidth > 0 && panel.offsetHeight > 0;
             const rect = panel ? panel.getBoundingClientRect() : null;
             const panelInViewport = !!rect && rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight;
+            const panelStyle = panel && getComputedStyle(panel);
+            const panelCompact = !!rect && Math.round(rect.width) === 240 && rect.height <= 420;
+            panel.scrollTop = panel.scrollHeight;
+            const panelScrollable = panel.scrollHeight > panel.clientHeight && panel.scrollTop > 0 && panelStyle.overflowY === 'auto';
+            panel.scrollTop = 0;
+            const stickyConsoleTop = getComputedStyle(panel.querySelector('.gaia-pet-console-top')).position === 'sticky';
+            let panelWheelBubbled = false;
+            const detectPanelWheel = () => { panelWheelBubbled = true; };
+            document.addEventListener('wheel', detectPanelWheel);
+            panel.dispatchEvent(new WheelEvent('wheel', { deltaY: 100, bubbles: true }));
+            document.removeEventListener('wheel', detectPanelWheel);
+            const panelWheelIsolated = !panelWheelBubbled;
             const petBodyLayer = document.querySelector('.gaia-pet-halfbody');
             const petHeadLayer = document.querySelector('.gaia-pet-head');
             const petHeadRig = document.querySelector('.gaia-pet-head-rig');
@@ -592,11 +604,15 @@ function createWindow() {
             blinkFace.dispatchEvent(blinkEnd);
             const repeatedBlinkCleaned = !blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned };
+            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
             petStatus.panelInViewport === true &&
+            petStatus.panelCompact === true &&
+            petStatus.panelScrollable === true &&
+            petStatus.stickyConsoleTop === true &&
+            petStatus.panelWheelIsolated === true &&
             petStatus.emotionButtons === 8 &&
             petStatus.actionButtons === 3 &&
             petStatus.readingCareControls === true &&

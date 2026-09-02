@@ -656,10 +656,15 @@ body.eye {
 .gaia-pet-console {
   position: fixed;
   z-index: 9100;
-  width: 264px;
+  box-sizing: border-box;
+  width: 240px;
+  height: 420px;
   max-height: calc(100vh - 16px);
   overflow-y: auto;
-  padding: 12px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  padding: 10px;
   color: var(--text);
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   border: 1px solid var(--border-strong);
@@ -668,7 +673,18 @@ body.eye {
   backdrop-filter: blur(16px);
   user-select: none;
 }
+.gaia-pet-console::-webkit-scrollbar { width: 6px; }
+.gaia-pet-console::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
 .gaia-pet-console[hidden] { display: none; }
+.gaia-pet-console-top {
+  position: sticky;
+  z-index: 2;
+  top: -10px;
+  margin: -10px -10px 0;
+  padding: 10px 10px 1px;
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+  backdrop-filter: blur(16px);
+}
 .gaia-pet-console-header {
   display: flex;
   align-items: center;

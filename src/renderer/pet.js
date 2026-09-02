@@ -910,6 +910,9 @@
     header.append(title, close);
     const state = document.createElement('div');
     state.className = 'gaia-pet-console-state';
+    const consoleTop = document.createElement('div');
+    consoleTop.className = 'gaia-pet-console-top';
+    consoleTop.append(header, state);
 
     const emotionTitle = document.createElement('div');
     emotionTitle.className = 'gaia-pet-console-label';
@@ -1067,10 +1070,11 @@
 
     const lock = makeButton('锁定当前情绪', 'gaia-pet-console-lock');
     lock.addEventListener('click', toggleEmotionLock);
-    panel.append(header, state, emotionTitle, emotions, actionTitle, actions, autoTitle,
+    panel.append(consoleTop, emotionTitle, emotions, actionTitle, actions, autoTitle,
       autoToggle.row, speechToggle.row, sleepToggle.row, sleepRow, careTitle, careToggle.row,
       careStatus, careRow, careTest, lock, displayTitle,
       scale.row, opacity.row, readerMode.row, historyTitle, history);
+    panel.addEventListener('wheel', (ev) => ev.stopPropagation(), { passive: true });
     document.body.appendChild(panel);
     ui.console = panel;
     ui.consoleState = state;

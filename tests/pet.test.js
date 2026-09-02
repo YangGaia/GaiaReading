@@ -267,6 +267,11 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(!renderer.includes("['stretch', '伸懒腰']"), '不应保留失败的伸懒腰入口');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
+  assert.ok(css.includes('width: 240px;') && css.includes('height: 420px;'), '控制台应使用紧凑的固定尺寸');
+  assert.ok(css.includes('overscroll-behavior: contain;'), '控制台滚动到边缘时不应穿透到底层页面');
+  assert.ok(css.includes('.gaia-pet-console-top') && css.includes('position: sticky;'), '控制台标题和状态应在滚动时固定');
+  assert.ok(css.includes('.gaia-pet-console::-webkit-scrollbar'), '控制台应使用紧凑滚动条');
+  assert.ok(renderer.includes("panel.addEventListener('wheel', (ev) => ev.stopPropagation()"), '控制台滚轮事件不应触发阅读器翻页');
   assert.ok(css.includes('.gaia-pet-hitbox'), '缺少桌宠轮廓交互区域');
   assert.ok(css.includes('pointer-events: none;'), '桌宠透明根区域应允许点击穿透');
   assert.ok(css.includes('-webkit-line-clamp: 3'), '桌宠台词应允许最多三行显示');
@@ -298,6 +303,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes('petStatus.autoRestWhileConsoleOpen === true'), '冒烟测试应验证控制台打开时仍会自动休息');
   assert.ok(main.includes('petStatus.autoSleepWhileConsoleOpen === true'), '冒烟测试应验证控制台打开时仍会自动入睡');
   assert.ok(main.includes('petStatus.immediateCareTest === true'), '冒烟测试应验证阅读关怀可立即试播');
+  assert.ok(main.includes('petStatus.panelCompact === true'), '冒烟测试应验证控制台尺寸已经缩小');
+  assert.ok(main.includes('petStatus.panelScrollable === true'), '冒烟测试应验证控制台内容可以滚动');
+  assert.ok(main.includes('petStatus.panelWheelIsolated === true'), '冒烟测试应验证控制台滚轮不会穿透');
   assert.ok(main.includes('petStatus.readingTimerAdvanced === true'), '冒烟测试应验证连续阅读计时会推进');
   assert.ok(main.includes('petStatus.readingTimerResetOnBlur === true'), '冒烟测试应验证失焦会清零连续阅读计时');
   assert.ok(main.includes('petStatus.readingTimerResetOnLeave === true'), '冒烟测试应验证离开阅读页会清零连续阅读计时');
