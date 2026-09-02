@@ -35,6 +35,7 @@ test('AI 服务配置支持 OpenAI、DeepSeek、本地与自定义接口', () =>
   assert.strictEqual(normalizeConfig({ provider: 'openai' }).baseUrl, 'https://api.openai.com/v1');
   assert.strictEqual(normalizeConfig({ provider: 'ollama' }).baseUrl, 'http://127.0.0.1:11434/v1');
   assert.strictEqual(normalizeConfig({ provider: 'custom', baseUrl: 'https://relay.example/v1/' }).baseUrl, 'https://relay.example/v1');
+  assert.strictEqual(Object.hasOwn(normalizeConfig({ provider: 'deepseek', autoSummarize: true }), 'autoSummarize'), false);
   assert.strictEqual(chatEndpoint('https://relay.example/v1'), 'https://relay.example/v1/chat/completions');
   assert.strictEqual(chatEndpoint('https://relay.example/v1/chat/completions'), 'https://relay.example/v1/chat/completions');
   assert.ok(PROVIDERS.deepseek.models.some((item) => item.id === 'deepseek-v4-flash'));

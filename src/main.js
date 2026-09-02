@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net, safeStorage, screen } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net, safeStorage, screen, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -13,6 +13,7 @@ const { prepareDataFile } = require('./shared/data-upgrade');
 const { openMobi, loadChapter, cleanupMobi } = require('./shared/mobi');
 const { repairEpubBuffer } = require('./shared/epub-repair');
 const GaiaAi = require('./shared/ai');
+const Lookup = require('./shared/lookup');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 protocol.registerSchemesAsPrivileged([
@@ -42,6 +43,8 @@ if (SHOT_DIR) {
 }
 
 let mainWindow = null;
+let dictionaryWindow = null;
+let dictionarySessionSecured = false;
 let store = null;
 const repairedEpubCache = new Map();
 
@@ -190,6 +193,66 @@ function displayFrequencyForWindow(win) {
   const display = screen.getDisplayMatching(win.getBounds());
   const frequency = Number(display && display.displayFrequency);
   return Number.isFinite(frequency) && frequency > 0 ? Math.round(frequency) : null;
+}
+
+function dictionaryNavigationAllowed(value) {
+  return Lookup.isAllowedDictionaryUrl(value);
+}
+
+function createDictionaryWindow() {
+  if (dictionaryWindow && !dictionaryWindow.isDestroyed()) return dictionaryWindow;
+  dictionaryWindow = new BrowserWindow({
+    width: 760,
+    height: 720,
+    minWidth: 420,
+    minHeight: 420,
+    title: 'Gaia 字典',
+    parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+    show: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+      partition: 'gaia-dictionary',
+    },
+  });
+  const contents = dictionaryWindow.webContents;
+  const dictionarySession = contents.session;
+  dictionarySession.setPermissionRequestHandler((webContents, permission, callback) => callback(false));
+  if (!dictionarySessionSecured) {
+    dictionarySessionSecured = true;
+    dictionarySession.on('will-download', (event) => event.preventDefault());
+  }
+  contents.setWindowOpenHandler(({ url }) => {
+    if (dictionaryNavigationAllowed(url) && dictionaryWindow && !dictionaryWindow.isDestroyed()) {
+      dictionaryWindow.loadURL(url).catch(() => {});
+    }
+    return { action: 'deny' };
+  });
+  contents.on('will-navigate', (event, url) => {
+    if (!dictionaryNavigationAllowed(url)) event.preventDefault();
+  });
+  contents.on('will-redirect', (event, url) => {
+    if (!dictionaryNavigationAllowed(url)) event.preventDefault();
+  });
+  contents.on('will-attach-webview', (event) => event.preventDefault());
+  contents.on('page-title-updated', (event) => event.preventDefault());
+  dictionaryWindow.on('closed', () => { dictionaryWindow = null; });
+  return dictionaryWindow;
+}
+
+function openDictionary(query) {
+  const normalized = Lookup.normalizeLookupText(query, 80);
+  const target = Lookup.dictionaryUrl(normalized);
+  const win = createDictionaryWindow();
+  win.setTitle('Gaia 字典 · ' + normalized);
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  win.loadURL(target).catch((error) => console.warn('DICTIONARY_LOAD_FAILED', error.message));
+  return { ok: true, query: normalized, targetHost: new URL(target).host };
 }
 
 function formatOf(filePath) {
@@ -401,6 +464,10 @@ function createWindow() {
               const aiCenterCard = document.querySelector('.ai-config-card');
               const aiCenterLayout = !!aiCenterCard && aiCenterCard.offsetWidth >= 420 && aiCenterCard.offsetHeight > 300;
               const aiModelPresets = document.getElementById('ai-model-options').children.length >= 3;
+              document.getElementById('btn-ai-model-menu').click();
+              const modelMenu = document.getElementById('ai-model-options');
+              const aiModelMenuScrollable = !modelMenu.hidden && getComputedStyle(modelMenu).overflowY === 'auto' && modelMenu.clientHeight <= 220;
+              document.getElementById('btn-ai-model-menu').click();
               document.getElementById('btn-ai-back').click();
               const aiCenterReturned = __gaiaDebug.getView() === 'reader';
               __gaiaDebug.openAiAssistant();
@@ -411,9 +478,13 @@ function createWindow() {
               document.getElementById('btn-ai-appearance').click();
               const aiAppearanceCompact = !document.getElementById('ai-appearance-popover').hidden && !document.querySelector('.ai-typography-toolbar');
               document.getElementById('btn-ai-appearance').click();
+              document.getElementById('btn-ai-tab-summary').click();
+              const aiSummaryTabReady = document.getElementById('ai-chat-pane').hidden && !document.getElementById('ai-summary-pane').hidden;
+              document.getElementById('btn-ai-tab-chat').click();
+              const selectionAiTools = ['ai-analyze', 'ai-ask', 'dictionary', 'search'].every((action) => !!document.querySelector('[data-selection-action="' + action + '"]'));
               __gaiaDebug.openAiAssistant();
               const aiUiReady = aiUi.homeEntry && aiUi.centerView && aiUi.settingsSection && aiUi.summaryButton && aiUi.summaryPanel &&
-                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiCenterReturned && aiPanelOpened && aiAppearanceCompact &&
+                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiModelMenuScrollable && aiCenterReturned && aiPanelOpened && aiAppearanceCompact && aiSummaryTabReady && selectionAiTools &&
                 aiSource.bookPath === fixture && aiSource.chapterId.startsWith('epub:') && aiSource.content.length > 0;
               const annotationsBefore = __gaiaDebug.getAnnotations().length;
               const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');
@@ -564,7 +635,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryTabReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -1273,6 +1344,16 @@ ipcMain.handle('ai:alice-comment', async (event, payload) => {
     content,
   }, input.kind === 'summary' ? 'summary' : 'comment', { timeoutMs: 90000 });
   return { comment, kind: input.kind === 'summary' ? 'summary' : 'comment', model: profile.model, targetHost: new URL(profile.baseUrl).host };
+});
+ipcMain.handle('dictionary:open', (event, query) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('无权打开词典窗口');
+  return openDictionary(query);
+});
+ipcMain.handle('selection:search', async (event, query) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('无权打开搜索');
+  const normalized = Lookup.normalizeLookupText(query, 200);
+  await shell.openExternal(Lookup.searchUrl(normalized));
+  return { ok: true, query: normalized };
 });
 ipcMain.handle('file:exists', (event, filePath) => fs.existsSync(filePath));
 ipcMain.handle('display:frequency', (event) => displayFrequencyForWindow(BrowserWindow.fromWebContents(event.sender)));

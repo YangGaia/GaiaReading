@@ -88,11 +88,12 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
   const preload = fs.readFileSync(path.join(root, 'src', 'preload.js'), 'utf8');
   const ai = fs.readFileSync(path.join(root, 'src', 'shared', 'ai.js'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
 
-  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-refresh', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-summary', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-minimize', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input']) {
+  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-menu', 'btn-ai-model-refresh', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-summary', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-minimize', 'btn-ai-tab-chat', 'btn-ai-tab-summary', 'ai-chat-pane', 'ai-summary-pane', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input']) {
     assert.ok(html.includes(`id="${id}"`), `AI 界面缺少 ${id}`);
   }
-  for (const bridge of ['aiProfilesGet', 'aiProfileSave', 'aiProfileActivate', 'aiProfileDelete', 'aiProfileTest', 'aiProfileModels', 'aiSummarize', 'aiChat', 'aiAliceComment']) {
+  for (const bridge of ['aiProfilesGet', 'aiProfileSave', 'aiProfileActivate', 'aiProfileDelete', 'aiProfileTest', 'aiProfileModels', 'aiSummarize', 'aiChat', 'aiAliceComment', 'dictionaryOpen', 'searchWeb']) {
     assert.ok(preload.includes(bridge), `preload 缺少 ${bridge}`);
   }
   assert.ok(main.includes('safeStorage.encryptString'), 'API Key 必须通过 Electron safeStorage 加密');
@@ -111,6 +112,20 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(app.includes('saveAiPanelGeometry'), 'AI 悬浮窗应保存位置和大小');
   assert.ok(app.includes('toggleAiAppearanceMenu'), 'AI 排版设置应收进 Aa 弹出菜单');
   assert.ok(app.includes('setAiAppearanceOpen(els.aiAppearancePopover.hidden)'), 'Aa 按钮应能正确切换 AI 排版弹层');
+  assert.ok(app.includes("switchAiContentTab('summary')"), '本章总结应在独立页签显示');
+  assert.ok(css.includes('.ai-content-stage { flex: 1; min-height: 0; overflow: hidden; }'), 'AI 页签内容区不得覆盖标题和状态文字');
+  assert.ok(css.includes('max-height: 220px; overflow-y: auto;'), '模型选择菜单应限制高度并支持纵向滚动');
+  assert.ok(!html.includes('ai-auto-summarize') && !app.includes('AI_AUTO_SUMMARY') && !app.includes('autoSummarize'), '打开或切换章节不得自动调用 AI 总结');
+  const observeChapter = app.slice(app.indexOf('function observeAiChapter()'), app.indexOf('async function copyAiSummary()'));
+  assert.ok(!observeChapter.includes('summarizeSource(') && !observeChapter.includes('aiSummarize'), '章节观察只能刷新界面，不能发起总结请求');
+  for (const action of ['ai-analyze', 'ai-ask', 'dictionary', 'search']) {
+    assert.ok(html.includes(`data-selection-action="${action}"`), `选区工具栏缺少 ${action}`);
+  }
+  assert.ok(main.includes("ipcMain.handle('dictionary:open'"), '主进程缺少内置词典窗口入口');
+  assert.ok(main.includes("partition: 'gaia-dictionary'"), '内置词典应使用隔离会话');
+  assert.ok(main.includes('nodeIntegration: false') && main.includes('sandbox: true'), '内置词典窗口必须禁用 Node 并启用沙箱');
+  assert.ok(main.includes("ipcMain.handle('selection:search'"), '主进程缺少默认浏览器搜索入口');
+  assert.ok(main.includes('shell.openExternal(Lookup.searchUrl(normalized))'), '网页搜索应交给系统默认浏览器');
   assert.ok(app.includes('document.createTextNode(message.content)'), 'AI 回答必须按纯文本渲染，不能作为 HTML 执行');
   assert.ok(pet.includes('function speak(text, duration)'), '桌宠应公开受长度限制的 AI 台词入口');
 });

@@ -31,7 +31,6 @@
     provider: 'deepseek',
     baseUrl: PROVIDERS.deepseek.baseUrl,
     model: '',
-    autoSummarize: false,
   };
 
   function normalizeBaseUrl(value) {
@@ -55,7 +54,6 @@
       provider,
       baseUrl: normalizeBaseUrl(rawBase),
       model: String(input.model || '').trim(),
-      autoSummarize: input.autoSummarize === true,
     };
   }
 

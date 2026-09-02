@@ -69,13 +69,15 @@
             <button id="btn-ai-key-toggle" class="btn" type="button">显示</button>
           </div>
           <label class="ai-config-label" for="ai-model">模型名称</label>
-          <div class="ai-model-row">
-            <input id="ai-model" class="ai-config-input" type="text" list="ai-model-options" spellcheck="false" autocomplete="off" placeholder="选择或填写模型名称">
-            <button id="btn-ai-model-refresh" class="btn" type="button">读取模型</button>
+          <div id="ai-model-picker" class="ai-model-picker">
+            <div class="ai-model-row">
+              <input id="ai-model" class="ai-config-input" type="text" spellcheck="false" autocomplete="off" placeholder="选择或填写模型名称" aria-haspopup="listbox" aria-expanded="false" aria-controls="ai-model-options">
+              <button id="btn-ai-model-menu" class="btn ai-model-menu-button" type="button" aria-label="展开模型列表">⌄</button>
+              <button id="btn-ai-model-refresh" class="btn" type="button">读取模型</button>
+            </div>
+            <div id="ai-model-options" class="ai-model-options" role="listbox" hidden></div>
           </div>
-          <datalist id="ai-model-options"></datalist>
           <p id="ai-model-hint" class="ai-model-hint">可直接选择内置模型，也可以输入接口支持的其他模型 ID。</p>
-          <label class="ai-auto-row"><input id="ai-auto-summarize" type="checkbox"> 向后进入新章节时，自动总结刚读完的章节</label>
           <p id="ai-config-target" class="ai-config-target"></p>
           <p id="ai-config-status" class="ai-config-status" role="status" aria-live="polite"></p>
           <div class="ai-config-actions">
@@ -215,15 +217,25 @@
           <button type="button" data-ai-alice="comment">有珠吐槽</button>
         </div>
         <div id="ai-summary-status" class="ai-summary-status" role="status" aria-live="polite">可以总结，也可以直接提问。</div>
-        <details id="ai-summary-card" class="ai-summary-card" hidden>
-          <summary>本章总结</summary>
-          <pre id="ai-summary-content" class="ai-summary-content"></pre>
-          <button id="btn-ai-summary-copy" class="btn" type="button" disabled>复制总结</button>
-        </details>
-        <div id="ai-chat-messages" class="ai-chat-messages" aria-live="polite"></div>
-        <div class="ai-chat-composer">
-          <textarea id="ai-chat-input" maxlength="2000" rows="3" placeholder="问问当前章节，Ctrl + Enter 发送…"></textarea>
-          <button id="btn-ai-chat-send" class="btn primary" type="button">发送</button>
+        <div class="ai-content-tabs" role="tablist" aria-label="AI 内容">
+          <button id="btn-ai-tab-chat" class="active" type="button" role="tab" aria-selected="true" aria-controls="ai-chat-pane">对话</button>
+          <button id="btn-ai-tab-summary" type="button" role="tab" aria-selected="false" aria-controls="ai-summary-pane">本章总结</button>
+        </div>
+        <div class="ai-content-stage">
+          <section id="ai-chat-pane" class="ai-content-pane ai-chat-pane" role="tabpanel" aria-labelledby="btn-ai-tab-chat">
+            <div id="ai-chat-messages" class="ai-chat-messages" aria-live="polite"></div>
+            <div class="ai-chat-composer">
+              <textarea id="ai-chat-input" maxlength="2000" rows="3" placeholder="问问当前章节，Ctrl + Enter 发送…"></textarea>
+              <button id="btn-ai-chat-send" class="btn primary" type="button">发送</button>
+            </div>
+          </section>
+          <section id="ai-summary-pane" class="ai-content-pane ai-summary-pane" role="tabpanel" aria-labelledby="btn-ai-tab-summary" hidden>
+            <p id="ai-summary-empty" class="ai-summary-empty">本章还没有总结。点击上方“总结本章”后才会调用 AI。</p>
+            <div id="ai-summary-card" class="ai-summary-card" hidden>
+              <pre id="ai-summary-content" class="ai-summary-content"></pre>
+              <button id="btn-ai-summary-copy" class="btn" type="button" disabled>复制总结</button>
+            </div>
+          </section>
         </div>
       </aside>
       <div id="reader-content"></div>
@@ -248,6 +260,11 @@
     <button class="highlight-dot yellow" data-highlight-color="yellow" title="黄色划线" aria-label="黄色划线"></button>
     <button class="highlight-dot green" data-highlight-color="green" title="绿色划线" aria-label="绿色划线"></button>
     <button class="highlight-dot pink" data-highlight-color="pink" title="粉色划线" aria-label="粉色划线"></button>
+    <span class="selection-toolbar-divider"></span>
+    <button data-selection-action="ai-analyze" title="让 AI 直接分析选中文字">AI 解读</button>
+    <button data-selection-action="ai-ask" title="引用选中文字向 AI 提问">问 AI</button>
+    <button data-selection-action="dictionary" title="在应用内词典窗口查询">字典</button>
+    <button data-selection-action="search" title="使用默认浏览器搜索">搜索</button>
     <span class="selection-toolbar-divider"></span>
     <button data-selection-action="note">笔记</button>
     <button data-selection-action="copy">复制</button>
