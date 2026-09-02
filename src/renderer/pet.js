@@ -582,6 +582,7 @@
 
     if (key === 'idle') {
       returnToIdle(now);
+      save();
       return;
     }
     if (key === 'wake') {
@@ -592,6 +593,7 @@
       showBubble(lineFor(config.line));
       playPerformance('wake', ACTION_MS.wake, [{ at: 360, expression: '日常表情' }]);
       transientUntil = now + TIMERS.TRANSIENT_AFTER;
+      save();
       return;
     }
     if (key === 'sleeping') {
@@ -600,6 +602,7 @@
       manualEmotionKey = null;
       transientUntil = 0;
       setState(PET_STATES.SLEEPING, pick(config.expressions));
+      save();
       return;
     }
 

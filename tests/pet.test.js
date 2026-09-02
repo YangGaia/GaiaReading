@@ -220,6 +220,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("if (brain.state === PET_STATES.SLEEPING || manualHeld) return"), '睡着后鼠标移入不应自动唤醒');
   assert.ok(renderer.includes("showBubble(lineFor('sleeping'), 3200)"), '睡眠期间应显示梦话');
   assert.ok(renderer.includes('lockedMood: lockedEmotion'), '情绪锁定应保存明确的情绪键');
+  assert.match(renderer, /if \(key === 'idle'\) \{\s+returnToIdle\(now\);\s+save\(\);/, '手动回到待机时应持久化解除锁定');
   assert.ok(renderer.includes("const LOCKABLE_EMOTIONS = ['thinking', 'shy', 'angry', 'sleepy']"), '只能锁定稳定手动情绪');
   assert.ok(renderer.includes("makeToggle('自主活动总开关'"), '自动模式应使用明确的总开关名称');
   assert.ok(renderer.includes('ui.speechToggle.disabled = !saved.auto'), '关闭自主活动后应禁用子选项');
