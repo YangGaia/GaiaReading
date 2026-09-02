@@ -28,6 +28,68 @@
     </div>
   </div>
 
+  <div id="ai-view" hidden>
+    <header class="topbar ai-center-topbar">
+      <button id="btn-ai-back" class="btn">← 返回</button>
+      <span class="page-title">AI 阅读中心</span>
+      <span id="ai-center-top-state" class="ai-center-top-state">等待配置</span>
+    </header>
+    <main class="ai-center-scroll">
+      <section class="ai-center-hero">
+        <div>
+          <p class="ai-center-eyebrow">GAIA INTELLIGENCE · READING COMPANION</p>
+          <h1>把接口、总结和有珠都放在正确的位置。</h1>
+          <p>这里统一管理 AI 服务。阅读时只需点击顶栏的 ✦ AI，即可总结、追问，或让有珠对当前章节说两句。</p>
+        </div>
+        <div class="ai-center-orb" aria-hidden="true"><span>✦</span></div>
+      </section>
+      <div class="ai-center-grid">
+        <section class="ai-center-card ai-config-card">
+          <div class="ai-center-card-head"><div><small>CONNECTION</small><h2>接口配置</h2></div><span id="ai-center-badge" class="ai-center-badge">未配置</span></div>
+          <p class="ai-config-note">Key 由 Windows 加密保存。正文只发送到下方 Base URL，不经过 Gaia 服务器。测试连接和对话可能产生少量费用。</p>
+          <label class="ai-config-label" for="ai-provider">服务商</label>
+          <select id="ai-provider" class="drawer-select ai-config-control">
+            <option value="deepseek">DeepSeek</option>
+            <option value="openai">OpenAI</option>
+            <option value="ollama">Ollama（本地）</option>
+            <option value="custom">自定义兼容接口</option>
+          </select>
+          <label class="ai-config-label" for="ai-base-url">Base URL</label>
+          <input id="ai-base-url" class="ai-config-input" type="url" spellcheck="false" autocomplete="off">
+          <label class="ai-config-label" for="ai-api-key">API Key</label>
+          <div class="ai-key-row">
+            <input id="ai-api-key" class="ai-config-input" type="password" spellcheck="false" autocomplete="off" placeholder="尚未保存">
+            <button id="btn-ai-key-toggle" class="btn" type="button">显示</button>
+          </div>
+          <label class="ai-config-label" for="ai-model">模型名称</label>
+          <input id="ai-model" class="ai-config-input" type="text" spellcheck="false" autocomplete="off" placeholder="填写服务商提供的模型名称">
+          <label class="ai-auto-row"><input id="ai-auto-summarize" type="checkbox"> 向后进入新章节时，自动总结刚读完的章节</label>
+          <p id="ai-config-target" class="ai-config-target"></p>
+          <p id="ai-config-status" class="ai-config-status" role="status" aria-live="polite"></p>
+          <div class="ai-config-actions">
+            <button id="btn-ai-key-clear" class="btn danger" type="button">清除 Key</button>
+            <button id="btn-ai-test" class="btn" type="button">测试连接</button>
+            <button id="btn-ai-save" class="btn primary" type="button">保存设置</button>
+          </div>
+        </section>
+        <aside class="ai-center-side">
+          <section class="ai-center-card">
+            <small>AVAILABLE IN READER</small><h2>阅读时可以做什么</h2>
+            <div class="ai-capability-list">
+              <div><b>01</b><span><strong>章节总结</strong><small>整理事件、人物和伏笔</small></span></div>
+              <div><b>02</b><span><strong>连续追问</strong><small>只围绕当前已读正文回答</small></span></div>
+              <div><b>03</b><span><strong>有珠模式</strong><small>准确分析，再克制地吐槽</small></span></div>
+            </div>
+          </section>
+          <section class="ai-center-card ai-privacy-card">
+            <small>PRIVACY BOUNDARY</small><h2>它不能做什么</h2>
+            <p>AI 只能接收当前章节文字并返回纯文本。它不能修改书籍、执行代码或操作你的电脑。关闭 AI 后，阅读器仍可独立使用。</p>
+          </section>
+        </aside>
+      </div>
+    </main>
+  </div>
+
   <div id="library-view" hidden>
     <header class="topbar">
       <button id="btn-back-home" class="btn">← 首页</button>
@@ -101,6 +163,7 @@
       <button id="btn-back" class="btn">← 书架</button>
       <span id="reader-title" class="reader-title"></span>
       <div class="actions">
+        <button id="btn-ai-reader" class="btn ai-reader-trigger"><span>✦</span> AI</button>
         <button id="btn-settings-reader" class="btn">设置</button>
       </div>
     </header>
@@ -110,16 +173,34 @@
       <aside id="annotations-panel" class="side-panel annotations-panel" hidden></aside>
       <aside id="ai-summary-panel" class="side-panel ai-summary-panel" hidden>
         <div class="ai-summary-head">
-          <div><small>ALICE · AI ASSISTANT</small><h2>章节总结</h2></div>
-          <button id="btn-ai-summary-close" class="btn" type="button" aria-label="关闭章节总结">×</button>
+          <div><small>GAIA · READING COMPANION</small><h2>AI 阅读助手</h2></div>
+          <div class="ai-panel-head-actions">
+            <button id="btn-ai-chat-clear" class="btn" type="button">清空</button>
+            <button id="btn-ai-summary-close" class="btn" type="button" aria-label="关闭 AI 阅读助手">×</button>
+          </div>
+        </div>
+        <div class="ai-mode-switch" role="group" aria-label="AI 回答模式">
+          <button class="active" type="button" data-ai-mode="assistant">普通助手</button>
+          <button type="button" data-ai-mode="alice">有珠模式</button>
         </div>
         <p id="ai-summary-chapter" class="ai-summary-chapter">当前章节</p>
         <p id="ai-summary-target" class="ai-summary-target"></p>
-        <div id="ai-summary-status" class="ai-summary-status" role="status" aria-live="polite">点击“生成总结”开始。</div>
-        <pre id="ai-summary-content" class="ai-summary-content"></pre>
-        <div class="ai-summary-actions">
-          <button id="btn-ai-summary-run" class="btn primary" type="button">生成总结</button>
-          <button id="btn-ai-summary-copy" class="btn" type="button" disabled>复制</button>
+        <div class="ai-quick-actions">
+          <button id="btn-ai-summary-run" type="button">总结本章</button>
+          <button type="button" data-ai-quick="梳理本章出现的人物关系。">人物关系</button>
+          <button type="button" data-ai-quick="找出本章重要信息和可能的伏笔，只依据本章正文。">重要伏笔</button>
+          <button type="button" data-ai-quick="请用有珠的口吻简短吐槽一下本章。" data-ai-force-mode="alice">有珠吐槽</button>
+        </div>
+        <div id="ai-summary-status" class="ai-summary-status" role="status" aria-live="polite">可以总结，也可以直接提问。</div>
+        <details id="ai-summary-card" class="ai-summary-card" hidden>
+          <summary>本章总结</summary>
+          <pre id="ai-summary-content" class="ai-summary-content"></pre>
+          <button id="btn-ai-summary-copy" class="btn" type="button" disabled>复制总结</button>
+        </details>
+        <div id="ai-chat-messages" class="ai-chat-messages" aria-live="polite"></div>
+        <div class="ai-chat-composer">
+          <textarea id="ai-chat-input" maxlength="2000" rows="3" placeholder="问问当前章节，Ctrl + Enter 发送…"></textarea>
+          <button id="btn-ai-chat-send" class="btn primary" type="button">发送</button>
         </div>
       </aside>
       <div id="reader-content"></div>
@@ -232,32 +313,11 @@
           </div>
         </div>
       </div>
-      <div id="drawer-ai" class="drawer-ai">
+      <div id="drawer-ai" class="drawer-ai-link">
         <h3>AI 章节助手</h3>
-        <p class="ai-config-note">Key 由 Windows 加密保存。正文只发送到下方 Base URL，不经过 Gaia 服务器。测试连接和总结会调用所选接口，可能产生少量费用。</p>
-        <label class="ai-config-label" for="ai-provider">服务商</label>
-        <select id="ai-provider" class="drawer-select ai-config-control">
-          <option value="deepseek">DeepSeek</option>
-          <option value="openai">OpenAI</option>
-          <option value="ollama">Ollama（本地）</option>
-          <option value="custom">自定义兼容接口</option>
-        </select>
-        <label class="ai-config-label" for="ai-base-url">Base URL</label>
-        <input id="ai-base-url" class="ai-config-input" type="url" spellcheck="false" autocomplete="off">
-        <label class="ai-config-label" for="ai-api-key">API Key</label>
-        <div class="ai-key-row">
-          <input id="ai-api-key" class="ai-config-input" type="password" spellcheck="false" autocomplete="off" placeholder="尚未保存">
-          <button id="btn-ai-key-toggle" class="btn" type="button">显示</button>
-        </div>
-        <label class="ai-config-label" for="ai-model">模型名称</label>
-        <input id="ai-model" class="ai-config-input" type="text" spellcheck="false" autocomplete="off" placeholder="填写服务商提供的模型名称">
-        <label class="ai-auto-row"><input id="ai-auto-summarize" type="checkbox"> 向后进入新章节时，自动总结刚读完的章节</label>
-        <p id="ai-config-target" class="ai-config-target"></p>
-        <p id="ai-config-status" class="ai-config-status" role="status" aria-live="polite"></p>
-        <div class="ai-config-actions">
-          <button id="btn-ai-key-clear" class="btn danger" type="button">清除 Key</button>
-          <button id="btn-ai-test" class="btn" type="button">测试连接</button>
-          <button id="btn-ai-save" class="btn primary" type="button">保存设置</button>
+        <div class="drawer-ai-state">
+          <span><strong id="ai-settings-title">尚未配置</strong><small id="ai-settings-state">前往 AI 中心设置接口</small></span>
+          <button id="btn-open-ai-center" class="btn" type="button">打开 AI 中心</button>
         </div>
       </div>
       <div class="drawer-about">

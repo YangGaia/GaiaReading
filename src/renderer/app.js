@@ -55,6 +55,10 @@ const els = {
   aiSummaryTarget: $('ai-summary-target'),
   aiSummaryStatus: $('ai-summary-status'),
   aiSummaryContent: $('ai-summary-content'),
+  aiSummaryCard: $('ai-summary-card'),
+  aiChatMessages: $('ai-chat-messages'),
+  aiChatInput: $('ai-chat-input'),
+  aiChatSend: $('btn-ai-chat-send'),
   selectionToolbar: $('selection-toolbar'),
   importStatus: $('import-status'),
   noteEditorOverlay: $('note-editor-overlay'),
@@ -99,11 +103,16 @@ const els = {
   aiAutoSummarize: $('ai-auto-summarize'),
   aiConfigTarget: $('ai-config-target'),
   aiConfigStatus: $('ai-config-status'),
+  aiCenterTopState: $('ai-center-top-state'),
+  aiCenterBadge: $('ai-center-badge'),
+  aiSettingsTitle: $('ai-settings-title'),
+  aiSettingsState: $('ai-settings-state'),
 };
 
 const views = {
   splash: $('splash-view'),
   home: $('home-view'),
+  ai: $('ai-view'),
   library: $('library-view'),
   reader: $('reader-view'),
   stats: $('stats-view'),
@@ -117,6 +126,10 @@ const state = {
   aiConfig: null,
   aiSummaries: {},
   aiSummaryLoading: false,
+  aiChatLoading: false,
+  aiChatMode: 'assistant',
+  aiChats: {},
+  aiCenterReturnView: 'home',
   lastAiChapterSource: null,
   aiAutoQueue: Promise.resolve(),
   readingStats: createReadingStats(),
@@ -191,6 +204,26 @@ function showView(name) {
     window.GaiaPet.setView(name);
     updatePetUI();
   });
+}
+
+function visibleViewName() {
+  for (const key of Object.keys(views)) {
+    if (!views[key].hidden && key !== 'splash') return key;
+  }
+  return 'home';
+}
+
+function openAiCenter(returnView) {
+  const currentView = visibleViewName();
+  state.aiCenterReturnView = returnView || (currentView === 'ai' ? state.aiCenterReturnView : currentView) || 'home';
+  closeSettings();
+  updateAiConfigForm();
+  showView('ai');
+}
+
+function closeAiCenter() {
+  const target = state.aiCenterReturnView === 'reader' && !state.current ? 'library' : state.aiCenterReturnView;
+  showView(views[target] ? target : 'home');
 }
 
 function finishSplash() {
@@ -385,6 +418,13 @@ async function importPaths(paths) {
   return { added, recovered, failures };
 }
 
+function removeAiChatsForPaths(paths) {
+  const prefixes = paths.map((item) => item + '|');
+  for (const key of Object.keys(state.aiChats)) {
+    if (prefixes.some((prefix) => key.startsWith(prefix))) delete state.aiChats[key];
+  }
+}
+
 async function removeFromShelf(book, silent) {
   if (!silent && !window.confirm('确定从书架移除《' + (book.title || book.path) + '》吗？\n只从书架移除，不会删除电脑上的原文件。')) {
     return false;
@@ -394,6 +434,7 @@ async function removeFromShelf(book, silent) {
   state.bookmarks = removeEntryFromMap(state.bookmarks, book.path);
   state.annotations = removeEntryFromMap(state.annotations, book.path);
   state.aiSummaries = removeEntryFromMap(state.aiSummaries, book.path);
+  removeAiChatsForPaths([book.path]);
   state.selected.delete(book.path);
   await Promise.all([
     saveLibrary(),
@@ -462,6 +503,7 @@ async function batchRemoveSelected(silent) {
   state.bookmarks = removeEntriesFromMap(state.bookmarks, paths);
   state.annotations = removeEntriesFromMap(state.annotations, paths);
   state.aiSummaries = removeEntriesFromMap(state.aiSummaries, paths);
+  removeAiChatsForPaths(paths);
   state.selected.clear();
   await Promise.all([
     saveLibrary(),
@@ -489,6 +531,10 @@ function hideContextMenu() {
 }
 
 function openSettings(section) {
+  if (section === 'ai') {
+    openAiCenter();
+    return;
+  }
   const inReader = state.current != null;
   els.drawerReading.hidden = !inReader;
   els.drawerFuncs.hidden = !inReader;
@@ -498,15 +544,6 @@ function openSettings(section) {
   if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(true);
   els.settingsOverlay.hidden = false;
   updateAiConfigForm();
-  if (section === 'ai') {
-    window.setTimeout(() => {
-      const ai = $('drawer-ai');
-      ai.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      ai.classList.remove('ai-focus');
-      void ai.offsetWidth;
-      ai.classList.add('ai-focus');
-    }, 0);
-  }
 }
 
 function closeSettings() {
@@ -538,6 +575,7 @@ function closeReaderContent() {
   els.readerContent.innerHTML = '';
   hideSelectionToolbar();
   els.pageNav.hidden = true;
+  $('btn-ai-reader').classList.remove('open');
   state.current = null;
   state.lastAiChapterSource = null;
 }
@@ -567,6 +605,7 @@ async function openBook(book) {
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
   els.aiSummaryPanel.hidden = true;
+  $('btn-ai-reader').classList.remove('open');
   els.tocPanel.innerHTML = '';
   els.readerStatus.textContent = '加载中…';
   els.pageNav.hidden = false;
@@ -1147,6 +1186,7 @@ function togglePanel(which) {
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
   els.aiSummaryPanel.hidden = true;
+  $('btn-ai-reader').classList.remove('open');
   if (!targetHidden) {
     // 已打开时收起全部侧栏
   } else {
@@ -2500,6 +2540,23 @@ function updateAiConfigForm() {
   const examples = { openai: '例如：gpt-4o-mini', deepseek: '例如：deepseek-chat', ollama: '例如：qwen3:4b', custom: '填写接口支持的模型名称' };
   els.aiModel.placeholder = examples[els.aiProvider.value] || examples.custom;
   updateAiTarget();
+  updateAiConfigurationSummary();
+}
+
+function updateAiConfigurationSummary() {
+  const config = state.aiConfig || {};
+  const provider = AI_PROVIDERS[config.provider] || AI_PROVIDERS.custom;
+  const ready = !!config.model && (!provider.apiKeyRequired || config.hasApiKey);
+  const title = provider.label || '自定义接口';
+  const detail = ready
+    ? (config.model + ' · ' + (config.targetHost || '本地接口'))
+    : (config.model ? '还需要保存 API Key' : '还需要填写模型名称');
+  els.aiCenterTopState.textContent = ready ? title + ' · 已配置' : '等待配置';
+  els.aiCenterTopState.classList.toggle('ready', ready);
+  els.aiCenterBadge.textContent = ready ? '已配置' : '未配置';
+  els.aiCenterBadge.classList.toggle('ready', ready);
+  els.aiSettingsTitle.textContent = ready ? title + ' · ' + config.model : '尚未配置';
+  els.aiSettingsState.textContent = detail;
 }
 
 function readAiConfigForm() {
@@ -2531,6 +2588,7 @@ async function testAiConfig() {
   try {
     const result = await window.api.aiConfigTest();
     setAiConfigStatus('连接成功：' + result.targetHost, 'success');
+    els.aiCenterTopState.textContent = (AI_PROVIDERS[state.aiConfig.provider] || AI_PROVIDERS.custom).label + ' · 连接成功';
   } catch (error) {
     setAiConfigStatus(aiErrorMessage(error), 'error');
   }
@@ -2624,15 +2682,80 @@ async function storeAiSummary(pathKey, source, result) {
 
 function showAiSummaryResult(source, cached) {
   els.aiSummaryChapter.textContent = source.chapterTitle;
-  els.aiSummaryTarget.textContent = cached && cached.targetHost ? '由 ' + cached.model + ' 生成 · ' + cached.targetHost : '';
+  els.aiSummaryTarget.textContent = cached && cached.targetHost
+    ? '总结由 ' + cached.model + ' 生成 · ' + cached.targetHost
+    : (state.aiConfig && state.aiConfig.model ? state.aiConfig.model + ' · ' + state.aiConfig.targetHost : '尚未配置 AI 接口');
   els.aiSummaryContent.textContent = cached && cached.summary ? cached.summary : '';
-  els.aiSummaryStatus.textContent = cached ? '已读取本地缓存。' : '点击“生成总结”开始。';
+  els.aiSummaryCard.hidden = !(cached && cached.summary);
+  els.aiSummaryCard.open = !!(cached && cached.summary);
+  els.aiSummaryStatus.textContent = cached ? '已读取本章的本地总结。' : '可以总结，也可以直接提问。';
   els.aiSummaryStatus.classList.remove('error');
   $('btn-ai-summary-copy').disabled = !(cached && cached.summary);
 }
 
+function aiChatKey(source) {
+  return source.bookPath + '|' + source.chapterId;
+}
+
+function isCurrentAiSource(source) {
+  try { return aiChatKey(currentChapterSummarySource()) === aiChatKey(source); } catch (error) { return false; }
+}
+
+function currentAiChat(source) {
+  const key = aiChatKey(source);
+  if (!Array.isArray(state.aiChats[key])) state.aiChats[key] = [];
+  return state.aiChats[key];
+}
+
+function renderAiChat(source) {
+  const messages = currentAiChat(source);
+  els.aiChatMessages.replaceChildren();
+  if (!messages.length) {
+    const empty = document.createElement('p');
+    empty.className = 'ai-chat-empty';
+    empty.textContent = state.aiChatMode === 'alice'
+      ? '有珠正在读这一章。让她评价人物，或者直接点“有珠吐槽”。'
+      : '我只会依据当前已读章节回答，不会主动剧透后面的内容。';
+    els.aiChatMessages.appendChild(empty);
+    return;
+  }
+  for (const message of messages) {
+    const bubble = document.createElement('div');
+    bubble.className = 'ai-chat-message ' + (message.role === 'user' ? 'user' : 'assistant') + (message.mode === 'alice' ? ' alice' : '');
+    if (message.role !== 'user') {
+      const label = document.createElement('small');
+      label.textContent = message.role === 'error' ? '请求失败' : (message.mode === 'alice' ? 'ALICE · 有珠' : 'GAIA · 助手');
+      bubble.appendChild(label);
+    }
+    bubble.appendChild(document.createTextNode(message.content));
+    els.aiChatMessages.appendChild(bubble);
+  }
+  els.aiChatMessages.scrollTop = els.aiChatMessages.scrollHeight;
+}
+
+function setAiChatMode(mode) {
+  state.aiChatMode = mode === 'alice' ? 'alice' : 'assistant';
+  document.querySelectorAll('[data-ai-mode]').forEach((button) => button.classList.toggle('active', button.dataset.aiMode === state.aiChatMode));
+  els.aiChatInput.placeholder = state.aiChatMode === 'alice'
+    ? '问问有珠对这一章的看法，Ctrl + Enter 发送…'
+    : '问问当前章节，Ctrl + Enter 发送…';
+  if (!els.aiSummaryPanel.hidden) {
+    try { renderAiChat(currentChapterSummarySource()); } catch (error) {}
+  }
+}
+
+function closeAiAssistantPanel() {
+  els.aiSummaryPanel.hidden = true;
+  $('btn-ai-reader').classList.remove('open');
+  resizeEpubRendition();
+}
+
 function openAiSummaryPanel() {
   closeSettings();
+  if (!els.aiSummaryPanel.hidden) {
+    closeAiAssistantPanel();
+    return;
+  }
   let source;
   try { source = currentChapterSummarySource(); } catch (error) {
     els.readerStatus.textContent = aiErrorMessage(error);
@@ -2642,8 +2765,29 @@ function openAiSummaryPanel() {
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
   els.aiSummaryPanel.hidden = false;
+  $('btn-ai-reader').classList.add('open');
   showAiSummaryResult(source, cachedAiSummary(source));
+  renderAiChat(source);
   resizeEpubRendition();
+  window.setTimeout(() => els.aiChatInput.focus(), 120);
+}
+
+function ensureAiReady(background) {
+  if (!state.aiConfig || !state.aiConfig.model) {
+    if (!background) {
+      setAiConfigStatus('请先填写并保存模型名称。', 'error');
+      openAiCenter('reader');
+    }
+    throw new Error('请先在 AI 中心填写模型名称');
+  }
+  const provider = AI_PROVIDERS[state.aiConfig.provider] || AI_PROVIDERS.custom;
+  if (provider.apiKeyRequired && !state.aiConfig.hasApiKey) {
+    if (!background) {
+      setAiConfigStatus('请先填写并保存 API Key。', 'error');
+      openAiCenter('reader');
+    }
+    throw new Error('请先在 AI 中心保存 API Key');
+  }
 }
 
 async function summarizeSource(source, options) {
@@ -2652,15 +2796,7 @@ async function summarizeSource(source, options) {
   if (!pathKey || !source || !source.content) return null;
   const existing = cachedAiSummary(source);
   if (existing) return existing;
-  if (!state.aiConfig || !state.aiConfig.model) {
-    if (!background) openSettings('ai');
-    throw new Error('请先在 AI 章节助手设置中填写模型名称');
-  }
-  const provider = AI_PROVIDERS[state.aiConfig.provider] || AI_PROVIDERS.custom;
-  if (provider.apiKeyRequired && !state.aiConfig.hasApiKey) {
-    if (!background) openSettings('ai');
-    throw new Error('请先在 AI 章节助手设置中保存 API Key');
-  }
+  ensureAiReady(background);
   const result = await window.api.aiSummarize(source);
   return storeAiSummary(pathKey, source, result);
 }
@@ -2678,17 +2814,87 @@ async function runCurrentChapterSummary() {
   els.aiSummaryStatus.classList.remove('error');
   els.aiSummaryStatus.textContent = '正在总结，长章节可能需要分段处理…';
   els.aiSummaryContent.textContent = '';
+  els.aiSummaryCard.hidden = true;
   try {
     const result = await summarizeSource(source);
-    showAiSummaryResult(source, result);
-    els.aiSummaryStatus.textContent = '总结完成并已保存在本地。';
+    const chat = currentAiChat(source);
+    if (!chat.some((message) => message.kind === 'summary' && message.content === result.summary)) {
+      chat.push({ role: 'assistant', mode: 'assistant', kind: 'summary', content: result.summary });
+    }
+    if (isCurrentAiSource(source)) {
+      showAiSummaryResult(source, result);
+      renderAiChat(source);
+      els.aiSummaryStatus.textContent = '总结完成并已保存在本地。';
+    }
   } catch (error) {
-    els.aiSummaryStatus.textContent = aiErrorMessage(error);
-    els.aiSummaryStatus.classList.add('error');
+    if (isCurrentAiSource(source)) {
+      els.aiSummaryStatus.textContent = aiErrorMessage(error);
+      els.aiSummaryStatus.classList.add('error');
+    }
   } finally {
     state.aiSummaryLoading = false;
     $('btn-ai-summary-run').disabled = false;
   }
+}
+
+async function sendAiQuestion(question, options) {
+  if (state.aiChatLoading) return;
+  let source;
+  try { source = currentChapterSummarySource(); } catch (error) {
+    els.aiSummaryStatus.textContent = aiErrorMessage(error);
+    els.aiSummaryStatus.classList.add('error');
+    return;
+  }
+  const prompt = String(question == null ? els.aiChatInput.value : question).trim();
+  if (!prompt) return;
+  const mode = options && options.mode === 'alice' ? 'alice' : state.aiChatMode;
+  setAiChatMode(mode);
+  try { ensureAiReady(false); } catch (error) {
+    els.aiSummaryStatus.textContent = aiErrorMessage(error);
+    els.aiSummaryStatus.classList.add('error');
+    return;
+  }
+  const messages = currentAiChat(source);
+  const history = messages
+    .filter((item) => item.role === 'user' || item.role === 'assistant')
+    .map((item) => ({ role: item.role, content: item.content }));
+  messages.push({ role: 'user', content: prompt });
+  if (messages.length > 40) messages.splice(0, messages.length - 40);
+  els.aiChatInput.value = '';
+  renderAiChat(source);
+  state.aiChatLoading = true;
+  els.aiChatSend.disabled = true;
+  els.aiSummaryStatus.classList.remove('error');
+  els.aiSummaryStatus.textContent = mode === 'alice' ? '有珠正在读这一章…' : 'AI 正在阅读当前章节…';
+  if (mode === 'alice' && window.GaiaPet) window.GaiaPet.runEmotion('thinking');
+  try {
+    const result = await window.api.aiChat({ source, question: prompt, history, mode });
+    messages.push({ role: 'assistant', mode: result.mode, content: result.answer });
+    if (messages.length > 40) messages.splice(0, messages.length - 40);
+    if (result.mode === 'alice' && window.GaiaPet && window.GaiaPet.speak) window.GaiaPet.speak(result.answer, 5200);
+    if (isCurrentAiSource(source)) els.aiSummaryStatus.textContent = '回答来自 ' + result.model + ' · ' + result.targetHost;
+  } catch (error) {
+    const message = aiErrorMessage(error);
+    messages.push({ role: 'error', mode, content: message });
+    if (isCurrentAiSource(source)) {
+      els.aiSummaryStatus.textContent = message;
+      els.aiSummaryStatus.classList.add('error');
+    }
+  } finally {
+    state.aiChatLoading = false;
+    els.aiChatSend.disabled = false;
+    if (isCurrentAiSource(source)) renderAiChat(source);
+  }
+}
+
+function clearCurrentAiChat() {
+  try {
+    const source = currentChapterSummarySource();
+    state.aiChats[aiChatKey(source)] = [];
+    renderAiChat(source);
+    els.aiSummaryStatus.textContent = '本章对话已清空，本地总结不受影响。';
+    els.aiSummaryStatus.classList.remove('error');
+  } catch (error) {}
 }
 
 function observeAiChapter() {
@@ -2698,12 +2904,19 @@ function observeAiChapter() {
   if (!source.content) return;
   const previous = state.lastAiChapterSource;
   state.lastAiChapterSource = source;
+  if (!els.aiSummaryPanel.hidden) {
+    showAiSummaryResult(source, cachedAiSummary(source));
+    renderAiChat(source);
+  }
   if (!previous || previous.chapterId === source.chapterId || source.ordinal <= previous.ordinal) return;
   if (!state.aiConfig || state.aiConfig.autoSummarize !== true) return;
   state.aiAutoQueue = state.aiAutoQueue.then(async () => {
     try {
       await summarizeSource(previous, { background: true });
-      if (!els.aiSummaryPanel.hidden) showAiSummaryResult(source, cachedAiSummary(source));
+      if (!els.aiSummaryPanel.hidden) {
+        showAiSummaryResult(source, cachedAiSummary(source));
+        renderAiChat(source);
+      }
     } catch (error) {
       console.warn('AI_AUTO_SUMMARY_FAILED', aiErrorMessage(error));
     }
@@ -2731,7 +2944,8 @@ function bindEvents() {
       showView('library');
     }
   });
-  $('btn-home-ai').addEventListener('click', () => openSettings('ai'));
+  $('btn-home-ai').addEventListener('click', () => openAiCenter('home'));
+  $('btn-ai-back').addEventListener('click', closeAiCenter);
   $('btn-home-settings').addEventListener('click', openSettings);
   views.home.addEventListener('pointerdown', (ev) => spawnBurst(ev.clientX, ev.clientY));
   views.home.addEventListener('pointermove', (ev) => {
@@ -2772,6 +2986,7 @@ function bindEvents() {
 
   $('btn-settings').addEventListener('click', openSettings);
   $('btn-settings-reader').addEventListener('click', openSettings);
+  $('btn-open-ai-center').addEventListener('click', () => openAiCenter());
   $('btn-settings-close').addEventListener('click', closeSettings);
   els.settingsOverlay.addEventListener('click', (ev) => {
     if (ev.target === els.settingsOverlay) closeSettings();
@@ -2835,12 +3050,20 @@ function bindEvents() {
     togglePanel('annotations');
   });
   $('btn-ai-summary').addEventListener('click', openAiSummaryPanel);
-  $('btn-ai-summary-close').addEventListener('click', () => {
-    els.aiSummaryPanel.hidden = true;
-    resizeEpubRendition();
-  });
+  $('btn-ai-reader').addEventListener('click', openAiSummaryPanel);
+  $('btn-ai-summary-close').addEventListener('click', closeAiAssistantPanel);
   $('btn-ai-summary-run').addEventListener('click', runCurrentChapterSummary);
   $('btn-ai-summary-copy').addEventListener('click', copyAiSummary);
+  $('btn-ai-chat-clear').addEventListener('click', clearCurrentAiChat);
+  document.querySelectorAll('[data-ai-mode]').forEach((button) => button.addEventListener('click', () => setAiChatMode(button.dataset.aiMode)));
+  document.querySelectorAll('[data-ai-quick]').forEach((button) => button.addEventListener('click', () => sendAiQuestion(button.dataset.aiQuick, { mode: button.dataset.aiForceMode })));
+  els.aiChatSend.addEventListener('click', () => sendAiQuestion());
+  els.aiChatInput.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
+      ev.preventDefault();
+      sendAiQuestion();
+    }
+  });
   $('btn-reading-stats-reader').addEventListener('click', () => openReadingStats('reader'));
   els.selectionToolbar.addEventListener('pointerdown', (ev) => ev.preventDefault());
   els.selectionToolbar.addEventListener('click', async (ev) => {
@@ -3181,17 +3404,23 @@ window.__gaiaDebug = {
   },
   batchRemoveSelected: () => batchRemoveSelected(true),
   openSettings,
+  openAiCenter,
   closeSettings,
   isSettingsOpen,
   getAiUiState: () => ({
     homeEntry: !!$('btn-home-ai'),
+    centerView: !!views.ai,
     settingsSection: !!$('drawer-ai'),
     summaryButton: !!$('btn-ai-summary'),
     summaryPanel: !!els.aiSummaryPanel,
+    readerTrigger: !!$('btn-ai-reader'),
+    chatInput: !!els.aiChatInput,
     provider: state.aiConfig && state.aiConfig.provider,
     hasApiKey: !!(state.aiConfig && state.aiConfig.hasApiKey),
   }),
   getAiChapterSource: () => currentChapterSummarySource(),
+  openAiAssistant: openAiSummaryPanel,
+  getAiChatState: () => ({ mode: state.aiChatMode, loading: state.aiChatLoading, messages: els.aiChatMessages.children.length }),
   waitHome: () => state.homeReady,
   getView: () => {
     for (const key of Object.keys(views)) {

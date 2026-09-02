@@ -1359,6 +1359,13 @@
     updateReadingCareStatus(Date.now());
   }
 
+  function speak(text, duration) {
+    const line = String(text || '').trim();
+    if (!line) return false;
+    showBubble(line.length > 160 ? line.slice(0, 157) + '…' : line, duration || 4200);
+    return true;
+  }
+
   return {
     init,
     whenReady: () => initPromise || Promise.resolve(),
@@ -1370,5 +1377,6 @@
     closeConsole: () => closeConsole(true),
     runEmotion,
     runAction: runManualAction,
+    speak,
   };
 });

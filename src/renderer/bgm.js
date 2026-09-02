@@ -134,7 +134,9 @@
       if (ui.root.parentElement !== document.body) document.body.appendChild(ui.root);
       return;
     }
-    const topbarSelector = currentView === 'reader' ? '#reader-view .topbar' : (currentView === 'library' ? '#library-view .topbar' : null);
+    const topbarSelector = currentView === 'reader'
+      ? '#reader-view .topbar'
+      : (currentView === 'library' ? '#library-view .topbar' : (currentView === 'ai' ? '#ai-view .topbar' : null));
     const topbar = topbarSelector ? document.querySelector(topbarSelector) : null;
     if (topbar) {
       ui.root.classList.add('in-topbar');

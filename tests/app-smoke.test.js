@@ -84,22 +84,27 @@ test('版本号为 0.5.2 且界面同步', () => {
 test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => {
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const pet = fs.readFileSync(path.join(root, 'src', 'renderer', 'pet.js'), 'utf8');
   const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
   const preload = fs.readFileSync(path.join(root, 'src', 'preload.js'), 'utf8');
   const ai = fs.readFileSync(path.join(root, 'src', 'shared', 'ai.js'), 'utf8');
 
-  for (const id of ['btn-home-ai', 'drawer-ai', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'btn-ai-summary', 'ai-summary-panel']) {
+  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'btn-ai-reader', 'btn-ai-summary', 'ai-summary-panel', 'ai-chat-messages', 'ai-chat-input']) {
     assert.ok(html.includes(`id="${id}"`), `AI 界面缺少 ${id}`);
   }
-  for (const bridge of ['aiConfigGet', 'aiConfigSet', 'aiConfigTest', 'aiSummarize']) {
+  for (const bridge of ['aiConfigGet', 'aiConfigSet', 'aiConfigTest', 'aiSummarize', 'aiChat']) {
     assert.ok(preload.includes(bridge), `preload 缺少 ${bridge}`);
   }
   assert.ok(main.includes('safeStorage.encryptString'), 'API Key 必须通过 Electron safeStorage 加密');
   assert.ok(main.includes('safeStorage.decryptString'), 'API Key 必须只在主进程解密');
   assert.ok(main.includes("ipcMain.handle('ai:summarize'"), '缺少 AI 总结 IPC');
+  assert.ok(main.includes("ipcMain.handle('ai:chat'"), '缺少受控 AI 对话 IPC');
   assert.ok(ai.includes("redirect: 'error'"), 'AI 请求必须拒绝重定向，避免 Key 被转发');
   assert.ok(ai.includes("parsed.protocol !== 'https:' && !local"), '远程 AI 接口必须使用 HTTPS');
   assert.ok(app.includes('getAiChapterSource'), 'Electron 冒烟调试接口应能验证章节提取');
+  assert.ok(app.includes("window.GaiaPet.speak(result.answer"), '有珠模式回答应能显示为桌宠台词');
+  assert.ok(app.includes('document.createTextNode(message.content)'), 'AI 回答必须按纯文本渲染，不能作为 HTML 执行');
+  assert.ok(pet.includes('function speak(text, duration)'), '桌宠应公开受长度限制的 AI 台词入口');
 });
 
 test('README 界面截图存在且已引用', () => {

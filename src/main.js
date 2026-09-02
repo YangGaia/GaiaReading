@@ -348,7 +348,20 @@ function createWindow() {
               await __gaiaDebug.waitLocations();
               const aiUi = __gaiaDebug.getAiUiState();
               const aiSource = __gaiaDebug.getAiChapterSource();
-              const aiUiReady = aiUi.homeEntry && aiUi.settingsSection && aiUi.summaryButton && aiUi.summaryPanel &&
+              __gaiaDebug.openAiCenter('reader');
+              const aiCenterOpened = __gaiaDebug.getView() === 'ai';
+              const aiCenterCard = document.querySelector('.ai-config-card');
+              const aiCenterLayout = !!aiCenterCard && aiCenterCard.offsetWidth >= 420 && aiCenterCard.offsetHeight > 300;
+              document.getElementById('btn-ai-back').click();
+              const aiCenterReturned = __gaiaDebug.getView() === 'reader';
+              __gaiaDebug.openAiAssistant();
+              const aiChatState = __gaiaDebug.getAiChatState();
+              const aiPanelRect = document.getElementById('ai-summary-panel').getBoundingClientRect();
+              const aiPanelOpened = !document.getElementById('ai-summary-panel').hidden && aiChatState.messages >= 1 &&
+                aiPanelRect.width >= 320 && Math.abs(aiPanelRect.right - innerWidth) <= 2;
+              __gaiaDebug.openAiAssistant();
+              const aiUiReady = aiUi.homeEntry && aiUi.centerView && aiUi.settingsSection && aiUi.summaryButton && aiUi.summaryPanel &&
+                aiUi.readerTrigger && aiUi.chatInput && aiCenterOpened && aiCenterLayout && aiCenterReturned && aiPanelOpened &&
                 aiSource.bookPath === fixture && aiSource.chapterId.startsWith('epub:') && aiSource.content.length > 0;
               const annotationsBefore = __gaiaDebug.getAnnotations().length;
               const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');
@@ -1140,6 +1153,21 @@ ipcMain.handle('ai:summarize', async (event, payload) => {
     content,
   }, { timeoutMs: 90000, maxChunkChars: 12000 });
   return { summary, provider: config.provider, baseUrl: config.baseUrl, model: config.model, targetHost: new URL(config.baseUrl).host };
+});
+ipcMain.handle('ai:chat', async (event, payload) => {
+  const input = payload && typeof payload === 'object' ? payload : {};
+  const source = input.source && typeof input.source === 'object' ? input.source : {};
+  const content = GaiaAi.cleanChapterText(source.content);
+  if (!content) throw new Error('当前章节没有可供 AI 阅读的文字');
+  if (content.length > 180000) throw new Error('当前章节超过 18 万字，请缩小阅读范围');
+  const config = getAiConfig();
+  const mode = input.mode === 'alice' ? 'alice' : 'assistant';
+  const answer = await GaiaAi.chat(aiFetch, config, aiKeyForConfig(config), {
+    bookTitle: String(source.bookTitle || '').slice(0, 300),
+    chapterTitle: String(source.chapterTitle || '').slice(0, 300),
+    content,
+  }, input.question, input.history, mode, { timeoutMs: 90000 });
+  return { answer, mode, provider: config.provider, model: config.model, targetHost: new URL(config.baseUrl).host };
 });
 ipcMain.handle('file:exists', (event, filePath) => fs.existsSync(filePath));
 ipcMain.handle('display:frequency', (event) => displayFrequencyForWindow(BrowserWindow.fromWebContents(event.sender)));

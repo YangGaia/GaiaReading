@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   aiConfigSet: (config) => ipcRenderer.invoke('ai:config:set', config),
   aiConfigTest: () => ipcRenderer.invoke('ai:config:test'),
   aiSummarize: (source) => ipcRenderer.invoke('ai:summarize', source),
+  aiChat: (payload) => ipcRenderer.invoke('ai:chat', payload),
   exists: (filePath) => ipcRenderer.invoke('file:exists', filePath),
   displayFrequency: () => ipcRenderer.invoke('display:frequency'),
   onDisplayFrequencyChanged: (callback) => {
