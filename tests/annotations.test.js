@@ -48,6 +48,9 @@ test('五种格式共用的划线工具栏、笔记侧栏和定位入口均已�
   assert.ok(app.includes("kind: 'epub-cfi'"), 'EPUB 应保存 CFI 范围');
   assert.ok(app.includes("kind = c.format === 'pdf' ? 'pdf-text' : 'chapter-text'"), 'PDF 与章节型格式应保存文字锚点');
   assert.ok(app.includes('renderPdfTextLayer'), 'PDF 应渲染可选择的文字层');
+  assert.ok(app.includes('bindSelectionDismissal(contents.document)'), 'EPUB iframe 应监听取消选择事件');
+  assert.ok(app.includes("origin: 'selection'"), '新选区工具栏应标记为普通文字选择');
+  assert.ok(app.includes("origin: 'annotation'"), '已有划线工具栏应使用独立来源标记');
   assert.ok(app.includes("c.format === 'mobi' || c.format === 'azw3'"), 'MOBI 与 AZW3 应共用章节恢复逻辑');
   assert.ok(css.includes('.gaia-highlight-yellow') && css.includes('.gaia-highlight-green') && css.includes('.gaia-highlight-pink'), '缺少三种高亮色');
 });

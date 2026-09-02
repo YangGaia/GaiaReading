@@ -113,6 +113,7 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(app.includes('toggleAiAppearanceMenu'), 'AI 排版设置应收进 Aa 弹出菜单');
   assert.ok(app.includes('setAiAppearanceOpen(els.aiAppearancePopover.hidden)'), 'Aa 按钮应能正确切换 AI 排版弹层');
   assert.ok(app.includes("switchAiContentTab('summary')"), '本章总结应在独立页签显示');
+  assert.ok(app.includes('findEpubNavLabel(nav, href)'), 'AI 章节标题应按当前 EPUB 资源路径精确匹配目录');
   assert.ok(css.includes('.ai-content-stage { flex: 1; min-height: 0; overflow: hidden; }'), 'AI 页签内容区不得覆盖标题和状态文字');
   assert.ok(css.includes('max-height: 220px; overflow-y: auto;'), '模型选择菜单应限制高度并支持纵向滚动');
   assert.ok(!html.includes('ai-auto-summarize') && !app.includes('AI_AUTO_SUMMARY') && !app.includes('autoSummarize'), '打开或切换章节不得自动调用 AI 总结');
@@ -121,6 +122,8 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   for (const action of ['ai-analyze', 'ai-ask', 'dictionary', 'search']) {
     assert.ok(html.includes(`data-selection-action="${action}"`), `选区工具栏缺少 ${action}`);
   }
+  assert.ok(app.includes("sourceDoc.addEventListener('selectionchange'"), '取消正文选择时应监听选区变化并隐藏工具栏');
+  assert.ok(app.includes("context.origin !== 'selection'"), '已有批注与普通文字选区应使用不同的关闭规则');
   assert.ok(main.includes("ipcMain.handle('dictionary:open'"), '主进程缺少内置词典窗口入口');
   assert.ok(main.includes("partition: 'gaia-dictionary'"), '内置词典应使用隔离会话');
   assert.ok(main.includes('nodeIntegration: false') && main.includes('sandbox: true'), '内置词典窗口必须禁用 Node 并启用沙箱');

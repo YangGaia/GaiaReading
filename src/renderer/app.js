@@ -11,7 +11,7 @@ const {
 } = window.GaiaLibrary;
 const { paragraphsToHtml } = window.GaiaTxtHtml;
 const { splitTxtParagraphs, detectTxtChapters, chapterAt, chapterTitleForParagraph } = window.GaiaTxtChapters;
-const { epubDisplayPercent } = window.GaiaEpubProgress;
+const { epubDisplayPercent, findEpubNavLabel } = window.GaiaEpubProgress;
 const { normalizeWheelDelta, createWheelGate } = window.GaiaReaderInput;
 const {
   createReadingStats,
@@ -157,6 +157,7 @@ const state = {
   resolveHome: null,
   statsReturnView: 'library',
   selectionContext: null,
+  selectionToolbarInteracting: false,
   noteEditorContext: null,
   noteEditorSaving: false,
 };
@@ -653,6 +654,7 @@ async function openEpub(book) {
   rendition.hooks.content.register((contents) => {
     applyReaderStyles(contents);
     bindReaderKeyboard(contents.document || contents.window);
+    bindSelectionDismissal(contents.document);
   });
   rendition.on('rendered', () => bindEpubWheel());
   rendition.on('selected', (cfiRange, contents) => captureEpubSelection(cfiRange, contents));
@@ -670,6 +672,7 @@ async function openEpub(book) {
   }
 
   rendition.on('relocated', (location) => {
+    hideSelectionToolbar();
     const cfi = location.start.cfi;
     const items = state.current.epub && state.current.epub.spine ? state.current.epub.spine.spineItems : [];
     const locs = state.current.epub && state.current.epub.locations;
@@ -783,6 +786,7 @@ async function openPdf(book) {
 
 async function renderPdfPage() {
   const c = state.current;
+  hideSelectionToolbar();
   const page = await c.pdf.getPage(c.page);
   const base = page.getViewport({ scale: 1 });
   const target = Math.max(320, els.readerContent.clientWidth - 32);
@@ -891,6 +895,7 @@ async function openMobi(book) {
 async function loadMobiChapter(chapterIndex, opts) {
   const c = state.current;
   if (!c || !c.mobiSession) return;
+  hideSelectionToolbar();
   const chapters = c.mobi.chapters;
   const clamped = Math.max(0, Math.min(chapters.length - 1, chapterIndex));
   opts = opts || {};
@@ -1038,6 +1043,7 @@ function applyTxtTypography() {
 function nextPage() {
   const c = state.current;
   if (!c) return;
+  hideSelectionToolbar();
   noteReadingActivity();
   if (c.format === 'epub') {
     if (c.rendition) { animatePage('next'); return c.rendition.next(); }
@@ -1063,6 +1069,7 @@ function nextPage() {
 function prevPage() {
   const c = state.current;
   if (!c) return;
+  hideSelectionToolbar();
   noteReadingActivity();
   if (c.format === 'epub') {
     if (c.rendition) { animatePage('prev'); return c.rendition.prev(); }
@@ -1093,6 +1100,7 @@ function isReaderTyping(target) {
 
 function onReaderKey(ev) {
   if (ev.key === 'Escape') {
+    if (els.selectionToolbar && !els.selectionToolbar.hidden) { ev.preventDefault(); hideSelectionToolbar(); return; }
     if (isSettingsOpen()) { ev.preventDefault(); closeSettings(); return; }
     if (els.contextMenu && !els.contextMenu.hidden) { ev.preventDefault(); hideContextMenu(); return; }
     if (!views.reader.hidden) { ev.preventDefault(); backToLibrary(); }
@@ -1226,30 +1234,18 @@ function findTocLabel(items, ch) {
   return null;
 }
 
-function epubChapterTitle(epub, spineIndex) {
+function epubChapterTitle(epub, spineIndex, resourceHref) {
   try {
     const items = (epub && epub.spine && epub.spine.spineItems) || [];
     const item = items[spineIndex];
     const nav = epub && epub.navigation && epub.navigation.toc;
-    if (item && item.href && nav) {
-      const label = findNavLabel(nav, item.href);
+    const href = resourceHref || (item && item.href);
+    if (href && nav) {
+      const label = findEpubNavLabel(nav, href);
       if (label) return label;
     }
   } catch (e) {}
   return '第 ' + ((spineIndex || 0) + 1) + ' 章';
-}
-
-function findNavLabel(items, href) {
-  for (const it of items || []) {
-    if (it.href && (it.href === href || href.indexOf(it.href) === 0 || it.href.indexOf(href) === 0)) {
-      if (it.label && String(it.label).trim()) return String(it.label).trim();
-    }
-    if (it.subitems && it.subitems.length) {
-      const r = findNavLabel(it.subitems, href);
-      if (r) return r;
-    }
-  }
-  return null;
 }
 
 function bookmarkChapterLabel(bm, c) {
@@ -1663,9 +1659,23 @@ function currentTextChapterLabel() {
   return mobiChapterTitle(c.mobi, c.flow ? c.flow.chapter : 0);
 }
 
+function bindSelectionDismissal(sourceDoc) {
+  if (!sourceDoc || sourceDoc.__gaiaSelectionDismissalBound) return;
+  sourceDoc.__gaiaSelectionDismissalBound = true;
+  sourceDoc.addEventListener('selectionchange', () => {
+    window.setTimeout(() => {
+      const context = state.selectionContext;
+      if (!context || context.origin !== 'selection' || context.sourceDocument !== sourceDoc || state.selectionToolbarInteracting) return;
+      const selection = sourceDoc.getSelection && sourceDoc.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) hideSelectionToolbar();
+    }, 0);
+  });
+}
+
 function bindTextAnnotationInputs(sourceDoc, root) {
   if (!sourceDoc || !root || root.__gaiaAnnotationBound) return;
   root.__gaiaAnnotationBound = true;
+  bindSelectionDismissal(sourceDoc);
   root.addEventListener('mouseup', () => {
     window.setTimeout(() => captureTextSelection(sourceDoc, root), 0);
   });
@@ -1690,6 +1700,8 @@ function captureTextSelection(sourceDoc, root) {
   else anchor.chapter = c.flow ? c.flow.chapter : 0;
   showSelectionToolbar({
     kind: 'text',
+    origin: 'selection',
+    sourceDocument: sourceDoc,
     text,
     anchor,
     chapter: currentTextChapterLabel(),
@@ -1704,8 +1716,10 @@ function captureEpubSelection(cfiRange, contents) {
   let rect = { left: window.innerWidth / 2, right: window.innerWidth / 2, top: 80, bottom: 80 };
   try { rect = rectInMainWindow(selection.getRangeAt(0).getBoundingClientRect(), contents.window); } catch (e) {}
   const loc = state.current && state.current.rendition && state.current.rendition.currentLocation();
-  const chapter = loc && loc.start ? epubChapterTitle(state.current.epub, loc.start.index) : '未知章节';
-  showSelectionToolbar({ kind: 'epub', text, anchor: { kind: 'epub-cfi', cfi: cfiRange }, chapter, rect });
+  const section = contents && contents.section;
+  const index = section && Number.isFinite(section.index) ? section.index : (loc && loc.start ? loc.start.index : 0);
+  const chapter = epubChapterTitle(state.current.epub, index, section && section.href);
+  showSelectionToolbar({ kind: 'epub', origin: 'selection', sourceDocument: contents && contents.document, text, anchor: { kind: 'epub-cfi', cfi: cfiRange }, chapter, rect });
 }
 
 function showExistingAnnotation(id, ev) {
@@ -1713,6 +1727,7 @@ function showExistingAnnotation(id, ev) {
   if (!annotation) return;
   showSelectionToolbar({
     kind: annotation.anchor && annotation.anchor.kind === 'epub-cfi' ? 'epub' : 'text',
+    origin: 'annotation',
     text: annotation.text,
     anchor: annotation.anchor,
     chapter: annotation.chapter,
@@ -2858,13 +2873,16 @@ function currentChapterSummarySource() {
   if (!c) throw new Error('请先打开一本书');
   if (c.format === 'epub') {
     const location = c.rendition && c.rendition.currentLocation();
-    const index = location && location.start && Number.isFinite(location.start.index) ? location.start.index : 0;
+    const locationIndex = location && location.start && Number.isFinite(location.start.index) ? location.start.index : 0;
     let contents = [];
     try { contents = c.rendition ? c.rendition.getContents() : []; } catch (error) {}
+    const currentContent = contents.find((item) => item && item.section && item.section.index === locationIndex) || contents[0];
+    const index = currentContent && currentContent.section && Number.isFinite(currentContent.section.index) ? currentContent.section.index : locationIndex;
     const matching = contents.filter((item) => item && item.section && item.section.index === index);
-    const selected = matching.length ? matching : contents.slice(0, 1);
+    const selected = matching.length ? matching : (currentContent ? [currentContent] : []);
     const content = selected.map((item) => item.document && item.document.body ? item.document.body.innerText : '').join('\n\n');
-    return { bookPath: c.path, bookTitle: c.title, chapterTitle: epubChapterTitle(c.epub, index), chapterId: 'epub:' + index, ordinal: index, content: cleanChapterText(content) };
+    const resourceHref = currentContent && currentContent.section && currentContent.section.href;
+    return { bookPath: c.path, bookTitle: c.title, chapterTitle: epubChapterTitle(c.epub, index, resourceHref), chapterId: 'epub:' + index, ordinal: index, content: cleanChapterText(content) };
   }
   if (c.format === 'pdf') {
     const content = c.pdfTextRoot ? c.pdfTextRoot.innerText : '';
@@ -3485,7 +3503,16 @@ function bindEvents() {
     }
   });
   $('btn-reading-stats-reader').addEventListener('click', () => openReadingStats('reader'));
-  els.selectionToolbar.addEventListener('pointerdown', (ev) => ev.preventDefault());
+  bindSelectionDismissal(document);
+  els.selectionToolbar.addEventListener('pointerdown', (ev) => {
+    state.selectionToolbarInteracting = true;
+    ev.preventDefault();
+  });
+  const finishSelectionToolbarInteraction = () => {
+    window.setTimeout(() => { state.selectionToolbarInteracting = false; }, 0);
+  };
+  document.addEventListener('pointerup', finishSelectionToolbarInteraction);
+  document.addEventListener('pointercancel', finishSelectionToolbarInteraction);
   els.selectionToolbar.addEventListener('click', async (ev) => {
     ev.stopPropagation();
     const colorButton = ev.target.closest('[data-highlight-color]');
@@ -3592,6 +3619,23 @@ window.__gaiaDebug = {
     }
     showSelectionToolbar({ kind: c.format === 'epub' ? 'epub' : 'text', text: String(text || '测试摘录'), anchor, chapter: currentTextChapterLabel(), rect: { left: 220, right: 320, top: 180, bottom: 210 } });
     return true;
+  },
+  verifySelectionDismissal: async () => {
+    const c = state.current;
+    if (!c) return false;
+    let sourceDocument = document;
+    if (c.format === 'epub' && c.rendition) {
+      const contents = c.rendition.getContents();
+      if (contents[0] && contents[0].document) sourceDocument = contents[0].document;
+    } else if (c.paginator && c.paginator.doc) sourceDocument = c.paginator.doc;
+    bindSelectionDismissal(sourceDocument);
+    const selection = sourceDocument.getSelection && sourceDocument.getSelection();
+    if (selection) selection.removeAllRanges();
+    showSelectionToolbar({ kind: 'text', origin: 'selection', sourceDocument, text: '取消选区测试', anchor: {}, chapter: '测试', rect: { left: 220, right: 320, top: 180, bottom: 210 } });
+    const EventType = sourceDocument.defaultView && sourceDocument.defaultView.Event;
+    sourceDocument.dispatchEvent(new EventType('selectionchange'));
+    await delay(30);
+    return els.selectionToolbar.hidden;
   },
   getNoteEditorState: () => ({
     open: !els.noteEditorOverlay.hidden,

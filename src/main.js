@@ -475,6 +475,7 @@ function createWindow() {
               const aiPanelRect = document.getElementById('ai-summary-panel').getBoundingClientRect();
               const aiPanelOpened = !document.getElementById('ai-summary-panel').hidden && aiChatState.messages >= 1 &&
                 aiPanelRect.width >= 340 && aiPanelRect.left > 0 && aiPanelRect.right < innerWidth;
+              const aiChapterLabelMatches = document.getElementById('ai-summary-chapter').textContent === aiSource.chapterTitle;
               document.getElementById('btn-ai-appearance').click();
               const aiAppearanceCompact = !document.getElementById('ai-appearance-popover').hidden && !document.querySelector('.ai-typography-toolbar');
               document.getElementById('btn-ai-appearance').click();
@@ -483,8 +484,9 @@ function createWindow() {
               document.getElementById('btn-ai-tab-chat').click();
               const selectionAiTools = ['ai-analyze', 'ai-ask', 'dictionary', 'search'].every((action) => !!document.querySelector('[data-selection-action="' + action + '"]'));
               __gaiaDebug.openAiAssistant();
+              const selectionDismissed = await __gaiaDebug.verifySelectionDismissal();
               const aiUiReady = aiUi.homeEntry && aiUi.centerView && aiUi.settingsSection && aiUi.summaryButton && aiUi.summaryPanel &&
-                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiModelMenuScrollable && aiCenterReturned && aiPanelOpened && aiAppearanceCompact && aiSummaryTabReady && selectionAiTools &&
+                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiModelMenuScrollable && aiCenterReturned && aiPanelOpened && aiChapterLabelMatches && aiAppearanceCompact && aiSummaryTabReady && selectionAiTools && selectionDismissed &&
                 aiSource.bookPath === fixture && aiSource.chapterId.startsWith('epub:') && aiSource.content.length > 0;
               const annotationsBefore = __gaiaDebug.getAnnotations().length;
               const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');

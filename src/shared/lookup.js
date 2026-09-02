@@ -1,6 +1,6 @@
 'use strict';
 
-const DICTIONARY_HOSTS = new Set(['www.zdic.net', 'zdic.net']);
+const DICTIONARY_HOSTS = new Set(['dict.youdao.com']);
 
 function normalizeLookupText(value, maxChars) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
@@ -10,7 +10,7 @@ function normalizeLookupText(value, maxChars) {
 }
 
 function dictionaryUrl(value) {
-  return 'https://www.zdic.net/hans/' + encodeURIComponent(normalizeLookupText(value, 80));
+  return 'https://dict.youdao.com/result?word=' + encodeURIComponent(normalizeLookupText(value, 80)) + '&lang=zh-CN';
 }
 
 function searchUrl(value) {

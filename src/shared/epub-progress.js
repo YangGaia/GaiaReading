@@ -39,5 +39,33 @@
     return Math.min(100, Math.max(0, percent));
   }
 
-  return { epubDisplayPercent };
+  function normalizeEpubHref(value) {
+    let href = String(value || '').trim().replace(/\\/g, '/').split('#')[0].split('?')[0];
+    try { href = decodeURI(href); } catch (error) {}
+    while (href.startsWith('./')) href = href.slice(2);
+    return href.replace(/^\/+/, '').toLowerCase();
+  }
+
+  function epubHrefsMatch(left, right) {
+    const a = normalizeEpubHref(left);
+    const b = normalizeEpubHref(right);
+    if (!a || !b) return false;
+    return a === b || a.endsWith('/' + b) || b.endsWith('/' + a);
+  }
+
+  function findEpubNavLabel(items, resourceHref) {
+    for (const item of items || []) {
+      if (item && item.href && epubHrefsMatch(item.href, resourceHref)) {
+        const label = String(item.label || '').trim();
+        if (label) return label;
+      }
+      if (item && item.subitems && item.subitems.length) {
+        const nested = findEpubNavLabel(item.subitems, resourceHref);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  }
+
+  return { epubDisplayPercent, normalizeEpubHref, epubHrefsMatch, findEpubNavLabel };
 });
