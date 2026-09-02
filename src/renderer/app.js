@@ -31,7 +31,14 @@ const {
   createTextAnchor,
   resolveTextAnchor,
 } = window.GaiaAnnotations;
-const { PROVIDERS: AI_PROVIDERS, cacheKey: aiCacheKey, cleanChapterText, configIdentity: aiConfigIdentity } = window.GaiaAi;
+const {
+  PROVIDERS: AI_PROVIDERS,
+  cacheKey: aiCacheKey,
+  chapterSourceKey,
+  cleanChapterText,
+  configIdentity: aiConfigIdentity,
+  sameChapterSource,
+} = window.GaiaAi;
 const readerWheelGate = createWheelGate({ threshold: 60, cooldown: 250 });
 
 const FONTS = {
@@ -3134,13 +3141,17 @@ function currentChapterSummarySource() {
 
 function cachedAiSummary(source) {
   if (!source || !source.bookPath || !state.aiConfig) return null;
-  const key = aiCacheKey(source.chapterId, source.content, aiConfigIdentity(state.aiConfig));
-  return state.aiSummaries[source.bookPath] && state.aiSummaries[source.bookPath][key] ? state.aiSummaries[source.bookPath][key] : null;
+  const entries = state.aiSummaries[source.bookPath];
+  if (!entries) return null;
+  const identity = aiConfigIdentity(state.aiConfig);
+  const key = aiCacheKey(chapterSourceKey(source), source.content, identity);
+  const legacyKey = aiCacheKey(source.chapterId, source.content, identity);
+  return entries[key] || entries[legacyKey] || null;
 }
 
 async function storeAiSummary(pathKey, source, result) {
   const resultConfig = { provider: result.provider, baseUrl: result.baseUrl, model: result.model };
-  const key = aiCacheKey(source.chapterId, source.content, aiConfigIdentity(resultConfig));
+  const key = aiCacheKey(chapterSourceKey(source), source.content, aiConfigIdentity(resultConfig));
   const bookEntries = Object.assign({}, state.aiSummaries[pathKey] || {});
   bookEntries[key] = {
     summary: result.summary,
@@ -3180,11 +3191,11 @@ function switchAiContentTab(tab) {
 }
 
 function aiChatKey(source) {
-  return source.bookPath + '|' + source.chapterId;
+  return chapterSourceKey(source);
 }
 
 function isCurrentAiSource(source) {
-  try { return aiChatKey(currentChapterSummarySource()) === aiChatKey(source); } catch (error) { return false; }
+  try { return sameChapterSource(currentChapterSummarySource(), source); } catch (error) { return false; }
 }
 
 function currentAiChat(source) {

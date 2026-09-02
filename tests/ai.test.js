@@ -20,6 +20,9 @@ const {
   extractResponseText,
   extractModelIds,
   cacheKey,
+  chapterSourceKey,
+  sameChapterSource,
+  shouldDisableThinking,
   configIdentity,
   secretScopeKey,
   requestChat,
@@ -50,6 +53,15 @@ test('API Key 与总结缓存按服务商和 Base URL 隔离', () => {
   assert.notStrictEqual(secretScopeKey(deepseek), secretScopeKey(relay));
   assert.notStrictEqual(configIdentity(deepseek), configIdentity(relay));
   assert.notStrictEqual(cacheKey('chapter-1', '正文', configIdentity(deepseek)), cacheKey('chapter-1', '正文', configIdentity(relay)));
+});
+
+test('AI 返回期间章节标识波动时按相同正文保持当前结果', () => {
+  const requested = { bookPath: 'D:/books/demo.epub', chapterId: 'epub:toc:chapter-1', content: ' 第一章\n\n正文 ' };
+  const current = { bookPath: 'D:/books/demo.epub', chapterId: 'epub:heading:12', content: '第一章\n\n正文' };
+  assert.strictEqual(chapterSourceKey(requested), chapterSourceKey(current));
+  assert.strictEqual(sameChapterSource(requested, current), true);
+  assert.strictEqual(sameChapterSource(requested, { ...current, content: '第二章正文' }), false);
+  assert.strictEqual(sameChapterSource(requested, { ...current, bookPath: 'D:/books/other.epub' }), false);
 });
 
 test('AI 接口档案支持多套保存、稳定 ID 与当前选择', () => {
@@ -175,6 +187,23 @@ test('DeepSeek V4 连接测试关闭默认思考并兼容空正文', async () =>
   const result = await testConnection(fakeFetch, { provider: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash' }, 'key');
   assert.strictEqual(result, '连接成功');
   assert.strictEqual(captured.max_tokens, 256);
+  assert.deepStrictEqual(captured.thinking, { type: 'disabled' });
+});
+
+test('DeepSeek V4 中转接口同样关闭思考模式', async () => {
+  let captured;
+  const fakeFetch = async (url, options) => {
+    captured = JSON.parse(options.body);
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '总结正文' } }] }) };
+  };
+  assert.strictEqual(shouldDisableThinking({ provider: 'custom', baseUrl: 'https://relay.example/v1', model: 'deepseek-v4-flash' }), true);
+  const result = await requestChat(
+    fakeFetch,
+    { provider: 'custom', baseUrl: 'https://relay.example/v1', model: 'deepseek-v4-flash' },
+    'key',
+    [{ role: 'user', content: '总结本章' }]
+  );
+  assert.strictEqual(result, '总结正文');
   assert.deepStrictEqual(captured.thinking, { type: 'disabled' });
 });
 

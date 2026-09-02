@@ -306,6 +306,25 @@
     return String(chapterId || 'current') + ':' + textHash(cleanChapterText(content)) + ':' + textHash(model || '');
   }
 
+  function chapterSourceKey(source) {
+    const input = source && typeof source === 'object' ? source : {};
+    const ordinal = Number.isFinite(Number(input.ordinal)) ? String(Number(input.ordinal)) : '';
+    return String(input.bookPath || '') + '|' + ordinal + '|' + textHash(cleanChapterText(input.content));
+  }
+
+  function sameChapterSource(left, right) {
+    if (!left || !right || String(left.bookPath || '') !== String(right.bookPath || '')) return false;
+    if (String(left.chapterId || '') && String(left.chapterId || '') === String(right.chapterId || '')) return true;
+    const leftContent = cleanChapterText(left.content);
+    const rightContent = cleanChapterText(right.content);
+    return !!leftContent && !!rightContent && chapterSourceKey(left) === chapterSourceKey(right);
+  }
+
+  function shouldDisableThinking(config) {
+    const normalized = normalizeConfig(config);
+    return /^deepseek-v4(?:-|$)/i.test(normalized.model);
+  }
+
   async function requestChat(fetchImpl, config, apiKey, messages, options) {
     if (typeof fetchImpl !== 'function') throw new Error('当前环境无法发送 AI 请求');
     const normalized = normalizeConfig(config);
@@ -324,10 +343,10 @@
         stream: false,
         max_tokens: Number(options && options.maxTokens) || 1000,
       };
-      const officialDeepSeekV4 = normalized.provider === 'deepseek' &&
-        new URL(normalized.baseUrl).hostname === 'api.deepseek.com' &&
-        /^deepseek-v4-/i.test(normalized.model);
-      if (officialDeepSeekV4) body.thinking = { type: 'disabled' };
+      // DeepSeek-compatible relays use the same model ID, so identify V4 by model
+      // instead of hostname. This keeps long summaries from spending their output
+      // budget on reasoning_content and returning an empty answer body.
+      if (shouldDisableThinking(normalized)) body.thinking = { type: 'disabled' };
       const response = await fetchImpl(chatEndpoint(normalized.baseUrl), {
         method: 'POST',
         headers,
@@ -463,6 +482,9 @@
     extractModelIds,
     textHash,
     cacheKey,
+    chapterSourceKey,
+    sameChapterSource,
+    shouldDisableThinking,
     requestChat,
     testConnection,
     listModels,
