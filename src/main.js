@@ -641,32 +641,30 @@ function createWindow() {
             const repeatedBlinkCleaned = !blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
             GaiaPet.runEmotion('idle');
+            const bubbleBeforeStats = document.querySelector('.gaia-pet-bubble').textContent;
             __gaiaDebug.openReadingStats('library');
             await new Promise((resolve) => setTimeout(resolve, 80));
             const statsView = document.getElementById('stats-view');
-            const statsSlot = document.getElementById('stats-pet-slot');
+            const statsAlice = document.getElementById('stats-alice');
             const statsViewVisible = !statsView.hidden;
-            const statsPetEmbedded = petRoot.parentElement === statsSlot && petRoot.classList.contains('stats-embedded');
-            const statsPetVisible = !petRoot.hidden && petRoot.getBoundingClientRect().width > 0 && petRoot.getBoundingClientRect().height > 0;
-            const statsFpsHidden = fpsLabel.hidden;
-            const statsBreathing = getComputedStyle(petBodyLayer.parentElement).animationName === 'pet-breathe';
-            const pokeBeforeStatsClick = GaiaPet.getBrain().pokeCount;
-            const statsRectBefore = petRoot.getBoundingClientRect();
-            petTarget.dispatchEvent(new PointerEvent('pointerenter', { clientX: statsRectBefore.left + 20, clientY: statsRectBefore.top + 20 }));
-            const statsHoverInteractive = GaiaPet.getBrain().state === 'hover' && petBodyLayer.parentElement.classList.contains('perk');
-            petTarget.dispatchEvent(new PointerEvent('pointerdown', { button: 0, clientX: statsRectBefore.left + 20, clientY: statsRectBefore.top + 20 }));
-            window.dispatchEvent(new PointerEvent('pointermove', { clientX: statsRectBefore.left - 120, clientY: statsRectBefore.top - 120 }));
-            window.dispatchEvent(new PointerEvent('pointerup'));
-            petTarget.dispatchEvent(new MouseEvent('click', { clientX: statsRectBefore.left + 20, clientY: statsRectBefore.top + 20 }));
-            const statsRectAfter = petRoot.getBoundingClientRect();
-            const statsDragDisabled = !petRoot.classList.contains('dragging') && Math.abs(statsRectAfter.left - statsRectBefore.left) < 1 && Math.abs(statsRectAfter.top - statsRectBefore.top) < 1;
-            const statsClickInteractive = GaiaPet.getBrain().pokeCount > pokeBeforeStatsClick;
-            petTarget.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-            const statsConsoleDisabled = panel.hidden;
+            const statsUsesWholeImage = decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/半身照.png') && statsAlice.naturalWidth > 0;
+            const statsAliceVisible = statsAlice.getBoundingClientRect().width > 0 && statsAlice.getBoundingClientRect().height > 0;
+            const statsPetHidden = petRoot.hidden;
+            const statsBreathing = getComputedStyle(statsAlice).animationName === 'statsAliceBreathe';
+            statsAlice.dispatchEvent(new PointerEvent('pointerenter'));
+            const statsHoverInteractive = statsAlice.classList.contains('stats-alice-perk');
+            statsAlice.click();
+            const statsClickInteractive = statsAlice.classList.contains('stats-alice-poke');
+            for (let i = 0; i < 4; i += 1) statsAlice.click();
+            const statsRepeatedClickInteractive = statsAlice.classList.contains('stats-alice-shiver');
+            const dragEvent = new Event('dragstart', { cancelable: true });
+            statsAlice.dispatchEvent(dragEvent);
+            const statsDragDisabled = statsAlice.draggable === false && dragEvent.defaultPrevented;
+            const statsHasNoDialogue = document.querySelector('.gaia-pet-bubble').textContent === bubbleBeforeStats;
             __gaiaDebug.closeReadingStats();
             await new Promise((resolve) => setTimeout(resolve, 80));
-            const statsPetRestored = petRoot.parentElement === document.body && !petRoot.classList.contains('stats-embedded');
-            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsTargetMatchesDisplay, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned, statsViewVisible, statsPetEmbedded, statsPetVisible, statsFpsHidden, statsBreathing, statsHoverInteractive, statsDragDisabled, statsClickInteractive, statsConsoleDisabled, statsPetRestored };
+            const statsPetRestored = !petRoot.hidden;
+            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsTargetMatchesDisplay, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned, statsViewVisible, statsUsesWholeImage, statsAliceVisible, statsPetHidden, statsBreathing, statsHoverInteractive, statsDragDisabled, statsClickInteractive, statsRepeatedClickInteractive, statsHasNoDialogue, statsPetRestored };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -723,14 +721,15 @@ function createWindow() {
             petStatus.repeatedBlinkRestarted === true &&
             petStatus.repeatedBlinkCleaned === true &&
             petStatus.statsViewVisible === true &&
-            petStatus.statsPetEmbedded === true &&
-            petStatus.statsPetVisible === true &&
-            petStatus.statsFpsHidden === true &&
+            petStatus.statsUsesWholeImage === true &&
+            petStatus.statsAliceVisible === true &&
+            petStatus.statsPetHidden === true &&
             petStatus.statsBreathing === true &&
             petStatus.statsHoverInteractive === true &&
             petStatus.statsDragDisabled === true &&
             petStatus.statsClickInteractive === true &&
-            petStatus.statsConsoleDisabled === true &&
+            petStatus.statsRepeatedClickInteractive === true &&
+            petStatus.statsHasNoDialogue === true &&
             petStatus.statsPetRestored === true;
           if (!debugOk) console.error('PET_SMOKE_CHECKS_FAILED:', JSON.stringify(petStatus));
         }

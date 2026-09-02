@@ -134,11 +134,10 @@
   function updateVisibility() {
     if (!ui.root) return;
     const hiddenInReader = currentView === 'reader' && saved.readerMode === 'hidden';
-    ui.root.hidden = !saved.on || hiddenInReader;
+    const embeddedInStats = currentView === 'stats';
+    ui.root.hidden = !saved.on || hiddenInReader || embeddedInStats;
     ui.root.classList.toggle('reader-dim', currentView === 'reader' && saved.readerMode === 'dim');
-    ui.root.style.opacity = currentView === 'stats'
-      ? '1'
-      : String(saved.opacity * (ui.root.classList.contains('reader-dim') ? 0.55 : 1));
+    ui.root.style.opacity = String(saved.opacity * (ui.root.classList.contains('reader-dim') ? 0.55 : 1));
     syncFpsMeter();
   }
 
@@ -218,12 +217,12 @@
 
   function syncFpsMeter() {
     if (!ui.root || !ui.fps) return;
-    if (saved.showFps && saved.on && !ui.root.hidden && currentView !== 'stats') startFpsMeter();
+    if (saved.showFps && saved.on && !ui.root.hidden) startFpsMeter();
     else stopFpsMeter();
   }
 
   function updatePositionRatios() {
-    if (!ui.root || currentView === 'stats') return;
+    if (!ui.root) return;
     const maxX = Math.max(0, window.innerWidth - ui.root.offsetWidth);
     const maxY = Math.max(0, window.innerHeight - ui.root.offsetHeight);
     saved.xRatio = maxX ? saved.x / maxX : 0;
@@ -231,7 +230,7 @@
   }
 
   function restorePositionFromRatios() {
-    if (!ui.root || currentView === 'stats' || !Number.isFinite(saved.xRatio) || !Number.isFinite(saved.yRatio)) return false;
+    if (!ui.root || !Number.isFinite(saved.xRatio) || !Number.isFinite(saved.yRatio)) return false;
     saved.x = saved.xRatio * Math.max(0, window.innerWidth - ui.root.offsetWidth);
     saved.y = saved.yRatio * Math.max(0, window.innerHeight - ui.root.offsetHeight);
     return true;
@@ -746,7 +745,6 @@
 
   function openConsole(ev) {
     ev.preventDefault();
-    if (currentView === 'stats') return;
     consoleOpen = true;
     resetActivity(Date.now());
     ui.console.hidden = false;
@@ -860,7 +858,7 @@
   }
 
   function clampPosition() {
-    if (!ui.root || currentView === 'stats') return;
+    if (!ui.root) return;
     const bw = ui.root.offsetWidth;
     const bh = ui.root.offsetHeight;
     saved.x = Math.max(0, Math.min(Math.max(0, window.innerWidth - bw), saved.x));
@@ -889,7 +887,6 @@
       if (ev.key === 'F10' && ev.shiftKey) {
         ev.preventDefault();
         ev.stopPropagation();
-        if (currentView === 'stats') return;
         openConsole(ev);
         return;
       }
@@ -897,7 +894,6 @@
       if (!movement) return;
       ev.preventDefault();
       ev.stopPropagation();
-      if (currentView === 'stats') return;
       saved.x += movement[0];
       saved.y += movement[1];
       clampPosition();
@@ -909,7 +905,6 @@
       const r = ui.root.getBoundingClientRect();
       downPos = { x: ev.clientX, y: ev.clientY };
       dragOffset = { x: ev.clientX - r.left, y: ev.clientY - r.top };
-      if (currentView === 'stats') return;
       window.addEventListener('pointermove', onDragMove);
       window.addEventListener('pointerup', endDrag);
       window.addEventListener('pointercancel', endDrag);
@@ -943,7 +938,6 @@
       }
     });
     window.addEventListener('resize', () => {
-      if (currentView === 'stats') return;
       restorePositionFromRatios();
       clampPosition();
       positionConsole();
@@ -1360,27 +1354,9 @@
     const nextView = view || 'home';
     if (nextView !== currentView) resetReadingSession();
     currentView = nextView;
-    syncEmbeddedMode();
     updateVisibility();
     startReadingSession(Date.now());
     updateReadingCareStatus(Date.now());
-  }
-
-  function syncEmbeddedMode() {
-    if (!ui.root) return;
-    const slot = document.getElementById('stats-pet-slot');
-    const embedded = currentView === 'stats' && slot;
-    if (embedded) closeConsole(false);
-    ui.root.classList.toggle('stats-embedded', !!embedded);
-    ui.hitbox.setAttribute('aria-label', embedded
-      ? '仪表盘中的久远寺有珠。按回车互动。'
-      : '久远寺有珠桌宠。按回车互动，按 Shift+F10 打开控制台。');
-    if (embedded) {
-      if (ui.root.parentElement !== slot) slot.appendChild(ui.root);
-      return;
-    }
-    if (ui.root.parentElement !== document.body) document.body.appendChild(ui.root);
-    clampPosition();
   }
 
   return {

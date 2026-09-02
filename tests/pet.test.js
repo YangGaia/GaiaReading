@@ -313,10 +313,8 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(css.includes('42% { transform: translateY(0) rotate(-0.5deg) scaleY(1.018); }'), '唤醒峰值时头部不应相对衣领继续上移并产生缝隙');
   assert.ok(!css.includes('.gaia-pet-lid'), '矩形眼皮样式应彻底移除');
   assert.ok(app.includes('window.GaiaPet.setView(name)'), '桌宠初始化后应同步当前页面与显示状态');
-  assert.ok(renderer.includes("slot.appendChild(ui.root)"), '统计页应复用真实分层桌宠而不是静态立绘');
-  assert.ok(renderer.includes("if (currentView === 'stats') return;"), '统计页的内嵌有珠应拦截拖动和控制台操作');
-  assert.ok(css.includes('.gaia-pet.stats-embedded'), '统计页应提供不可拖动的内嵌桌宠样式');
-  assert.ok(main.includes('statsPetEmbedded') && main.includes('statsDragDisabled') && main.includes('statsClickInteractive'), '冒烟测试应真实验证统计页内嵌、不可拖动和点击互动');
+  assert.ok(renderer.includes("const embeddedInStats = currentView === 'stats'"), '统计页展示完整单图有珠时应隐藏分层悬浮桌宠');
+  assert.ok(main.includes('statsUsesWholeImage') && main.includes('statsDragDisabled') && main.includes('statsHasNoDialogue'), '冒烟测试应验证统计页使用完整单图、不可拖动且不弹对话');
   assert.ok(app.includes("$('btn-pet-console').addEventListener('click', openPetConsole)"), '设置页应能打开有珠控制台');
   assert.ok(main.includes('petStatus.headCutoutClean === true'), '冒烟测试应逐像素验证身体层没有旧头部残影');
   assert.ok(main.includes("petRoot.style.pointerEvents = 'none'"), '桌宠冒烟测试应隔离真实鼠标输入');

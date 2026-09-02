@@ -53,6 +53,7 @@ const els = {
   statsToday: $('stats-today'),
   statsGoalCopy: $('stats-goal-copy'),
   statsAliceLine: $('stats-alice-line'),
+  statsAlice: $('stats-alice'),
   statsRing: $('stats-ring'),
   statsRingPercent: $('stats-ring-percent'),
   statsWeekTotal: $('stats-week-total'),
@@ -2082,6 +2083,28 @@ function closeReadingStats() {
   if (!views.reader.hidden) noteReadingActivity();
 }
 
+const STATS_ALICE_MOTIONS = ['stats-alice-perk', 'stats-alice-poke', 'stats-alice-shiver'];
+let statsAliceClicks = [];
+
+function runStatsAliceMotion(motion) {
+  if (!els.statsAlice || !STATS_ALICE_MOTIONS.includes(motion)) return;
+  els.statsAlice.classList.remove(...STATS_ALICE_MOTIONS);
+  void els.statsAlice.offsetWidth;
+  els.statsAlice.classList.add(motion);
+}
+
+function interactWithStatsAlice() {
+  const now = Date.now();
+  statsAliceClicks = statsAliceClicks.filter((time) => now - time <= 1800);
+  statsAliceClicks.push(now);
+  if (statsAliceClicks.length >= 5) {
+    statsAliceClicks = [];
+    runStatsAliceMotion('stats-alice-shiver');
+    return;
+  }
+  runStatsAliceMotion('stats-alice-poke');
+}
+
 function renderReadingStats() {
   const summary = buildReadingSummary(state.readingStats, Date.now());
   const progress = summary.goalMs ? Math.min(1, summary.todayMs / summary.goalMs) : 0;
@@ -2209,6 +2232,18 @@ function bindEvents() {
   $('btn-back-home').addEventListener('click', () => showView('home'));
   $('btn-reading-stats').addEventListener('click', () => openReadingStats('library'));
   $('btn-stats-back').addEventListener('click', closeReadingStats);
+  els.statsAlice.addEventListener('pointerenter', () => runStatsAliceMotion('stats-alice-perk'));
+  els.statsAlice.addEventListener('click', interactWithStatsAlice);
+  els.statsAlice.addEventListener('dragstart', (ev) => ev.preventDefault());
+  els.statsAlice.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    ev.preventDefault();
+    interactWithStatsAlice();
+  });
+  els.statsAlice.addEventListener('animationend', (ev) => {
+    if (ev.animationName === 'statsAliceBreathe') return;
+    els.statsAlice.classList.remove(...STATS_ALICE_MOTIONS);
+  });
   els.statsGoalOptions.addEventListener('click', (ev) => {
     const button = ev.target.closest('[data-goal-minutes]');
     if (!button) return;

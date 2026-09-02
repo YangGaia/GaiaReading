@@ -62,9 +62,12 @@ test('阅读仪表盘使用有珠主题素材并兼容三种阅读模式', () =>
   const css = fs.readFileSync(path.join(root, 'src/renderer/styles.css'), 'utf8');
   const app = fs.readFileSync(path.join(root, 'src/renderer/app.js'), 'utf8');
   assert.ok(html.includes('有珠的阅读记录'), '仪表盘标题应体现有珠主题');
-  assert.ok(html.includes('id="stats-pet-slot"'), '仪表盘应提供有珠互动区域');
+  assert.ok(html.includes('id="stats-alice"') && html.includes('images/pet/cells/半身照.png'), '仪表盘应使用不拆分头身的完整有珠立绘');
+  assert.ok(html.includes('draggable="false"'), '仪表盘有珠不应允许拖动');
   assert.ok(html.includes('id="stats-alice-line"'), '缺少有珠动态阅读台词');
   assert.ok(css.includes('body.eye #stats-view') && css.includes('body.dark #stats-view'), '有珠仪表盘应分别适配护眼和夜间模式');
   assert.ok(css.includes('@keyframes statsOrbit'), '目标仪式盘应具有低干扰轨道动画');
+  assert.ok(css.includes('@keyframes statsAliceBreathe') && css.includes('@keyframes statsAliceShiver'), '完整有珠立绘应支持呼吸和连续点击动作');
+  assert.ok(app.includes('interactWithStatsAlice') && app.includes("stats-alice-perk"), '仪表盘有珠应支持无对话的移入和点击互动');
   assert.ok(app.includes('readingCompanionLine(summary)'), '仪表盘应按阅读状态刷新有珠台词');
 });
