@@ -110,11 +110,14 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(!app.includes("messages.push({ role: 'assistant', mode: result.mode"), '有珠短评不应进入普通聊天记录');
   assert.ok(app.includes('new ResizeObserver'), 'AI 悬浮窗应记忆缩放后的尺寸');
   assert.ok(app.includes('saveAiPanelGeometry'), 'AI 悬浮窗应保存位置和大小');
+  assert.ok(app.includes('setAiPanelMinimized'), 'AI 悬浮窗应统一更新最小化状态和无障碍标签');
   assert.ok(app.includes('toggleAiAppearanceMenu'), 'AI 排版设置应收进 Aa 弹出菜单');
   assert.ok(app.includes('setAiAppearanceOpen(els.aiAppearancePopover.hidden)'), 'Aa 按钮应能正确切换 AI 排版弹层');
   assert.ok(app.includes("switchAiContentTab('summary')"), '本章总结应在独立页签显示');
   assert.ok(app.includes('findEpubNavLabel(nav, href)'), 'AI 章节标题应按当前 EPUB 资源路径精确匹配目录');
   assert.ok(css.includes('.ai-content-stage { flex: 1; min-height: 0; overflow: hidden; }'), 'AI 页签内容区不得覆盖标题和状态文字');
+  assert.ok(css.includes('min-width: 0 !important; min-height: 0 !important;'), 'AI 最小化时必须覆盖普通窗口的最小尺寸');
+  assert.ok(css.includes('.ai-summary-panel.minimized #btn-ai-chat-clear'), 'AI 最小化时应隐藏清空与排版按钮');
   assert.ok(css.includes('max-height: 220px; overflow-y: auto;'), '模型选择菜单应限制高度并支持纵向滚动');
   assert.ok(!html.includes('ai-auto-summarize') && !app.includes('AI_AUTO_SUMMARY') && !app.includes('autoSummarize'), '打开或切换章节不得自动调用 AI 总结');
   const observeChapter = app.slice(app.indexOf('function observeAiChapter()'), app.indexOf('async function copyAiSummary()'));

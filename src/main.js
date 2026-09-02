@@ -482,11 +482,21 @@ function createWindow() {
               document.getElementById('btn-ai-tab-summary').click();
               const aiSummaryTabReady = document.getElementById('ai-chat-pane').hidden && !document.getElementById('ai-summary-pane').hidden;
               document.getElementById('btn-ai-tab-chat').click();
+              document.getElementById('btn-ai-summary-minimize').click();
+              const minimizedPanel = document.getElementById('ai-summary-panel');
+              const minimizedRect = minimizedPanel.getBoundingClientRect();
+              const aiMinimizedLayout = minimizedPanel.classList.contains('minimized') && minimizedRect.width <= 280 && minimizedRect.height === 50 &&
+                getComputedStyle(document.getElementById('btn-ai-chat-clear')).display === 'none' &&
+                getComputedStyle(document.getElementById('btn-ai-appearance')).display === 'none' &&
+                document.getElementById('btn-ai-summary-minimize').getAttribute('aria-label') === '还原 AI 阅读助手';
+              document.getElementById('btn-ai-summary-minimize').click();
+              const aiRestoredLayout = !minimizedPanel.classList.contains('minimized') && minimizedPanel.getBoundingClientRect().width >= 340 &&
+                document.getElementById('btn-ai-summary-minimize').getAttribute('aria-label') === '最小化 AI 阅读助手';
               const selectionAiTools = ['ai-analyze', 'ai-ask', 'dictionary', 'search'].every((action) => !!document.querySelector('[data-selection-action="' + action + '"]'));
               __gaiaDebug.openAiAssistant();
               const selectionDismissed = await __gaiaDebug.verifySelectionDismissal();
               const aiUiReady = aiUi.homeEntry && aiUi.centerView && aiUi.settingsSection && aiUi.summaryButton && aiUi.summaryPanel &&
-                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiModelMenuScrollable && aiCenterReturned && aiPanelOpened && aiChapterLabelMatches && aiAppearanceCompact && aiSummaryTabReady && selectionAiTools && selectionDismissed &&
+                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiModelMenuScrollable && aiCenterReturned && aiPanelOpened && aiChapterLabelMatches && aiAppearanceCompact && aiSummaryTabReady && aiMinimizedLayout && aiRestoredLayout && selectionAiTools && selectionDismissed &&
                 aiSource.bookPath === fixture && aiSource.chapterId.startsWith('epub:') && aiSource.content.length > 0;
               const annotationsBefore = __gaiaDebug.getAnnotations().length;
               const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');

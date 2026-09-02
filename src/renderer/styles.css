@@ -307,8 +307,15 @@ body.dark {
 @keyframes aiButtonShine { 0%, 62% { left: -35%; } 82%, 100% { left: 130%; } }
 .ai-summary-panel { --ai-font-size: 15px; --ai-line-height: 1.7; --ai-font-family: inherit; position: absolute; z-index: 85; top: 22px; right: 24px; width: 440px; height: min(680px, calc(100% - 44px)); min-width: 340px; min-height: 360px; max-width: calc(100% - 24px); max-height: calc(100% - 24px); resize: both; overflow: hidden; padding: 14px; color: var(--text); border: 1px solid var(--border-strong); border-radius: 15px; background: var(--surface); box-shadow: 0 18px 50px color-mix(in srgb, var(--shadow) 85%, transparent); }
 .ai-summary-panel:not([hidden]) { display: flex; flex-direction: column; }
-.ai-summary-panel.minimized { width: 330px !important; height: 58px !important; min-height: 58px; resize: none; }
+.ai-summary-panel.minimized { width: min(280px, calc(100% - 24px)) !important; height: 50px !important; min-width: 0 !important; min-height: 0 !important; padding: 0 10px; resize: none; }
 .ai-summary-panel.minimized > :not(.ai-summary-head) { display: none !important; }
+.ai-summary-panel.minimized .ai-summary-head { flex: 1; align-items: center; min-width: 0; margin: 0; padding: 0; border-bottom: 0; }
+.ai-summary-panel.minimized .ai-summary-head small,
+.ai-summary-panel.minimized #btn-ai-chat-clear,
+.ai-summary-panel.minimized #btn-ai-appearance { display: none; }
+.ai-summary-panel.minimized .ai-summary-head h2 { margin: 0; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.ai-summary-panel.minimized .ai-panel-head-actions { flex: 0 0 auto; margin-left: auto; }
+.ai-summary-panel.minimized .ai-panel-head-actions .btn { width: 28px; height: 28px; padding: 0; font-size: 15px; line-height: 1; }
 .ai-summary-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin: -14px -14px 0; padding: 14px 14px 10px; border-bottom: 1px solid var(--border); cursor: move; user-select: none; }
 .ai-summary-head small { color: var(--accent); font-size: 10px; letter-spacing: .1em; }
 .ai-summary-head h2 { margin: 3px 0 0; font-size: 17px; }

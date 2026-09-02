@@ -10,7 +10,7 @@ function normalizeLookupText(value, maxChars) {
 }
 
 function dictionaryUrl(value) {
-  return 'https://dict.youdao.com/result?word=' + encodeURIComponent(normalizeLookupText(value, 80)) + '&lang=zh-CN';
+  return 'https://dict.youdao.com/search?q=' + encodeURIComponent(normalizeLookupText(value, 80));
 }
 
 function searchUrl(value) {

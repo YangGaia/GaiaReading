@@ -11,14 +11,14 @@ const {
 
 test('词典与搜索查询会清理长度并安全编码', () => {
   assert.strictEqual(normalizeLookupText('  山  茶  '), '山 茶');
-  assert.strictEqual(dictionaryUrl('踌躇'), 'https://dict.youdao.com/result?word=%E8%B8%8C%E8%BA%87&lang=zh-CN');
+  assert.strictEqual(dictionaryUrl('踌躇'), 'https://dict.youdao.com/search?q=%E8%B8%8C%E8%BA%87');
   assert.strictEqual(searchUrl('A&B'), 'https://www.baidu.com/s?wd=A%26B');
   assert.strictEqual(Array.from(normalizeLookupText('字'.repeat(100), 80)).length, 80);
   assert.throws(() => normalizeLookupText('   '), /没有可查询/);
 });
 
 test('内置词典窗口只允许网易有道 HTTPS 顶层导航', () => {
-  assert.strictEqual(isAllowedDictionaryUrl('https://dict.youdao.com/result?word=test&lang=zh-CN'), true);
+  assert.strictEqual(isAllowedDictionaryUrl('https://dict.youdao.com/search?q=test'), true);
   assert.strictEqual(isAllowedDictionaryUrl('http://dict.youdao.com/result?word=test'), false);
   assert.strictEqual(isAllowedDictionaryUrl('https://dict.youdao.com.evil.example/test'), false);
   assert.strictEqual(isAllowedDictionaryUrl('https://www.zdic.net/hans/test'), false);

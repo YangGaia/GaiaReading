@@ -3055,6 +3055,14 @@ function saveAiPanelGeometry() {
   window.api.stateSet('prefs', state.prefs);
 }
 
+function setAiPanelMinimized(minimized) {
+  const button = $('btn-ai-summary-minimize');
+  els.aiSummaryPanel.classList.toggle('minimized', minimized);
+  button.textContent = minimized ? '□' : '—';
+  button.setAttribute('aria-label', minimized ? '还原 AI 阅读助手' : '最小化 AI 阅读助手');
+  button.title = minimized ? '还原' : '最小化';
+}
+
 function restoreAiPanelGeometry() {
   const body = $('reader-body');
   const bounds = body.getBoundingClientRect();
@@ -3069,8 +3077,7 @@ function restoreAiPanelGeometry() {
   els.aiSummaryPanel.style.top = Math.round(top) + 'px';
   els.aiSummaryPanel.style.width = Math.round(width) + 'px';
   els.aiSummaryPanel.style.height = Math.round(height) + 'px';
-  els.aiSummaryPanel.classList.toggle('minimized', saved.minimized === true);
-  $('btn-ai-summary-minimize').textContent = saved.minimized === true ? '□' : '—';
+  setAiPanelMinimized(saved.minimized === true);
 }
 
 function toggleAiPanelMinimized() {
@@ -3081,8 +3088,7 @@ function toggleAiPanelMinimized() {
   window.api.stateSet('prefs', state.prefs);
   if (minimized) restoreAiPanelGeometry();
   else {
-    els.aiSummaryPanel.classList.add('minimized');
-    $('btn-ai-summary-minimize').textContent = '□';
+    setAiPanelMinimized(true);
   }
 }
 
