@@ -2,9 +2,9 @@
 
 电子书阅读器，基于 Electron，支持 **EPUB / PDF / TXT / MOBI / AZW3** 五种格式，绿色免安装；内置《魔法使之夜》主题赛博桌宠「久远寺有珠」，阅读之余有她作伴。
 
-当前版本：**0.5.2**
+当前版本：**1.0.0**
 
-## 当前开发版整改
+## 1.0.0 正式版升级
 
 - 新增独立 AI 阅读中心：首页直接进入，设置抽屉保留当前接口状态与快捷入口；可保存、命名并随时切换多套接口档案
 - 支持 OpenAI、DeepSeek、第三方 OpenAI 兼容中转和本地 Ollama；DeepSeek 内置 `deepseek-chat`、`deepseek-reasoner` 与 V4 系列选项，模型菜单可滚动、可筛选并允许手动输入特殊模型 ID
@@ -92,7 +92,7 @@
 
 ### 方式一：绿色版 exe（推荐，无需安装环境）
 
-在 GitHub Releases 下载最新版 `Gaia Reading 0.5.2.exe`，双击即可运行，无需安装 Node.js。
+在 GitHub Releases 下载最新版 `Gaia Reading 1.0.0.exe`，双击即可运行，无需安装 Node.js。
 
 ### 方式二：源码运行
 

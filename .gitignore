@@ -10,3 +10,10 @@ src/renderer/vendor/
 *.epub
 *.pdf
 *.flac
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+user-data/
+.gaia-reading/

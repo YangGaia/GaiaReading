@@ -71,14 +71,23 @@ test('桌宠素材与映射表完整', () => {
   assert.ok(fs.statSync(yawnFace).size > 10000, '打哈欠专用表情贴片异常');
 });
 
-test('版本号为 0.5.2 且界面同步', () => {
+test('版本号为 1.0.0 且界面同步', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '0.5.2');
+  assert.strictEqual(pkg.version, '1.0.0');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.ok(html.includes('Gaia Reading 0.5.2'), '关于面板版本号未同步');
+  assert.ok(html.includes('Gaia Reading 1.0.0'), '关于面板版本号未同步');
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
   assert.ok(html.includes('btn-theme'), '缺少主题切换');
   assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
+});
+
+test('1.0.0 Release 说明完整并包含发行文件校验值', () => {
+  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.0.0.md'), 'utf8');
+  for (const section of ['与 0.5.2 相比的主要变化', 'AI 阅读助手', 'AI 隐私和接口安全', '多格式阅读与章节识别', '阅读统计与数据保护', '赛博桌宠']) {
+    assert.ok(notes.includes(section), `Release 说明缺少 ${section}`);
+  }
+  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/, 'Release 说明缺少 exe 的 SHA-256');
+  assert.ok(!notes.includes('{{SHA256}}'), 'Release 说明不得保留校验值占位符');
 });
 
 test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => {
