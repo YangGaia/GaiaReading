@@ -7,6 +7,7 @@ const { pathToFileURL } = require('url');
 const { parseEpub } = require('./shared/epub-meta');
 const { decodeTxt, titleFromFilename } = require('./shared/txt-utils');
 const { JsonStore } = require('./shared/store');
+const { prepareDataFile } = require('./shared/data-upgrade');
 const { openMobi, loadChapter, cleanupMobi } = require('./shared/mobi');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -918,7 +919,20 @@ function setupMenu() {
 }
 
 app.whenReady().then(() => {
-  store = new JsonStore(path.join(app.getPath('userData'), 'gaia-reading.json'));
+  const storePath = path.join(app.getPath('userData'), 'gaia-reading.json');
+  try {
+    const upgrade = prepareDataFile(storePath, { appVersion: app.getVersion(), backupLimit: 5 });
+    if (upgrade.backupPath) console.log('USER_DATA_BACKUP:', upgrade.backupPath);
+  } catch (err) {
+    console.error('USER_DATA_UPGRADE_FAILED:', err);
+    dialog.showErrorBox(
+      'Gaia Reading 数据保护',
+      '用户数据无法安全升级，程序不会覆盖原文件。\n\n数据位置：' + storePath + '\n\n原因：' + err.message
+    );
+    app.quit();
+    return;
+  }
+  store = new JsonStore(storePath);
   registerBgmProtocol();
   setupMenu();
   createWindow();
