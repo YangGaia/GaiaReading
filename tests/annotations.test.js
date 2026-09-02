@@ -51,3 +51,23 @@ test('五种格式共用的划线工具栏、笔记侧栏和定位入口均已�
   assert.ok(app.includes("c.format === 'mobi' || c.format === 'azw3'"), 'MOBI 与 AZW3 应共用章节恢复逻辑');
   assert.ok(css.includes('.gaia-highlight-yellow') && css.includes('.gaia-highlight-green') && css.includes('.gaia-highlight-pink'), '缺少三种高亮色');
 });
+
+test('笔记按钮使用应用内编辑器并在保存后定位侧栏条目', () => {
+  const root = path.join(__dirname, '..');
+  const app = fs.readFileSync(path.join(root, 'src/renderer/app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'src/renderer/index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'src/renderer/styles.css'), 'utf8');
+  assert.ok(html.includes('id="note-editor-overlay"'), '缺少应用内笔记编辑器');
+  assert.ok(html.includes('id="note-editor-input"'), '缺少笔记输入框');
+  assert.ok(html.includes('aria-modal="true"'), '笔记编辑器应声明为模态界面');
+  assert.ok(!app.includes('window.prompt('), '笔记不应继续依赖系统 prompt');
+  assert.ok(app.includes('function openNoteEditor(context)'), '缺少笔记编辑器打开逻辑');
+  assert.ok(app.includes('function commitNoteEditor()'), '缺少笔记确认保存逻辑');
+  assert.ok(app.includes('openAnnotationsPanelAt(annotationId)'), '保存后应打开并定位笔记侧栏');
+  assert.ok(app.includes('card.dataset.annotationId = annotation.id'), '笔记卡片缺少定位标识');
+  assert.ok(css.includes('.note-editor-dialog'), '缺少笔记编辑器样式');
+  assert.ok(css.includes('.annotation-card.is-target'), '缺少保存后定位反馈');
+  const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8');
+  assert.ok(main.includes("document.querySelector('[data-selection-action=\"note\"]')"), '烟雾测试应真实点击笔记按钮');
+  assert.ok(main.includes("item.note === '烟雾测试笔记'"), '烟雾测试应验证笔记成功保存');
+});

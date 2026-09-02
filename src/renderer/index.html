@@ -134,6 +134,27 @@
     <button data-selection-action="delete" class="selection-delete" hidden>删除</button>
   </div>
 
+  <div id="note-editor-overlay" class="note-editor-overlay" hidden>
+    <section class="note-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="note-editor-title">
+      <header class="note-editor-head">
+        <div>
+          <h2 id="note-editor-title">添加笔记</h2>
+          <p>记录你对这段文字的想法</p>
+        </div>
+        <button id="btn-note-editor-close" class="note-editor-close" type="button" aria-label="关闭笔记编辑器">×</button>
+      </header>
+      <blockquote id="note-editor-quote" class="note-editor-quote"></blockquote>
+      <label class="note-editor-label" for="note-editor-input">笔记内容</label>
+      <textarea id="note-editor-input" class="note-editor-input" maxlength="5000" placeholder="写下此刻的想法……"></textarea>
+      <p id="note-editor-error" class="note-editor-error" hidden></p>
+      <footer class="note-editor-actions">
+        <span>Ctrl + Enter 保存</span>
+        <button id="btn-note-editor-cancel" class="btn" type="button">取消</button>
+        <button id="btn-note-editor-save" class="btn primary" type="button">保存笔记</button>
+      </footer>
+    </section>
+  </div>
+
   <div id="settings-overlay" hidden>
     <div id="settings-drawer">
       <div class="drawer-head">

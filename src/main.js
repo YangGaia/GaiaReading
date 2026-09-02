@@ -243,6 +243,19 @@ function createWindow() {
               const diamondCount = __gaiaDebug.getDiamondCount();
               await __gaiaDebug.openBook({ path: fixture, format: 'epub', title: 'fixture' });
               await __gaiaDebug.waitLocations();
+              const annotationsBefore = __gaiaDebug.getAnnotations().length;
+              const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');
+              document.querySelector('[data-selection-action="note"]').click();
+              await new Promise((r) => setTimeout(r, 80));
+              const noteEditorState = __gaiaDebug.getNoteEditorState();
+              __gaiaDebug.setNoteEditorText('烟雾测试笔记');
+              await __gaiaDebug.commitNoteEditor();
+              await new Promise((r) => setTimeout(r, 100));
+              const savedAnnotations = __gaiaDebug.getAnnotations();
+              const savedNote = savedAnnotations.find((item) => item.note === '烟雾测试笔记');
+              const noteEditorSaved = savedAnnotations.length === annotationsBefore + 1 && !!savedNote;
+              const notePanelOpen = !document.getElementById('annotations-panel').hidden;
+              const noteCardLocated = !!savedNote && !!document.querySelector('[data-annotation-id="' + savedNote.id + '"]');
               const fxInReader = __gaiaDebug.isFxActive();
               const nightBefore = __gaiaDebug.isNight();
               await __gaiaDebug.setTheme('dark');
@@ -375,7 +388,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, drawerOpen, drawerClosed, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -388,6 +401,12 @@ function createWindow() {
             debugOk =
               parsed.viewAfterSplash === 'home' &&
               parsed.splashHidden === true &&
+              parsed.selectionPrepared === true &&
+              parsed.noteEditorOpen === true &&
+              parsed.noteEditorQuote === '烟雾测试摘录' &&
+              parsed.noteEditorSaved === true &&
+              parsed.notePanelOpen === true &&
+              parsed.noteCardLocated === true &&
               parsed.drawerOpen === true &&
               parsed.drawerClosed === true &&
               parsed.appearanceControlsAligned === true &&

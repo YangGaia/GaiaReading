@@ -50,6 +50,11 @@ const els = {
   bookmarksPanel: $('bookmarks-panel'),
   annotationsPanel: $('annotations-panel'),
   selectionToolbar: $('selection-toolbar'),
+  noteEditorOverlay: $('note-editor-overlay'),
+  noteEditorQuote: $('note-editor-quote'),
+  noteEditorInput: $('note-editor-input'),
+  noteEditorError: $('note-editor-error'),
+  noteEditorSave: $('btn-note-editor-save'),
   statsToday: $('stats-today'),
   statsGoalCopy: $('stats-goal-copy'),
   statsAliceLine: $('stats-alice-line'),
@@ -109,6 +114,8 @@ const state = {
   resolveHome: null,
   statsReturnView: 'library',
   selectionContext: null,
+  noteEditorContext: null,
+  noteEditorSaving: false,
 };
 
 state.homeReady = new Promise((resolve) => {
@@ -463,6 +470,7 @@ function updateSettingsValues() {
 }
 
 function closeReaderContent() {
+  closeNoteEditor();
   const c = state.current;
   if (c) {
     if (c.rendition) { try { c.rendition.destroy(); } catch (e) {} }
@@ -1550,17 +1558,28 @@ async function saveSelectionAnnotation(color, requestNote) {
   const c = state.current;
   const context = state.selectionContext;
   if (!c || !context) return;
-  const existing = context.existingId ? currentAnnotations().find((item) => item.id === context.existingId) : null;
-  let note = existing ? existing.note || '' : '';
   if (requestNote) {
-    const value = window.prompt('写下这段文字旁边的笔记：', note);
-    if (value == null) return;
-    note = value.trim();
+    openNoteEditor(context);
+    return;
   }
+  const existing = context.existingId ? currentAnnotations().find((item) => item.id === context.existingId) : null;
+  await persistSelectionAnnotation(context, color, existing ? existing.note || '' : '');
+  hideSelectionToolbar();
+  restoreCurrentAnnotations();
+  renderAnnotationsPanel();
+  els.readerStatus.textContent = '划线已保存';
+}
+
+async function persistSelectionAnnotation(context, color, note) {
+  const c = state.current;
+  if (!c || !context || (context.bookPath && context.bookPath !== c.path)) return null;
+  const existing = context.existingId ? currentAnnotations().find((item) => item.id === context.existingId) : null;
+  const nextNote = String(note || '').trim();
+  let savedId = existing ? existing.id : null;
   if (existing) {
     state.annotations = updateAnnotationInMap(state.annotations, c.path, existing.id, {
       color: normalizeColor(color || existing.color),
-      note,
+      note: nextNote,
       updatedAt: Date.now(),
     });
   } else {
@@ -1568,19 +1587,98 @@ async function saveSelectionAnnotation(color, requestNote) {
       id: annotationId(),
       format: c.format,
       text: context.text,
-      note,
+      note: nextNote,
       color: normalizeColor(color),
       chapter: context.chapter,
       anchor: context.anchor,
       createdAt: Date.now(),
     };
+    savedId = annotation.id;
     state.annotations = addAnnotationToMap(state.annotations, c.path, annotation);
   }
   await saveAnnotationsNow();
+  return savedId;
+}
+
+function openNoteEditor(context) {
+  const c = state.current;
+  if (!c || !context) return;
+  const existing = context.existingId ? currentAnnotations().find((item) => item.id === context.existingId) : null;
+  state.noteEditorContext = {
+    ...context,
+    anchor: context.anchor ? { ...context.anchor } : null,
+    bookPath: c.path,
+  };
+  els.noteEditorQuote.textContent = context.text || '未能读取摘录内容';
+  els.noteEditorInput.value = existing ? existing.note || '' : '';
+  els.noteEditorError.hidden = true;
+  els.noteEditorError.textContent = '';
+  els.noteEditorOverlay.hidden = false;
   hideSelectionToolbar();
-  restoreCurrentAnnotations();
+  window.requestAnimationFrame(() => {
+    els.noteEditorInput.focus();
+    els.noteEditorInput.setSelectionRange(els.noteEditorInput.value.length, els.noteEditorInput.value.length);
+  });
+}
+
+function closeNoteEditor() {
+  if (!els.noteEditorOverlay) return;
+  els.noteEditorOverlay.hidden = true;
+  els.noteEditorInput.value = '';
+  els.noteEditorError.hidden = true;
+  state.noteEditorContext = null;
+  state.noteEditorSaving = false;
+  els.noteEditorSave.disabled = false;
+}
+
+function openAnnotationsPanelAt(annotationId) {
+  els.tocPanel.hidden = true;
+  els.bookmarksPanel.hidden = true;
+  els.annotationsPanel.hidden = false;
   renderAnnotationsPanel();
-  els.readerStatus.textContent = requestNote ? '笔记已保存' : '划线已保存';
+  resizeEpubRendition();
+  window.requestAnimationFrame(() => {
+    const card = els.annotationsPanel.querySelector('[data-annotation-id="' + CSS.escape(annotationId) + '"]');
+    if (!card) return;
+    card.classList.add('is-target');
+    card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const input = card.querySelector('.annotation-note');
+    if (input) input.focus({ preventScroll: true });
+  });
+}
+
+async function commitNoteEditor() {
+  if (state.noteEditorSaving) return;
+  const context = state.noteEditorContext;
+  const c = state.current;
+  if (!context || !c || context.bookPath !== c.path) {
+    closeNoteEditor();
+    els.readerStatus.textContent = '选区已失效，请重新选择文字';
+    return;
+  }
+  const note = els.noteEditorInput.value.trim();
+  if (!note && !context.existingId) {
+    els.noteEditorError.textContent = '请先写下笔记内容';
+    els.noteEditorError.hidden = false;
+    els.noteEditorInput.focus();
+    return;
+  }
+  state.noteEditorSaving = true;
+  els.noteEditorSave.disabled = true;
+  try {
+    const annotationId = await persistSelectionAnnotation(context, null, note);
+    if (!annotationId) throw new Error('annotation context expired');
+    closeNoteEditor();
+    restoreCurrentAnnotations();
+    openAnnotationsPanelAt(annotationId);
+    els.readerStatus.textContent = note ? '笔记已保存' : '笔记已清空，划线已保留';
+  } catch (error) {
+    state.noteEditorSaving = false;
+    els.noteEditorSave.disabled = false;
+    els.noteEditorError.textContent = '保存失败，请重试';
+    els.noteEditorError.hidden = false;
+    console.error('笔记保存失败', error);
+  }
 }
 
 async function removeSelectionAnnotation() {
@@ -1630,6 +1728,7 @@ function renderAnnotationsPanel() {
   for (const annotation of list) {
     const card = document.createElement('article');
     card.className = 'annotation-card';
+    card.dataset.annotationId = annotation.id;
     card.style.setProperty('--annotation-color', ANNOTATION_COLORS[normalizeColor(annotation.color)]);
     const quote = document.createElement('p');
     quote.className = 'annotation-quote';
@@ -2422,6 +2521,21 @@ function bindEvents() {
       hideSelectionToolbar();
     }
   });
+  $('btn-note-editor-close').addEventListener('click', closeNoteEditor);
+  $('btn-note-editor-cancel').addEventListener('click', closeNoteEditor);
+  els.noteEditorSave.addEventListener('click', commitNoteEditor);
+  els.noteEditorOverlay.addEventListener('click', (ev) => {
+    if (ev.target === els.noteEditorOverlay) closeNoteEditor();
+  });
+  els.noteEditorOverlay.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      closeNoteEditor();
+    } else if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
+      ev.preventDefault();
+      commitNoteEditor();
+    }
+  });
   $('btn-prev-page').addEventListener('click', prevPage);
   $('btn-next-page').addEventListener('click', nextPage);
 
@@ -2472,6 +2586,28 @@ window.__gaiaDebug = {
   getAnnotations: () => (state.current ? currentAnnotations() : []),
   renderAnnotationsPanel,
   restoreCurrentAnnotations,
+  prepareAnnotationSelectionForTest: (text) => {
+    const c = state.current;
+    if (!c) return false;
+    let anchor;
+    if (c.format === 'epub') {
+      const loc = c.rendition && c.rendition.currentLocation();
+      anchor = { kind: 'epub-cfi', cfi: loc && loc.start ? loc.start.cfi : '' };
+    } else {
+      anchor = { kind: c.format === 'pdf' ? 'pdf-text' : 'chapter-text', start: 0, end: String(text || '').length, quote: String(text || '') };
+      if (c.format === 'pdf') anchor.page = c.page;
+      else anchor.chapter = c.flow ? c.flow.chapter : 0;
+    }
+    showSelectionToolbar({ kind: c.format === 'epub' ? 'epub' : 'text', text: String(text || '测试摘录'), anchor, chapter: currentTextChapterLabel(), rect: { left: 220, right: 320, top: 180, bottom: 210 } });
+    return true;
+  },
+  getNoteEditorState: () => ({
+    open: !els.noteEditorOverlay.hidden,
+    quote: els.noteEditorQuote.textContent,
+    value: els.noteEditorInput.value,
+  }),
+  setNoteEditorText: (value) => { els.noteEditorInput.value = String(value || ''); },
+  commitNoteEditor,
   addBookmark,
   removeBookmarkAt,
   togglePanel,
