@@ -482,9 +482,10 @@ function createWindow() {
               document.getElementById('btn-ai-appearance').click();
               const aiAppearanceCompact = !document.getElementById('ai-appearance-popover').hidden && !document.querySelector('.ai-typography-toolbar');
               document.getElementById('btn-ai-appearance').click();
-              document.getElementById('btn-ai-tab-summary').click();
-              const aiSummaryTabReady = document.getElementById('ai-chat-pane').hidden && !document.getElementById('ai-summary-pane').hidden;
-              document.getElementById('btn-ai-tab-chat').click();
+              const promptMessagesBefore = __gaiaDebug.getAiChatState().messages;
+              document.getElementById('btn-ai-summary-prompt').click();
+              const aiSummaryPromptReady = document.getElementById('ai-chat-input').value.includes('请总结本章内容') &&
+                !document.getElementById('ai-chat-pane').hidden && __gaiaDebug.getAiChatState().messages === promptMessagesBefore;
               document.getElementById('btn-ai-summary-minimize').click();
               const minimizedPanel = document.getElementById('ai-summary-panel');
               const minimizedRect = minimizedPanel.getBoundingClientRect();
@@ -498,8 +499,8 @@ function createWindow() {
               const selectionAiTools = ['ai-analyze', 'ai-ask', 'dictionary', 'search'].every((action) => !!document.querySelector('[data-selection-action="' + action + '"]'));
               __gaiaDebug.openAiAssistant();
               const selectionDismissed = await __gaiaDebug.verifySelectionDismissal();
-              const aiUiReady = aiUi.homeEntry && aiUi.centerView && aiUi.settingsSection && aiUi.summaryButton && aiUi.summaryPanel &&
-                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiModelMenuScrollable && aiCenterReturned && aiPanelOpened && aiChapterLabelMatches && aiAppearanceCompact && aiSummaryTabReady && aiMinimizedLayout && aiRestoredLayout && selectionAiTools && selectionDismissed &&
+              const aiUiReady = aiUi.homeEntry && aiUi.centerView && aiUi.settingsSection && aiUi.assistantButton && aiUi.assistantPanel && aiUi.summaryPromptButton &&
+                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiModelMenuScrollable && aiCenterReturned && aiPanelOpened && aiChapterLabelMatches && aiAppearanceCompact && aiSummaryPromptReady && aiMinimizedLayout && aiRestoredLayout && selectionAiTools && selectionDismissed &&
                 aiSource.bookPath === fixture && aiSource.chapterId.startsWith('epub:') && aiSource.content.length > 0;
               const annotationsBefore = __gaiaDebug.getAnnotations().length;
               const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');
@@ -670,7 +671,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryTabReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -1340,19 +1341,6 @@ ipcMain.handle('ai:profile:models', async (event, profileId) => {
   } catch (error) {
     return { ok: false, error: String(error && error.message || error || '读取模型列表失败') };
   }
-});
-ipcMain.handle('ai:summarize', async (event, payload) => {
-  const source = payload && typeof payload === 'object' ? payload : {};
-  const content = GaiaAi.cleanChapterText(source.content);
-  if (!content) throw new Error('当前章节没有可总结的文字');
-  if (content.length > 180000) throw new Error('当前章节超过 18 万字，请缩小总结范围');
-  const profile = aiProfileById(source.profileId);
-  const summary = await GaiaAi.summarize(aiFetch, profile, aiKeyForProfile(profile), {
-    bookTitle: String(source.bookTitle || '').slice(0, 300),
-    chapterTitle: String(source.chapterTitle || '').slice(0, 300),
-    content,
-  }, { timeoutMs: 90000, maxChunkChars: 12000 });
-  return { summary, profileId: profile.id, profileName: profile.name, provider: profile.provider, baseUrl: profile.baseUrl, model: profile.model, targetHost: new URL(profile.baseUrl).host };
 });
 ipcMain.handle('ai:chat', async (event, payload) => {
   const input = payload && typeof payload === 'object' ? payload : {};

@@ -33,10 +33,8 @@ const {
 } = window.GaiaAnnotations;
 const {
   PROVIDERS: AI_PROVIDERS,
-  cacheKey: aiCacheKey,
   chapterSourceKey,
   cleanChapterText,
-  configIdentity: aiConfigIdentity,
   sameChapterSource,
 } = window.GaiaAi;
 const readerWheelGate = createWheelGate({ threshold: 60, cooldown: 250 });
@@ -64,11 +62,7 @@ const els = {
   aiSummaryChapter: $('ai-summary-chapter'),
   aiSummaryTarget: $('ai-summary-target'),
   aiSummaryStatus: $('ai-summary-status'),
-  aiSummaryContent: $('ai-summary-content'),
-  aiSummaryCard: $('ai-summary-card'),
-  aiSummaryEmpty: $('ai-summary-empty'),
   aiChatPane: $('ai-chat-pane'),
-  aiSummaryPane: $('ai-summary-pane'),
   aiChatMessages: $('ai-chat-messages'),
   aiChatInput: $('ai-chat-input'),
   aiChatSend: $('btn-ai-chat-send'),
@@ -151,9 +145,6 @@ const state = {
   aiConfig: null,
   aiEditingProfileId: null,
   aiDiscoveredModels: {},
-  aiSummaries: {},
-  aiSummaryLoading: false,
-  aiSummaryRequestId: 0,
   aiChatLoading: false,
   aiChats: {},
   aiCenterReturnView: 'home',
@@ -278,7 +269,7 @@ function migrateHabitsFromLastBook() {
 
 async function init() {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
-  const [lib, progress, bookmarks, prefs, readingStats, annotations, aiProfiles, aiSummaries] = await Promise.all([
+  const [lib, progress, bookmarks, prefs, readingStats, annotations, aiProfiles] = await Promise.all([
     window.api.stateGet('library'),
     window.api.stateGet('progress'),
     window.api.stateGet('bookmarks'),
@@ -286,7 +277,6 @@ async function init() {
     window.api.stateGet('readingStats'),
     window.api.stateGet('annotations'),
     window.api.aiProfilesGet(),
-    window.api.stateGet('aiSummaries'),
   ]);
   state.library = lib || [];
   state.progress = progress || {};
@@ -296,7 +286,6 @@ async function init() {
   state.aiProfiles = aiProfiles && Array.isArray(aiProfiles.items) ? aiProfiles : { activeId: '', items: [] };
   state.aiConfig = state.aiProfiles.items.find((item) => item.id === state.aiProfiles.activeId) || state.aiProfiles.items[0] || null;
   state.aiEditingProfileId = state.aiConfig && state.aiConfig.id;
-  state.aiSummaries = aiSummaries && typeof aiSummaries === 'object' ? aiSummaries : {};
   state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
   migrateHabitsFromLastBook();
@@ -464,7 +453,6 @@ async function removeFromShelf(book, silent) {
   state.progress = removeEntryFromMap(state.progress, book.path);
   state.bookmarks = removeEntryFromMap(state.bookmarks, book.path);
   state.annotations = removeEntryFromMap(state.annotations, book.path);
-  state.aiSummaries = removeEntryFromMap(state.aiSummaries, book.path);
   removeAiChatsForPaths([book.path]);
   state.selected.delete(book.path);
   await Promise.all([
@@ -472,7 +460,6 @@ async function removeFromShelf(book, silent) {
     window.api.stateSet('progress', state.progress),
     saveBookmarksNow(),
     saveAnnotationsNow(),
-    window.api.stateSet('aiSummaries', state.aiSummaries),
   ]);
   renderLibrary();
   return true;
@@ -533,7 +520,6 @@ async function batchRemoveSelected(silent) {
   state.progress = removeEntriesFromMap(state.progress, paths);
   state.bookmarks = removeEntriesFromMap(state.bookmarks, paths);
   state.annotations = removeEntriesFromMap(state.annotations, paths);
-  state.aiSummaries = removeEntriesFromMap(state.aiSummaries, paths);
   removeAiChatsForPaths(paths);
   state.selected.clear();
   await Promise.all([
@@ -541,7 +527,6 @@ async function batchRemoveSelected(silent) {
     window.api.stateSet('progress', state.progress),
     saveBookmarksNow(),
     saveAnnotationsNow(),
-    window.api.stateSet('aiSummaries', state.aiSummaries),
   ]);
   if (!state.library.length) exitManageMode();
   else renderLibrary();
@@ -653,9 +638,6 @@ function closeReaderContent() {
   hideSelectionToolbar();
   els.pageNav.hidden = true;
   $('btn-ai-reader').classList.remove('open');
-  state.aiSummaryRequestId += 1;
-  state.aiSummaryLoading = false;
-  $('btn-ai-summary-run').disabled = false;
   state.current = null;
 }
 
@@ -1702,7 +1684,7 @@ function useSelectionWithAi(context, mode) {
   const quote = selectionQuote(context, 1200);
   if (!quote) return;
   hideSelectionToolbar();
-  if (!showAiAssistantPanel('chat')) return;
+  if (!showAiAssistantPanel()) return;
   if (els.aiSummaryPanel.classList.contains('minimized')) toggleAiPanelMinimized();
   const wrapped = '<selected_text>\n' + quote + '\n</selected_text>';
   if (mode === 'analyze') {
@@ -2919,7 +2901,7 @@ async function activateAiProfile(profileId) {
     els.aiSummaryStatus.textContent = '已切换到接口：' + state.aiConfig.name;
     if (!els.aiSummaryPanel.hidden) {
       const source = currentChapterSummarySource();
-      showAiSummaryResult(source, cachedAiSummary(source));
+      showAiAssistantChapter(source);
     }
   } catch (error) {
     els.readerStatus.textContent = aiErrorMessage(error);
@@ -3183,55 +3165,22 @@ function currentChapterSummarySource() {
   return mobiChapterSummarySource(c);
 }
 
-function cachedAiSummary(source) {
-  if (!source || !source.bookPath || !state.aiConfig) return null;
-  const entries = state.aiSummaries[source.bookPath];
-  if (!entries) return null;
-  const identity = aiConfigIdentity(state.aiConfig);
-  const key = aiCacheKey(chapterSourceKey(source), source.content, identity);
-  const legacyKey = aiCacheKey(source.chapterId, source.content, identity);
-  return entries[key] || entries[legacyKey] || null;
-}
-
-async function storeAiSummary(pathKey, source, result) {
-  const resultConfig = { provider: result.provider, baseUrl: result.baseUrl, model: result.model };
-  const key = aiCacheKey(chapterSourceKey(source), source.content, aiConfigIdentity(resultConfig));
-  const bookEntries = Object.assign({}, state.aiSummaries[pathKey] || {});
-  bookEntries[key] = {
-    summary: result.summary,
-    chapterTitle: source.chapterTitle,
-    model: result.model,
-    targetHost: result.targetHost,
-    createdAt: Date.now(),
-  };
-  const recent = Object.entries(bookEntries).sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0)).slice(0, 40);
-  state.aiSummaries[pathKey] = Object.fromEntries(recent);
-  await window.api.stateSet('aiSummaries', state.aiSummaries);
-  return bookEntries[key];
-}
-
-function showAiSummaryResult(source, cached) {
+function showAiAssistantChapter(source) {
   els.aiSummaryChapter.textContent = source.chapterTitle;
-  els.aiSummaryTarget.textContent = cached && cached.targetHost
-    ? '总结由 ' + cached.model + ' 生成 · ' + cached.targetHost
-    : (state.aiConfig && state.aiConfig.model ? state.aiConfig.model + ' · ' + state.aiConfig.targetHost : '尚未配置 AI 接口');
-  els.aiSummaryContent.textContent = cached && cached.summary ? cached.summary : '';
-  els.aiSummaryCard.hidden = !(cached && cached.summary);
-  els.aiSummaryEmpty.hidden = !!(cached && cached.summary);
-  els.aiSummaryEmpty.textContent = '本章还没有总结。点击上方“总结本章”后才会调用 AI。';
-  els.aiSummaryStatus.textContent = cached ? '已读取本章的本地总结。' : '可以总结，也可以直接提问。';
+  els.aiSummaryTarget.textContent = state.aiConfig && state.aiConfig.model
+    ? state.aiConfig.model + ' · ' + state.aiConfig.targetHost
+    : '尚未配置 AI 接口';
+  els.aiSummaryStatus.textContent = '可以直接提问，或先选择一条快捷指令。';
   els.aiSummaryStatus.classList.remove('error');
-  $('btn-ai-summary-copy').disabled = !(cached && cached.summary);
 }
 
-function switchAiContentTab(tab) {
-  const summary = tab === 'summary';
-  els.aiChatPane.hidden = summary;
-  els.aiSummaryPane.hidden = !summary;
-  $('btn-ai-tab-chat').classList.toggle('active', !summary);
-  $('btn-ai-tab-summary').classList.toggle('active', summary);
-  $('btn-ai-tab-chat').setAttribute('aria-selected', summary ? 'false' : 'true');
-  $('btn-ai-tab-summary').setAttribute('aria-selected', summary ? 'true' : 'false');
+function fillAiSummaryPrompt() {
+  const prompt = '请总结本章内容，梳理主要事件、人物关系、重要信息和可能的伏笔。只依据本章正文，不要补写剧情或剧透后续内容。';
+  els.aiChatInput.value = prompt;
+  els.aiChatInput.focus();
+  els.aiChatInput.setSelectionRange(prompt.length, prompt.length);
+  els.aiSummaryStatus.textContent = '总结指令已填入输入框，确认后点击发送。';
+  els.aiSummaryStatus.classList.remove('error');
 }
 
 function aiChatKey(source) {
@@ -3411,7 +3360,7 @@ function closeAiAssistantPanel() {
   $('btn-ai-reader').classList.remove('open');
 }
 
-function showAiAssistantPanel(tab) {
+function showAiAssistantPanel() {
   closeSettings();
   let source;
   try { source = currentChapterSummarySource(); } catch (error) {
@@ -3421,19 +3370,18 @@ function showAiAssistantPanel(tab) {
   els.aiSummaryPanel.hidden = false;
   restoreAiPanelGeometry();
   $('btn-ai-reader').classList.add('open');
-  showAiSummaryResult(source, cachedAiSummary(source));
+  showAiAssistantChapter(source);
   renderAiChat(source);
-  switchAiContentTab(tab === 'summary' ? 'summary' : 'chat');
-  if (tab !== 'summary') window.setTimeout(() => els.aiChatInput.focus(), 120);
+  window.setTimeout(() => els.aiChatInput.focus(), 120);
   return true;
 }
 
-function openAiSummaryPanel() {
+function openAiAssistantPanel() {
   if (!els.aiSummaryPanel.hidden) {
     closeAiAssistantPanel();
     return;
   }
-  showAiAssistantPanel('chat');
+  showAiAssistantPanel();
 }
 
 function ensureAiReady() {
@@ -3450,58 +3398,6 @@ function ensureAiReady() {
   }
 }
 
-async function summarizeSource(source) {
-  source = await resolveSparseMobiAiSource(source);
-  const pathKey = source && source.bookPath;
-  if (!pathKey || !source || !source.content) throw new Error('当前章节没有可总结的文字，可能是封面或纯图片页');
-  const existing = cachedAiSummary(source);
-  if (existing) return { source, summary: existing };
-  ensureAiReady();
-  const result = await window.api.aiSummarize({ ...source, profileId: state.aiProfiles.activeId });
-  return { source, summary: await storeAiSummary(pathKey, source, result) };
-}
-
-async function runCurrentChapterSummary() {
-  if (state.aiSummaryLoading) return;
-  const requestId = ++state.aiSummaryRequestId;
-  let source;
-  try { source = currentChapterSummarySource(); } catch (error) {
-    els.aiSummaryStatus.textContent = aiErrorMessage(error);
-    els.aiSummaryStatus.classList.add('error');
-    return;
-  }
-  state.aiSummaryLoading = true;
-  $('btn-ai-summary-run').disabled = true;
-  els.aiSummaryStatus.classList.remove('error');
-  els.aiSummaryStatus.textContent = '正在总结，长章节可能需要分段处理…';
-  els.aiSummaryContent.textContent = '';
-  els.aiSummaryCard.hidden = true;
-  els.aiSummaryEmpty.hidden = false;
-  els.aiSummaryEmpty.textContent = 'AI 正在生成本章总结…';
-  switchAiContentTab('summary');
-  try {
-    const result = await summarizeSource(source);
-    if (isCurrentAiSource(source) || isCurrentAiSource(result.source)) {
-      showAiSummaryResult(result.source, result.summary);
-      renderAiChat(result.source);
-      switchAiContentTab('summary');
-      els.aiSummaryStatus.textContent = '总结完成并已保存在本地。';
-    }
-  } catch (error) {
-    if (isCurrentAiSource(source)) {
-      els.aiSummaryEmpty.hidden = false;
-      els.aiSummaryEmpty.textContent = '总结失败，请检查上方错误后重试。';
-      els.aiSummaryStatus.textContent = aiErrorMessage(error);
-      els.aiSummaryStatus.classList.add('error');
-    }
-  } finally {
-    if (requestId === state.aiSummaryRequestId) {
-      state.aiSummaryLoading = false;
-      $('btn-ai-summary-run').disabled = false;
-    }
-  }
-}
-
 async function sendAiQuestion(question, options) {
   if (state.aiChatLoading) return;
   let source;
@@ -3512,7 +3408,6 @@ async function sendAiQuestion(question, options) {
   }
   const prompt = String(question == null ? els.aiChatInput.value : question).trim();
   if (!prompt) return;
-  switchAiContentTab('chat');
   try { ensureAiReady(); } catch (error) {
     els.aiSummaryStatus.textContent = aiErrorMessage(error);
     els.aiSummaryStatus.classList.add('error');
@@ -3581,7 +3476,7 @@ function clearCurrentAiChat() {
     const source = currentChapterSummarySource();
     state.aiChats[aiChatKey(source)] = [];
     renderAiChat(source);
-    els.aiSummaryStatus.textContent = '本章对话已清空，本地总结不受影响。';
+    els.aiSummaryStatus.textContent = '本章对话已清空。';
     els.aiSummaryStatus.classList.remove('error');
   } catch (error) {}
 }
@@ -3592,20 +3487,8 @@ function observeAiChapter() {
   try { source = currentChapterSummarySource(); } catch (error) { return; }
   if (!source.content) return;
   if (!els.aiSummaryPanel.hidden) {
-    showAiSummaryResult(source, cachedAiSummary(source));
+    showAiAssistantChapter(source);
     renderAiChat(source);
-  }
-}
-
-async function copyAiSummary() {
-  const text = els.aiSummaryContent.textContent.trim();
-  if (!text) return;
-  try {
-    await navigator.clipboard.writeText(text);
-    els.aiSummaryStatus.textContent = '总结已复制。';
-  } catch (error) {
-    els.aiSummaryStatus.textContent = '复制失败。';
-    els.aiSummaryStatus.classList.add('error');
   }
 }
 
@@ -3763,15 +3646,12 @@ function bindEvents() {
     closeSettings();
     togglePanel('annotations');
   });
-  $('btn-ai-summary').addEventListener('click', openAiSummaryPanel);
-  $('btn-ai-reader').addEventListener('click', openAiSummaryPanel);
+  $('btn-ai-assistant').addEventListener('click', openAiAssistantPanel);
+  $('btn-ai-reader').addEventListener('click', openAiAssistantPanel);
   $('btn-ai-summary-close').addEventListener('click', closeAiAssistantPanel);
   $('btn-ai-appearance').addEventListener('click', toggleAiAppearanceMenu);
   $('btn-ai-summary-minimize').addEventListener('click', toggleAiPanelMinimized);
-  $('btn-ai-summary-run').addEventListener('click', runCurrentChapterSummary);
-  $('btn-ai-tab-chat').addEventListener('click', () => switchAiContentTab('chat'));
-  $('btn-ai-tab-summary').addEventListener('click', () => switchAiContentTab('summary'));
-  $('btn-ai-summary-copy').addEventListener('click', copyAiSummary);
+  $('btn-ai-summary-prompt').addEventListener('click', fillAiSummaryPrompt);
   $('btn-ai-chat-clear').addEventListener('click', clearCurrentAiChat);
   document.querySelectorAll('[data-ai-quick]').forEach((button) => button.addEventListener('click', () => sendAiQuestion(button.dataset.aiQuick)));
   document.querySelectorAll('[data-ai-alice]').forEach((button) => button.addEventListener('click', () => runAliceComment(button.dataset.aiAlice)));
@@ -4172,10 +4052,11 @@ window.__gaiaDebug = {
     homeEntry: !!$('btn-home-ai'),
     centerView: !!views.ai,
     settingsSection: !!$('drawer-ai'),
-    summaryButton: !!$('btn-ai-summary'),
-    summaryPanel: !!els.aiSummaryPanel,
+    assistantButton: !!$('btn-ai-assistant'),
+    assistantPanel: !!els.aiSummaryPanel,
     readerTrigger: !!$('btn-ai-reader'),
     chatInput: !!els.aiChatInput,
+    summaryPromptButton: !!$('btn-ai-summary-prompt'),
     provider: state.aiConfig && state.aiConfig.provider,
     hasApiKey: !!(state.aiConfig && state.aiConfig.hasApiKey),
     profileCount: state.aiProfiles.items.length,
@@ -4183,7 +4064,7 @@ window.__gaiaDebug = {
   }),
   getAiChapterSource: () => currentChapterSummarySource(),
   resolveAiChapterSource: async () => resolveSparseMobiAiSource(currentChapterSummarySource()),
-  openAiAssistant: openAiSummaryPanel,
+  openAiAssistant: openAiAssistantPanel,
   getAiChatState: () => ({ mode: 'assistant', loading: state.aiChatLoading, messages: els.aiChatMessages.children.length }),
   waitHome: () => state.homeReady,
   getView: () => {

@@ -90,17 +90,16 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   const ai = fs.readFileSync(path.join(root, 'src', 'shared', 'ai.js'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
 
-  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-menu', 'btn-ai-model-refresh', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-summary', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-minimize', 'btn-ai-tab-chat', 'btn-ai-tab-summary', 'ai-chat-pane', 'ai-summary-pane', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input', 'drawer-lookup', 'search-engine', 'search-custom-row', 'search-custom-template']) {
+  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-menu', 'btn-ai-model-refresh', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-assistant', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-minimize', 'btn-ai-summary-prompt', 'ai-chat-pane', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input', 'drawer-lookup', 'search-engine', 'search-custom-row', 'search-custom-template']) {
     assert.ok(html.includes(`id="${id}"`), `AI 界面缺少 ${id}`);
   }
-  for (const bridge of ['aiProfilesGet', 'aiProfileSave', 'aiProfileActivate', 'aiProfileDelete', 'aiProfileTest', 'aiProfileModels', 'aiSummarize', 'aiChat', 'aiAliceComment', 'dictionaryOpen', 'searchWeb']) {
+  for (const bridge of ['aiProfilesGet', 'aiProfileSave', 'aiProfileActivate', 'aiProfileDelete', 'aiProfileTest', 'aiProfileModels', 'aiChat', 'aiAliceComment', 'dictionaryOpen', 'searchWeb']) {
     assert.ok(preload.includes(bridge), `preload 缺少 ${bridge}`);
   }
   assert.ok(main.includes('safeStorage.encryptString'), 'API Key 必须通过 Electron safeStorage 加密');
   assert.ok(main.includes('safeStorage.decryptString'), 'API Key 必须只在主进程解密');
-  assert.ok(main.includes("ipcMain.handle('ai:summarize'"), '缺少 AI 总结 IPC');
-  assert.ok(main.includes('maxChunkChars: 12000'), '真实长章节仍应分段总结，避免单次请求过大');
   assert.ok(main.includes("ipcMain.handle('ai:chat'"), '缺少受控 AI 对话 IPC');
+  assert.ok(!main.includes("ipcMain.handle('ai:summarize'") && !preload.includes('aiSummarize'), '独立总结调用链应被移除');
   assert.ok(main.includes("ipcMain.handle('ai:alice-comment'"), '缺少有珠短评 IPC');
   assert.ok(main.includes("ipcMain.handle('ai:profile:activate'"), '缺少多接口切换 IPC');
   assert.ok(main.includes("ipcMain.handle('ai:profile:models'"), '缺少接口模型列表 IPC');
@@ -118,30 +117,32 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(app.includes('setAiPanelMinimized'), 'AI 悬浮窗应统一更新最小化状态和无障碍标签');
   assert.ok(app.includes('toggleAiAppearanceMenu'), 'AI 排版设置应收进 Aa 弹出菜单');
   assert.ok(app.includes('setAiAppearanceOpen(els.aiAppearancePopover.hidden)'), 'Aa 按钮应能正确切换 AI 排版弹层');
-  assert.ok(app.includes("switchAiContentTab('summary')"), '本章总结应在独立页签显示');
+  assert.ok(!html.includes('id="ai-summary-pane"') && !html.includes('id="btn-ai-tab-summary"'), '独立本章总结页签应被移除');
+  assert.ok(app.includes("$('btn-ai-summary-prompt').addEventListener('click', fillAiSummaryPrompt)"), '总结本章应作为输入框快捷指令');
+  const summaryPrompt = app.slice(app.indexOf('function fillAiSummaryPrompt()'), app.indexOf('function aiChatKey'));
+  assert.ok(summaryPrompt.includes('els.aiChatInput.value = prompt') && summaryPrompt.includes('确认后点击发送'), '总结快捷键应只填入待确认指令');
+  assert.ok(!summaryPrompt.includes('sendAiQuestion') && !summaryPrompt.includes('window.api.aiChat'), '点击总结快捷键不得自动提交请求');
   assert.ok(app.includes('findEpubNavLabel(nav, href)'), 'AI 章节标题应按当前 EPUB 资源路径精确匹配目录');
   assert.ok(app.includes('resolveEpubTocTarget(epub.spine && epub.spine.spineItems, item.href)'), 'EPUB 目录跳转前应把目录路径解析为 spine 目标');
-  assert.ok(app.includes('selectChapterScope(entries, index, currentOffset)'), 'EPUB 总结应按目录边界截取当前小章');
-  assert.ok(app.includes('selectChapterScope(entries, chapter, currentOffset)'), 'MOBI/AZW3 总结应按目录边界截取当前小章');
+  assert.ok(app.includes('selectChapterScope(entries, index, currentOffset)'), 'EPUB 对话应按目录边界截取当前小章');
+  assert.ok(app.includes('selectChapterScope(entries, chapter, currentOffset)'), 'MOBI/AZW3 对话应按目录边界截取当前小章');
   assert.ok(app.includes('sameChapterSource(currentChapterSummarySource(), source)'), 'AI 返回结果应兼容同一正文的章节标识波动');
-  assert.ok(app.includes('aiCacheKey(chapterSourceKey(source), source.content'), 'AI 总结缓存应使用稳定的章节正文标识');
   assert.ok(app.includes('candidateContent.length >= 32'), 'MOBI/AZW3 的短标题页应推进到紧邻的真实章节');
   assert.ok(app.includes('await window.api.mobiChapter(c.mobiSession, nextIndex)'), '跨底层片段的 MOBI/AZW3 标题页应读取紧邻正文');
   assert.ok(app.includes('resolveAiChapterSource'), 'MOBI/AZW3 烟雾测试应验证总结前的异步章节补全');
-  assert.ok(app.includes('可能是封面或纯图片页'), '无正文的 MOBI/AZW3 页面必须显示明确错误');
-  assert.ok(app.includes('state.aiSummaryRequestId += 1'), '切换书籍时必须解除旧 AI 总结请求的按钮锁定');
+  assert.ok(main.includes('当前章节没有可供 AI 阅读的文字'), '无正文页面必须显示明确错误');
   assert.ok(app.includes("semanticChapterEntries(root, chapter, c.format + ':' + chapter"), '目录缺少小章时，MOBI/AZW3 应按正文标题识别章节');
   assert.ok(app.includes("return holder.textContent || ''"), '章节正文提取不得受 AZW3 排版 CSS 的 innerText 可见性影响');
   assert.ok(app.includes("selector: item.selector || ''"), 'MOBI/AZW3 目录跳转应定位到同一底层文档内的小章起点');
   assert.ok(app.includes('未识别到 TXT 章节标题'), 'TXT 未识别章节时不得把全文发送给 AI');
   assert.ok(main.includes('parsed.aiContentLen > 100'), 'MOBI/AZW3 冒烟必须在总结前验证 AI 已读到正文，不能只读到空格或页码');
-  assert.ok(css.includes('.ai-content-stage { flex: 1; min-height: 0; overflow: hidden; }'), 'AI 页签内容区不得覆盖标题和状态文字');
+  assert.ok(css.includes('.ai-content-stage { flex: 1; min-height: 0; overflow: hidden; }'), 'AI 对话内容区不得覆盖标题和状态文字');
+  assert.ok(css.includes('.ai-chat-input-shortcuts'), '对话输入区应显示快捷指令栏');
   assert.ok(css.includes('min-width: 0 !important; min-height: 0 !important;'), 'AI 最小化时必须覆盖普通窗口的最小尺寸');
   assert.ok(css.includes('.ai-summary-panel.minimized #btn-ai-chat-clear'), 'AI 最小化时应隐藏清空与排版按钮');
   assert.ok(css.includes('max-height: 220px; overflow-y: auto;'), '模型选择菜单应限制高度并支持纵向滚动');
   assert.ok(!html.includes('ai-auto-summarize') && !app.includes('AI_AUTO_SUMMARY') && !app.includes('autoSummarize'), '打开或切换章节不得自动调用 AI 总结');
-  const observeChapter = app.slice(app.indexOf('function observeAiChapter()'), app.indexOf('async function copyAiSummary()'));
-  assert.ok(!observeChapter.includes('summarizeSource(') && !observeChapter.includes('aiSummarize'), '章节观察只能刷新界面，不能发起总结请求');
+  assert.ok(!app.includes('summarizeSource(') && !app.includes('aiSummarize'), '渲染层不得保留独立总结请求');
   for (const action of ['ai-analyze', 'ai-ask', 'dictionary', 'search']) {
     assert.ok(html.includes(`data-selection-action="${action}"`), `选区工具栏缺少 ${action}`);
   }
