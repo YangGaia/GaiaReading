@@ -184,6 +184,15 @@ function chapterContentWeight(value) {
   return Math.max(1, text.length + imageCount * 400);
 }
 
+/** 解析 Kindle position URI。FID/OFF 均为 32 进制，不是十六进制。 */
+function parseKindlePosition(href) {
+  const match = String(href || '').match(/kindle:pos:fid:(\w+):off:(\w+)/i);
+  if (!match) return null;
+  const fid = Number.parseInt(match[1], 32);
+  const off = Number.parseInt(match[2], 32);
+  return Number.isFinite(fid) && Number.isFinite(off) ? { fid, off } : null;
+}
+
 /**
  * 规划 MOBI7 章节合并。
  * MOBI7 的章节按 <mbp:pagebreak/> 切分，部分书籍（尤其中文 MOBI 转档）会把
@@ -250,6 +259,7 @@ async function openMobi(filePath, resourceSaveDir) {
     // 把 TOC 条目映射到章节序号（快速路径：直接匹配 frag index）
   const fidToIndex = new Map();
   const rawChapters = book.chapters || [];
+  const rawIndexById = new Map(rawChapters.map((chapter, index) => [String(chapter.id), index]));
 
   // MOBI7 部分书籍把章节标题页切分成独立短章，合并到下一章正文，避免阅读时只见标题
   const mergeTarget = planChapterMerge(rawChapters, kind);
@@ -283,12 +293,14 @@ async function openMobi(filePath, resourceSaveDir) {
   function tocIndexFromHref(href) {
     let raw = null;
     if (!href) return null;
-    const mm = href.match(/fid:([0-9a-f]+)/i);
-    if (mm && fidToIndex.has(parseInt(mm[1], 16))) raw = fidToIndex.get(parseInt(mm[1], 16));
+    const position = parseKindlePosition(href);
+    if (position && fidToIndex.has(position.fid)) raw = fidToIndex.get(position.fid);
     if (raw == null && typeof book.resolveHref === 'function') {
       try {
         const resolved = book.resolveHref(href);
-        if (resolved && resolved.id != null) raw = Number(resolved.id);
+        if (resolved && resolved.id != null && rawIndexById.has(String(resolved.id))) {
+          raw = rawIndexById.get(String(resolved.id));
+        }
       } catch {
         return null;
       }
@@ -368,4 +380,5 @@ module.exports = {
   cleanupMobi,
   planChapterMerge,
   chapterContentWeight,
+  parseKindlePosition,
 };

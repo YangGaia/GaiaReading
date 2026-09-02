@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { detectKind, openMobi, loadChapter, cleanupMobi, planChapterMerge, chapterContentWeight } = require('../src/shared/mobi');
+const { detectKind, openMobi, loadChapter, cleanupMobi, planChapterMerge, chapterContentWeight, parseKindlePosition } = require('../src/shared/mobi');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -84,12 +84,34 @@ test('TOC 条目应映射到章节序号', async (t) => {
     }
   };
   walk(opened.toc);
+  if (opened.kind === 'kf8') {
+    const flat = [];
+    const flatten = (items) => {
+      for (const item of items || []) {
+        flat.push(item);
+        flatten(item.children);
+      }
+    };
+    flatten(opened.toc);
+    for (const item of flat.slice(0, 12)) {
+      const resolved = opened.book.resolveHref(item.href);
+      if (resolved && resolved.id != null) {
+        assert.strictEqual(item.index, Number(resolved.id), `${item.label} 应映射到解析器解析出的章节`);
+      }
+    }
+  }
   cleanupMobi(opened);
   try {
     fs.rmSync(resDir, { recursive: true, force: true });
   } catch {
     // 清理失败不阻塞
   }
+});
+
+test('Kindle position 的 FID 和 OFF 按 32 进制解析', () => {
+  assert.deepStrictEqual(parseKindlePosition('kindle:pos:fid:0025:off:000000000A'), { fid: 69, off: 10 });
+  assert.deepStrictEqual(parseKindlePosition('kindle:pos:fid:008G:off:0000000010'), { fid: 272, off: 32 });
+  assert.strictEqual(parseKindlePosition('filepos:123'), null);
 });
 
 test('planChapterMerge：mobi7 标题页并入下一章正文', () => {
