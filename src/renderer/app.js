@@ -11,7 +11,7 @@ const {
 } = window.GaiaLibrary;
 const { paragraphsToHtml } = window.GaiaTxtHtml;
 const { splitTxtParagraphs, detectTxtChapters, chapterAt, chapterTitleForParagraph } = window.GaiaTxtChapters;
-const { epubDisplayPercent, findEpubNavLabel } = window.GaiaEpubProgress;
+const { epubDisplayPercent, findEpubNavLabel, resolveEpubTocTarget } = window.GaiaEpubProgress;
 const { normalizeWheelDelta, createWheelGate } = window.GaiaReaderInput;
 const {
   createReadingStats,
@@ -769,9 +769,22 @@ async function openEpub(book) {
       const a = document.createElement('a');
       a.href = '#';
       a.textContent = '\u3000'.repeat(depth) + (item.label || '').trim();
-      a.addEventListener('click', (ev) => {
+      a.dataset.epubHref = item.href;
+      a.addEventListener('click', async (ev) => {
         ev.preventDefault();
-        rendition.display(item.href);
+        const current = state.current;
+        if (!current || current.epub !== epub || current.rendition !== rendition) return;
+        const target = resolveEpubTocTarget(epub.spine && epub.spine.spineItems, item.href);
+        a.dataset.epubTarget = String(target);
+        try {
+          els.tocPanel.hidden = true;
+          resizeEpubRendition();
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          await rendition.display(target);
+        } catch (error) {
+          console.error('EPUB_TOC_DISPLAY_FAILED', item.href, target, error);
+          els.readerStatus.textContent = '目录跳转失败：' + ((item.label || '').trim() || item.href);
+        }
       });
       els.tocPanel.appendChild(a);
       if (item.subitems && item.subitems.length) renderToc(item.subitems, depth + 1);
@@ -4003,6 +4016,18 @@ window.__gaiaDebug = {
     } catch (e) {
       return { w: 0, h: 0 };
     }
+  },
+  getEpubLocationIndex: () => {
+    const c = state.current;
+    const location = c && c.rendition && c.rendition.currentLocation();
+    return location && location.start ? location.start.index : null;
+  },
+  getEpubTocTargetIndex: (href) => {
+    const c = state.current;
+    if (!c || !c.epub || !c.epub.spine) return null;
+    const target = resolveEpubTocTarget(c.epub.spine.spineItems, href);
+    const section = c.epub.spine.get(target);
+    return section && Number.isFinite(section.index) ? section.index : null;
   },
   getBookmarkCount,
   getTocHrefs: async () => {

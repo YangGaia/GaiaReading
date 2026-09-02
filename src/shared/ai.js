@@ -399,11 +399,22 @@
     const summaries = [];
     for (let i = 0; i < chunks.length; i++) {
       if (options && typeof options.onProgress === 'function') options.onProgress(i, chunks.length + (chunks.length > 1 ? 1 : 0));
-      summaries.push(await requestChat(fetchImpl, config, apiKey, chunkMessages(input.bookTitle, input.chapterTitle, chunks[i], i, chunks.length), options));
+      const messages = chunkMessages(input.bookTitle, input.chapterTitle, chunks[i], i, chunks.length);
+      try {
+        summaries.push(await requestChat(fetchImpl, config, apiKey, messages, options));
+      } catch (error) {
+        if (!/AI 返回内容为空/.test(String(error && error.message || error))) throw error;
+        summaries.push(await requestChat(fetchImpl, config, apiKey, messages, Object.assign({}, options, { maxTokens: 1800 })));
+      }
     }
     if (summaries.length === 1) return summaries[0];
     if (options && typeof options.onProgress === 'function') options.onProgress(chunks.length, chunks.length + 1);
-    return requestChat(fetchImpl, config, apiKey, mergeMessages(input.bookTitle, input.chapterTitle, summaries), Object.assign({}, options, { maxTokens: 1300 }));
+    try {
+      return await requestChat(fetchImpl, config, apiKey, mergeMessages(input.bookTitle, input.chapterTitle, summaries), Object.assign({}, options, { maxTokens: 1800 }));
+    } catch (error) {
+      if (options && options.allowPartialMerge === false) throw error;
+      return '【分段摘要】\n\n' + summaries.map((item, index) => '第 ' + (index + 1) + ' 部分\n' + item).join('\n\n');
+    }
   }
 
   async function chat(fetchImpl, config, apiKey, source, question, history, options) {

@@ -561,8 +561,16 @@ function createWindow() {
               const bookmarksClosed = __gaiaDebug.getPanels().bookmarksHidden;
               __gaiaDebug.togglePanel('toc');
               const tocOpen = !__gaiaDebug.getPanels().tocHidden;
-              __gaiaDebug.togglePanel('toc');
+              const firstTocLink = document.querySelector('#toc-panel [data-epub-href]');
+              const expectedTocOrdinal = firstTocLink ? __gaiaDebug.getEpubTocTargetIndex(firstTocLink.dataset.epubHref) : null;
+              if (firstTocLink) firstTocLink.click();
+              await new Promise((r) => setTimeout(r, 500));
               const tocClosed = __gaiaDebug.getPanels().tocHidden;
+              const tocAfterOrdinal = __gaiaDebug.getAiChapterSource().ordinal;
+              const firstTocHref = firstTocLink && firstTocLink.dataset.epubHref;
+              const firstTocTarget = firstTocLink && firstTocLink.dataset.epubTarget;
+              const tocLocationIndex = __gaiaDebug.getEpubLocationIndex();
+              const epubTocJumpWorked = !!firstTocLink && Number.isFinite(expectedTocOrdinal) && tocClosed && tocAfterOrdinal === expectedTocOrdinal;
               __gaiaDebug.togglePanel('toc');
               await __gaiaDebug.nextPage();
               await new Promise((r) => setTimeout(r, 600));
@@ -659,7 +667,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryTabReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryTabReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -732,6 +740,7 @@ function createWindow() {
               parsed.bookmarksClosed === true &&
               parsed.tocOpen === true &&
               parsed.tocClosed === true &&
+              parsed.epubTocJumpWorked === true &&
               parsed.libAfterAdd === 1 &&
               parsed.libAfterRemove === 0 &&
               parsed.shelfBookmarkBeforeRemove === 1 &&
@@ -1339,7 +1348,7 @@ ipcMain.handle('ai:summarize', async (event, payload) => {
     bookTitle: String(source.bookTitle || '').slice(0, 300),
     chapterTitle: String(source.chapterTitle || '').slice(0, 300),
     content,
-  }, { timeoutMs: 90000, maxChunkChars: 12000 });
+  }, { timeoutMs: 90000, maxChunkChars: 30000 });
   return { summary, profileId: profile.id, profileName: profile.name, provider: profile.provider, baseUrl: profile.baseUrl, model: profile.model, targetHost: new URL(profile.baseUrl).host };
 });
 ipcMain.handle('ai:chat', async (event, payload) => {

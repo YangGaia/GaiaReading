@@ -67,5 +67,28 @@
     return null;
   }
 
-  return { epubDisplayPercent, normalizeEpubHref, epubHrefsMatch, findEpubNavLabel };
+  function resolveEpubTocTarget(spineItems, tocHref) {
+    const raw = String(tocHref || '').trim();
+    if (!raw) return '';
+    const hashAt = raw.indexOf('#');
+    const fragment = hashAt >= 0 ? raw.slice(hashAt) : '';
+    const target = normalizeEpubHref(raw);
+    const items = Array.isArray(spineItems) ? spineItems : [];
+    const exactIndex = items.findIndex((item) => normalizeEpubHref(item && item.href) === target);
+    const matchingIndexes = exactIndex >= 0
+      ? [exactIndex]
+      : items.map((item, index) => epubHrefsMatch(item && item.href, raw) ? index : -1).filter((index) => index >= 0);
+    if (matchingIndexes.length === 1) {
+      const index = matchingIndexes[0];
+      const matched = items[index];
+      if (!fragment || index === 0) {
+        if (matched && matched.idref) return '#' + matched.idref;
+        return index;
+      }
+      if (matched && matched.href) return String(matched.href).split('#')[0] + fragment;
+    }
+    return raw;
+  }
+
+  return { epubDisplayPercent, normalizeEpubHref, epubHrefsMatch, findEpubNavLabel, resolveEpubTocTarget };
 });

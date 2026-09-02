@@ -217,3 +217,28 @@ test('多段章节先分别总结再合并并生成稳定缓存键', async () =>
   assert.strictEqual(cacheKey('chapter-1', source.content, 'demo'), cacheKey('chapter-1', source.content, 'demo'));
   assert.notStrictEqual(cacheKey('chapter-1', source.content, 'demo'), cacheKey('chapter-2', source.content, 'demo'));
 });
+
+test('章节总结对空正文自动扩大输出额度重试', async () => {
+  const tokens = [];
+  const fakeFetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    tokens.push(body.max_tokens);
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: tokens.length === 1 ? '' : '重试后的摘要' } }] }) };
+  };
+  const result = await summarize(fakeFetch, { provider: 'custom', baseUrl: 'https://relay.example/v1', model: 'demo' }, 'key', { content: '正文' });
+  assert.strictEqual(result, '重试后的摘要');
+  assert.deepStrictEqual(tokens, [1000, 1800]);
+});
+
+test('超长章节合并请求失败时保留已完成的分段摘要', async () => {
+  let calls = 0;
+  const fakeFetch = async () => {
+    calls += 1;
+    if (calls === 3) return { ok: false, status: 503, json: async () => ({ error: { message: '暂时不可用' } }) };
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '分段' + calls } }] }) };
+  };
+  const result = await summarize(fakeFetch, { provider: 'custom', baseUrl: 'https://relay.example/v1', model: 'demo' }, 'key', { content: '甲'.repeat(900) + '\n\n' + '乙'.repeat(900) }, { maxChunkChars: 1000 });
+  assert.match(result, /^【分段摘要】/);
+  assert.match(result, /分段1/);
+  assert.match(result, /分段2/);
+});

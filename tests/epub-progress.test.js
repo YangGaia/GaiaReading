@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { epubDisplayPercent, normalizeEpubHref, epubHrefsMatch, findEpubNavLabel } = require('../src/shared/epub-progress');
+const { epubDisplayPercent, normalizeEpubHref, epubHrefsMatch, findEpubNavLabel, resolveEpubTocTarget } = require('../src/shared/epub-progress');
 
 test('位置索引可用时按书内位置计算', () => {
   const loc = { start: { location: 5, cfi: 'x' } };
@@ -40,4 +40,16 @@ test('EPUB 章节标题按资源路径精确匹配并忽略锚点', () => {
   assert.strictEqual(epubHrefsMatch('OEBPS/Text/chapter10.xhtml', 'Text/chapter10.xhtml#middle'), true);
   assert.strictEqual(epubHrefsMatch('Text/chapter1.xhtml', 'Text/chapter10.xhtml'), false);
   assert.strictEqual(findEpubNavLabel(toc, 'Text/chapter10.xhtml'), '第十章');
+});
+
+test('EPUB 目录链接会解析为 spine 中可跳转的真实路径', () => {
+  const spine = [
+    { idref: 'chapter-1', href: 'OEBPS/Text/chapter1.xhtml' },
+    { idref: 'chapter-2', href: 'OEBPS/Text/%E7%AB%A0%E8%8A%82.xhtml' },
+  ];
+  assert.strictEqual(resolveEpubTocTarget(spine, 'Text/chapter1.xhtml#start'), '#chapter-1');
+  assert.strictEqual(resolveEpubTocTarget(spine, './Text/章节.xhtml#part'), 'OEBPS/Text/%E7%AB%A0%E8%8A%82.xhtml#part');
+  assert.strictEqual(resolveEpubTocTarget(spine, 'Text/章节.xhtml'), '#chapter-2');
+  assert.strictEqual(resolveEpubTocTarget(spine, 'missing.xhtml'), 'missing.xhtml');
+  assert.strictEqual(resolveEpubTocTarget(spine, ''), '');
 });
