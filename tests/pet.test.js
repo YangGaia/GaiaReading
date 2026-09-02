@@ -230,6 +230,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("const LOCKABLE_EMOTIONS = ['thinking', 'shy', 'angry', 'sleepy']"), '只能锁定稳定手动情绪');
   assert.ok(renderer.includes("makeToggle('自主活动总开关'"), '自动模式应使用明确的总开关名称');
   assert.ok(renderer.includes('ui.speechToggle.disabled = !saved.auto'), '关闭自主活动后应禁用子选项');
+  assert.match(renderer, /if \(saved\.autoSleep\) \{[\s\S]*?timeoutState\(brain, now, saved\.sleepAfter\)[\s\S]*?\}\s+if \(consoleOpen\) return;/, '控制台打开时仍应先执行自动休息和入睡时间轴');
   assert.ok(!renderer.includes("['stretch', '伸懒腰']"), '不应保留失败的伸懒腰入口');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
@@ -261,6 +262,8 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes('petStatus.yawnStarted === true'), '冒烟测试应验证打哈欠动画已启动');
   assert.ok(main.includes('petStatus.hoverKeepsSleeping === true'), '冒烟测试应验证鼠标移入不会唤醒睡眠');
   assert.ok(main.includes('petStatus.actionStateRestored === true'), '冒烟测试应验证单独动作恢复原状态');
+  assert.ok(main.includes('petStatus.autoRestWhileConsoleOpen === true'), '冒烟测试应验证控制台打开时仍会自动休息');
+  assert.ok(main.includes('petStatus.autoSleepWhileConsoleOpen === true'), '冒烟测试应验证控制台打开时仍会自动入睡');
   assert.ok(main.includes('petStatus.blinkInterruptedYawn === true'), '冒烟测试应验证眨眼可打断打哈欠闭眼阶段');
   assert.ok(main.includes('petStatus.blinkInterruptedDrowse === true'), '冒烟测试应验证眨眼可打断困倦闭眼阶段');
   assert.ok(main.includes('petStatus.repeatedBlinkCleaned === true'), '冒烟测试应验证连续眨眼可以正常清理');

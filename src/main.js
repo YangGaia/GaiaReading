@@ -475,6 +475,16 @@ function createWindow() {
             const petTarget = petRoot.querySelector('.gaia-pet-hitbox');
             petRoot.style.pointerEvents = 'none';
             petTarget.style.pointerEvents = 'none';
+            GaiaPet.runEmotion('idle');
+            const originalDateNow = Date.now;
+            Date.now = () => originalDateNow() + 26000;
+            await new Promise((resolve) => setTimeout(resolve, 600));
+            const autoRestWhileConsoleOpen = !panel.hidden && GaiaPet.getBrain().state === 'sleepy' && petHeadRig.classList.contains('performance-drowse');
+            Date.now = () => originalDateNow() + 36000;
+            await new Promise((resolve) => setTimeout(resolve, 600));
+            const autoSleepWhileConsoleOpen = !panel.hidden && GaiaPet.getBrain().state === 'sleeping';
+            Date.now = originalDateNow;
+            GaiaPet.runEmotion('idle');
             GaiaPet.runEmotion('sleeping');
             const sleeping = GaiaPet.getBrain().state === 'sleeping';
             const sleepExpression = document.querySelector('.gaia-pet-face').dataset.exp;
@@ -553,7 +563,7 @@ function createWindow() {
             blinkFace.dispatchEvent(blinkEnd);
             const repeatedBlinkCleaned = !blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned };
+            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -563,6 +573,8 @@ function createWindow() {
             petStatus.layeredPet === true &&
             petStatus.headCutoutClean === true &&
             petStatus.oldLidRemoved === true &&
+            petStatus.autoRestWhileConsoleOpen === true &&
+            petStatus.autoSleepWhileConsoleOpen === true &&
             petStatus.sleeping === true &&
             petStatus.sleepExpression === '安心' &&
             petStatus.sleepAnimation === true &&

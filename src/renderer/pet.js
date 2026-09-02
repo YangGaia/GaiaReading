@@ -508,7 +508,6 @@
     if (!saved.on || dragging) return;
     const now = Date.now();
     finishTransient(now);
-    if (consoleOpen) return;
     if (brain.state === PET_STATES.SLEEPING) {
       maybeDream(now);
       return;
@@ -522,6 +521,7 @@
         return;
       }
     }
+    if (consoleOpen) return;
     if (brain.state !== PET_STATES.IDLE || now < nextAutoAt) return;
     runIdleBehavior();
     nextAutoAt = now + nextAutoDelay();
