@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -38,6 +38,13 @@ if (SHOT_DIR) {
 
 let mainWindow = null;
 let store = null;
+
+function displayFrequencyForWindow(win) {
+  if (!win || win.isDestroyed()) return null;
+  const display = screen.getDisplayMatching(win.getBounds());
+  const frequency = Number(display && display.displayFrequency);
+  return Number.isFinite(frequency) && frequency > 0 ? Math.round(frequency) : null;
+}
 
 function formatOf(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -144,7 +151,21 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  let displayUpdateTimer = null;
+  const sendDisplayFrequency = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send('display:frequency-changed', displayFrequencyForWindow(mainWindow));
+  };
+  const scheduleDisplayFrequency = () => {
+    clearTimeout(displayUpdateTimer);
+    displayUpdateTimer = setTimeout(sendDisplayFrequency, 120);
+  };
+  mainWindow.on('move', scheduleDisplayFrequency);
+  mainWindow.on('resize', scheduleDisplayFrequency);
+  screen.on('display-metrics-changed', scheduleDisplayFrequency);
   mainWindow.on('closed', () => {
+    clearTimeout(displayUpdateTimer);
+    screen.removeListener('display-metrics-changed', scheduleDisplayFrequency);
     mainWindow = null;
   });
 
@@ -471,7 +492,10 @@ function createWindow() {
             fpsToggle.checked = true;
             fpsToggle.dispatchEvent(new Event('change', { bubbles: true }));
             await new Promise((resolve) => setTimeout(resolve, 1300));
-            const fpsMeasured = !fpsLabel.hidden && /^FPS [0-9]+$/.test(fpsLabel.textContent) && ['good', 'warn', 'bad'].includes(fpsLabel.dataset.level);
+            const reportedDisplayFrequency = await window.api.displayFrequency();
+            const fpsSegments = fpsLabel.textContent.split(' / ');
+            const fpsMeasured = !fpsLabel.hidden && fpsSegments.length === 2 && /^FPS [0-9]+$/.test(fpsSegments[0]) && /^[0-9]+Hz$/.test(fpsSegments[1]) && ['good', 'warn', 'bad'].includes(fpsLabel.dataset.level);
+            const fpsTargetMatchesDisplay = Number.isFinite(reportedDisplayFrequency) && fpsLabel.textContent.endsWith('/ ' + Math.round(reportedDisplayFrequency) + 'Hz');
             const petBodyLayer = document.querySelector('.gaia-pet-halfbody');
             const petHeadLayer = document.querySelector('.gaia-pet-head');
             const petHeadRig = document.querySelector('.gaia-pet-head-rig');
@@ -513,7 +537,7 @@ function createWindow() {
             const readingTimerAdvanced = careStatus.textContent.includes('00:30 / 01:00');
             window.dispatchEvent(new Event('blur'));
             const readingTimerResetOnBlur = careStatus.textContent.includes('00:00 / 01:00');
-            const fpsUnavailableOnBlur = fpsLabel.textContent === 'FPS --' && fpsLabel.dataset.level === 'idle';
+            const fpsUnavailableOnBlur = fpsLabel.textContent.startsWith('FPS -- / ') && fpsLabel.dataset.level === 'idle';
             Date.now = readingDateNow;
             GaiaPet.setView('home');
             const readingTimerResetOnLeave = careStatus.textContent.includes('未在阅读');
@@ -614,7 +638,7 @@ function createWindow() {
             blinkFace.dispatchEvent(blinkEnd);
             const repeatedBlinkCleaned = !blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned };
+            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsTargetMatchesDisplay, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -625,6 +649,7 @@ function createWindow() {
             petStatus.panelWheelIsolated === true &&
             petStatus.fpsToggleHides === true &&
             petStatus.fpsMeasured === true &&
+            petStatus.fpsTargetMatchesDisplay === true &&
             petStatus.fpsUnavailableOnBlur === true &&
             petStatus.emotionButtons === 8 &&
             petStatus.actionButtons === 3 &&
@@ -876,6 +901,7 @@ ipcMain.handle('state:set', (event, { key, value }) => {
   return true;
 });
 ipcMain.handle('file:exists', (event, filePath) => fs.existsSync(filePath));
+ipcMain.handle('display:frequency', (event) => displayFrequencyForWindow(BrowserWindow.fromWebContents(event.sender)));
 
 function setupMenu() {
   const template = [

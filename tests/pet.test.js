@@ -197,6 +197,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'styles.css'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'app.js'), 'utf8');
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+  const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
   assert.ok(renderer.includes("addEventListener('contextmenu', openConsole)"), '桌宠应支持右键打开控制台');
   assert.ok(renderer.includes("hitbox.setAttribute('role', 'button')"), '桌宠应提供键盘可聚焦的交互区域');
   assert.ok(renderer.includes("ev.key === 'F10' && ev.shiftKey"), '桌宠应支持 Shift+F10 打开控制台');
@@ -219,7 +220,14 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes('if (elapsed < 1000) return'), '帧率数字最多每秒更新一次');
   assert.ok(renderer.includes('fpsSamples = fpsSamples.slice(-3)'), '帧率应使用最近三秒平滑值');
   assert.ok(renderer.includes("fps >= 50 ? 'good' : fps >= 30 ? 'warn' : 'bad'"), '帧率应按流畅程度分级着色');
-  assert.ok(renderer.includes("ui.fps.textContent = 'FPS --'"), '失焦或最小化后帧率应显示不可用');
+  assert.ok(renderer.includes("const frequencyText = displayFrequency == null ? '--Hz'"), '系统刷新率读取失败时应明确显示未知');
+  assert.ok(renderer.includes("ui.fps.textContent = 'FPS ' + fpsText + ' / ' + frequencyText"), '帧率标签应同时显示实测FPS与显示器刷新率');
+  assert.ok(main.includes('screen.getDisplayMatching(win.getBounds())'), '主进程应读取当前窗口所在显示器');
+  assert.ok(main.includes('display.displayFrequency'), '刷新率目标值必须来自系统显示器信息');
+  assert.ok(main.includes("mainWindow.on('move', scheduleDisplayFrequency)"), '窗口跨屏移动后应刷新目标值');
+  assert.ok(main.includes("screen.on('display-metrics-changed', scheduleDisplayFrequency)"), '显示器配置变化后应刷新目标值');
+  assert.ok(preload.includes("ipcRenderer.invoke('display:frequency')"), '预加载层应安全提供刷新率读取接口');
+  assert.ok(preload.includes("ipcRenderer.on('display:frequency-changed'"), '预加载层应转发刷新率变化');
   assert.ok(renderer.includes("[60000, '测试 · 1分钟']"), '控制台应提供一分钟验收间隔');
   assert.ok(renderer.includes("makeButton('立即测试提醒'"), '控制台应支持立即测试关怀台词');
   assert.match(renderer, /window\.addEventListener\('blur', \(\) => \{\s+resetReadingSession\(\);\s+resetFpsSampling\(true\);/, '切换程序时应清零连续阅读计时并暂停帧率显示');
@@ -319,6 +327,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes('petStatus.panelWheelIsolated === true'), '冒烟测试应验证控制台滚轮不会穿透');
   assert.ok(main.includes('petStatus.fpsToggleHides === true'), '冒烟测试应验证帧率显示可以关闭');
   assert.ok(main.includes('petStatus.fpsMeasured === true'), '冒烟测试应验证帧率能够实际测量');
+  assert.ok(main.includes('petStatus.fpsTargetMatchesDisplay === true'), '冒烟测试应验证目标刷新率与系统报告值一致');
   assert.ok(main.includes('petStatus.fpsUnavailableOnBlur === true'), '冒烟测试应验证失焦时不显示错误低帧率');
   assert.ok(main.includes('petStatus.readingTimerAdvanced === true'), '冒烟测试应验证连续阅读计时会推进');
   assert.ok(main.includes('petStatus.readingTimerResetOnBlur === true'), '冒烟测试应验证失焦会清零连续阅读计时');

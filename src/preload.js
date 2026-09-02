@@ -13,4 +13,10 @@ contextBridge.exposeInMainWorld('api', {
   stateGet: (key) => ipcRenderer.invoke('state:get', key),
   stateSet: (key, value) => ipcRenderer.invoke('state:set', { key, value }),
   exists: (filePath) => ipcRenderer.invoke('file:exists', filePath),
+  displayFrequency: () => ipcRenderer.invoke('display:frequency'),
+  onDisplayFrequencyChanged: (callback) => {
+    const listener = (event, frequency) => callback(frequency);
+    ipcRenderer.on('display:frequency-changed', listener);
+    return () => ipcRenderer.removeListener('display:frequency-changed', listener);
+  },
 });

@@ -104,6 +104,8 @@
   let fpsSampleStarted = 0;
   let fpsFrameCount = 0;
   let fpsSamples = [];
+  let fpsValue = null;
+  let displayFrequency = null;
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
 
@@ -142,16 +144,36 @@
     fpsSampleStarted = 0;
     fpsFrameCount = 0;
     fpsSamples = [];
-    if (markUnavailable && ui.fps && ui.fps.textContent !== 'FPS --') {
-      ui.fps.textContent = 'FPS --';
+    if (markUnavailable && ui.fps) {
+      fpsValue = null;
       ui.fps.dataset.level = 'idle';
+      renderFpsLabel();
     }
+  }
+
+  function renderFpsLabel() {
+    if (!ui.fps) return;
+    const fpsText = fpsValue == null ? '--' : String(fpsValue);
+    const frequencyText = displayFrequency == null ? '--Hz' : displayFrequency + 'Hz';
+    ui.fps.textContent = 'FPS ' + fpsText + ' / ' + frequencyText;
+    ui.fps.title = displayFrequency == null ? '系统未报告当前显示器刷新率' : '当前显示器刷新率：' + frequencyText;
+  }
+
+  async function refreshDisplayFrequency() {
+    try {
+      const frequency = await window.api.displayFrequency();
+      displayFrequency = Number.isFinite(frequency) && frequency > 0 ? Math.round(frequency) : null;
+    } catch {
+      displayFrequency = null;
+    }
+    renderFpsLabel();
   }
 
   function renderFps(value) {
     if (!ui.fps) return;
     const fps = Math.max(0, Math.round(value));
-    ui.fps.textContent = 'FPS ' + fps;
+    fpsValue = fps;
+    renderFpsLabel();
     ui.fps.dataset.level = fps >= 50 ? 'good' : fps >= 30 ? 'warn' : 'bad';
   }
 
@@ -1235,7 +1257,7 @@
     zzz.hidden = true;
     const fps = document.createElement('div');
     fps.className = 'gaia-pet-fps';
-    fps.textContent = 'FPS --';
+    fps.textContent = 'FPS -- / --Hz';
     fps.dataset.level = 'idle';
     fps.setAttribute('aria-label', '界面帧率');
     headRig.append(head, face, blinkFace);
@@ -1294,6 +1316,12 @@
     }
     resetActivity(Date.now());
     updateConsole();
+    refreshDisplayFrequency();
+    window.api.onDisplayFrequencyChanged((frequency) => {
+      displayFrequency = Number.isFinite(frequency) && frequency > 0 ? Math.round(frequency) : null;
+      renderFpsLabel();
+      resetFpsSampling(true);
+    });
     window.setInterval(tick, 500);
     scheduleBlink();
     save();
