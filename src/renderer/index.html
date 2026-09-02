@@ -20,7 +20,8 @@
       <p class="home-subtitle">欢迎回来，选择要做什么</p>
       <button class="home-item d1" id="btn-home-shelf"><span class="home-ico">📚</span>进入书架</button>
       <button class="home-item d2" id="btn-home-folder"><span class="home-ico">📂</span>加载文件夹</button>
-      <button class="home-item d3" id="btn-home-settings"><span class="home-ico">⚙</span>设置</button>
+      <button class="home-item d3" id="btn-home-ai"><span class="home-ico">✦</span>AI 章节助手</button>
+      <button class="home-item d4" id="btn-home-settings"><span class="home-ico">⚙</span>设置</button>
     </div>
     <div class="home-right">
       <img id="home-img" src="images/1.jpg" alt="Gaia Reading">
@@ -107,6 +108,20 @@
       <nav id="toc-panel" class="side-panel" hidden></nav>
       <nav id="bookmarks-panel" class="side-panel" hidden></nav>
       <aside id="annotations-panel" class="side-panel annotations-panel" hidden></aside>
+      <aside id="ai-summary-panel" class="side-panel ai-summary-panel" hidden>
+        <div class="ai-summary-head">
+          <div><small>ALICE · AI ASSISTANT</small><h2>章节总结</h2></div>
+          <button id="btn-ai-summary-close" class="btn" type="button" aria-label="关闭章节总结">×</button>
+        </div>
+        <p id="ai-summary-chapter" class="ai-summary-chapter">当前章节</p>
+        <p id="ai-summary-target" class="ai-summary-target"></p>
+        <div id="ai-summary-status" class="ai-summary-status" role="status" aria-live="polite">点击“生成总结”开始。</div>
+        <pre id="ai-summary-content" class="ai-summary-content"></pre>
+        <div class="ai-summary-actions">
+          <button id="btn-ai-summary-run" class="btn primary" type="button">生成总结</button>
+          <button id="btn-ai-summary-copy" class="btn" type="button" disabled>复制</button>
+        </div>
+      </aside>
       <div id="reader-content"></div>
     </div>
     <footer class="statusbar">
@@ -199,6 +214,7 @@
         <button id="btn-add-bookmark" class="btn block primary">添加书签</button>
         <button id="btn-reading-stats-reader" class="btn block">阅读目标</button>
         <button id="btn-annotations" class="btn block">划线与笔记</button>
+        <button id="btn-ai-summary" class="btn block">AI 总结本章</button>
       </div>
       <div id="drawer-appearance">
         <h3>外观</h3>
@@ -214,6 +230,34 @@
           <div class="appearance-control">
             <button id="btn-pet-console" class="btn">有珠控制台</button>
           </div>
+        </div>
+      </div>
+      <div id="drawer-ai" class="drawer-ai">
+        <h3>AI 章节助手</h3>
+        <p class="ai-config-note">Key 由 Windows 加密保存。正文只发送到下方 Base URL，不经过 Gaia 服务器。测试连接和总结会调用所选接口，可能产生少量费用。</p>
+        <label class="ai-config-label" for="ai-provider">服务商</label>
+        <select id="ai-provider" class="drawer-select ai-config-control">
+          <option value="deepseek">DeepSeek</option>
+          <option value="openai">OpenAI</option>
+          <option value="ollama">Ollama（本地）</option>
+          <option value="custom">自定义兼容接口</option>
+        </select>
+        <label class="ai-config-label" for="ai-base-url">Base URL</label>
+        <input id="ai-base-url" class="ai-config-input" type="url" spellcheck="false" autocomplete="off">
+        <label class="ai-config-label" for="ai-api-key">API Key</label>
+        <div class="ai-key-row">
+          <input id="ai-api-key" class="ai-config-input" type="password" spellcheck="false" autocomplete="off" placeholder="尚未保存">
+          <button id="btn-ai-key-toggle" class="btn" type="button">显示</button>
+        </div>
+        <label class="ai-config-label" for="ai-model">模型名称</label>
+        <input id="ai-model" class="ai-config-input" type="text" spellcheck="false" autocomplete="off" placeholder="填写服务商提供的模型名称">
+        <label class="ai-auto-row"><input id="ai-auto-summarize" type="checkbox"> 向后进入新章节时，自动总结刚读完的章节</label>
+        <p id="ai-config-target" class="ai-config-target"></p>
+        <p id="ai-config-status" class="ai-config-status" role="status" aria-live="polite"></p>
+        <div class="ai-config-actions">
+          <button id="btn-ai-key-clear" class="btn danger" type="button">清除 Key</button>
+          <button id="btn-ai-test" class="btn" type="button">测试连接</button>
+          <button id="btn-ai-save" class="btn primary" type="button">保存设置</button>
         </div>
       </div>
       <div class="drawer-about">
@@ -238,6 +282,7 @@
   <script src="../shared/reader-input.js"></script>
   <script src="../shared/reading-stats.js"></script>
   <script src="../shared/annotations.js"></script>
+  <script src="../shared/ai.js"></script>
   <script src="bgm.js"></script>
   <script src="pet.js"></script>
   <script src="app.js"></script>

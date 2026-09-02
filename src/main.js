@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net, screen } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net, safeStorage, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const JSZip = require('jszip');
@@ -11,6 +11,7 @@ const { JsonStore } = require('./shared/store');
 const { prepareDataFile } = require('./shared/data-upgrade');
 const { openMobi, loadChapter, cleanupMobi } = require('./shared/mobi');
 const { repairEpubBuffer } = require('./shared/epub-repair');
+const GaiaAi = require('./shared/ai');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 protocol.registerSchemesAsPrivileged([
@@ -42,6 +43,62 @@ if (SHOT_DIR) {
 let mainWindow = null;
 let store = null;
 const repairedEpubCache = new Map();
+
+function aiSecretFile() {
+  return path.join(app.getPath('userData'), 'gaia-ai-key.bin');
+}
+
+function readAiSecrets() {
+  const secretPath = aiSecretFile();
+  if (!fs.existsSync(secretPath)) return {};
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Windows 安全存储当前不可用，无法读取 API Key');
+  try {
+    const value = JSON.parse(safeStorage.decryptString(fs.readFileSync(secretPath)));
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch (error) {
+    throw new Error('已保存的 API Key 无法解密，请重新填写');
+  }
+}
+
+function readAiSecret(config) {
+  return String(readAiSecrets()[GaiaAi.secretScopeKey(config)] || '');
+}
+
+function writeAiSecret(config, value) {
+  const secret = String(value || '').trim();
+  const secretPath = aiSecretFile();
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Windows 安全存储当前不可用，API Key 不会以明文保存');
+  const secrets = readAiSecrets();
+  const scope = GaiaAi.secretScopeKey(config);
+  if (secret) secrets[scope] = secret;
+  else delete secrets[scope];
+  if (!Object.keys(secrets).length) {
+    try { if (fs.existsSync(secretPath)) fs.unlinkSync(secretPath); } catch (error) {}
+    return;
+  }
+  fs.mkdirSync(path.dirname(secretPath), { recursive: true });
+  fs.writeFileSync(secretPath, safeStorage.encryptString(JSON.stringify(secrets)));
+}
+
+function getAiConfig() {
+  const stored = store ? store.get('aiConfig', GaiaAi.DEFAULT_CONFIG) : GaiaAi.DEFAULT_CONFIG;
+  try { return GaiaAi.normalizeConfig(stored); } catch (error) { return GaiaAi.normalizeConfig(GaiaAi.DEFAULT_CONFIG); }
+}
+
+function publicAiConfig(config) {
+  const value = GaiaAi.normalizeConfig(config || getAiConfig());
+  let hasApiKey = false;
+  try { hasApiKey = GaiaAi.providerNeedsKey(value.provider) && !!readAiSecret(value); } catch (error) {}
+  return { ...value, hasApiKey, targetHost: new URL(value.baseUrl).host };
+}
+
+function aiKeyForConfig(config) {
+  return GaiaAi.providerNeedsKey(config.provider) ? readAiSecret(config) : '';
+}
+
+function aiFetch(url, options) {
+  return net.fetch(url, options);
+}
 
 function epubFileStamp(filePath) {
   const stat = fs.statSync(filePath);
@@ -289,6 +346,10 @@ function createWindow() {
               const importSucceeded = importResult.added === 1 && importResult.failures.length === 0 && !!importedBook;
               await __gaiaDebug.openBook(importedBook || { path: fixture, format: 'epub', title: 'fixture' });
               await __gaiaDebug.waitLocations();
+              const aiUi = __gaiaDebug.getAiUiState();
+              const aiSource = __gaiaDebug.getAiChapterSource();
+              const aiUiReady = aiUi.homeEntry && aiUi.settingsSection && aiUi.summaryButton && aiUi.summaryPanel &&
+                aiSource.bookPath === fixture && aiSource.chapterId.startsWith('epub:') && aiSource.content.length > 0;
               const annotationsBefore = __gaiaDebug.getAnnotations().length;
               const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');
               document.querySelector('[data-selection-action="note"]').click();
@@ -438,7 +499,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -452,6 +513,7 @@ function createWindow() {
               parsed.viewAfterSplash === 'home' &&
               parsed.splashHidden === true &&
               parsed.importSucceeded === true &&
+              parsed.aiUiReady === true &&
               parsed.selectionPrepared === true &&
               parsed.noteEditorOpen === true &&
               parsed.noteEditorQuote === '烟雾测试摘录' &&
@@ -1051,6 +1113,33 @@ ipcMain.handle('state:get', (event, key) => store.get(key, null));
 ipcMain.handle('state:set', (event, { key, value }) => {
   store.set(key, value);
   return true;
+});
+ipcMain.handle('ai:config:get', () => publicAiConfig());
+ipcMain.handle('ai:config:set', (event, payload) => {
+  const input = payload && typeof payload === 'object' ? payload : {};
+  const config = GaiaAi.normalizeConfig(input);
+  if (input.clearApiKey === true) writeAiSecret(config, '');
+  else if (String(input.apiKey || '').trim()) writeAiSecret(config, input.apiKey);
+  store.set('aiConfig', config);
+  return publicAiConfig(config);
+});
+ipcMain.handle('ai:config:test', async () => {
+  const config = getAiConfig();
+  const result = await GaiaAi.testConnection(aiFetch, config, aiKeyForConfig(config), { timeoutMs: 30000 });
+  return { ok: true, message: result.slice(0, 80), targetHost: new URL(config.baseUrl).host };
+});
+ipcMain.handle('ai:summarize', async (event, payload) => {
+  const source = payload && typeof payload === 'object' ? payload : {};
+  const content = GaiaAi.cleanChapterText(source.content);
+  if (!content) throw new Error('当前章节没有可总结的文字');
+  if (content.length > 180000) throw new Error('当前章节超过 18 万字，请缩小总结范围');
+  const config = getAiConfig();
+  const summary = await GaiaAi.summarize(aiFetch, config, aiKeyForConfig(config), {
+    bookTitle: String(source.bookTitle || '').slice(0, 300),
+    chapterTitle: String(source.chapterTitle || '').slice(0, 300),
+    content,
+  }, { timeoutMs: 90000, maxChunkChars: 12000 });
+  return { summary, provider: config.provider, baseUrl: config.baseUrl, model: config.model, targetHost: new URL(config.baseUrl).host };
 });
 ipcMain.handle('file:exists', (event, filePath) => fs.existsSync(filePath));
 ipcMain.handle('display:frequency', (event) => displayFrequencyForWindow(BrowserWindow.fromWebContents(event.sender)));

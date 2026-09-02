@@ -63,6 +63,7 @@ body.dark {
 .home-item.d1 { animation-delay: .15s; }
 .home-item.d2 { animation-delay: .3s; }
 .home-item.d3 { animation-delay: .45s; }
+.home-item.d4 { animation-delay: .6s; }
 .home-item:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 18px var(--shadow); }
 .home-item:active { transform: translateY(0) scale(.98); }
 .home-ico { font-size: 24px; }
@@ -217,6 +218,40 @@ body.dark {
 #theme-value, #pet-value { min-width: 36px; font-size: 13px; line-height: 30px; color: var(--text-soft); text-align: center; }
 .btn.block { display: block; width: 100%; text-align: left; margin-bottom: 8px; }
 .drawer-about p { font-size: 12px; color: var(--text-soft); margin: 0; }
+
+/* ===== AI 章节助手 ===== */
+.drawer-ai { scroll-margin-top: 12px; }
+.drawer-ai.ai-focus { animation: aiFocus 1s ease; }
+@keyframes aiFocus { 0%, 100% { background: transparent; } 35% { background: var(--accent-soft); } }
+.ai-config-note { margin: 0 0 12px; color: var(--text-soft); font-size: 11px; line-height: 1.55; }
+.ai-config-label { display: block; margin: 9px 0 5px; color: var(--text); font-size: 12px; font-weight: 600; }
+.ai-config-control, .ai-config-input { display: block; width: 100%; }
+.ai-config-input { height: 32px; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; outline: none; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; }
+.ai-config-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.ai-config-input:disabled { opacity: .55; cursor: not-allowed; }
+.ai-key-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.ai-auto-row { display: flex; align-items: flex-start; gap: 7px; margin-top: 11px; color: var(--text); font-size: 11px; line-height: 1.45; }
+.ai-auto-row input { margin-top: 2px; accent-color: var(--accent); }
+.ai-config-target { margin: 10px 0 0; padding: 7px 8px; border-radius: 6px; background: var(--bg); color: var(--text-soft); font-size: 11px; line-height: 1.45; word-break: break-all; }
+.ai-config-status { min-height: 17px; margin: 7px 0 0; color: var(--text-soft); font-size: 11px; }
+.ai-config-status.success { color: #238636; }
+.ai-config-status.error { color: var(--danger); }
+.ai-config-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 8px; }
+
+.ai-summary-panel { width: 330px; min-width: 280px; color: var(--text); }
+.ai-summary-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.ai-summary-head small { color: var(--accent); font-size: 10px; letter-spacing: .1em; }
+.ai-summary-head h2 { margin: 3px 0 0; font-size: 17px; }
+.ai-summary-chapter { margin: 12px 0 3px; font-weight: 600; color: var(--text); }
+.ai-summary-target { margin: 0 0 10px; color: var(--text-soft); font-size: 10px; word-break: break-all; }
+.ai-summary-status { margin: 10px 0; padding: 8px 9px; border-radius: 7px; background: var(--bg); color: var(--text-soft); font-size: 11px; line-height: 1.5; }
+.ai-summary-status.error { color: var(--danger); background: var(--danger-soft); }
+.ai-summary-content { margin: 0; min-height: 180px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); font: 13px/1.75 Georgia, "SimSun", serif; }
+.ai-summary-actions { display: flex; gap: 7px; position: sticky; bottom: -12px; margin: 14px -12px -12px; padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--border); }
+.ai-summary-actions .btn { flex: 1; }
+@media (max-width: 760px) {
+  .ai-summary-panel { width: 280px; min-width: 250px; }
+}
 
 /* ===== 粒子画布（仅首页） ===== */
 #fx-canvas { position: fixed; inset: 0; z-index: 90; pointer-events: none; }

@@ -19,6 +19,7 @@ test('项目关键文件齐全', () => {
   assert.ok(main.includes("capture('pet_console.png')"), '截图验收应包含有珠控制台界面');
   assert.ok(main.includes('const importResult = await __gaiaDebug.importPaths([fixture])'), 'EPUB 烟雾测试应走真实导入流程');
   assert.ok(main.includes('parsed.importSucceeded === true'), 'EPUB 烟雾测试应验证导入成功');
+  assert.ok(main.includes('parsed.aiUiReady === true'), 'EPUB 烟雾测试应验证 AI 界面与章节提取');
   for (const frame of ['pet_tilt_early.png', 'pet_tilt_peak.png', 'pet_tilt_return.png']) {
     assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少歪头动作帧 ${frame}`);
   }
@@ -78,6 +79,27 @@ test('版本号为 0.5.2 且界面同步', () => {
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
   assert.ok(html.includes('btn-theme'), '缺少主题切换');
   assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
+});
+
+test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => {
+  const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
+  const preload = fs.readFileSync(path.join(root, 'src', 'preload.js'), 'utf8');
+  const ai = fs.readFileSync(path.join(root, 'src', 'shared', 'ai.js'), 'utf8');
+
+  for (const id of ['btn-home-ai', 'drawer-ai', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'btn-ai-summary', 'ai-summary-panel']) {
+    assert.ok(html.includes(`id="${id}"`), `AI 界面缺少 ${id}`);
+  }
+  for (const bridge of ['aiConfigGet', 'aiConfigSet', 'aiConfigTest', 'aiSummarize']) {
+    assert.ok(preload.includes(bridge), `preload 缺少 ${bridge}`);
+  }
+  assert.ok(main.includes('safeStorage.encryptString'), 'API Key 必须通过 Electron safeStorage 加密');
+  assert.ok(main.includes('safeStorage.decryptString'), 'API Key 必须只在主进程解密');
+  assert.ok(main.includes("ipcMain.handle('ai:summarize'"), '缺少 AI 总结 IPC');
+  assert.ok(ai.includes("redirect: 'error'"), 'AI 请求必须拒绝重定向，避免 Key 被转发');
+  assert.ok(ai.includes("parsed.protocol !== 'https:' && !local"), '远程 AI 接口必须使用 HTTPS');
+  assert.ok(app.includes('getAiChapterSource'), 'Electron 冒烟调试接口应能验证章节提取');
 });
 
 test('README 界面截图存在且已引用', () => {

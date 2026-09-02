@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('api', {
   mobiClose: (sessionId) => ipcRenderer.invoke('mobi:close', sessionId),
   stateGet: (key) => ipcRenderer.invoke('state:get', key),
   stateSet: (key, value) => ipcRenderer.invoke('state:set', { key, value }),
+  aiConfigGet: () => ipcRenderer.invoke('ai:config:get'),
+  aiConfigSet: (config) => ipcRenderer.invoke('ai:config:set', config),
+  aiConfigTest: () => ipcRenderer.invoke('ai:config:test'),
+  aiSummarize: (source) => ipcRenderer.invoke('ai:summarize', source),
   exists: (filePath) => ipcRenderer.invoke('file:exists', filePath),
   displayFrequency: () => ipcRenderer.invoke('display:frequency'),
   onDisplayFrequencyChanged: (callback) => {

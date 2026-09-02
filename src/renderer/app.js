@@ -10,7 +10,7 @@ const {
   removeEntries: removeEntriesFromMap,
 } = window.GaiaLibrary;
 const { paragraphsToHtml } = window.GaiaTxtHtml;
-const { splitTxtParagraphs, detectTxtChapters, chapterTitleForParagraph } = window.GaiaTxtChapters;
+const { splitTxtParagraphs, detectTxtChapters, chapterAt, chapterTitleForParagraph } = window.GaiaTxtChapters;
 const { epubDisplayPercent } = window.GaiaEpubProgress;
 const { normalizeWheelDelta, createWheelGate } = window.GaiaReaderInput;
 const {
@@ -30,6 +30,7 @@ const {
   createTextAnchor,
   resolveTextAnchor,
 } = window.GaiaAnnotations;
+const { PROVIDERS: AI_PROVIDERS, cacheKey: aiCacheKey, cleanChapterText, configIdentity: aiConfigIdentity } = window.GaiaAi;
 const readerWheelGate = createWheelGate({ threshold: 60, cooldown: 250 });
 
 const FONTS = {
@@ -49,6 +50,11 @@ const els = {
   tocPanel: $('toc-panel'),
   bookmarksPanel: $('bookmarks-panel'),
   annotationsPanel: $('annotations-panel'),
+  aiSummaryPanel: $('ai-summary-panel'),
+  aiSummaryChapter: $('ai-summary-chapter'),
+  aiSummaryTarget: $('ai-summary-target'),
+  aiSummaryStatus: $('ai-summary-status'),
+  aiSummaryContent: $('ai-summary-content'),
   selectionToolbar: $('selection-toolbar'),
   importStatus: $('import-status'),
   noteEditorOverlay: $('note-editor-overlay'),
@@ -86,6 +92,13 @@ const els = {
   themeValue: $('theme-value'),
   progressFill: $('progress-fill'),
   fontSelect: $('font-select'),
+  aiProvider: $('ai-provider'),
+  aiBaseUrl: $('ai-base-url'),
+  aiApiKey: $('ai-api-key'),
+  aiModel: $('ai-model'),
+  aiAutoSummarize: $('ai-auto-summarize'),
+  aiConfigTarget: $('ai-config-target'),
+  aiConfigStatus: $('ai-config-status'),
 };
 
 const views = {
@@ -101,6 +114,11 @@ const state = {
   progress: {},
   bookmarks: {},
   annotations: {},
+  aiConfig: null,
+  aiSummaries: {},
+  aiSummaryLoading: false,
+  lastAiChapterSource: null,
+  aiAutoQueue: Promise.resolve(),
   readingStats: createReadingStats(),
   current: null,
   manageMode: false,
@@ -201,19 +219,23 @@ function migrateHabitsFromLastBook() {
 
 async function init() {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
-  const [lib, progress, bookmarks, prefs, readingStats, annotations] = await Promise.all([
+  const [lib, progress, bookmarks, prefs, readingStats, annotations, aiConfig, aiSummaries] = await Promise.all([
     window.api.stateGet('library'),
     window.api.stateGet('progress'),
     window.api.stateGet('bookmarks'),
     window.api.stateGet('prefs'),
     window.api.stateGet('readingStats'),
     window.api.stateGet('annotations'),
+    window.api.aiConfigGet(),
+    window.api.stateGet('aiSummaries'),
   ]);
   state.library = lib || [];
   state.progress = progress || {};
   state.bookmarks = bookmarks || {};
   state.readingStats = createReadingStats(readingStats);
   state.annotations = annotations && typeof annotations === 'object' ? annotations : {};
+  state.aiConfig = aiConfig;
+  state.aiSummaries = aiSummaries && typeof aiSummaries === 'object' ? aiSummaries : {};
   state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single' }, prefs || {});
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
   migrateHabitsFromLastBook();
@@ -223,6 +245,7 @@ async function init() {
   state.readMode = state.prefs.readMode === 'spread' ? 'spread' : 'single';
   applyThemeClass();
   els.fontSelect.value = state.prefs.fontName || 'default';
+  updateAiConfigForm();
   initFx();
   window.GaiaBgm.initBgm();
   window.GaiaBgm.positionBgm('home');
@@ -370,12 +393,14 @@ async function removeFromShelf(book, silent) {
   state.progress = removeEntryFromMap(state.progress, book.path);
   state.bookmarks = removeEntryFromMap(state.bookmarks, book.path);
   state.annotations = removeEntryFromMap(state.annotations, book.path);
+  state.aiSummaries = removeEntryFromMap(state.aiSummaries, book.path);
   state.selected.delete(book.path);
   await Promise.all([
     saveLibrary(),
     window.api.stateSet('progress', state.progress),
     saveBookmarksNow(),
     saveAnnotationsNow(),
+    window.api.stateSet('aiSummaries', state.aiSummaries),
   ]);
   renderLibrary();
   return true;
@@ -436,12 +461,14 @@ async function batchRemoveSelected(silent) {
   state.progress = removeEntriesFromMap(state.progress, paths);
   state.bookmarks = removeEntriesFromMap(state.bookmarks, paths);
   state.annotations = removeEntriesFromMap(state.annotations, paths);
+  state.aiSummaries = removeEntriesFromMap(state.aiSummaries, paths);
   state.selected.clear();
   await Promise.all([
     saveLibrary(),
     window.api.stateSet('progress', state.progress),
     saveBookmarksNow(),
     saveAnnotationsNow(),
+    window.api.stateSet('aiSummaries', state.aiSummaries),
   ]);
   if (!state.library.length) exitManageMode();
   else renderLibrary();
@@ -461,7 +488,7 @@ function hideContextMenu() {
   state.ctxBook = null;
 }
 
-function openSettings() {
+function openSettings(section) {
   const inReader = state.current != null;
   els.drawerReading.hidden = !inReader;
   els.drawerFuncs.hidden = !inReader;
@@ -470,6 +497,16 @@ function openSettings() {
   updatePetUI();
   if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(true);
   els.settingsOverlay.hidden = false;
+  updateAiConfigForm();
+  if (section === 'ai') {
+    window.setTimeout(() => {
+      const ai = $('drawer-ai');
+      ai.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      ai.classList.remove('ai-focus');
+      void ai.offsetWidth;
+      ai.classList.add('ai-focus');
+    }, 0);
+  }
 }
 
 function closeSettings() {
@@ -502,6 +539,7 @@ function closeReaderContent() {
   hideSelectionToolbar();
   els.pageNav.hidden = true;
   state.current = null;
+  state.lastAiChapterSource = null;
 }
 
 async function backToLibrary() {
@@ -528,10 +566,12 @@ async function openBook(book) {
   els.tocPanel.hidden = true;
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
+  els.aiSummaryPanel.hidden = true;
   els.tocPanel.innerHTML = '';
   els.readerStatus.textContent = '加载中…';
   els.pageNav.hidden = false;
   state.current = { path: book.path, format: book.format, title: book.title || book.path, cover: book.cover || '', percent: 0 };
+  state.lastAiChapterSource = null;
   noteReadingActivity();
   applyGlobalHabits();
   const savedProg = state.progress[book.path];
@@ -586,7 +626,9 @@ async function openEpub(book) {
     state.current.displayPercent = percent;
     updateProgress(percent, '进度 ' + percent.toFixed(2) + '%');
     saveProgress(book.path, { loc: cfi, percent });
+    window.setTimeout(observeAiChapter, 0);
   });
+  window.setTimeout(observeAiChapter, 0);
 
   const locationsReady = epub.locations
     .generate(1600)
@@ -774,6 +816,7 @@ async function openMobi(book) {
       state.current.flow.page = state.current.paginator.currentPage;
     }
     updateMobiProgress(false);
+    window.setTimeout(observeAiChapter, 0);
   };
   state.current.paginator.onTotalChange = (total) => {
     if (state.current && state.current.flow) state.current.flow.setPages(state.current.flow.chapter, total);
@@ -818,6 +861,7 @@ async function loadMobiChapter(chapterIndex, opts) {
       restoreTextAnnotations();
       if (c.flow) c.flow.page = Math.min(Math.max(0, p), total - 1);
       updateMobiProgress(true);
+      window.setTimeout(observeAiChapter, 0);
     }
   } catch (err) {
     console.error(err);
@@ -907,6 +951,7 @@ async function openTxt(book) {
       state.current.flow.page = state.current.paginator.currentPage;
     }
     updateMobiProgress(false);
+    window.setTimeout(observeAiChapter, 0);
   };
   state.current.paginator.onTotalChange = (total) => {
     if (state.current && state.current.flow) state.current.flow.setPages(0, total);
@@ -914,6 +959,7 @@ async function openTxt(book) {
   state.current.paginator.setTheme(state.prefs.theme);
   state.current.paginator.setMargin(state.prefs.marginPct != null ? state.prefs.marginPct : 8);
   const paragraphs = splitTxtParagraphs(res.text);
+  state.current.txtParagraphs = paragraphs;
   state.current.txtChapters = detectTxtChapters(paragraphs);
   const html = paragraphsToHtml(res.text) || '<p></p>';
   await state.current.paginator.render(html, '');
@@ -925,6 +971,7 @@ async function openTxt(book) {
   if (saved && typeof saved.page === 'number') state.current.paginator.showPage(saved.page);
   restoreTextAnnotations();
   updateMobiProgress(true);
+  window.setTimeout(observeAiChapter, 0);
 }
 
 
@@ -1092,13 +1139,14 @@ function cycleMargin() {
 }
 
 function togglePanel(which) {
-  const panels = { toc: els.tocPanel, bookmarks: els.bookmarksPanel, annotations: els.annotationsPanel };
+  const panels = { toc: els.tocPanel, bookmarks: els.bookmarksPanel, annotations: els.annotationsPanel, ai: els.aiSummaryPanel };
   const target = panels[which] || els.tocPanel;
   const targetHidden = target.hidden;
   hideSelectionToolbar();
   els.tocPanel.hidden = true;
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
+  els.aiSummaryPanel.hidden = true;
   if (!targetHidden) {
     // 已打开时收起全部侧栏
   } else {
@@ -1654,6 +1702,7 @@ function closeNoteEditor() {
 function openAnnotationsPanelAt(annotationId) {
   els.tocPanel.hidden = true;
   els.bookmarksPanel.hidden = true;
+  els.aiSummaryPanel.hidden = true;
   els.annotationsPanel.hidden = false;
   renderAnnotationsPanel();
   resizeEpubRendition();
@@ -2417,6 +2466,262 @@ function rememberSettings() {
   }
 }
 
+function aiErrorMessage(error) {
+  return String(error && error.message ? error.message : error || '未知错误')
+    .replace(/^Error invoking remote method '[^']+':\s*/i, '')
+    .replace(/^Error:\s*/i, '');
+}
+
+function setAiConfigStatus(message, type) {
+  els.aiConfigStatus.textContent = message || '';
+  els.aiConfigStatus.classList.toggle('success', type === 'success');
+  els.aiConfigStatus.classList.toggle('error', type === 'error');
+}
+
+function updateAiTarget() {
+  const value = String(els.aiBaseUrl.value || '').trim();
+  let host = '';
+  try { host = new URL(value).host; } catch (error) {}
+  els.aiConfigTarget.textContent = host ? '章节正文将直接发送到：' + host : '填写 Base URL 后会显示正文发送目标。';
+}
+
+function updateAiConfigForm() {
+  const config = state.aiConfig || { provider: 'deepseek', baseUrl: AI_PROVIDERS.deepseek.baseUrl, model: '', autoSummarize: false };
+  els.aiProvider.value = config.provider || 'deepseek';
+  els.aiBaseUrl.value = config.baseUrl || (AI_PROVIDERS[els.aiProvider.value] || AI_PROVIDERS.custom).baseUrl;
+  els.aiModel.value = config.model || '';
+  els.aiAutoSummarize.checked = config.autoSummarize === true;
+  const needsKey = (AI_PROVIDERS[els.aiProvider.value] || AI_PROVIDERS.custom).apiKeyRequired;
+  els.aiApiKey.disabled = !needsKey;
+  els.aiApiKey.value = '';
+  els.aiApiKey.placeholder = needsKey ? (config.hasApiKey ? '已加密保存；留空保持不变' : '请输入 API Key') : '本地接口无需 API Key';
+  $('btn-ai-key-toggle').disabled = !needsKey;
+  $('btn-ai-key-clear').disabled = !needsKey || !config.hasApiKey;
+  const examples = { openai: '例如：gpt-4o-mini', deepseek: '例如：deepseek-chat', ollama: '例如：qwen3:4b', custom: '填写接口支持的模型名称' };
+  els.aiModel.placeholder = examples[els.aiProvider.value] || examples.custom;
+  updateAiTarget();
+}
+
+function readAiConfigForm() {
+  return {
+    provider: els.aiProvider.value,
+    baseUrl: els.aiBaseUrl.value.trim(),
+    apiKey: els.aiApiKey.value.trim(),
+    model: els.aiModel.value.trim(),
+    autoSummarize: els.aiAutoSummarize.checked,
+  };
+}
+
+async function saveAiConfig(options) {
+  const quiet = options && options.quiet;
+  try {
+    state.aiConfig = await window.api.aiConfigSet(readAiConfigForm());
+    updateAiConfigForm();
+    if (!quiet) setAiConfigStatus('设置已保存，API Key 不会返回到页面。', 'success');
+    return true;
+  } catch (error) {
+    setAiConfigStatus(aiErrorMessage(error), 'error');
+    return false;
+  }
+}
+
+async function testAiConfig() {
+  setAiConfigStatus('正在保存设置并测试连接…');
+  if (!await saveAiConfig({ quiet: true })) return;
+  try {
+    const result = await window.api.aiConfigTest();
+    setAiConfigStatus('连接成功：' + result.targetHost, 'success');
+  } catch (error) {
+    setAiConfigStatus(aiErrorMessage(error), 'error');
+  }
+}
+
+async function clearAiApiKey() {
+  try {
+    state.aiConfig = await window.api.aiConfigSet(Object.assign(readAiConfigForm(), { apiKey: '', clearApiKey: true }));
+    updateAiConfigForm();
+    setAiConfigStatus('当前服务商与 Base URL 对应的 API Key 已清除。', 'success');
+  } catch (error) {
+    setAiConfigStatus(aiErrorMessage(error), 'error');
+  }
+}
+
+function changeAiProvider() {
+  const provider = els.aiProvider.value;
+  const preset = AI_PROVIDERS[provider] || AI_PROVIDERS.custom;
+  if (preset.baseUrl) els.aiBaseUrl.value = preset.baseUrl;
+  const needsKey = preset.apiKeyRequired;
+  els.aiApiKey.disabled = !needsKey;
+  const sameScope = state.aiConfig && state.aiConfig.provider === provider && state.aiConfig.baseUrl === els.aiBaseUrl.value.trim();
+  els.aiApiKey.placeholder = needsKey ? ((sameScope && state.aiConfig.hasApiKey) ? '已加密保存；留空保持不变' : '请输入 API Key') : '本地接口无需 API Key';
+  $('btn-ai-key-toggle').disabled = !needsKey;
+  $('btn-ai-key-clear').disabled = !needsKey || !(sameScope && state.aiConfig.hasApiKey);
+  const examples = { openai: '例如：gpt-4o-mini', deepseek: '例如：deepseek-chat', ollama: '例如：qwen3:4b', custom: '填写接口支持的模型名称' };
+  els.aiModel.placeholder = examples[provider] || examples.custom;
+  updateAiTarget();
+  setAiConfigStatus('');
+}
+
+function currentChapterSummarySource() {
+  const c = state.current;
+  if (!c) throw new Error('请先打开一本书');
+  if (c.format === 'epub') {
+    const location = c.rendition && c.rendition.currentLocation();
+    const index = location && location.start && Number.isFinite(location.start.index) ? location.start.index : 0;
+    let contents = [];
+    try { contents = c.rendition ? c.rendition.getContents() : []; } catch (error) {}
+    const matching = contents.filter((item) => item && item.section && item.section.index === index);
+    const selected = matching.length ? matching : contents.slice(0, 1);
+    const content = selected.map((item) => item.document && item.document.body ? item.document.body.innerText : '').join('\n\n');
+    return { bookPath: c.path, bookTitle: c.title, chapterTitle: epubChapterTitle(c.epub, index), chapterId: 'epub:' + index, ordinal: index, content: cleanChapterText(content) };
+  }
+  if (c.format === 'pdf') {
+    const content = c.pdfTextRoot ? c.pdfTextRoot.innerText : '';
+    return { bookPath: c.path, bookTitle: c.title, chapterTitle: '第 ' + c.page + ' 页（PDF）', chapterId: 'pdf:' + c.page, ordinal: c.page, content: cleanChapterText(content) };
+  }
+  if (c.format === 'txt') {
+    const paragraphs = c.txtParagraphs || [];
+    const chapters = c.txtChapters || [];
+    const anchor = c.paginator && c.paginator.anchor();
+    const paraIndex = c.paginator && typeof c.paginator.paragraphIndexOfTextOffset === 'function'
+      ? c.paginator.paragraphIndexOfTextOffset(anchor ? anchor.off : 0)
+      : 0;
+    const index = chapterAt(chapters, Math.max(0, paraIndex));
+    if (index >= 0) {
+      const start = chapters[index].paraIndex;
+      const end = chapters[index + 1] ? chapters[index + 1].paraIndex : paragraphs.length;
+      return { bookPath: c.path, bookTitle: c.title, chapterTitle: chapters[index].title, chapterId: 'txt:' + index, ordinal: index, content: cleanChapterText(paragraphs.slice(start, end).join('\n\n')) };
+    }
+    return { bookPath: c.path, bookTitle: c.title, chapterTitle: '全文', chapterId: 'txt:all', ordinal: 0, content: cleanChapterText(paragraphs.join('\n\n')) };
+  }
+  const chapter = c.flow ? c.flow.chapter : 0;
+  const content = c.paginator && c.paginator.doc && c.paginator.doc.body ? c.paginator.doc.body.innerText : '';
+  return { bookPath: c.path, bookTitle: c.title, chapterTitle: mobiChapterTitle(c.mobi, chapter), chapterId: c.format + ':' + chapter, ordinal: chapter, content: cleanChapterText(content) };
+}
+
+function cachedAiSummary(source) {
+  if (!source || !source.bookPath || !state.aiConfig) return null;
+  const key = aiCacheKey(source.chapterId, source.content, aiConfigIdentity(state.aiConfig));
+  return state.aiSummaries[source.bookPath] && state.aiSummaries[source.bookPath][key] ? state.aiSummaries[source.bookPath][key] : null;
+}
+
+async function storeAiSummary(pathKey, source, result) {
+  const resultConfig = { provider: result.provider, baseUrl: result.baseUrl, model: result.model };
+  const key = aiCacheKey(source.chapterId, source.content, aiConfigIdentity(resultConfig));
+  const bookEntries = Object.assign({}, state.aiSummaries[pathKey] || {});
+  bookEntries[key] = {
+    summary: result.summary,
+    chapterTitle: source.chapterTitle,
+    model: result.model,
+    targetHost: result.targetHost,
+    createdAt: Date.now(),
+  };
+  const recent = Object.entries(bookEntries).sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0)).slice(0, 40);
+  state.aiSummaries[pathKey] = Object.fromEntries(recent);
+  await window.api.stateSet('aiSummaries', state.aiSummaries);
+  return bookEntries[key];
+}
+
+function showAiSummaryResult(source, cached) {
+  els.aiSummaryChapter.textContent = source.chapterTitle;
+  els.aiSummaryTarget.textContent = cached && cached.targetHost ? '由 ' + cached.model + ' 生成 · ' + cached.targetHost : '';
+  els.aiSummaryContent.textContent = cached && cached.summary ? cached.summary : '';
+  els.aiSummaryStatus.textContent = cached ? '已读取本地缓存。' : '点击“生成总结”开始。';
+  els.aiSummaryStatus.classList.remove('error');
+  $('btn-ai-summary-copy').disabled = !(cached && cached.summary);
+}
+
+function openAiSummaryPanel() {
+  closeSettings();
+  let source;
+  try { source = currentChapterSummarySource(); } catch (error) {
+    els.readerStatus.textContent = aiErrorMessage(error);
+    return;
+  }
+  els.tocPanel.hidden = true;
+  els.bookmarksPanel.hidden = true;
+  els.annotationsPanel.hidden = true;
+  els.aiSummaryPanel.hidden = false;
+  showAiSummaryResult(source, cachedAiSummary(source));
+  resizeEpubRendition();
+}
+
+async function summarizeSource(source, options) {
+  const background = options && options.background;
+  const pathKey = source && source.bookPath;
+  if (!pathKey || !source || !source.content) return null;
+  const existing = cachedAiSummary(source);
+  if (existing) return existing;
+  if (!state.aiConfig || !state.aiConfig.model) {
+    if (!background) openSettings('ai');
+    throw new Error('请先在 AI 章节助手设置中填写模型名称');
+  }
+  const provider = AI_PROVIDERS[state.aiConfig.provider] || AI_PROVIDERS.custom;
+  if (provider.apiKeyRequired && !state.aiConfig.hasApiKey) {
+    if (!background) openSettings('ai');
+    throw new Error('请先在 AI 章节助手设置中保存 API Key');
+  }
+  const result = await window.api.aiSummarize(source);
+  return storeAiSummary(pathKey, source, result);
+}
+
+async function runCurrentChapterSummary() {
+  if (state.aiSummaryLoading) return;
+  let source;
+  try { source = currentChapterSummarySource(); } catch (error) {
+    els.aiSummaryStatus.textContent = aiErrorMessage(error);
+    els.aiSummaryStatus.classList.add('error');
+    return;
+  }
+  state.aiSummaryLoading = true;
+  $('btn-ai-summary-run').disabled = true;
+  els.aiSummaryStatus.classList.remove('error');
+  els.aiSummaryStatus.textContent = '正在总结，长章节可能需要分段处理…';
+  els.aiSummaryContent.textContent = '';
+  try {
+    const result = await summarizeSource(source);
+    showAiSummaryResult(source, result);
+    els.aiSummaryStatus.textContent = '总结完成并已保存在本地。';
+  } catch (error) {
+    els.aiSummaryStatus.textContent = aiErrorMessage(error);
+    els.aiSummaryStatus.classList.add('error');
+  } finally {
+    state.aiSummaryLoading = false;
+    $('btn-ai-summary-run').disabled = false;
+  }
+}
+
+function observeAiChapter() {
+  if (!state.current || state.current.format === 'pdf') return;
+  let source;
+  try { source = currentChapterSummarySource(); } catch (error) { return; }
+  if (!source.content) return;
+  const previous = state.lastAiChapterSource;
+  state.lastAiChapterSource = source;
+  if (!previous || previous.chapterId === source.chapterId || source.ordinal <= previous.ordinal) return;
+  if (!state.aiConfig || state.aiConfig.autoSummarize !== true) return;
+  state.aiAutoQueue = state.aiAutoQueue.then(async () => {
+    try {
+      await summarizeSource(previous, { background: true });
+      if (!els.aiSummaryPanel.hidden) showAiSummaryResult(source, cachedAiSummary(source));
+    } catch (error) {
+      console.warn('AI_AUTO_SUMMARY_FAILED', aiErrorMessage(error));
+    }
+  });
+}
+
+async function copyAiSummary() {
+  const text = els.aiSummaryContent.textContent.trim();
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    els.aiSummaryStatus.textContent = '总结已复制。';
+  } catch (error) {
+    els.aiSummaryStatus.textContent = '复制失败。';
+    els.aiSummaryStatus.classList.add('error');
+  }
+}
+
 function bindEvents() {
   $('btn-home-shelf').addEventListener('click', () => showView('library'));
   $('btn-home-folder').addEventListener('click', async () => {
@@ -2426,6 +2731,7 @@ function bindEvents() {
       showView('library');
     }
   });
+  $('btn-home-ai').addEventListener('click', () => openSettings('ai'));
   $('btn-home-settings').addEventListener('click', openSettings);
   views.home.addEventListener('pointerdown', (ev) => spawnBurst(ev.clientX, ev.clientY));
   views.home.addEventListener('pointermove', (ev) => {
@@ -2471,6 +2777,16 @@ function bindEvents() {
     if (ev.target === els.settingsOverlay) closeSettings();
   });
   els.settingsDrawer.addEventListener('click', (ev) => ev.stopPropagation());
+  els.aiProvider.addEventListener('change', changeAiProvider);
+  els.aiBaseUrl.addEventListener('input', updateAiTarget);
+  $('btn-ai-save').addEventListener('click', () => saveAiConfig());
+  $('btn-ai-test').addEventListener('click', testAiConfig);
+  $('btn-ai-key-clear').addEventListener('click', clearAiApiKey);
+  $('btn-ai-key-toggle').addEventListener('click', () => {
+    const visible = els.aiApiKey.type === 'text';
+    els.aiApiKey.type = visible ? 'password' : 'text';
+    $('btn-ai-key-toggle').textContent = visible ? '显示' : '隐藏';
+  });
 
   $('btn-manage').addEventListener('click', toggleManageMode);
   $('btn-select-all').addEventListener('click', selectAll);
@@ -2518,6 +2834,13 @@ function bindEvents() {
     closeSettings();
     togglePanel('annotations');
   });
+  $('btn-ai-summary').addEventListener('click', openAiSummaryPanel);
+  $('btn-ai-summary-close').addEventListener('click', () => {
+    els.aiSummaryPanel.hidden = true;
+    resizeEpubRendition();
+  });
+  $('btn-ai-summary-run').addEventListener('click', runCurrentChapterSummary);
+  $('btn-ai-summary-copy').addEventListener('click', copyAiSummary);
   $('btn-reading-stats-reader').addEventListener('click', () => openReadingStats('reader'));
   els.selectionToolbar.addEventListener('pointerdown', (ev) => ev.preventDefault());
   els.selectionToolbar.addEventListener('click', async (ev) => {
@@ -2860,6 +3183,15 @@ window.__gaiaDebug = {
   openSettings,
   closeSettings,
   isSettingsOpen,
+  getAiUiState: () => ({
+    homeEntry: !!$('btn-home-ai'),
+    settingsSection: !!$('drawer-ai'),
+    summaryButton: !!$('btn-ai-summary'),
+    summaryPanel: !!els.aiSummaryPanel,
+    provider: state.aiConfig && state.aiConfig.provider,
+    hasApiKey: !!(state.aiConfig && state.aiConfig.hasApiKey),
+  }),
+  getAiChapterSource: () => currentChapterSummarySource(),
   waitHome: () => state.homeReady,
   getView: () => {
     for (const key of Object.keys(views)) {
