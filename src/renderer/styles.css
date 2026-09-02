@@ -280,7 +280,11 @@ body.dark #stats-view {
 .stats-secondary { color: var(--stats-hero-soft); margin: 10px 0 0; font-size: 13px; }
 .stats-alice-line { position: relative; max-width: 410px; margin: 23px 0 0; padding: 10px 14px 10px 17px; border-left: 2px solid var(--stats-accent); background: rgba(255,255,255,.07); color: var(--stats-hero-text); font-family: Georgia, "Times New Roman", "SimSun", serif; font-size: 13px; line-height: 1.65; letter-spacing: .03em; }
 .stats-hero-visual { position: absolute; z-index: 1; right: 25px; top: 0; width: 340px; height: 100%; pointer-events: none; }
-.stats-alice { position: absolute; z-index: 1; height: 350px; width: auto; right: -4px; bottom: -142px; filter: drop-shadow(-12px 8px 18px rgba(0,0,0,.35)); opacity: .94; }
+.stats-pet-slot { position: absolute; z-index: 3; right: -2px; bottom: 0; width: 172px; height: 100%; pointer-events: none; }
+.stats-pet-slot .gaia-pet.stats-embedded { position: absolute; z-index: 3; left: auto !important; right: 0; top: auto !important; bottom: -80px; width: 172px !important; padding-bottom: 0; cursor: default; pointer-events: none; filter: drop-shadow(-12px 8px 18px rgba(0,0,0,.35)); }
+.stats-pet-slot .gaia-pet.stats-embedded .gaia-pet-hitbox { bottom: 0; cursor: pointer; }
+.stats-pet-slot .gaia-pet.stats-embedded .gaia-pet-face:not(.gaia-pet-blink-face) { -webkit-mask-image: linear-gradient(#000 0 80%, transparent 100%); mask-image: linear-gradient(#000 0 80%, transparent 100%); }
+.stats-pet-slot .gaia-pet.stats-embedded .gaia-pet-fps { display: none; }
 .stats-ring { position: absolute; z-index: 2; left: 4px; top: 57px; width: 154px; height: 154px; border-radius: 50%; padding: 12px; background: conic-gradient(var(--stats-accent) var(--goal-progress), rgba(255,255,255,.15) 0); box-shadow: 0 0 0 1px var(--stats-hero-soft), 0 0 0 8px rgba(15,10,20,.34), 0 0 28px color-mix(in srgb, var(--stats-accent) 45%, transparent); transform: rotate(-12deg); }
 .stats-ring::before, .stats-ring::after { content: ''; position: absolute; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--stats-hero-soft) 65%, transparent); }
 .stats-ring::before { inset: -17px; border-style: dashed; animation: statsOrbit 28s linear infinite; }
@@ -322,7 +326,7 @@ body.dark #stats-view {
   .stats-hero { padding: 30px 24px; }
   .stats-hero-copy { max-width: 58%; }
   .stats-hero-visual { right: 4px; width: 300px; }
-  .stats-alice { opacity: .62; }
+  .stats-pet-slot { opacity: .72; }
   .stats-ring { width: 126px; height: 126px; left: 24px; top: 70px; }
   .stats-ring-diamond { left: 52px; }
   .stats-streak-grid { grid-template-columns: 1fr; }
@@ -330,7 +334,7 @@ body.dark #stats-view {
 }
 @media (max-width: 520px) {
   .stats-hero-copy { max-width: 100%; }
-  .stats-alice { display: none; }
+  .stats-pet-slot { display: none; }
   .stats-hero-visual { width: 126px; right: 15px; opacity: .34; }
   .stats-ring { left: 0; }
   .stats-alice-line { max-width: calc(100% - 70px); }
