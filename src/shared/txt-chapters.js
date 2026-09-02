@@ -9,7 +9,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const CHAPTER_RE = /^(第\s*[0-9零〇一二三四五六七八九十百千万两]+\s*[章节回卷部篇集]|Chapter\s+[0-9IVXLCDMivxlcdm]+|序章|序言|楔子|引子|尾声|终章|后记|番外|卷\s*[0-9零〇一二三四五六七八九十百千万两]+)/;
+  const CHAPTER_RE = /^(?:正文\s*)?(?:第\s*[0-9零〇一二三四五六七八九十百千万两]+\s*[章节回卷部篇集]|(?:Chapter|Part|Book)\s+[0-9IVXLCDMivxlcdm]+|序章|序言|楔子|引子|尾声|终章|后记|番外|[卷部篇]\s*[0-9零〇一二三四五六七八九十百千万两]+|(?:[0-9]{1,4}|[零〇一二三四五六七八九十百千万两]{1,8})[、.．]\s*\S+)/i;
 
   /**
    * 与 txt-html 的分段规则保持一致：

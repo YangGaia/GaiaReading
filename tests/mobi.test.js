@@ -80,6 +80,7 @@ test('TOC 条目应映射到章节序号', async (t) => {
   const walk = (items) => {
     for (const item of items) {
       assert.ok('index' in item, 'TOC 条目应有 index 字段');
+      assert.strictEqual(typeof item.selector, 'string', 'TOC 条目应保留章节内定位选择器');
       if (item.children) walk(item.children);
     }
   };

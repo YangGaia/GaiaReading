@@ -218,7 +218,7 @@ test('多段章节先分别总结再合并并生成稳定缓存键', async () =>
   assert.notStrictEqual(cacheKey('chapter-1', source.content, 'demo'), cacheKey('chapter-2', source.content, 'demo'));
 });
 
-test('章节总结对空正文自动扩大输出额度重试', async () => {
+test('章节总结对空响应正文自动扩大输出额度重试', async () => {
   const tokens = [];
   const fakeFetch = async (url, options) => {
     const body = JSON.parse(options.body);

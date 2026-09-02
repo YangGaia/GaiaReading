@@ -290,32 +290,39 @@ async function openMobi(filePath, resourceSaveDir) {
       if (!fidToIndex.has(frag.index)) fidToIndex.set(frag.index, i);
     }
   }
-  function tocIndexFromHref(href) {
+  function tocTargetFromHref(href) {
     let raw = null;
-    if (!href) return null;
+    let resolved = null;
+    if (!href) return { index: null, selector: '' };
     const position = parseKindlePosition(href);
     if (position && fidToIndex.has(position.fid)) raw = fidToIndex.get(position.fid);
-    if (raw == null && typeof book.resolveHref === 'function') {
+    if (typeof book.resolveHref === 'function') {
       try {
-        const resolved = book.resolveHref(href);
-        if (resolved && resolved.id != null && rawIndexById.has(String(resolved.id))) {
+        resolved = book.resolveHref(href);
+        if (raw == null && resolved && resolved.id != null && rawIndexById.has(String(resolved.id))) {
           raw = rawIndexById.get(String(resolved.id));
         }
       } catch {
-        return null;
+        resolved = null;
       }
     }
-    if (raw == null) return null;
+    if (raw == null) return { index: null, selector: '' };
     const target = mergeTarget[raw] >= 0 ? mergeTarget[raw] : raw;
-    return newIndexOf[target] != null ? newIndexOf[target] : null;
+    return {
+      index: newIndexOf[target] != null ? newIndexOf[target] : null,
+      selector: resolved && typeof resolved.selector === 'string' ? resolved.selector : '',
+    };
   }
-  const mapToc = (items) =>
-    (items || []).map((item) => ({
+  const mapToc = (items) => (items || []).map((item) => {
+    const target = tocTargetFromHref(item.href);
+    return {
       label: item.label || '',
       href: item.href || '',
-      index: tocIndexFromHref(item.href),
+      index: target.index,
+      selector: target.selector,
       children: mapToc(item.children),
-    }));
+    };
+  });
   const tocWithIndex = mapToc(toc);
 
   return {

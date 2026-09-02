@@ -1348,7 +1348,7 @@ ipcMain.handle('ai:summarize', async (event, payload) => {
     bookTitle: String(source.bookTitle || '').slice(0, 300),
     chapterTitle: String(source.chapterTitle || '').slice(0, 300),
     content,
-  }, { timeoutMs: 90000, maxChunkChars: 30000 });
+  }, { timeoutMs: 90000, maxChunkChars: 12000 });
   return { summary, profileId: profile.id, profileName: profile.name, provider: profile.provider, baseUrl: profile.baseUrl, model: profile.model, targetHost: new URL(profile.baseUrl).host };
 });
 ipcMain.handle('ai:chat', async (event, payload) => {

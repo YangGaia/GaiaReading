@@ -26,7 +26,7 @@ test('splitTxtParagraphs 与 paragraphsToHtml 分段一致', () => {
 });
 
 test('detectTxtChapters 识别常见章节标题', () => {
-  const paras = ['第一章 风起', '正文第一段', '第二章 云涌', '更多内容', '第 12 回 转折', '继续', 'Chapter 3', '后面', '序章', '楔子', '结尾'];
+  const paras = ['第一章 风起', '正文第一段', '第二章 云涌', '更多内容', '第 12 回 转折', '继续', 'Chapter 3', '后面', '序章', '楔子', '正文 第四章 重逢', '1、雨夜', 'Part IV', '结尾'];
   const chapters = detectTxtChapters(paras);
   assert.deepStrictEqual(chapters, [
     { title: '第一章 风起', paraIndex: 0 },
@@ -35,6 +35,9 @@ test('detectTxtChapters 识别常见章节标题', () => {
     { title: 'Chapter 3', paraIndex: 6 },
     { title: '序章', paraIndex: 8 },
     { title: '楔子', paraIndex: 9 },
+    { title: '正文 第四章 重逢', paraIndex: 10 },
+    { title: '1、雨夜', paraIndex: 11 },
+    { title: 'Part IV', paraIndex: 12 },
   ]);
 });
 

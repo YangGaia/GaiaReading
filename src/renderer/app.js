@@ -12,6 +12,7 @@ const {
 const { paragraphsToHtml } = window.GaiaTxtHtml;
 const { splitTxtParagraphs, detectTxtChapters, chapterAt, chapterTitleForParagraph } = window.GaiaTxtChapters;
 const { epubDisplayPercent, findEpubNavLabel, resolveEpubTocTarget } = window.GaiaEpubProgress;
+const { flattenToc: flattenChapterToc, selectChapterScope } = window.GaiaChapterScope;
 const { normalizeWheelDelta, createWheelGate } = window.GaiaReaderInput;
 const {
   createReadingStats,
@@ -763,6 +764,7 @@ async function openEpub(book) {
   ]);
 
   const nav = await epub.loaded.navigation;
+  state.current.epubToc = nav.toc || [];
   const renderToc = (items, depth) => {
     for (const item of items) {
       if (!item.href) continue;
@@ -978,7 +980,16 @@ async function loadMobiChapter(chapterIndex, opts) {
       const total = c.paginator.totalPages || 1;
       if (c.flow) c.flow.setPages(clamped, total);
       c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
-      const p = opts.page === 'end' ? total - 1 : (typeof opts.page === 'number' ? opts.page : 0);
+      let p = opts.page === 'end' ? total - 1 : (typeof opts.page === 'number' ? opts.page : 0);
+      if (opts.selector) {
+        try {
+          const targetNode = c.paginator.doc.body.querySelector(opts.selector);
+          if (targetNode) {
+            const targetPage = c.paginator.locate(textOffsetBeforeNode(c.paginator.doc.body, targetNode));
+            if (targetPage >= 0) p = targetPage;
+          }
+        } catch (error) {}
+      }
       c.paginator.showPage(p);
       restoreTextAnnotations();
       if (c.flow) c.flow.page = Math.min(Math.max(0, p), total - 1);
@@ -1054,7 +1065,7 @@ function renderMobiToc() {
       a.textContent = '\\u3000'.repeat(depth) + (item.label || '').trim();
       a.addEventListener('click', (ev) => {
         ev.preventDefault();
-        if (typeof item.index === 'number' && item.index >= 0) loadMobiChapter(item.index, { page: 0 });
+        if (typeof item.index === 'number' && item.index >= 0) loadMobiChapter(item.index, { page: 0, selector: item.selector || '' });
       });
       els.tocPanel.appendChild(a);
       if (item.children && item.children.length) renderItems(item.children, depth + 1);
@@ -2936,22 +2947,139 @@ function changeAiProvider() {
   setAiConfigStatus('');
 }
 
+function decodedHrefFragment(href) {
+  const value = String(href || '');
+  const hashAt = value.indexOf('#');
+  if (hashAt < 0 || hashAt === value.length - 1) return '';
+  try { return decodeURIComponent(value.slice(hashAt + 1)); } catch (error) { return value.slice(hashAt + 1); }
+}
+
+function textOffsetBeforePosition(root, node, offset) {
+  if (!root || !node || !root.contains(node)) return 0;
+  try {
+    const range = root.ownerDocument.createRange();
+    range.setStart(root, 0);
+    range.setEnd(node, Math.max(0, Number(offset) || 0));
+    return range.toString().length;
+  } catch (error) {
+    return 0;
+  }
+}
+
+function textOffsetBeforeNode(root, node) {
+  if (!root || !node || !root.contains(node)) return 0;
+  try {
+    const range = root.ownerDocument.createRange();
+    range.setStart(root, 0);
+    range.setEndBefore(node);
+    return range.toString().length;
+  } catch (error) {
+    return 0;
+  }
+}
+
+function textBetweenChapterNodes(root, startNode, endNode) {
+  if (!root) return '';
+  try {
+    const doc = root.ownerDocument;
+    const range = doc.createRange();
+    range.setStart(root, 0);
+    range.setEnd(root, root.childNodes.length);
+    if (startNode && root.contains(startNode)) range.setStartBefore(startNode);
+    if (endNode && root.contains(endNode)) range.setEndBefore(endNode);
+    const holder = doc.createElement('div');
+    holder.appendChild(range.cloneContents());
+    return holder.innerText || holder.textContent || '';
+  } catch (error) {
+    return root.innerText || root.textContent || '';
+  }
+}
+
+function epubChapterSummarySource(c) {
+  const location = c.rendition && c.rendition.currentLocation();
+  const locationIndex = location && location.start && Number.isFinite(location.start.index) ? location.start.index : 0;
+  let contents = [];
+  try { contents = c.rendition ? c.rendition.getContents() : []; } catch (error) {}
+  const currentContent = contents.find((item) => item && item.section && item.section.index === locationIndex) || contents[0];
+  const index = currentContent && currentContent.section && Number.isFinite(currentContent.section.index) ? currentContent.section.index : locationIndex;
+  const root = currentContent && currentContent.document && currentContent.document.body;
+  const resourceHref = currentContent && currentContent.section && currentContent.section.href;
+  let currentOffset = 0;
+  if (root && location && location.start && location.start.cfi && currentContent && typeof currentContent.range === 'function') {
+    try {
+      const range = currentContent.range(location.start.cfi);
+      if (range) currentOffset = textOffsetBeforePosition(root, range.startContainer, range.startOffset);
+    } catch (error) {}
+  }
+  const entries = flattenChapterToc(c.epubToc || []).map(({ item, depth, order }) => {
+    let section = null;
+    try {
+      const target = resolveEpubTocTarget(c.epub.spine && c.epub.spine.spineItems, item.href);
+      section = c.epub.spine.get(target);
+    } catch (error) {}
+    const containerIndex = section && Number.isFinite(section.index) ? section.index : NaN;
+    const fragment = decodedHrefFragment(item.href);
+    const node = root && containerIndex === index && fragment ? currentContent.document.getElementById(fragment) : null;
+    return {
+      label: String(item.label || '').trim(),
+      id: item.href,
+      containerIndex,
+      startOffset: node ? textOffsetBeforeNode(root, node) : 0,
+      node,
+      depth,
+      order,
+    };
+  });
+  const scope = selectChapterScope(entries, index, currentOffset);
+  const selected = scope.selected;
+  const content = textBetweenChapterNodes(root, selected && !selected.continued ? selected.node : null, scope.endEntry && scope.endEntry.node);
+  return {
+    bookPath: c.path,
+    bookTitle: c.title,
+    chapterTitle: selected && selected.label ? selected.label : epubChapterTitle(c.epub, index, resourceHref),
+    chapterId: selected && selected.id ? 'epub:toc:' + selected.id : 'epub:' + index,
+    ordinal: index,
+    content: cleanChapterText(content),
+  };
+}
+
+function mobiChapterSummarySource(c) {
+  const chapter = c.flow ? c.flow.chapter : 0;
+  const root = c.paginator && c.paginator.doc && c.paginator.doc.body;
+  const anchor = c.paginator && c.paginator.anchor();
+  const currentOffset = anchor && Number.isFinite(anchor.off) ? anchor.off : 0;
+  const entries = flattenChapterToc((c.mobi && c.mobi.toc) || []).map(({ item, depth, order }) => {
+    let node = null;
+    if (root && item.index === chapter && item.selector) {
+      try { node = root.querySelector(item.selector); } catch (error) {}
+    }
+    return {
+      label: String(item.label || '').trim(),
+      id: item.href,
+      containerIndex: Number.isFinite(item.index) && item.index >= 0 ? item.index : NaN,
+      startOffset: node ? textOffsetBeforeNode(root, node) : 0,
+      node,
+      depth,
+      order,
+    };
+  });
+  const scope = selectChapterScope(entries, chapter, currentOffset);
+  const selected = scope.selected;
+  const content = textBetweenChapterNodes(root, selected && !selected.continued ? selected.node : null, scope.endEntry && scope.endEntry.node);
+  return {
+    bookPath: c.path,
+    bookTitle: c.title,
+    chapterTitle: selected && selected.label ? selected.label : mobiChapterTitle(c.mobi, chapter),
+    chapterId: selected && selected.id ? c.format + ':toc:' + selected.id : c.format + ':' + chapter,
+    ordinal: chapter,
+    content: cleanChapterText(content),
+  };
+}
+
 function currentChapterSummarySource() {
   const c = state.current;
   if (!c) throw new Error('请先打开一本书');
-  if (c.format === 'epub') {
-    const location = c.rendition && c.rendition.currentLocation();
-    const locationIndex = location && location.start && Number.isFinite(location.start.index) ? location.start.index : 0;
-    let contents = [];
-    try { contents = c.rendition ? c.rendition.getContents() : []; } catch (error) {}
-    const currentContent = contents.find((item) => item && item.section && item.section.index === locationIndex) || contents[0];
-    const index = currentContent && currentContent.section && Number.isFinite(currentContent.section.index) ? currentContent.section.index : locationIndex;
-    const matching = contents.filter((item) => item && item.section && item.section.index === index);
-    const selected = matching.length ? matching : (currentContent ? [currentContent] : []);
-    const content = selected.map((item) => item.document && item.document.body ? item.document.body.innerText : '').join('\n\n');
-    const resourceHref = currentContent && currentContent.section && currentContent.section.href;
-    return { bookPath: c.path, bookTitle: c.title, chapterTitle: epubChapterTitle(c.epub, index, resourceHref), chapterId: 'epub:' + index, ordinal: index, content: cleanChapterText(content) };
-  }
+  if (c.format === 'epub') return epubChapterSummarySource(c);
   if (c.format === 'pdf') {
     const content = c.pdfTextRoot ? c.pdfTextRoot.innerText : '';
     return { bookPath: c.path, bookTitle: c.title, chapterTitle: '第 ' + c.page + ' 页（PDF）', chapterId: 'pdf:' + c.page, ordinal: c.page, content: cleanChapterText(content) };
@@ -2969,11 +3097,13 @@ function currentChapterSummarySource() {
       const end = chapters[index + 1] ? chapters[index + 1].paraIndex : paragraphs.length;
       return { bookPath: c.path, bookTitle: c.title, chapterTitle: chapters[index].title, chapterId: 'txt:' + index, ordinal: index, content: cleanChapterText(paragraphs.slice(start, end).join('\n\n')) };
     }
-    return { bookPath: c.path, bookTitle: c.title, chapterTitle: '全文', chapterId: 'txt:all', ordinal: 0, content: cleanChapterText(paragraphs.join('\n\n')) };
+    if (chapters.length) {
+      const end = chapters[0].paraIndex;
+      return { bookPath: c.path, bookTitle: c.title, chapterTitle: '章节前内容', chapterId: 'txt:frontmatter', ordinal: -1, content: cleanChapterText(paragraphs.slice(0, end).join('\n\n')) };
+    }
+    throw new Error('未识别到 TXT 章节标题，无法确定“本章”范围');
   }
-  const chapter = c.flow ? c.flow.chapter : 0;
-  const content = c.paginator && c.paginator.doc && c.paginator.doc.body ? c.paginator.doc.body.innerText : '';
-  return { bookPath: c.path, bookTitle: c.title, chapterTitle: mobiChapterTitle(c.mobi, chapter), chapterId: c.format + ':' + chapter, ordinal: chapter, content: cleanChapterText(content) };
+  return mobiChapterSummarySource(c);
 }
 
 function cachedAiSummary(source) {
