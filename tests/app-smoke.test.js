@@ -79,6 +79,9 @@ test('版本号为 0.5.2 且界面同步', () => {
 
 test('README 界面截图存在且已引用', () => {
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  assert.ok(readme.includes('移除鼠标跟随和全部方向帧'), 'README 未记录桌宠鼠标跟随移除');
+  assert.ok(readme.includes('每 6～10 秒以 80% 概率'), 'README 未记录高频梦话规则');
+  assert.ok(!readme.includes('**自然视线跟随**'), 'README 不应继续宣传已移除的鼠标跟随');
   const shots = ['pet_console_0.5.2', 'PixPin_2026-09-01_20-10-31', 'PixPin_2026-09-01_20-10-44', 'PixPin_2026-09-01_20-10-57', 'PixPin_2026-09-01_20-11-17'];
   for (const s of shots) {
     assert.ok(readme.includes('docs/screenshots/' + s + '.png'), 'README 缺少 ' + s + ' 截图引用');
