@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('api', {
   aiChat: (payload) => ipcRenderer.invoke('ai:chat', payload),
   aiAliceComment: (payload) => ipcRenderer.invoke('ai:alice-comment', payload),
   dictionaryOpen: (query) => ipcRenderer.invoke('dictionary:open', query),
-  searchWeb: (query) => ipcRenderer.invoke('selection:search', query),
+  searchWeb: (query, options) => ipcRenderer.invoke('selection:search', { query, ...(options || {}) }),
   exists: (filePath) => ipcRenderer.invoke('file:exists', filePath),
   displayFrequency: () => ipcRenderer.invoke('display:frequency'),
   onDisplayFrequencyChanged: (callback) => {

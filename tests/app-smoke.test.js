@@ -90,7 +90,7 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   const ai = fs.readFileSync(path.join(root, 'src', 'shared', 'ai.js'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
 
-  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-menu', 'btn-ai-model-refresh', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-summary', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-minimize', 'btn-ai-tab-chat', 'btn-ai-tab-summary', 'ai-chat-pane', 'ai-summary-pane', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input']) {
+  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-menu', 'btn-ai-model-refresh', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-summary', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-minimize', 'btn-ai-tab-chat', 'btn-ai-tab-summary', 'ai-chat-pane', 'ai-summary-pane', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input', 'drawer-lookup', 'search-engine', 'search-custom-row', 'search-custom-template']) {
     assert.ok(html.includes(`id="${id}"`), `AI 界面缺少 ${id}`);
   }
   for (const bridge of ['aiProfilesGet', 'aiProfileSave', 'aiProfileActivate', 'aiProfileDelete', 'aiProfileTest', 'aiProfileModels', 'aiSummarize', 'aiChat', 'aiAliceComment', 'dictionaryOpen', 'searchWeb']) {
@@ -131,7 +131,12 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(main.includes("partition: 'gaia-dictionary'"), '内置词典应使用隔离会话');
   assert.ok(main.includes('nodeIntegration: false') && main.includes('sandbox: true'), '内置词典窗口必须禁用 Node 并启用沙箱');
   assert.ok(main.includes("ipcMain.handle('selection:search'"), '主进程缺少默认浏览器搜索入口');
-  assert.ok(main.includes('shell.openExternal(Lookup.searchUrl(normalized))'), '网页搜索应交给系统默认浏览器');
+  assert.ok(main.includes('Lookup.searchUrl(normalized, { engine, customTemplate: input.customTemplate })'), '主进程应根据用户设置生成搜索地址');
+  assert.ok(main.includes('shell.openExternal(target)'), '网页搜索应交给系统默认浏览器');
+  assert.ok(app.includes('function saveSearchSettings()'), '搜索引擎选择应能持久保存');
+  for (const engine of ['google', 'bing', 'baidu', 'custom']) {
+    assert.ok(html.includes(`<option value="${engine}">`), `设置中缺少 ${engine} 搜索引擎`);
+  }
   assert.ok(app.includes('document.createTextNode(message.content)'), 'AI 回答必须按纯文本渲染，不能作为 HTML 执行');
   assert.ok(pet.includes('function speak(text, duration)'), '桌宠应公开受长度限制的 AI 台词入口');
 });

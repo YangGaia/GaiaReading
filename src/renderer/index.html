@@ -264,7 +264,7 @@
     <button data-selection-action="ai-analyze" title="让 AI 直接分析选中文字">AI 解读</button>
     <button data-selection-action="ai-ask" title="引用选中文字向 AI 提问">问 AI</button>
     <button data-selection-action="dictionary" title="在应用内词典窗口查询">字典</button>
-    <button data-selection-action="search" title="使用默认浏览器搜索">搜索</button>
+    <button data-selection-action="search" title="使用 Google 搜索">搜索</button>
     <span class="selection-toolbar-divider"></span>
     <button data-selection-action="note">笔记</button>
     <button data-selection-action="copy">复制</button>
@@ -351,6 +351,23 @@
           <div class="appearance-control">
             <button id="btn-pet-console" class="btn">有珠控制台</button>
           </div>
+        </div>
+      </div>
+      <div id="drawer-lookup">
+        <h3>查词与搜索</h3>
+        <div class="drawer-row">
+          <label class="drawer-label" for="search-engine">默认搜索</label>
+          <select id="search-engine" class="drawer-select">
+            <option value="google">Google</option>
+            <option value="bing">Bing</option>
+            <option value="baidu">百度</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div id="search-custom-row" class="search-custom-row" hidden>
+          <label class="drawer-label" for="search-custom-template">自定义网址</label>
+          <input id="search-custom-template" class="drawer-input" type="url" spellcheck="false" placeholder="https://example.com/search?q={query}">
+          <small id="search-custom-status">用 {query} 表示搜索词，仅支持 HTTPS。</small>
         </div>
       </div>
       <div id="drawer-ai" class="drawer-ai-link">

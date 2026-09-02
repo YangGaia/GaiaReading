@@ -583,6 +583,18 @@ function createWindow() {
               const bgmSettingsOpeningFromOriginal = !!settingsOpeningFrames && settingsOpeningFrames.length >= 2 && settingsOpeningFrames[0].transform.startsWith('translate(');
               await new Promise((r) => setTimeout(r, 350));
               const drawerOpen = __gaiaDebug.isSettingsOpen();
+              const searchEngineSelect = document.getElementById('search-engine');
+              const searchEngineOptionsReady = ['google', 'bing', 'baidu', 'custom'].every((value) => !!searchEngineSelect.querySelector('option[value="' + value + '"]'));
+              searchEngineSelect.value = 'bing';
+              searchEngineSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              const searchUsesBing = document.querySelector('[data-selection-action="search"]').title === '使用 Bing 搜索';
+              searchEngineSelect.value = 'custom';
+              searchEngineSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              const customSearchVisible = !document.getElementById('search-custom-row').hidden;
+              searchEngineSelect.value = 'google';
+              searchEngineSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              const searchSettingsReady = searchEngineOptionsReady && searchUsesBing && customSearchVisible &&
+                document.getElementById('search-custom-row').hidden && document.querySelector('[data-selection-action="search"]').title === '使用 Google 搜索';
               const settingsDrawer = document.getElementById('settings-drawer');
               const settingsCapsuleRect = settingsCapsule.getBoundingClientRect();
               const settingsDrawerRect = settingsDrawer.getBoundingClientRect();
@@ -647,7 +659,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryTabReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryTabReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -670,6 +682,7 @@ function createWindow() {
               parsed.noteCardLocated === true &&
               parsed.drawerOpen === true &&
               parsed.drawerClosed === true &&
+              parsed.searchSettingsReady === true &&
               parsed.appearanceControlsAligned === true &&
               parsed.bgmAvoidsSettings === true &&
               parsed.bgmSettingsState === true &&
@@ -1361,11 +1374,14 @@ ipcMain.handle('dictionary:open', (event, query) => {
   if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('无权打开词典窗口');
   return openDictionary(query);
 });
-ipcMain.handle('selection:search', async (event, query) => {
+ipcMain.handle('selection:search', async (event, payload) => {
   if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('无权打开搜索');
-  const normalized = Lookup.normalizeLookupText(query, 200);
-  await shell.openExternal(Lookup.searchUrl(normalized));
-  return { ok: true, query: normalized };
+  const input = payload && typeof payload === 'object' ? payload : { query: payload };
+  const normalized = Lookup.normalizeLookupText(input.query, 200);
+  const engine = Lookup.normalizeSearchEngine(input.engine);
+  const target = Lookup.searchUrl(normalized, { engine, customTemplate: input.customTemplate });
+  await shell.openExternal(target);
+  return { ok: true, query: normalized, engine, engineLabel: Lookup.searchEngineLabel(engine) };
 });
 ipcMain.handle('file:exists', (event, filePath) => fs.existsSync(filePath));
 ipcMain.handle('display:frequency', (event) => displayFrequencyForWindow(BrowserWindow.fromWebContents(event.sender)));

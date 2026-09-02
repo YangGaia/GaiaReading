@@ -40,6 +40,7 @@ const FONTS = {
   hei: '"Microsoft YaHei", "SimHei", sans-serif',
   yuan: '"Microsoft YaHei UI", "YouYuan", serif',
 };
+const SEARCH_ENGINE_LABELS = Object.freeze({ google: 'Google', bing: 'Bing', baidu: '百度', custom: '自定义引擎' });
 
 const els = {
   bookshelf: $('bookshelf'),
@@ -100,6 +101,10 @@ const els = {
   themeValue: $('theme-value'),
   progressFill: $('progress-fill'),
   fontSelect: $('font-select'),
+  searchEngine: $('search-engine'),
+  searchCustomRow: $('search-custom-row'),
+  searchCustomTemplate: $('search-custom-template'),
+  searchCustomStatus: $('search-custom-status'),
   aiProfileList: $('ai-profile-list'),
   aiProfileName: $('ai-profile-name'),
   aiReaderProfile: $('ai-reader-profile'),
@@ -152,7 +157,7 @@ const state = {
   lineHeight: 1.8,
   txtFont: 16,
   readMode: 'single',
-  prefs: { theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null },
+  prefs: { theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null },
   homeReady: null,
   resolveHome: null,
   statsReturnView: 'library',
@@ -283,7 +288,7 @@ async function init() {
   state.aiConfig = state.aiProfiles.items.find((item) => item.id === state.aiProfiles.activeId) || state.aiProfiles.items[0] || null;
   state.aiEditingProfileId = state.aiConfig && state.aiConfig.id;
   state.aiSummaries = aiSummaries && typeof aiSummaries === 'object' ? aiSummaries : {};
-  state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
+  state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
   migrateHabitsFromLastBook();
   state.fontSize = state.prefs.fontSize != null ? state.prefs.fontSize : 100;
@@ -292,6 +297,7 @@ async function init() {
   state.readMode = state.prefs.readMode === 'spread' ? 'spread' : 'single';
   applyThemeClass();
   els.fontSelect.value = state.prefs.fontName || 'default';
+  updateSearchSettingsUi();
   updateAiConfigForm();
   applyAiTypography();
   initAiPanelInteractions();
@@ -546,6 +552,51 @@ function hideContextMenu() {
   state.ctxBook = null;
 }
 
+function selectedSearchEngine() {
+  return Object.prototype.hasOwnProperty.call(SEARCH_ENGINE_LABELS, state.prefs.searchEngine) ? state.prefs.searchEngine : 'google';
+}
+
+function customSearchTemplateError(value) {
+  const template = String(value || '').trim();
+  if (!template) return '请填写自定义搜索网址。';
+  if (!template.includes('{query}')) return '网址必须包含 {query}。';
+  try {
+    const parsed = new URL(template.replaceAll('{query}', 'gaia-query'));
+    if (parsed.protocol !== 'https:') return '自定义网址必须使用 HTTPS。';
+    if (parsed.username || parsed.password) return '自定义网址不能包含账号或密码。';
+    const schemeEnd = template.indexOf('://');
+    const authorityEnd = template.indexOf('/', schemeEnd + 3);
+    if (template.indexOf('{query}') < (authorityEnd < 0 ? template.length : authorityEnd)) return '{query} 不能出现在域名中。';
+  } catch (error) {
+    return '自定义搜索网址格式不正确。';
+  }
+  return '';
+}
+
+function updateCustomSearchStatus() {
+  const error = customSearchTemplateError(els.searchCustomTemplate.value);
+  els.searchCustomStatus.textContent = error || '用 {query} 表示搜索词，仅支持 HTTPS。';
+  els.searchCustomStatus.classList.toggle('error', !!error);
+}
+
+function updateSearchSettingsUi() {
+  const engine = selectedSearchEngine();
+  state.prefs.searchEngine = engine;
+  els.searchEngine.value = engine;
+  els.searchCustomTemplate.value = String(state.prefs.customSearchTemplate || '');
+  els.searchCustomRow.hidden = engine !== 'custom';
+  updateCustomSearchStatus();
+  const searchButton = els.selectionToolbar.querySelector('[data-selection-action="search"]');
+  if (searchButton) searchButton.title = '使用 ' + SEARCH_ENGINE_LABELS[engine] + ' 搜索';
+}
+
+function saveSearchSettings() {
+  state.prefs.searchEngine = Object.prototype.hasOwnProperty.call(SEARCH_ENGINE_LABELS, els.searchEngine.value) ? els.searchEngine.value : 'google';
+  state.prefs.customSearchTemplate = els.searchCustomTemplate.value.trim();
+  updateSearchSettingsUi();
+  window.api.stateSet('prefs', state.prefs);
+}
+
 function openSettings(section) {
   if (section === 'ai') {
     openAiCenter();
@@ -559,6 +610,7 @@ function openSettings(section) {
   updatePetUI();
   if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(true);
   els.settingsOverlay.hidden = false;
+  updateSearchSettingsUi();
   updateAiConfigForm();
 }
 
@@ -1644,8 +1696,11 @@ async function searchSelectionOnWeb(context) {
   hideSelectionToolbar();
   if (!query) return;
   try {
-    await window.api.searchWeb(query);
-    els.readerStatus.textContent = '已使用默认浏览器搜索所选文字';
+    const result = await window.api.searchWeb(query, {
+      engine: selectedSearchEngine(),
+      customTemplate: state.prefs.customSearchTemplate,
+    });
+    els.readerStatus.textContent = '已使用 ' + result.engineLabel + ' 搜索所选文字';
   } catch (error) {
     els.readerStatus.textContent = aiErrorMessage(error);
   }
@@ -3383,6 +3438,9 @@ function bindEvents() {
     if (ev.target === els.settingsOverlay) closeSettings();
   });
   els.settingsDrawer.addEventListener('click', (ev) => ev.stopPropagation());
+  els.searchEngine.addEventListener('change', saveSearchSettings);
+  els.searchCustomTemplate.addEventListener('input', updateCustomSearchStatus);
+  els.searchCustomTemplate.addEventListener('change', saveSearchSettings);
   els.aiProvider.addEventListener('change', changeAiProvider);
   els.aiBaseUrl.addEventListener('input', updateAiTarget);
   els.aiProfileList.addEventListener('click', (event) => {

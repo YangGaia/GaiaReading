@@ -402,6 +402,13 @@ body.eye {
 /* ===== 设置抽屉下拉 ===== */
 .drawer-label { font-size: 13px; color: var(--text); min-width: 44px; }
 .drawer-select { flex: 1; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
+.search-custom-row { display: grid; gap: 6px; margin-top: 5px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.search-custom-row[hidden] { display: none; }
+.search-custom-row .drawer-label { min-width: 0; }
+.drawer-input { width: 100%; padding: 7px 8px; border: 1px solid var(--border-strong); border-radius: 6px; outline: none; color: var(--text); background: var(--surface); font-size: 12px; }
+.drawer-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.search-custom-row small { color: var(--text-soft); font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+.search-custom-row small.error { color: var(--danger); }
 .book-progress { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 10px; height: 18px; }
 .book-progress-track { flex: 1; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
 .book-progress-fill { height: 100%; background: var(--accent); }
