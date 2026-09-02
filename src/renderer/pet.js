@@ -31,16 +31,10 @@
     pickIdleExpression,
     nextAutoDelay,
     pickAutoBehavior,
-    gazeTargetForPoint,
   } = shared;
 
   const FACE_IMG = 'images/pet/faces/';
   const PART_IMG = 'images/pet/parts/';
-  const GAZE_IMG = 'images/pet/gaze/';
-  const GAZE_FRAMES = [
-    'look-m100.png', 'look-m075.png', 'look-m050.png', 'look-m025.png', 'look-center.png',
-    'look-p025.png', 'look-p050.png', 'look-p075.png', 'look-p100.png',
-  ];
   const DEFAULT_STATE = {
     on: true,
     x: null,
@@ -81,12 +75,6 @@
   let effectVersion = 0;
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
-  let gazePointer = null;
-  let gazeFrame = 0;
-  let gazeBankRequest = 0;
-  let gazeLoadPromise = Promise.resolve(false);
-  let displayedGazeFrame = 4;
-  const gazeMotion = { x: 0, y: 0, vx: 0, vy: 0, lastAt: 0 };
 
   function save() {
     window.api.stateSet('pet', {
@@ -100,39 +88,10 @@
     });
   }
 
-  function loadGazeBank(name) {
-    const request = ++gazeBankRequest;
-    const frames = GAZE_FRAMES.map((filename, index) => {
-      const frame = new Image();
-      frame.className = 'gaia-pet-gaze-frame';
-      frame.dataset.gazeFrame = String(index);
-      frame.draggable = false;
-      frame.alt = '';
-      frame.src = GAZE_IMG + encodeURIComponent(name) + '/' + filename;
-      return frame;
-    });
-    gazeLoadPromise = Promise.all(frames.map((frame) => new Promise((resolve, reject) => {
-      if (frame.complete && frame.naturalWidth) resolve();
-      else {
-        frame.addEventListener('load', resolve, { once: true });
-        frame.addEventListener('error', reject, { once: true });
-      }
-    }))).then(() => {
-      if (request !== gazeBankRequest || !ui.face || ui.face.dataset.exp !== name) return false;
-      ui.gazeSprites.replaceChildren(...frames);
-      ui.gazeFrames = frames;
-      ui.gazeExpression = name;
-      renderGaze();
-      return true;
-    }).catch(() => false);
-    return gazeLoadPromise;
-  }
-
   function applyExpression(name) {
     if (!ui.face || !name || ui.face.dataset.exp === name) return;
     const file = FACE_IMG + encodeURIComponent(name + '.png');
     ui.face.dataset.exp = name;
-    loadGazeBank(name);
     const img = new Image();
     img.onload = () => {
       if (ui.face.dataset.exp !== name) return;
@@ -143,7 +102,7 @@
   }
 
   function layoutFace() {
-    if (!ui.face || !ui.faceWindow || !ui.halfbody || !ui.headRig || !ui.head) return;
+    if (!ui.face || !ui.halfbody || !ui.headRig || !ui.head) return;
     const hb = FACE.halfbody;
     const tile = FACE.tile;
     const s = (ui.body.clientWidth || 150) / FACE.sheet.w;
@@ -157,84 +116,17 @@
     ui.head.style.width = Math.round(HEAD.w * s) + 'px';
     ui.head.style.left = Math.round(HEAD.x * s) + 'px';
     ui.head.style.top = Math.round(HEAD.y * s) + 'px';
-    ui.faceWindow.style.width = Math.round(faceW) + 'px';
-    ui.faceWindow.style.height = Math.round(faceH) + 'px';
-    ui.faceWindow.style.left = Math.round(faceLeft) + 'px';
-    ui.faceWindow.style.top = Math.round(faceTop) + 'px';
+    for (const layer of [ui.face, ui.blinkFace]) {
+      layer.style.width = Math.round(faceW) + 'px';
+      layer.style.height = Math.round(faceH) + 'px';
+      layer.style.left = Math.round(faceLeft) + 'px';
+      layer.style.top = Math.round(faceTop) + 'px';
+    }
   }
 
   function updateBubbleSide() {
     if (!ui.bubble) return;
     ui.bubble.classList.toggle('flip', saved.x < 260);
-  }
-
-  function gazeIsSuppressed() {
-    return !saved.on || dragging || brain.state === PET_STATES.SLEEPING ||
-      !ui.body || ui.body.classList.contains('no-breathe');
-  }
-
-  function renderGaze() {
-    if (!ui.headGaze || !ui.halfbody || !ui.head || !ui.faceWindow || !ui.face || !ui.blinkFace || !ui.root) return;
-    const framesReady = ui.gazeFrames && ui.gazeFrames.length === GAZE_FRAMES.length &&
-      ui.gazeExpression === ui.face.dataset.exp &&
-      ui.gazeFrames.every((frame) => frame.complete && frame.naturalWidth);
-    const active = framesReady && !gazeIsSuppressed();
-    const x = active ? Math.max(-1, Math.min(1, gazeMotion.x)) : 0;
-    const framePosition = (x + 1) * 4;
-    if (!active) displayedGazeFrame = 4;
-    while (displayedGazeFrame < 8 && framePosition >= displayedGazeFrame + 0.6) displayedGazeFrame += 1;
-    while (displayedGazeFrame > 0 && framePosition <= displayedGazeFrame - 0.6) displayedGazeFrame -= 1;
-    ui.gazeFrames.forEach((frame, index) => {
-      frame.style.opacity = active && index === displayedGazeFrame ? '1' : '0';
-    });
-    const baseOpacity = active ? '0' : '1';
-    ui.halfbody.style.opacity = baseOpacity;
-    ui.head.style.opacity = baseOpacity;
-    ui.faceWindow.classList.toggle('gaze-active', active);
-    const faceX = active ? (displayedGazeFrame - 4) / 4 : 0;
-    const faceScaleX = 1 - Math.abs(faceX) * 0.045;
-    const faceTurn = `translate3d(${(faceX * 1.9).toFixed(2)}px, 0, 0) scaleX(${faceScaleX.toFixed(4)}) skewY(${(faceX * -0.28).toFixed(2)}deg)`;
-    ui.blinkFace.style.transformOrigin = `${(50 - faceX * 6).toFixed(2)}% 50%`;
-    ui.blinkFace.style.transform = faceTurn;
-    ui.root.dataset.gazeX = x.toFixed(3);
-    ui.root.dataset.gazeY = '0.000';
-    ui.root.dataset.gazeFrame = String(displayedGazeFrame);
-    ui.root.dataset.gazeExpression = active ? ui.gazeExpression : '';
-  }
-
-  function springToward(motion, target, stiffness, damping, elapsed) {
-    const drag = Math.exp(-damping * elapsed);
-    motion.vx = (motion.vx + (target.x - motion.x) * stiffness * elapsed) * drag;
-    motion.vy = (motion.vy + (target.y - motion.y) * stiffness * elapsed) * drag;
-    motion.x += motion.vx * elapsed;
-    motion.y += motion.vy * elapsed;
-    if (Math.abs(target.x - motion.x) < 0.0005 && Math.abs(motion.vx) < 0.002) {
-      motion.x = target.x;
-      motion.vx = 0;
-    }
-    if (Math.abs(target.y - motion.y) < 0.0005 && Math.abs(motion.vy) < 0.002) {
-      motion.y = target.y;
-      motion.vy = 0;
-    }
-  }
-
-  function animateGaze(at) {
-    if (!ui.root) return;
-    const elapsed = gazeMotion.lastAt ? Math.min(0.04, Math.max(0.001, (at - gazeMotion.lastAt) / 1000)) : 0.016;
-    gazeMotion.lastAt = at;
-    let target = { x: 0, y: 0 };
-    if (gazePointer && !gazeIsSuppressed()) {
-      target = gazeTargetForPoint(gazePointer.x, gazePointer.y, ui.root.getBoundingClientRect());
-    }
-    springToward(gazeMotion, target, 38, 11, elapsed);
-    renderGaze();
-    gazeFrame = window.requestAnimationFrame(animateGaze);
-  }
-
-  function startGazeTracking() {
-    if (gazeFrame) return;
-    gazeMotion.lastAt = 0;
-    gazeFrame = window.requestAnimationFrame(animateGaze);
   }
 
   function hideBubble(immediate) {
@@ -652,13 +544,6 @@
     ui.root.addEventListener('pointerleave', onLeave);
     ui.root.addEventListener('click', onClick);
     ui.root.addEventListener('contextmenu', openConsole);
-    document.addEventListener('pointermove', (ev) => {
-      gazePointer = { x: ev.clientX, y: ev.clientY };
-    }, { passive: true });
-    document.addEventListener('pointerout', (ev) => {
-      if (!ev.relatedTarget) gazePointer = null;
-    });
-    window.addEventListener('blur', () => { gazePointer = null; });
     ui.root.addEventListener('pointerdown', (ev) => {
       if (ev.button !== 0) return;
       const r = ui.root.getBoundingClientRect();
@@ -771,7 +656,7 @@
     actionTitle.textContent = '单独动作';
     const actions = document.createElement('div');
     actions.className = 'gaia-pet-console-grid actions';
-    for (const item of [['tilt', '歪头'], ['perk', '一怔'], ['recoil', '回弹'], ['shiver', '发抖'], ['yawn', '打哈欠'], ['blink', '眨眼']]) {
+    for (const item of [['yawn', '打哈欠'], ['tilt', '歪头'], ['blink', '眨眼']]) {
       const button = makeButton(item[1]);
       button.dataset.action = item[0];
       button.addEventListener('click', () => runManualAction(item[0]));
@@ -841,8 +726,6 @@
     bubble.hidden = true;
     const body = document.createElement('div');
     body.className = 'gaia-pet-body';
-    const bodyGaze = document.createElement('div');
-    bodyGaze.className = 'gaia-pet-body-gaze';
     const halfbody = document.createElement('img');
     halfbody.className = 'gaia-pet-halfbody';
     halfbody.draggable = false;
@@ -852,13 +735,8 @@
       clampPosition();
     });
     halfbody.src = PART_IMG + 'body.png';
-    const gazeSprites = document.createElement('div');
-    gazeSprites.className = 'gaia-pet-gaze-sprites';
-    const gazeFrames = [];
     const headRig = document.createElement('div');
     headRig.className = 'gaia-pet-head-rig';
-    const headGaze = document.createElement('div');
-    headGaze.className = 'gaia-pet-head-gaze';
     const head = document.createElement('img');
     head.className = 'gaia-pet-head';
     head.src = PART_IMG + 'head.png';
@@ -869,8 +747,6 @@
     face.src = FACE_IMG + encodeURIComponent('日常表情.png');
     face.draggable = false;
     face.alt = '';
-    const faceWindow = document.createElement('div');
-    faceWindow.className = 'gaia-pet-face-window';
     const blinkFace = document.createElement('img');
     blinkFace.className = 'gaia-pet-face gaia-pet-blink-face';
     blinkFace.src = FACE_IMG + encodeURIComponent('安心.png');
@@ -880,14 +756,11 @@
     zzz.className = 'gaia-pet-zzz';
     zzz.textContent = 'Zzz';
     zzz.hidden = true;
-    faceWindow.append(face, blinkFace);
-    headRig.append(head, faceWindow);
-    headGaze.append(headRig);
-    body.append(halfbody, gazeSprites, headGaze);
-    bodyGaze.append(body);
-    root.append(bubble, bodyGaze, zzz);
+    headRig.append(head, face, blinkFace);
+    body.append(halfbody, headRig);
+    root.append(bubble, body, zzz);
     document.body.appendChild(root);
-    ui = { root, bubble, bodyGaze, body, halfbody, gazeSprites, gazeFrames, headGaze, headRig, head, faceWindow, face, blinkFace, zzz };
+    ui = { root, bubble, body, halfbody, headRig, head, face, blinkFace, zzz };
     buildConsole();
   }
 
@@ -916,12 +789,10 @@
     ui.root.hidden = !saved.on;
     manualLabel = '';
     setState(PET_STATES.IDLE, '日常表情');
-    await gazeLoadPromise;
     resetActivity(Date.now());
     updateConsole();
     window.setInterval(tick, 500);
     scheduleBlink();
-    startGazeTracking();
   }
 
   function init() {

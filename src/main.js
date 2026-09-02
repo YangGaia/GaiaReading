@@ -449,13 +449,8 @@ function createWindow() {
             const petBodyLayer = document.querySelector('.gaia-pet-halfbody');
             const petHeadLayer = document.querySelector('.gaia-pet-head');
             const petHeadRig = document.querySelector('.gaia-pet-head-rig');
-            const petBodyGaze = document.querySelector('.gaia-pet-body-gaze');
-            const petHeadGaze = document.querySelector('.gaia-pet-head-gaze');
-            const petGazeFrames = document.querySelectorAll('.gaia-pet-gaze-frame');
-            const face = document.querySelector('.gaia-pet-face:not(.gaia-pet-blink-face)');
             const blinkFace = document.querySelector('.gaia-pet-blink-face');
             const layeredPet = !!petBodyLayer && petBodyLayer.src.endsWith('/parts/body.png') && !!petHeadLayer && petHeadLayer.src.endsWith('/parts/head.png') && !!petHeadRig && petHeadRig.offsetHeight > 0;
-            const gazeLayers = !!petBodyGaze && !!petHeadGaze && petGazeFrames.length === 9;
             if (petBodyLayer && (!petBodyLayer.complete || !petBodyLayer.naturalWidth)) {
               await new Promise((resolve) => {
                 petBodyLayer.addEventListener('load', resolve, { once: true });
@@ -525,41 +520,15 @@ function createWindow() {
             const angryPerformanceCleared = !petHeadRig.classList.contains('performance-angry');
             GaiaPet.runAction('blink');
             const spriteBlinkStarted = !!blinkFace && blinkFace.classList.contains('blink');
-            const petRect = petRoot.getBoundingClientRect();
-            const gazeAt = async (x, y) => {
-              document.dispatchEvent(new PointerEvent('pointermove', { clientX: x, clientY: y }));
-              await new Promise((resolve) => setTimeout(resolve, 850));
-              return {
-                x: Number(petRoot.dataset.gazeX),
-                y: Number(petRoot.dataset.gazeY),
-                frame: Number(petRoot.dataset.gazeFrame),
-              };
-            };
-            const gazeOriginX = petRect.left + petRect.width * 0.5;
-            const gazeOriginY = petRect.top + petRect.height * 0.3;
-            const gazeLeft = await gazeAt(petRect.left - 360, gazeOriginY);
-            const gazeRight = await gazeAt(petRect.right + 360, gazeOriginY);
-            const gazeUp = await gazeAt(gazeOriginX, petRect.top - 300);
-            const gazeDown = await gazeAt(gazeOriginX, petRect.bottom + 300);
-            const gazeDirections = gazeLeft.x < -0.7 && Math.abs(gazeLeft.y) < 0.1 &&
-              gazeRight.x > 0.7 && Math.abs(gazeRight.y) < 0.1 &&
-              gazeLeft.frame <= 1 && gazeRight.frame >= 7 &&
-              Math.abs(gazeUp.x) < 0.1 && Math.abs(gazeUp.y) < 0.1 && gazeUp.frame === 4 &&
-              Math.abs(gazeDown.x) < 0.1 && Math.abs(gazeDown.y) < 0.1 && gazeDown.frame === 4;
-            const visibleGazeFrames = Array.from(document.querySelectorAll('.gaia-pet-gaze-frame'))
-              .filter((frame) => Number(getComputedStyle(frame).opacity) > 0.99).length;
-            const gazeComposite = petRoot.dataset.gazeExpression === face.dataset.exp &&
-              Number(getComputedStyle(face).opacity) === 0 && visibleGazeFrames === 1;
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, gazeLayers, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, gazeLeft, gazeRight, gazeUp, gazeDown, gazeDirections, gazeComposite };
+            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
             petStatus.panelInViewport === true &&
             petStatus.emotionButtons === 8 &&
-            petStatus.actionButtons === 6 &&
+            petStatus.actionButtons === 3 &&
             petStatus.layeredPet === true &&
-            petStatus.gazeLayers === true &&
             petStatus.headCutoutClean === true &&
             petStatus.oldLidRemoved === true &&
             petStatus.sleeping === true &&
@@ -583,9 +552,7 @@ function createWindow() {
             petStatus.angryPerformanceStarted === true &&
             petStatus.angryExpressionMatched === true &&
             petStatus.angryPerformanceCleared === true &&
-            petStatus.spriteBlinkStarted === true &&
-            petStatus.gazeDirections === true &&
-            petStatus.gazeComposite === true;
+            petStatus.spriteBlinkStarted === true;
           if (!debugOk) console.error('PET_SMOKE_CHECKS_FAILED:', JSON.stringify(petStatus));
         }
         const errors = messages.filter((m) => m.level >= 3);
@@ -658,55 +625,6 @@ function createWindow() {
         await wait(850);
         await capture('pet_drowse_return.png');
         await wait(550);
-        const aimPetGaze = async (direction) => mainWindow.webContents.executeJavaScript(`(() => {
-          const pet = document.getElementById('gaia-pet');
-          if (!window.__gaiaPetShotPosition) {
-            window.__gaiaPetShotPosition = { left: pet.style.left, top: pet.style.top };
-            pet.style.left = Math.round(innerWidth * 0.56) + 'px';
-            pet.style.top = Math.round(innerHeight * 0.52) + 'px';
-            const face = pet.querySelector('.gaia-pet-face:not(.gaia-pet-blink-face)');
-            face.dataset.exp = '倾听';
-            face.src = 'images/pet/faces/' + encodeURIComponent('倾听.png');
-            pet.querySelector('.gaia-pet-blink-face').style.display = 'none';
-          }
-          const rect = pet.getBoundingClientRect();
-          const points = {
-            left: [rect.left - 400, rect.top + rect.height * 0.3],
-            right: [rect.right + 400, rect.top + rect.height * 0.3],
-            up: [rect.left + rect.width * 0.5, rect.top - 320],
-            down: [rect.left + rect.width * 0.5, rect.bottom + 320],
-          };
-          const point = points[${JSON.stringify(direction)}];
-          document.dispatchEvent(new PointerEvent('pointermove', { clientX: point[0], clientY: point[1] }));
-        })()`);
-        await aimPetGaze('left');
-        await wait(900);
-        await capture('pet_gaze_left.png');
-        await aimPetGaze('right');
-        await wait(1100);
-        await capture('pet_gaze_right.png');
-        await aimPetGaze('up');
-        await wait(1100);
-        await capture('pet_gaze_up.png');
-        await aimPetGaze('down');
-        await wait(1100);
-        await capture('pet_gaze_down.png');
-        await mainWindow.webContents.executeJavaScript(`(() => {
-          const pet = document.getElementById('gaia-pet');
-          const position = window.__gaiaPetShotPosition;
-          if (position) {
-            pet.style.left = position.left;
-            pet.style.top = position.top;
-            delete window.__gaiaPetShotPosition;
-          }
-          pet.querySelector('.gaia-pet-blink-face').style.removeProperty('display');
-          const rect = pet.getBoundingClientRect();
-          document.dispatchEvent(new PointerEvent('pointermove', {
-            clientX: rect.left + rect.width * 0.5,
-            clientY: rect.top + rect.height * 0.3,
-          }));
-        })()`);
-        await wait(650);
         await mainWindow.webContents.executeJavaScript("__gaiaDebug.showView('library')");
         await wait(900);
         await capture('bookshelf.png');

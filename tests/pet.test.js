@@ -21,7 +21,6 @@ const {
   lineFor,
   pick,
   pickIdleExpression,
-  gazeTargetForPoint,
 } = pet;
 
 test('初始大脑为待机状态', () => {
@@ -32,16 +31,6 @@ test('初始大脑为待机状态', () => {
     pokeCount: 0,
     lastPokeAt: 0,
   });
-});
-
-test('鼠标注视只保留左右方向，上下移动保持回正', () => {
-  const rect = { left: 100, top: 100, width: 150, height: 270 };
-  assert.deepStrictEqual(gazeTargetForPoint(175, 181, rect), { x: 0, y: 0 });
-  assert.deepStrictEqual(gazeTargetForPoint(190, 195, rect), { x: 0, y: 0 });
-  assert.deepStrictEqual(gazeTargetForPoint(-300, 181, rect), { x: -1, y: 0 });
-  assert.deepStrictEqual(gazeTargetForPoint(650, 181, rect), { x: 1, y: 0 });
-  assert.deepStrictEqual(gazeTargetForPoint(175, -200, rect), { x: 0, y: 0 });
-  assert.deepStrictEqual(gazeTargetForPoint(175, 600, rect), { x: 0, y: 0 });
 });
 
 test('滑过、离开和唤醒使用各自的表情池', () => {
@@ -181,26 +170,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes('saved.autoSleep'), '控制台应能关闭自动睡觉');
   assert.ok(renderer.includes("PART_IMG + 'body.png'"), '桌宠身体应使用挖空头部的分层素材');
   assert.ok(renderer.includes("PART_IMG + 'head.png'"), '桌宠应加载独立头部素材');
-  assert.ok(renderer.includes('gaia-pet-body-gaze'), '桌宠应有不干扰呼吸动画的身体注视层');
-  assert.ok(renderer.includes('gaia-pet-head-gaze'), '桌宠应有不干扰表情动作的头部注视层');
-  assert.ok(renderer.includes('window.requestAnimationFrame(animateGaze)'), '鼠标跟随应逐帧平滑更新');
-  assert.ok(renderer.includes("'look-m100.png'") && renderer.includes("'look-p100.png'"), '左右注视应使用烘焙方向帧');
-  assert.ok(renderer.includes('framePosition = (x + 1) * 4'), '左右动画应按弹簧位置推进九张水平帧');
-  assert.ok(renderer.includes('framePosition >= displayedGazeFrame + 0.6'), '序列帧切换应带迟滞，避免边界来回闪动');
-  assert.ok(renderer.includes("index === displayedGazeFrame ? '1' : '0'"), '任意时刻只能显示一张完整人物帧');
-  assert.ok(renderer.includes("ui.root.dataset.gazeY = '0.000'"), '鼠标跟随必须取消上下方向');
-  assert.ok(!renderer.includes('perspective(520px) rotateY'), '不应继续使用 CSS 透视扭曲头部');
-  assert.ok(renderer.includes('springToward(gazeMotion, target, 38, 11'), '头部应克制地慢半拍跟随面部');
-  assert.ok(!renderer.includes('ui.face.style.transform = faceTurn'), '左右注视时不应再移动整张表情贴片');
-  assert.ok(renderer.includes("frame.src = GAZE_IMG + encodeURIComponent(name) + '/' + filename"), '每个表情应加载自己的完整人物方向帧');
-  assert.ok(renderer.includes('ui.gazeExpression === ui.face.dataset.exp'), '方向帧必须与当前表情一致后才能显示');
-  assert.ok(renderer.includes('ui.gazeSprites.replaceChildren(...frames)'), '一组表情帧应全部加载完成后再原子替换');
-  assert.ok(renderer.includes("faceWindow.className = 'gaia-pet-face-window'"), '表情贴片应放在固定脸部窗口内');
-  assert.ok(renderer.includes('faceWindow.append(face, blinkFace)'), '普通表情和眨眼必须共享同一固定窗口');
-  assert.ok(renderer.includes('ui.gazeFrames.forEach'), '方向帧应按弹簧位置逐张播放');
-  assert.ok(!renderer.includes('x * 3.8'), '不应继续把整颗头平移到鼠标方向');
-  assert.ok(renderer.includes('brain.state === PET_STATES.SLEEPING'), '睡觉时应暂停鼠标跟随');
-  assert.ok(renderer.includes("ui.body.classList.contains('no-breathe')"), '专用动作播放时应暂停鼠标跟随');
+  assert.ok(!renderer.includes('GAZE_IMG'), '桌宠不应再加载鼠标跟随方向帧');
+  assert.ok(!renderer.includes('requestAnimationFrame(animateGaze)'), '桌宠不应再运行鼠标跟随动画');
+  assert.ok(!css.includes('.gaia-pet-gaze-frame'), '桌宠不应保留鼠标跟随图层');
   assert.ok(renderer.includes('gaia-pet-blink-face'), '眨眼应使用闭眼脸部贴片');
   assert.ok(!renderer.includes("lid.className = 'gaia-pet-lid'"), '不应继续使用会产生黑线的矩形眼皮');
   assert.ok(renderer.includes("playPerformance('thinking'"), '思考应有专用动画');
@@ -214,6 +186,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("applyExpression('倾听')"), '自动倾听动作应匹配倾听表情');
   assert.ok(renderer.includes("playPerformance('listen'"), '自动倾听应有专用动画');
   assert.ok(renderer.includes("['yawn', '打哈欠']"), '控制台应提供打哈欠动作');
+  assert.ok(renderer.includes("['tilt', '歪头']") && renderer.includes("['blink', '眨眼']"), '控制台应保留歪头和眨眼动作');
+  assert.ok(!renderer.includes("['recoil', '回弹']") && !renderer.includes("['shiver', '发抖']"), '控制台不应保留回弹和发抖按钮');
+  assert.ok(renderer.includes("triggerAction('perk')"), '鼠标移入时的一怔动作应保留');
   assert.ok(renderer.includes("playPerformance('yawn'"), '打哈欠应使用头和身体协同的专用动画');
   assert.ok(renderer.includes("{ at: 260, expression: '打哈欠' }"), '打哈欠张嘴表情应与动作阶段同步');
   assert.ok(renderer.includes("hideBubble(true);\n      applyExpression('眼睛微张')"), '打哈欠开始前应清除上一条气泡');
@@ -225,12 +200,6 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(!renderer.includes("['stretch', '伸懒腰']"), '不应保留失败的伸懒腰入口');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
-  assert.ok(css.includes('.gaia-pet-body-gaze'), '缺少身体跟随层样式');
-  assert.ok(css.includes('.gaia-pet-head-gaze'), '缺少头部跟随层样式');
-  assert.ok(css.includes('.gaia-pet-gaze-frame'), '缺少左右注视烘焙帧样式');
-  assert.ok(css.includes('.gaia-pet-face-window'), '缺少固定脸部窗口样式');
-  assert.ok(css.includes('-webkit-mask-image: radial-gradient'), '脸部窗口边缘应使用固定羽化遮罩');
-  assert.ok(css.includes('.gaia-pet-face-window.gaze-active > .gaia-pet-face:not(.gaia-pet-blink-face)'), '注视激活时必须彻底隐藏普通表情贴片');
   assert.ok(css.includes('@keyframes pet-sleep-breathe'), '缺少睡眠呼吸动画');
   assert.ok(css.includes('@keyframes pet-head-drowse'), '缺少困倦点头的头部动画');
   assert.ok(css.includes('52%, 66% { transform: translateY(7px) rotate(1.8deg) scaleY(0.955); }'), '困倦动作应有明显的缓慢低头停顿');
@@ -257,8 +226,6 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes('petStatus.yawnTextVisible === true'), '冒烟测试应验证打哈欠文字已显示');
   assert.ok(main.includes('petStatus.drowseStarted === true'), '冒烟测试应验证困倦低头和闭眼阶段');
   assert.ok(main.includes('petStatus.drowseCleared === true'), '冒烟测试应验证困倦动作恢复半睁眼');
-  assert.ok(main.includes('petStatus.gazeDirections === true'), '冒烟测试应验证鼠标仅左右跟随');
-  assert.ok(main.includes('petStatus.gazeComposite === true'), '冒烟测试应验证注视时只显示匹配表情的完整人物帧');
 });
 
 test('头身分层完整挖空头部活动区，仅在颈部保留窄幅重叠', () => {
@@ -274,67 +241,4 @@ test('打哈欠专用表情只替换闭眼脸部的嘴型区域', () => {
   assert.ok(script.includes('叹气.png'), '打哈欠表情应以闭眼脸部为基础');
   assert.ok(script.includes('严肃说话.png'), '打哈欠表情应采用清晰的圆口嘴型');
   assert.ok(script.includes('ellipse((55, 70, 79, 99)'), '嘴型合成范围应限制在脸部下半区');
-});
-
-test('鼠标转向试验帧采用局部语义变形并保留透明边缘', () => {
-  const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'make-pet-look-pilot.py'), 'utf8');
-  assert.ok(script.includes('add_face_yaw'), '脸部应使用独立的轻微偏转透视');
-  assert.ok(script.includes('for eye_x in (151.0, 204.0)'), '双眼应拥有比头部更早的视线偏移');
-  assert.ok(script.includes('desired_shift = 4.6 * horizontal'), '脸部偏转必须达到肉眼可辨识的幅度');
-  assert.ok(script.includes('move_x=1.75 * horizontal'), '眼神应明显领先脸部转向');
-  assert.ok(!script.includes('head_depth_map'), '只保留左右看时不应残留失败的头部俯仰逻辑');
-  assert.ok(!script.includes('render_head_pitch'), '只保留左右看时不应生成上下方向素材');
-  assert.ok(script.includes('add_body_yaw'), '身体应使用绕竖轴的局部透视，而不是整体倾斜');
-  assert.ok(script.includes('right_move = 0.9 * horizontal - 0.55 * abs(horizontal)'), '远侧肩线应有可辨识的透视内收');
-  assert.ok(!script.includes('left_shoulder, move_y=') && !script.includes('right_shoulder, move_y='), '身体转向不应制造高低肩');
-  assert.ok(script.includes('left_shoulder') && script.includes('right_shoulder'), '身体转向应包含两侧肩线配合');
-  assert.ok(script.includes('premultiplied'), '透明素材重采样必须使用预乘 Alpha，避免黑边');
-  assert.ok(script.includes('compose_expression'), '所有表情应先合成到完整人物再生成方向帧');
-  assert.ok(script.includes('composed.alpha_composite(face, FACE_ORIGIN)'), '表情与人物必须在同一张位图中完成合成');
-  assert.ok(!script.includes('Image.AFFINE'), '试验帧不应使用整图仿射变形');
-});
-
-test('鼠标左右看试验输出齐全、尺寸正确且均非原图副本', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'parts', 'full.png'));
-  const center = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', 'pilot-center.png'));
-  const pngSize = (buffer) => ({ width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) });
-  const directions = ['left', 'right'];
-  const generatedDirectionFiles = fs.readdirSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot'))
-    .filter((name) => /^pilot-look-.*\.png$/.test(name))
-    .sort();
-  assert.deepStrictEqual(generatedDirectionFiles, ['pilot-look-left.png', 'pilot-look-right.png'], '只能保留左右看素材');
-  assert.deepStrictEqual(center, source, '正中帧必须保持原始立绘不变');
-  for (const direction of directions) {
-    const pilot = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', `pilot-look-${direction}.png`));
-    assert.deepStrictEqual(pngSize(pilot), pngSize(source), `${direction} 帧尺寸应与原图一致`);
-    assert.notDeepStrictEqual(pilot, source, `${direction} 帧不能只是原始帧的副本`);
-  }
-  assert.ok(fs.existsSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', 'pilot-directions-grid.png')), '缺少左右看全身预览');
-  assert.ok(fs.existsSync(path.join(__dirname, '..', 'docs', 'pet-direction-pilot', 'pilot-directions-detail.png')), '缺少左右看局部预览');
-});
-
-test('每个表情都包含九张无贴片接缝的完整人物过渡帧', () => {
-  const gazeDir = path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'gaze');
-  const expectedFrames = [
-    'look-center.png', 'look-m025.png', 'look-m050.png', 'look-m075.png', 'look-m100.png',
-    'look-p025.png', 'look-p050.png', 'look-p075.png', 'look-p100.png',
-  ];
-  const flatFiles = fs.readdirSync(gazeDir).filter((name) => name.endsWith('.png'));
-  assert.deepStrictEqual(flatFiles, [], '不应继续保留无法匹配表情的旧版平铺方向帧');
-  const faceNames = fs.readdirSync(path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'faces'))
-    .filter((name) => name.endsWith('.png'))
-    .map((name) => path.basename(name, '.png'))
-    .sort();
-  const expressionDirs = fs.readdirSync(gazeDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
-  assert.deepStrictEqual(expressionDirs, faceNames, '每个可用表情都必须有独立方向帧组');
-  for (const expression of expressionDirs) {
-    const files = fs.readdirSync(path.join(gazeDir, expression)).filter((name) => name.endsWith('.png')).sort();
-    assert.deepStrictEqual(files, expectedFrames, `${expression} 缺少完整的九帧左右动画`);
-  }
-  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'images', 'pet', 'parts', 'full.png'));
-  const center = fs.readFileSync(path.join(gazeDir, '日常表情', 'look-center.png'));
-  assert.deepStrictEqual(center, source, '默认表情的正式正中帧必须保持原始立绘不变');
 });

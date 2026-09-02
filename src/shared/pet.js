@@ -290,26 +290,6 @@
     return AUTO_BEHAVIORS.SPEECH;
   }
 
-  /** 将屏幕指针换算为相对桌宠脸部的标准化注视方向。 */
-  function gazeTargetForPoint(clientX, clientY, rect) {
-    if (!rect || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return { x: 0, y: 0 };
-    const width = Number(rect.width) || 0;
-    const height = Number(rect.height) || 0;
-    if (width <= 0 || height <= 0) return { x: 0, y: 0 };
-    const left = Number(rect.left) || 0;
-    const dx = clientX - (left + width * 0.5);
-    const deadZone = 24;
-    const normalize = (delta, range) => {
-      const amount = Math.abs(delta);
-      if (amount <= deadZone) return 0;
-      return Math.sign(delta) * Math.min(1, (amount - deadZone) / (range - deadZone));
-    };
-    return {
-      x: normalize(dx, Math.max(240, width * 2.2)),
-      y: 0,
-    };
-  }
-
   return {
     PET_STATES,
     EVENTS,
@@ -329,6 +309,5 @@
     inactivityState,
     nextAutoDelay,
     pickAutoBehavior,
-    gazeTargetForPoint,
   };
 });
