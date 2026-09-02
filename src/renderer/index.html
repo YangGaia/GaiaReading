@@ -38,6 +38,7 @@
     <div class="shelf-toolbar">
       <button id="btn-import-files" class="btn primary">导入文件</button>
       <button id="btn-manage" class="btn">批量管理</button>
+      <button id="btn-reading-stats" class="btn">阅读目标</button>
     </div>
     <div id="manage-bar" class="manage-bar" hidden>
       <span>已选 <b id="manage-count">0</b> 本</span>
@@ -47,6 +48,43 @@
     </div>
     <p id="library-hint" class="hint">书架为空，点击"加载文件夹"或"导入文件"添加电子书（EPUB / PDF / TXT / MOBI / AZW3）</p>
     <div id="bookshelf" class="bookshelf"></div>
+  </div>
+
+  <div id="stats-view" hidden>
+    <header class="topbar">
+      <button id="btn-stats-back" class="btn">← 返回</button>
+      <span class="page-title">阅读目标</span>
+    </header>
+    <main class="stats-scroll">
+      <section class="stats-hero stats-card">
+        <div>
+          <p class="stats-eyebrow">今日阅读</p>
+          <div id="stats-today" class="stats-today">0分钟</div>
+          <p id="stats-goal-copy" class="stats-secondary">每日目标 30 分钟</p>
+        </div>
+        <div id="stats-ring" class="stats-ring" style="--goal-progress: 0deg">
+          <div class="stats-ring-center"><strong id="stats-ring-percent">0%</strong><span>已完成</span></div>
+        </div>
+      </section>
+      <section class="stats-card">
+        <div class="stats-section-head"><div><p class="stats-eyebrow">本周</p><h2>阅读时间</h2></div><strong id="stats-week-total">0分钟</strong></div>
+        <div id="stats-week-chart" class="stats-week-chart"></div>
+      </section>
+      <section class="stats-streak-grid">
+        <div class="stats-card stats-streak"><span>🔥</span><div><strong id="stats-current-streak">0 天</strong><small>当前连续阅读</small></div></div>
+        <div class="stats-card stats-streak"><span>🏆</span><div><strong id="stats-longest-streak">0 天</strong><small>最长连续阅读</small></div></div>
+      </section>
+      <section class="stats-card">
+        <div class="stats-section-head"><div><p class="stats-eyebrow">阅读目标</p><h2>每天留一点时间给书</h2></div></div>
+        <div id="stats-goal-options" class="stats-goal-options" role="group" aria-label="每日阅读目标">
+          <button data-goal-minutes="15">15 分钟</button><button data-goal-minutes="30">30 分钟</button><button data-goal-minutes="45">45 分钟</button><button data-goal-minutes="60">60 分钟</button>
+        </div>
+      </section>
+      <section class="stats-card">
+        <div class="stats-section-head"><div><p class="stats-eyebrow">今年</p><h2>读完的书</h2></div><strong id="stats-finished-count">0 本</strong></div>
+        <div id="stats-finished-books" class="stats-finished-books"><p class="stats-empty">读完一本书后，它会出现在这里。</p></div>
+      </section>
+    </main>
   </div>
 
   <div id="reader-view" hidden>
@@ -119,6 +157,7 @@
         <button id="btn-toc" class="btn block">目录</button>
         <button id="btn-bookmarks" class="btn block">书签</button>
         <button id="btn-add-bookmark" class="btn block primary">添加书签</button>
+        <button id="btn-reading-stats-reader" class="btn block">阅读目标</button>
       </div>
       <div id="drawer-appearance">
         <h3>外观</h3>
@@ -156,6 +195,7 @@
   <script src="../shared/txt-html.js"></script>
   <script src="../shared/epub-progress.js"></script>
   <script src="../shared/reader-input.js"></script>
+  <script src="../shared/reading-stats.js"></script>
   <script src="bgm.js"></script>
   <script src="pet.js"></script>
   <script src="app.js"></script>

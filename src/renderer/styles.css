@@ -39,8 +39,8 @@ body.dark {
 }
 
 /* ===== 通用视图切换 ===== */
-#home-view, #library-view, #reader-view { display: flex; flex-direction: column; height: 100%; }
-#home-view[hidden], #library-view[hidden], #reader-view[hidden] { display: none; }
+#home-view, #library-view, #reader-view, #stats-view { display: flex; flex-direction: column; height: 100%; }
+#home-view[hidden], #library-view[hidden], #reader-view[hidden], #stats-view[hidden] { display: none; }
 .view-fade { animation: fadeIn .3s ease; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -205,6 +205,51 @@ body.eye {
 .book-progress-track { flex: 1; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
 .book-progress-fill { height: 100%; background: var(--accent); }
 .book-progress-label { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 11px; color: var(--text-soft); min-width: 40px; text-align: right; white-space: nowrap; line-height: 18px; display: inline-block; font-variant-numeric: tabular-nums; }
+
+/* ===== 阅读目标（Apple Books 风格信息层级） ===== */
+#stats-view { background: var(--bg); }
+.stats-scroll { flex: 1; overflow-y: auto; width: 100%; padding: 28px max(24px, calc((100vw - 880px) / 2)) 56px; }
+.stats-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 24px; box-shadow: 0 8px 28px color-mix(in srgb, var(--shadow) 58%, transparent); margin-bottom: 18px; }
+.stats-hero { display: flex; align-items: center; justify-content: space-between; min-height: 220px; padding: 34px 42px; }
+.stats-eyebrow { margin: 0 0 7px; color: var(--text-soft); font-size: 13px; font-weight: 600; letter-spacing: .08em; }
+.stats-today { color: var(--text); font-size: clamp(38px, 6vw, 58px); line-height: 1.08; font-weight: 750; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.stats-secondary { color: var(--text-soft); margin: 12px 0 0; }
+.stats-ring { width: 148px; height: 148px; border-radius: 50%; padding: 13px; background: conic-gradient(var(--accent) var(--goal-progress), var(--border) 0); box-shadow: 0 0 0 7px var(--accent-soft); }
+.stats-ring-center { width: 100%; height: 100%; border-radius: 50%; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.stats-ring-center strong { font-size: 26px; font-variant-numeric: tabular-nums; }
+.stats-ring-center span { color: var(--text-soft); font-size: 12px; margin-top: 2px; }
+.stats-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.stats-section-head h2 { font-size: 21px; margin: 0; }
+.stats-section-head > strong { color: var(--text-soft); font-size: 14px; }
+.stats-week-chart { display: grid; grid-template-columns: repeat(7, 1fr); height: 180px; gap: 13px; align-items: end; }
+.stats-day { height: 100%; display: grid; grid-template-rows: 1fr auto auto; gap: 7px; align-items: end; text-align: center; color: var(--text-soft); font-size: 12px; }
+.stats-day-bar-slot { height: 132px; display: flex; align-items: flex-end; justify-content: center; }
+.stats-day-bar { width: min(34px, 65%); min-height: 4px; border-radius: 10px 10px 4px 4px; background: var(--border-strong); transition: height .25s ease; }
+.stats-day.today .stats-day-bar { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.stats-day.today .stats-day-label { color: var(--accent); font-weight: 700; }
+.stats-day-minutes { min-height: 15px; font-variant-numeric: tabular-nums; }
+.stats-streak-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.stats-streak { display: flex; align-items: center; gap: 17px; margin: 0; }
+.stats-streak > span { font-size: 35px; }
+.stats-streak strong, .stats-streak small { display: block; }
+.stats-streak strong { font-size: 25px; }
+.stats-streak small { color: var(--text-soft); margin-top: 3px; }
+.stats-goal-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.stats-goal-options button { border: 1px solid var(--border-strong); border-radius: 12px; background: var(--bg); color: var(--text); padding: 13px 8px; cursor: pointer; }
+.stats-goal-options button:hover { border-color: var(--accent); }
+.stats-goal-options button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 650; }
+.stats-finished-books { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 18px; }
+.stats-finished-book { min-width: 0; }
+.stats-finished-cover { width: 100%; aspect-ratio: 2 / 3; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); object-fit: cover; display: flex; align-items: center; justify-content: center; color: var(--text-soft); font-weight: 700; }
+.stats-finished-title { margin: 8px 1px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.stats-empty { grid-column: 1 / -1; color: var(--text-soft); margin: 4px 0; text-align: center; }
+@media (max-width: 680px) {
+  .stats-scroll { padding: 16px 14px 40px; }
+  .stats-hero { padding: 26px 22px; }
+  .stats-ring { width: 118px; height: 118px; }
+  .stats-streak-grid { grid-template-columns: 1fr; }
+  .stats-goal-options { grid-template-columns: 1fr 1fr; }
+}
 
 /* ===== 内置 BGM 悬浮胶囊（久遠寺有珠黑紫色） ===== */
 .bgm-capsule {

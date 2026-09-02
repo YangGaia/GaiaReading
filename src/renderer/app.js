@@ -13,6 +13,13 @@ const { paragraphsToHtml } = window.GaiaTxtHtml;
 const { splitTxtParagraphs, detectTxtChapters, chapterTitleForParagraph } = window.GaiaTxtChapters;
 const { epubDisplayPercent } = window.GaiaEpubProgress;
 const { normalizeWheelDelta, createWheelGate } = window.GaiaReaderInput;
+const {
+  createReadingStats,
+  setGoalMinutes,
+  addReadingTime,
+  buildReadingSummary,
+  formatDuration,
+} = window.GaiaReadingStats;
 const readerWheelGate = createWheelGate({ threshold: 60, cooldown: 250 });
 
 const FONTS = {
@@ -31,6 +38,17 @@ const els = {
   readerStatus: $('reader-status'),
   tocPanel: $('toc-panel'),
   bookmarksPanel: $('bookmarks-panel'),
+  statsToday: $('stats-today'),
+  statsGoalCopy: $('stats-goal-copy'),
+  statsRing: $('stats-ring'),
+  statsRingPercent: $('stats-ring-percent'),
+  statsWeekTotal: $('stats-week-total'),
+  statsWeekChart: $('stats-week-chart'),
+  statsCurrentStreak: $('stats-current-streak'),
+  statsLongestStreak: $('stats-longest-streak'),
+  statsGoalOptions: $('stats-goal-options'),
+  statsFinishedCount: $('stats-finished-count'),
+  statsFinishedBooks: $('stats-finished-books'),
   pageNav: $('page-nav'),
   manageBar: $('manage-bar'),
   manageCount: $('manage-count'),
@@ -54,12 +72,14 @@ const views = {
   home: $('home-view'),
   library: $('library-view'),
   reader: $('reader-view'),
+  stats: $('stats-view'),
 };
 
 const state = {
   library: [],
   progress: {},
   bookmarks: {},
+  readingStats: createReadingStats(),
   current: null,
   manageMode: false,
   selected: new Set(),
@@ -71,6 +91,7 @@ const state = {
   prefs: { theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single' },
   homeReady: null,
   resolveHome: null,
+  statsReturnView: 'library',
 };
 
 state.homeReady = new Promise((resolve) => {
@@ -116,7 +137,9 @@ function showView(name) {
   const fxCanvas = $('fx-canvas');
   fxCanvas.hidden = !(name === 'home' || name === 'library');
   if (name !== 'home' && name !== 'library') clearFx();
-  if (window.GaiaBgm && window.GaiaBgm.positionBgm) window.GaiaBgm.positionBgm(name);
+  if (name === 'stats') renderReadingStats();
+  const companionView = name === 'stats' ? 'library' : name;
+  if (window.GaiaBgm && window.GaiaBgm.positionBgm) window.GaiaBgm.positionBgm(companionView);
   window.GaiaPet.init().then(() => {
     window.GaiaPet.setView(name);
     updatePetUI();
@@ -149,15 +172,17 @@ function migrateHabitsFromLastBook() {
 
 async function init() {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
-  const [lib, progress, bookmarks, prefs] = await Promise.all([
+  const [lib, progress, bookmarks, prefs, readingStats] = await Promise.all([
     window.api.stateGet('library'),
     window.api.stateGet('progress'),
     window.api.stateGet('bookmarks'),
     window.api.stateGet('prefs'),
+    window.api.stateGet('readingStats'),
   ]);
   state.library = lib || [];
   state.progress = progress || {};
   state.bookmarks = bookmarks || {};
+  state.readingStats = createReadingStats(readingStats);
   state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single' }, prefs || {});
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
   migrateHabitsFromLastBook();
@@ -181,6 +206,7 @@ async function init() {
   }
   renderLibrary();
   bindEvents();
+  initReadingStatsTracker();
   await delay(2000);
   finishSplash();
 }
@@ -424,6 +450,7 @@ function closeReaderContent() {
 
 async function backToLibrary() {
   if (state.current) {
+    tickReadingStats(Date.now(), true);
     const c = state.current;
     if (c.format === 'pdf') saveProgress(c.path, { page: c.page });
     if (c.paginator) updateMobiProgress(true);
@@ -437,6 +464,7 @@ async function backToLibrary() {
 async function openBook(book) {
   if (state.manageMode) exitManageMode();
   closeSettings();
+  if (state.current) tickReadingStats(Date.now(), true);
   closeReaderContent();
   readerWheelGate.reset();
   showView('reader');
@@ -446,7 +474,8 @@ async function openBook(book) {
   els.tocPanel.innerHTML = '';
   els.readerStatus.textContent = '加载中…';
   els.pageNav.hidden = false;
-  state.current = { path: book.path, format: book.format };
+  state.current = { path: book.path, format: book.format, title: book.title || book.path, cover: book.cover || '', percent: 0 };
+  noteReadingActivity();
   applyGlobalHabits();
   const savedProg = state.progress[book.path];
   if (savedProg && savedProg.percent != null) {
@@ -800,6 +829,7 @@ function applyTxtTypography() {
 function nextPage() {
   const c = state.current;
   if (!c) return;
+  noteReadingActivity();
   if (c.format === 'epub') {
     if (c.rendition) { animatePage('next'); c.rendition.next(); }
   } else if (c.format === 'pdf') {
@@ -824,6 +854,7 @@ function nextPage() {
 function prevPage() {
   const c = state.current;
   if (!c) return;
+  noteReadingActivity();
   if (c.format === 'epub') {
     if (c.rendition) { animatePage('prev'); c.rendition.prev(); }
   } else if (c.format === 'pdf') {
@@ -861,6 +892,7 @@ function onReaderKey(ev) {
   if (isReaderTyping(ev.target)) return;
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
   if (views.reader.hidden) return;
+  noteReadingActivity();
   if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') { ev.preventDefault(); prevPage(); }
   else if (ev.key === 'ArrowRight' || ev.key === 'PageDown') { ev.preventDefault(); nextPage(); }
 }
@@ -868,6 +900,7 @@ function onReaderKey(ev) {
 function onReaderWheel(ev) {
   if (views.reader.hidden) return;
   if (isReaderTyping(ev.target)) return;
+  noteReadingActivity();
   const d = normalizeWheelDelta(ev);
   if (Math.abs(d) < 0.01) return;
   ev.preventDefault();
@@ -1496,8 +1529,143 @@ async function buildPdfImageOverlay(page, viewport, dpr) {
   }
 }
 
+const readingStatsRuntime = {
+  lastTickAt: 0,
+  lastActivityAt: 0,
+  lastSaveAt: 0,
+  timer: 0,
+};
+
+function noteReadingActivity(at) {
+  const now = Number(at) || Date.now();
+  readingStatsRuntime.lastActivityAt = now;
+  if (!readingStatsRuntime.lastTickAt) readingStatsRuntime.lastTickAt = now;
+}
+
+function isReadingStatsActive(now) {
+  return !!state.current &&
+    !views.reader.hidden &&
+    document.visibilityState !== 'hidden' &&
+    document.hasFocus() &&
+    now - readingStatsRuntime.lastActivityAt <= 10 * 60 * 1000;
+}
+
+function tickReadingStats(at, forceSave) {
+  const now = Number(at) || Date.now();
+  if (!readingStatsRuntime.lastTickAt) readingStatsRuntime.lastTickAt = now;
+  const elapsed = Math.max(0, now - readingStatsRuntime.lastTickAt);
+  readingStatsRuntime.lastTickAt = now;
+  if (elapsed && isReadingStatsActive(now)) {
+    const c = state.current;
+    state.readingStats = addReadingTime(state.readingStats, {
+      at: now,
+      ms: elapsed,
+      book: { path: c.path, title: c.title, cover: c.cover },
+      percent: c.percent,
+    });
+  }
+  if (forceSave || now - readingStatsRuntime.lastSaveAt >= 15000) {
+    readingStatsRuntime.lastSaveAt = now;
+    window.api.stateSet('readingStats', state.readingStats);
+  }
+  if (!views.stats.hidden) renderReadingStats();
+}
+
+function initReadingStatsTracker() {
+  readingStatsRuntime.lastTickAt = Date.now();
+  readingStatsRuntime.timer = window.setInterval(() => tickReadingStats(Date.now(), false), 1000);
+  views.reader.addEventListener('pointerdown', () => noteReadingActivity());
+  views.reader.addEventListener('scroll', () => noteReadingActivity(), true);
+  window.addEventListener('blur', () => tickReadingStats(Date.now(), true));
+  window.addEventListener('focus', () => { readingStatsRuntime.lastTickAt = Date.now(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') tickReadingStats(Date.now(), true);
+    else readingStatsRuntime.lastTickAt = Date.now();
+  });
+}
+
+function openReadingStats(returnView) {
+  tickReadingStats(Date.now(), true);
+  state.statsReturnView = returnView === 'reader' && state.current ? 'reader' : 'library';
+  closeSettings();
+  showView('stats');
+}
+
+function closeReadingStats() {
+  showView(state.statsReturnView === 'reader' && state.current ? 'reader' : 'library');
+  readingStatsRuntime.lastTickAt = Date.now();
+  if (!views.reader.hidden) noteReadingActivity();
+}
+
+function renderReadingStats() {
+  const summary = buildReadingSummary(state.readingStats, Date.now());
+  const progress = summary.goalMs ? Math.min(1, summary.todayMs / summary.goalMs) : 0;
+  els.statsToday.textContent = formatDuration(summary.todayMs);
+  els.statsGoalCopy.textContent = '每日目标 ' + summary.goalMinutes + ' 分钟';
+  els.statsRing.style.setProperty('--goal-progress', Math.round(progress * 360) + 'deg');
+  els.statsRingPercent.textContent = Math.round(progress * 100) + '%';
+  els.statsCurrentStreak.textContent = summary.currentStreak + ' 天';
+  els.statsLongestStreak.textContent = summary.longestStreak + ' 天';
+  const weekTotal = summary.week.reduce((sum, day) => sum + day.ms, 0);
+  els.statsWeekTotal.textContent = formatDuration(weekTotal);
+  const chartMax = Math.max(summary.goalMs, ...summary.week.map((day) => day.ms), 1);
+  els.statsWeekChart.innerHTML = '';
+  for (const day of summary.week) {
+    const column = document.createElement('div');
+    column.className = 'stats-day' + (day.isToday ? ' today' : '');
+    const slot = document.createElement('div');
+    slot.className = 'stats-day-bar-slot';
+    const bar = document.createElement('div');
+    bar.className = 'stats-day-bar';
+    bar.style.height = Math.max(4, Math.round((day.ms / chartMax) * 128)) + 'px';
+    slot.appendChild(bar);
+    const minutes = document.createElement('span');
+    minutes.className = 'stats-day-minutes';
+    minutes.textContent = day.ms ? Math.floor(day.ms / 60000) + '分' : '';
+    const label = document.createElement('span');
+    label.className = 'stats-day-label';
+    label.textContent = day.label;
+    column.append(slot, minutes, label);
+    els.statsWeekChart.appendChild(column);
+  }
+  for (const button of els.statsGoalOptions.querySelectorAll('[data-goal-minutes]')) {
+    button.classList.toggle('active', Number(button.dataset.goalMinutes) === summary.goalMinutes);
+  }
+  els.statsFinishedCount.textContent = summary.completedThisYear + ' 本';
+  els.statsFinishedBooks.innerHTML = '';
+  if (!summary.completedBooks.length) {
+    const empty = document.createElement('p');
+    empty.className = 'stats-empty';
+    empty.textContent = '读完一本书后，它会出现在这里。';
+    els.statsFinishedBooks.appendChild(empty);
+  } else {
+    for (const book of summary.completedBooks) {
+      const item = document.createElement('div');
+      item.className = 'stats-finished-book';
+      let cover;
+      if (book.cover) {
+        cover = document.createElement('img');
+        cover.src = book.cover;
+        cover.alt = book.title;
+      } else {
+        cover = document.createElement('div');
+        cover.textContent = '已读';
+      }
+      cover.className = 'stats-finished-cover';
+      const title = document.createElement('p');
+      title.className = 'stats-finished-title';
+      title.textContent = book.title;
+      title.title = book.title;
+      item.append(cover, title);
+      els.statsFinishedBooks.appendChild(item);
+    }
+  }
+}
+
 function updateProgress(percent, text) {
-  els.progressFill.style.width = Math.max(0, Math.min(100, percent)) + '%';
+  const safePercent = Math.max(0, Math.min(100, percent));
+  els.progressFill.style.width = safePercent + '%';
+  if (state.current) state.current.percent = safePercent;
   if (text) els.readerStatus.textContent = text;
 }
 
@@ -1553,6 +1721,15 @@ function bindEvents() {
     if (now - fx.lastMove > 16) { fx.lastMove = now; addTrailPoint(ev.clientX, ev.clientY); }
   });
   $('btn-back-home').addEventListener('click', () => showView('home'));
+  $('btn-reading-stats').addEventListener('click', () => openReadingStats('library'));
+  $('btn-stats-back').addEventListener('click', closeReadingStats);
+  els.statsGoalOptions.addEventListener('click', (ev) => {
+    const button = ev.target.closest('[data-goal-minutes]');
+    if (!button) return;
+    state.readingStats = setGoalMinutes(state.readingStats, Number(button.dataset.goalMinutes));
+    window.api.stateSet('readingStats', state.readingStats);
+    renderReadingStats();
+  });
 
   $('btn-settings').addEventListener('click', openSettings);
   $('btn-settings-reader').addEventListener('click', openSettings);
@@ -1604,6 +1781,7 @@ function bindEvents() {
     closeSettings();
     addBookmark();
   });
+  $('btn-reading-stats-reader').addEventListener('click', () => openReadingStats('reader'));
   $('btn-prev-page').addEventListener('click', prevPage);
   $('btn-next-page').addEventListener('click', nextPage);
 
@@ -1644,6 +1822,12 @@ window.__gaiaDebug = {
   showView,
   nextPage,
   prevPage,
+  openReadingStats,
+  closeReadingStats,
+  renderReadingStats,
+  tickReadingStats,
+  noteReadingActivity,
+  getReadingStats: () => createReadingStats(state.readingStats),
   addBookmark,
   removeBookmarkAt,
   togglePanel,
