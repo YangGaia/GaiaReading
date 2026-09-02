@@ -416,7 +416,8 @@ function createWindow() {
               const parsed = JSON.parse(mobiStatus);
               debugOk =
                 parsed.contentLen > 0 &&
-                Math.max(parsed.aiContentLen || 0, parsed.aiContentLenAfterPaging || 0) > 100 &&
+                typeof parsed.initialAiChapterTitle === 'string' && parsed.initialAiChapterTitle.length > 0 &&
+                parsed.aiContentLen > 100 &&
                 typeof parsed.aiChapterTitle === 'string' && parsed.aiChapterTitle.length > 0 &&
                 parsed.chapters > 0 &&
                 typeof parsed.idxBefore === 'number' &&

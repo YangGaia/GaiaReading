@@ -320,11 +320,6 @@
     return !!leftContent && !!rightContent && chapterSourceKey(left) === chapterSourceKey(right);
   }
 
-  function shouldDisableThinking(config) {
-    const normalized = normalizeConfig(config);
-    return /^deepseek-v4(?:-|$)/i.test(normalized.model);
-  }
-
   async function requestChat(fetchImpl, config, apiKey, messages, options) {
     if (typeof fetchImpl !== 'function') throw new Error('当前环境无法发送 AI 请求');
     const normalized = normalizeConfig(config);
@@ -343,10 +338,10 @@
         stream: false,
         max_tokens: Number(options && options.maxTokens) || 1000,
       };
-      // DeepSeek-compatible relays use the same model ID, so identify V4 by model
-      // instead of hostname. This keeps long summaries from spending their output
-      // budget on reasoning_content and returning an empty answer body.
-      if (shouldDisableThinking(normalized)) body.thinking = { type: 'disabled' };
+      const officialDeepSeekV4 = normalized.provider === 'deepseek' &&
+        new URL(normalized.baseUrl).hostname === 'api.deepseek.com' &&
+        /^deepseek-v4-/i.test(normalized.model);
+      if (officialDeepSeekV4) body.thinking = { type: 'disabled' };
       const response = await fetchImpl(chatEndpoint(normalized.baseUrl), {
         method: 'POST',
         headers,
@@ -484,7 +479,6 @@
     cacheKey,
     chapterSourceKey,
     sameChapterSource,
-    shouldDisableThinking,
     requestChat,
     testConnection,
     listModels,

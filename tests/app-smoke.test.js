@@ -121,11 +121,16 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(app.includes('selectChapterScope(entries, chapter, currentOffset)'), 'MOBI/AZW3 总结应按目录边界截取当前小章');
   assert.ok(app.includes('sameChapterSource(currentChapterSummarySource(), source)'), 'AI 返回结果应兼容同一正文的章节标识波动');
   assert.ok(app.includes('aiCacheKey(chapterSourceKey(source), source.content'), 'AI 总结缓存应使用稳定的章节正文标识');
+  assert.ok(app.includes('candidateContent.length >= 32'), 'MOBI/AZW3 的短标题页应推进到紧邻的真实章节');
+  assert.ok(app.includes('await window.api.mobiChapter(c.mobiSession, nextIndex)'), '跨底层片段的 MOBI/AZW3 标题页应读取紧邻正文');
+  assert.ok(app.includes('resolveAiChapterSource'), 'MOBI/AZW3 烟雾测试应验证总结前的异步章节补全');
+  assert.ok(app.includes('可能是封面或纯图片页'), '无正文的 MOBI/AZW3 页面必须显示明确错误');
+  assert.ok(app.includes('state.aiSummaryRequestId += 1'), '切换书籍时必须解除旧 AI 总结请求的按钮锁定');
   assert.ok(app.includes("semanticChapterEntries(root, chapter, c.format + ':' + chapter"), '目录缺少小章时，MOBI/AZW3 应按正文标题识别章节');
   assert.ok(app.includes("return holder.textContent || ''"), '章节正文提取不得受 AZW3 排版 CSS 的 innerText 可见性影响');
   assert.ok(app.includes("selector: item.selector || ''"), 'MOBI/AZW3 目录跳转应定位到同一底层文档内的小章起点');
   assert.ok(app.includes('未识别到 TXT 章节标题'), 'TXT 未识别章节时不得把全文发送给 AI');
-  assert.ok(main.includes('parsed.aiContentLenAfterPaging || 0) > 100'), 'MOBI/AZW3 冒烟必须验证 AI 确实读到正文，不能只读到空格或页码');
+  assert.ok(main.includes('parsed.aiContentLen > 100'), 'MOBI/AZW3 冒烟必须在总结前验证 AI 已读到正文，不能只读到空格或页码');
   assert.ok(css.includes('.ai-content-stage { flex: 1; min-height: 0; overflow: hidden; }'), 'AI 页签内容区不得覆盖标题和状态文字');
   assert.ok(css.includes('min-width: 0 !important; min-height: 0 !important;'), 'AI 最小化时必须覆盖普通窗口的最小尺寸');
   assert.ok(css.includes('.ai-summary-panel.minimized #btn-ai-chat-clear'), 'AI 最小化时应隐藏清空与排版按钮');

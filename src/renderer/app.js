@@ -153,6 +153,7 @@ const state = {
   aiDiscoveredModels: {},
   aiSummaries: {},
   aiSummaryLoading: false,
+  aiSummaryRequestId: 0,
   aiChatLoading: false,
   aiChats: {},
   aiCenterReturnView: 'home',
@@ -652,6 +653,9 @@ function closeReaderContent() {
   hideSelectionToolbar();
   els.pageNav.hidden = true;
   $('btn-ai-reader').classList.remove('open');
+  state.aiSummaryRequestId += 1;
+  state.aiSummaryLoading = false;
+  $('btn-ai-summary-run').disabled = false;
   state.current = null;
 }
 
@@ -3075,11 +3079,7 @@ function epubChapterSummarySource(c) {
   };
 }
 
-function mobiChapterSummarySource(c) {
-  const chapter = c.flow ? c.flow.chapter : 0;
-  const root = c.paginator && c.paginator.doc && c.paginator.doc.body;
-  const anchor = c.paginator && c.paginator.anchor();
-  const currentOffset = anchor && Number.isFinite(anchor.off) ? anchor.off : 0;
+function mobiChapterSummarySourceFromRoot(c, chapter, root, currentOffset) {
   const tocEntries = flattenChapterToc((c.mobi && c.mobi.toc) || []).map(({ item, depth, order }) => {
     let node = null;
     if (root && item.index === chapter && item.selector) {
@@ -3096,17 +3096,61 @@ function mobiChapterSummarySource(c) {
     };
   });
   const entries = tocEntries.concat(semanticChapterEntries(root, chapter, c.format + ':' + chapter, tocEntries.length));
-  const scope = selectChapterScope(entries, chapter, currentOffset);
-  const selected = scope.selected;
-  const content = textBetweenChapterNodes(root, selected && !selected.continued ? selected.node : null, scope.endEntry && scope.endEntry.node);
+  let scope = selectChapterScope(entries, chapter, currentOffset);
+  let selected = scope.selected;
+  let content = cleanChapterText(textBetweenChapterNodes(root, selected && !selected.continued ? selected.node : null, scope.endEntry && scope.endEntry.node));
+  // MOBI/KF8 often puts a book title a few characters before the first real
+  // chapter in the same document. Treat that tiny title range as a lead-in to
+  // the immediately following chapter instead of sending it alone to AI.
+  if (content.length < 32) {
+    const minimumOffset = scope.endEntry ? scope.endEntry.startOffset : currentOffset;
+    const localNodes = entries
+      .filter((entry) => entry.containerIndex === chapter && entry.node && entry.startOffset >= minimumOffset)
+      .sort((left, right) => left.startOffset - right.startOffset || left.order - right.order);
+    for (let i = 0; i < localNodes.length; i++) {
+      const candidate = localNodes[i];
+      const following = localNodes.find((entry) => entry.startOffset > candidate.startOffset) || null;
+      const candidateContent = cleanChapterText(textBetweenChapterNodes(root, candidate.node, following && following.node));
+      if (candidateContent.length >= 32) {
+        scope = { selected: candidate, endEntry: following };
+        selected = candidate;
+        content = candidateContent;
+        break;
+      }
+    }
+  }
   return {
     bookPath: c.path,
     bookTitle: c.title,
     chapterTitle: selected && selected.label ? selected.label : mobiChapterTitle(c.mobi, chapter),
     chapterId: selected && selected.id ? c.format + ':toc:' + selected.id : c.format + ':' + chapter,
     ordinal: chapter,
-    content: cleanChapterText(content),
+    content,
   };
+}
+
+function mobiChapterSummarySource(c) {
+  const chapter = c.flow ? c.flow.chapter : 0;
+  const root = c.paginator && c.paginator.doc && c.paginator.doc.body;
+  const anchor = c.paginator && c.paginator.anchor();
+  const currentOffset = anchor && Number.isFinite(anchor.off) ? anchor.off : 0;
+  return mobiChapterSummarySourceFromRoot(c, chapter, root, currentOffset);
+}
+
+async function resolveSparseMobiAiSource(source) {
+  const c = state.current;
+  if (!source || !source.content || source.content.length >= 32 || !c || c.path !== source.bookPath) return source;
+  if ((c.format !== 'mobi' && c.format !== 'azw3') || !c.mobiSession || !c.mobi || !Array.isArray(c.mobi.chapters)) return source;
+  const nextIndex = Number(source.ordinal) + 1;
+  if (!Number.isInteger(nextIndex) || nextIndex < 0 || nextIndex >= c.mobi.chapters.length) return source;
+  try {
+    const nextChapter = await window.api.mobiChapter(c.mobiSession, nextIndex);
+    const doc = new DOMParser().parseFromString(String(nextChapter && nextChapter.html || ''), 'text/html');
+    const nextSource = mobiChapterSummarySourceFromRoot(c, nextIndex, doc.body, 0);
+    return nextSource.content.length >= 32 ? nextSource : source;
+  } catch (error) {
+    return source;
+  }
 }
 
 function currentChapterSummarySource() {
@@ -3407,17 +3451,19 @@ function ensureAiReady() {
 }
 
 async function summarizeSource(source) {
+  source = await resolveSparseMobiAiSource(source);
   const pathKey = source && source.bookPath;
-  if (!pathKey || !source || !source.content) return null;
+  if (!pathKey || !source || !source.content) throw new Error('当前章节没有可总结的文字，可能是封面或纯图片页');
   const existing = cachedAiSummary(source);
-  if (existing) return existing;
+  if (existing) return { source, summary: existing };
   ensureAiReady();
   const result = await window.api.aiSummarize({ ...source, profileId: state.aiProfiles.activeId });
-  return storeAiSummary(pathKey, source, result);
+  return { source, summary: await storeAiSummary(pathKey, source, result) };
 }
 
 async function runCurrentChapterSummary() {
   if (state.aiSummaryLoading) return;
+  const requestId = ++state.aiSummaryRequestId;
   let source;
   try { source = currentChapterSummarySource(); } catch (error) {
     els.aiSummaryStatus.textContent = aiErrorMessage(error);
@@ -3435,9 +3481,9 @@ async function runCurrentChapterSummary() {
   switchAiContentTab('summary');
   try {
     const result = await summarizeSource(source);
-    if (isCurrentAiSource(source)) {
-      showAiSummaryResult(source, result);
-      renderAiChat(source);
+    if (isCurrentAiSource(source) || isCurrentAiSource(result.source)) {
+      showAiSummaryResult(result.source, result.summary);
+      renderAiChat(result.source);
       switchAiContentTab('summary');
       els.aiSummaryStatus.textContent = '总结完成并已保存在本地。';
     }
@@ -3449,8 +3495,10 @@ async function runCurrentChapterSummary() {
       els.aiSummaryStatus.classList.add('error');
     }
   } finally {
-    state.aiSummaryLoading = false;
-    $('btn-ai-summary-run').disabled = false;
+    if (requestId === state.aiSummaryRequestId) {
+      state.aiSummaryLoading = false;
+      $('btn-ai-summary-run').disabled = false;
+    }
   }
 }
 
@@ -4134,6 +4182,7 @@ window.__gaiaDebug = {
     floatingWindow: els.aiSummaryPanel.classList.contains('ai-summary-panel'),
   }),
   getAiChapterSource: () => currentChapterSummarySource(),
+  resolveAiChapterSource: async () => resolveSparseMobiAiSource(currentChapterSummarySource()),
   openAiAssistant: openAiSummaryPanel,
   getAiChatState: () => ({ mode: 'assistant', loading: state.aiChatLoading, messages: els.aiChatMessages.children.length }),
   waitHome: () => state.homeReady,
