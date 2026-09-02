@@ -647,16 +647,24 @@ function createWindow() {
             const statsView = document.getElementById('stats-view');
             const statsAlice = document.getElementById('stats-alice');
             const statsViewVisible = !statsView.hidden;
-            const statsUsesWholeImage = decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/半身照.png') && statsAlice.naturalWidth > 0;
+            const statsUsesWholeImage = decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/日常表情.png') && statsAlice.naturalWidth > 0;
             const statsAliceVisible = statsAlice.getBoundingClientRect().width > 0 && statsAlice.getBoundingClientRect().height > 0;
             const statsPetHidden = petRoot.hidden;
             const statsBreathing = getComputedStyle(statsAlice).animationName === 'statsAliceBreathe';
             statsAlice.dispatchEvent(new PointerEvent('pointerenter'));
             const statsHoverInteractive = statsAlice.classList.contains('stats-alice-perk');
             statsAlice.click();
-            const statsClickInteractive = statsAlice.classList.contains('stats-alice-poke');
-            for (let i = 0; i < 4; i += 1) statsAlice.click();
-            const statsRepeatedClickInteractive = statsAlice.classList.contains('stats-alice-shiver');
+            const statsBlinkStarted = decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/安心.png');
+            await new Promise((resolve) => setTimeout(resolve, 210));
+            statsAlice.click();
+            const statsYawnStarted = statsAlice.classList.contains('stats-alice-yawn') && decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/眼睛微张.png');
+            await new Promise((resolve) => setTimeout(resolve, 310));
+            const statsYawnExpression = decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/叹气.png');
+            await new Promise((resolve) => setTimeout(resolve, 1320));
+            statsAlice.click();
+            const statsSleepStarted = statsAlice.classList.contains('stats-alice-sleep') && !document.getElementById('stats-alice-zzz').hidden && decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/安心.png');
+            statsAlice.click();
+            const statsWakeStarted = statsAlice.classList.contains('stats-alice-wake') && document.getElementById('stats-alice-zzz').hidden;
             const dragEvent = new Event('dragstart', { cancelable: true });
             statsAlice.dispatchEvent(dragEvent);
             const statsDragDisabled = statsAlice.draggable === false && dragEvent.defaultPrevented;
@@ -664,7 +672,7 @@ function createWindow() {
             __gaiaDebug.closeReadingStats();
             await new Promise((resolve) => setTimeout(resolve, 80));
             const statsPetRestored = !petRoot.hidden;
-            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsTargetMatchesDisplay, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned, statsViewVisible, statsUsesWholeImage, statsAliceVisible, statsPetHidden, statsBreathing, statsHoverInteractive, statsDragDisabled, statsClickInteractive, statsRepeatedClickInteractive, statsHasNoDialogue, statsPetRestored };
+            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsTargetMatchesDisplay, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned, statsViewVisible, statsUsesWholeImage, statsAliceVisible, statsPetHidden, statsBreathing, statsHoverInteractive, statsDragDisabled, statsBlinkStarted, statsYawnStarted, statsYawnExpression, statsSleepStarted, statsWakeStarted, statsHasNoDialogue, statsPetRestored };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -727,8 +735,11 @@ function createWindow() {
             petStatus.statsBreathing === true &&
             petStatus.statsHoverInteractive === true &&
             petStatus.statsDragDisabled === true &&
-            petStatus.statsClickInteractive === true &&
-            petStatus.statsRepeatedClickInteractive === true &&
+            petStatus.statsBlinkStarted === true &&
+            petStatus.statsYawnStarted === true &&
+            petStatus.statsYawnExpression === true &&
+            petStatus.statsSleepStarted === true &&
+            petStatus.statsWakeStarted === true &&
             petStatus.statsHasNoDialogue === true &&
             petStatus.statsPetRestored === true;
           if (!debugOk) console.error('PET_SMOKE_CHECKS_FAILED:', JSON.stringify(petStatus));
@@ -809,6 +820,19 @@ function createWindow() {
         await mainWindow.webContents.executeJavaScript("__gaiaDebug.openReadingStats('library')");
         await wait(500);
         await capture('reading_stats.png');
+        await mainWindow.webContents.executeJavaScript("document.getElementById('stats-alice').click()");
+        await wait(70);
+        await capture('reading_stats_blink.png');
+        await wait(160);
+        await mainWindow.webContents.executeJavaScript("document.getElementById('stats-alice').click()");
+        await wait(340);
+        await capture('reading_stats_yawn.png');
+        await wait(1280);
+        await mainWindow.webContents.executeJavaScript("document.getElementById('stats-alice').click()");
+        await wait(260);
+        await capture('reading_stats_sleep.png');
+        await mainWindow.webContents.executeJavaScript("document.getElementById('stats-alice').click()");
+        await wait(520);
         await mainWindow.webContents.executeJavaScript("__gaiaDebug.setTheme('eye')");
         await wait(350);
         await capture('reading_stats_eye.png');

@@ -280,15 +280,20 @@ body.dark #stats-view {
 .stats-secondary { color: var(--stats-hero-soft); margin: 10px 0 0; font-size: 13px; }
 .stats-alice-line { position: relative; max-width: 410px; margin: 23px 0 0; padding: 10px 14px 10px 17px; border-left: 2px solid var(--stats-accent); background: rgba(255,255,255,.07); color: var(--stats-hero-text); font-family: Georgia, "Times New Roman", "SimSun", serif; font-size: 13px; line-height: 1.65; letter-spacing: .03em; }
 .stats-hero-visual { position: absolute; z-index: 1; right: 25px; top: 0; width: 340px; height: 100%; pointer-events: none; }
-.stats-alice { position: absolute; z-index: 3; height: 350px; width: auto; right: -4px; bottom: -142px; filter: drop-shadow(-12px 8px 18px rgba(0,0,0,.35)); opacity: .96; transform-origin: 50% 88%; pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none; animation: statsAliceBreathe 4s ease-in-out infinite; }
+.stats-alice { position: absolute; z-index: 3; height: 225px; width: 225px; object-fit: contain; right: -2px; bottom: -4px; filter: drop-shadow(-12px 8px 18px rgba(0,0,0,.35)); opacity: .96; transform-origin: 50% 88%; pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none; animation: statsAliceBreathe 4s ease-in-out infinite; }
 .stats-alice:focus-visible { outline: 2px solid var(--stats-hero-soft); outline-offset: -12px; }
 .stats-alice.stats-alice-perk { animation: statsAlicePerk .42s ease; }
-.stats-alice.stats-alice-poke { animation: statsAlicePoke .34s ease; }
-.stats-alice.stats-alice-shiver { animation: statsAliceShiver .46s linear; }
+.stats-alice.stats-alice-yawn { animation: statsAliceYawn 1.6s ease-in-out; }
+.stats-alice.stats-alice-sleep { animation: statsAliceSleep 3.2s ease-in-out infinite; cursor: pointer; }
+.stats-alice.stats-alice-wake { animation: statsAliceWake .5s ease; }
+.stats-alice-zzz { position: absolute; z-index: 4; right: 20px; top: 28px; color: var(--stats-hero-soft); font: italic 700 18px/1 Georgia, serif; letter-spacing: .08em; pointer-events: none; animation: statsAliceZzz 1.8s ease-in-out infinite; }
+.stats-alice-zzz[hidden] { display: none; }
 @keyframes statsAliceBreathe { 0%, 100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-2px) scaleY(1.012); } }
 @keyframes statsAlicePerk { 0%, 100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-8px) scale(1.015); } }
-@keyframes statsAlicePoke { 0%, 100% { transform: translateX(0) rotate(0); } 45% { transform: translateX(-5px) rotate(-1.2deg); } }
-@keyframes statsAliceShiver { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+@keyframes statsAliceYawn { 0%, 100% { transform: translateY(0) rotate(0); } 35%, 70% { transform: translateY(5px) rotate(-1deg) scaleY(.985); } }
+@keyframes statsAliceSleep { 0%, 100% { transform: translateY(3px) rotate(-.4deg) scaleY(.99); } 50% { transform: translateY(6px) rotate(.4deg) scaleY(.975); } }
+@keyframes statsAliceWake { 0% { transform: translateY(6px) scaleY(.97); } 55% { transform: translateY(-7px) scaleY(1.02); } 100% { transform: translateY(0) scaleY(1); } }
+@keyframes statsAliceZzz { 0%, 100% { opacity: .35; transform: translateY(5px) scale(.9); } 50% { opacity: 1; transform: translateY(-4px) scale(1.05); } }
 .stats-ring { position: absolute; z-index: 2; left: 4px; top: 57px; width: 154px; height: 154px; border-radius: 50%; padding: 12px; background: conic-gradient(var(--stats-accent) var(--goal-progress), rgba(255,255,255,.15) 0); box-shadow: 0 0 0 1px var(--stats-hero-soft), 0 0 0 8px rgba(15,10,20,.34), 0 0 28px color-mix(in srgb, var(--stats-accent) 45%, transparent); transform: rotate(-12deg); }
 .stats-ring::before, .stats-ring::after { content: ''; position: absolute; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--stats-hero-soft) 65%, transparent); }
 .stats-ring::before { inset: -17px; border-style: dashed; animation: statsOrbit 28s linear infinite; }

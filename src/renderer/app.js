@@ -54,6 +54,7 @@ const els = {
   statsGoalCopy: $('stats-goal-copy'),
   statsAliceLine: $('stats-alice-line'),
   statsAlice: $('stats-alice'),
+  statsAliceZzz: $('stats-alice-zzz'),
   statsRing: $('stats-ring'),
   statsRingPercent: $('stats-ring-percent'),
   statsWeekTotal: $('stats-week-total'),
@@ -2074,35 +2075,123 @@ function openReadingStats(returnView) {
   tickReadingStats(Date.now(), true);
   state.statsReturnView = returnView === 'reader' && state.current ? 'reader' : 'library';
   closeSettings();
+  statsAliceClickAction = 0;
+  resetStatsAlice();
   showView('stats');
+  scheduleStatsAliceBlink();
 }
 
 function closeReadingStats() {
+  window.clearTimeout(statsAliceBlinkTimer);
+  resetStatsAlice();
   showView(state.statsReturnView === 'reader' && state.current ? 'reader' : 'library');
   readingStatsRuntime.lastTickAt = Date.now();
   if (!views.reader.hidden) noteReadingActivity();
 }
 
-const STATS_ALICE_MOTIONS = ['stats-alice-perk', 'stats-alice-poke', 'stats-alice-shiver'];
-let statsAliceClicks = [];
+const STATS_ALICE_IMAGE_ROOT = 'images/pet/cells/';
+const STATS_ALICE_IMAGES = {
+  idle: '日常表情.png',
+  blink: '安心.png',
+  drowsy: '眼睛微张.png',
+  yawn: '叹气.png',
+};
+const STATS_ALICE_CLASSES = ['stats-alice-perk', 'stats-alice-yawn', 'stats-alice-sleep', 'stats-alice-wake'];
+const statsAliceActionTimers = new Set();
+let statsAliceAction = 'idle';
+let statsAliceClickAction = 0;
+let statsAliceBlinkTimer = null;
+let statsAliceActionToken = 0;
 
-function runStatsAliceMotion(motion) {
-  if (!els.statsAlice || !STATS_ALICE_MOTIONS.includes(motion)) return;
-  els.statsAlice.classList.remove(...STATS_ALICE_MOTIONS);
-  void els.statsAlice.offsetWidth;
-  els.statsAlice.classList.add(motion);
+for (const file of Object.values(STATS_ALICE_IMAGES)) {
+  const image = new Image();
+  image.src = STATS_ALICE_IMAGE_ROOT + file;
+}
+
+function setStatsAliceImage(name) {
+  els.statsAlice.src = STATS_ALICE_IMAGE_ROOT + STATS_ALICE_IMAGES[name];
+}
+
+function queueStatsAliceStep(callback, delay, token) {
+  const timer = window.setTimeout(() => {
+    statsAliceActionTimers.delete(timer);
+    if (token === statsAliceActionToken) callback();
+  }, delay);
+  statsAliceActionTimers.add(timer);
+}
+
+function clearStatsAliceSteps() {
+  for (const timer of statsAliceActionTimers) window.clearTimeout(timer);
+  statsAliceActionTimers.clear();
+}
+
+function resetStatsAlice() {
+  statsAliceActionToken += 1;
+  clearStatsAliceSteps();
+  statsAliceAction = 'idle';
+  els.statsAlice.classList.remove(...STATS_ALICE_CLASSES);
+  els.statsAliceZzz.hidden = true;
+  setStatsAliceImage('idle');
+}
+
+function finishStatsAliceAction(token) {
+  if (token !== statsAliceActionToken) return;
+  statsAliceAction = 'idle';
+  els.statsAlice.classList.remove(...STATS_ALICE_CLASSES);
+  els.statsAliceZzz.hidden = true;
+  setStatsAliceImage('idle');
+}
+
+function runStatsAliceAction(action) {
+  statsAliceActionToken += 1;
+  const token = statsAliceActionToken;
+  clearStatsAliceSteps();
+  els.statsAlice.classList.remove(...STATS_ALICE_CLASSES);
+  els.statsAliceZzz.hidden = true;
+  statsAliceAction = action;
+  if (action === 'blink') {
+    setStatsAliceImage('blink');
+    queueStatsAliceStep(() => finishStatsAliceAction(token), 170, token);
+    return;
+  }
+  if (action === 'yawn') {
+    setStatsAliceImage('drowsy');
+    els.statsAlice.classList.add('stats-alice-yawn');
+    queueStatsAliceStep(() => setStatsAliceImage('yawn'), 260, token);
+    queueStatsAliceStep(() => setStatsAliceImage('blink'), 1120, token);
+    queueStatsAliceStep(() => finishStatsAliceAction(token), 1580, token);
+    return;
+  }
+  if (action === 'sleep') {
+    setStatsAliceImage('blink');
+    els.statsAlice.classList.add('stats-alice-sleep');
+    els.statsAliceZzz.hidden = false;
+    return;
+  }
+  if (action === 'wake') {
+    setStatsAliceImage('drowsy');
+    els.statsAlice.classList.add('stats-alice-wake');
+    queueStatsAliceStep(() => finishStatsAliceAction(token), 500, token);
+  }
+}
+
+function scheduleStatsAliceBlink() {
+  window.clearTimeout(statsAliceBlinkTimer);
+  if (views.stats.hidden) return;
+  statsAliceBlinkTimer = window.setTimeout(() => {
+    if (!views.stats.hidden && statsAliceAction === 'idle') runStatsAliceAction('blink');
+    scheduleStatsAliceBlink();
+  }, 3200 + Math.random() * 2400);
 }
 
 function interactWithStatsAlice() {
-  const now = Date.now();
-  statsAliceClicks = statsAliceClicks.filter((time) => now - time <= 1800);
-  statsAliceClicks.push(now);
-  if (statsAliceClicks.length >= 5) {
-    statsAliceClicks = [];
-    runStatsAliceMotion('stats-alice-shiver');
+  if (statsAliceAction === 'sleep') {
+    runStatsAliceAction('wake');
     return;
   }
-  runStatsAliceMotion('stats-alice-poke');
+  const actions = ['blink', 'yawn', 'sleep'];
+  runStatsAliceAction(actions[statsAliceClickAction % actions.length]);
+  statsAliceClickAction += 1;
 }
 
 function renderReadingStats() {
@@ -2232,7 +2321,12 @@ function bindEvents() {
   $('btn-back-home').addEventListener('click', () => showView('home'));
   $('btn-reading-stats').addEventListener('click', () => openReadingStats('library'));
   $('btn-stats-back').addEventListener('click', closeReadingStats);
-  els.statsAlice.addEventListener('pointerenter', () => runStatsAliceMotion('stats-alice-perk'));
+  els.statsAlice.addEventListener('pointerenter', () => {
+    if (statsAliceAction !== 'idle') return;
+    els.statsAlice.classList.remove('stats-alice-perk');
+    void els.statsAlice.offsetWidth;
+    els.statsAlice.classList.add('stats-alice-perk');
+  });
   els.statsAlice.addEventListener('click', interactWithStatsAlice);
   els.statsAlice.addEventListener('dragstart', (ev) => ev.preventDefault());
   els.statsAlice.addEventListener('keydown', (ev) => {
@@ -2241,8 +2335,7 @@ function bindEvents() {
     interactWithStatsAlice();
   });
   els.statsAlice.addEventListener('animationend', (ev) => {
-    if (ev.animationName === 'statsAliceBreathe') return;
-    els.statsAlice.classList.remove(...STATS_ALICE_MOTIONS);
+    if (ev.animationName === 'statsAlicePerk') els.statsAlice.classList.remove('stats-alice-perk');
   });
   els.statsGoalOptions.addEventListener('click', (ev) => {
     const button = ev.target.closest('[data-goal-minutes]');
