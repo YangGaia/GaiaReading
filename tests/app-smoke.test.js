@@ -120,7 +120,7 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(!html.includes('id="ai-summary-pane"') && !html.includes('id="btn-ai-tab-summary"'), '独立本章总结页签应被移除');
   assert.ok(app.includes("$('btn-ai-summary-prompt').addEventListener('click', fillAiSummaryPrompt)"), '总结本章应作为输入框快捷指令');
   const summaryPrompt = app.slice(app.indexOf('function fillAiSummaryPrompt()'), app.indexOf('function aiChatKey'));
-  assert.ok(summaryPrompt.includes('els.aiChatInput.value = prompt') && summaryPrompt.includes('确认后点击发送'), '总结快捷键应只填入待确认指令');
+  assert.ok(summaryPrompt.includes("const prompt = '总结简要概括本章内容'") && summaryPrompt.includes('els.aiChatInput.value = prompt') && summaryPrompt.includes('确认后点击发送'), '总结快捷键应只填入指定的简短待确认指令');
   assert.ok(!summaryPrompt.includes('sendAiQuestion') && !summaryPrompt.includes('window.api.aiChat'), '点击总结快捷键不得自动提交请求');
   assert.ok(app.includes('findEpubNavLabel(nav, href)'), 'AI 章节标题应按当前 EPUB 资源路径精确匹配目录');
   assert.ok(app.includes('resolveEpubTocTarget(epub.spine && epub.spine.spineItems, item.href)'), 'EPUB 目录跳转前应把目录路径解析为 spine 目标');

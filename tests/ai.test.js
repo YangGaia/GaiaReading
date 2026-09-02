@@ -343,6 +343,7 @@ test('普通对话不套用有珠人设', async () => {
     []
   );
   assert.match(result, /错误判断/);
+  assert.strictEqual(captured.max_tokens, 1800);
   assert.strictEqual(captured.temperature, 0.25);
   assert.strictEqual(captured.messages[0].role, 'system');
   assert.doesNotMatch(captured.messages[0].content, /有珠/);
@@ -432,7 +433,7 @@ test('章节总结对空响应正文自动扩大输出额度重试', async () =>
   };
   const result = await summarize(fakeFetch, { provider: 'custom', baseUrl: 'https://relay.example/v1', model: 'demo' }, 'key', { content: '正文' });
   assert.strictEqual(result, '重试后的摘要');
-  assert.deepStrictEqual(tokens, [1000, 1800]);
+  assert.deepStrictEqual(tokens, [1000, 2000]);
   assert.match(finalPrompts[1], /直接输出最终答案/);
 });
 

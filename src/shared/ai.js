@@ -526,7 +526,7 @@
           const currentMax = Number(options && options.maxTokens) || 1000;
           return requestChat(fetchImpl, normalized, apiKey, directAnswerMessages(messages), Object.assign({}, options, {
             emptyResponseRetried: true,
-            maxTokens: currentMax <= 100 ? 256 : Math.min(4000, Math.max(1800, currentMax)),
+            maxTokens: currentMax <= 100 ? 256 : Math.min(4000, Math.max(1800, currentMax * 2)),
           }));
         }
         throw emptyResponseError(data);
@@ -600,7 +600,7 @@
       config,
       apiKey,
       chatMessages(source, question, history),
-      Object.assign({}, options, { maxTokens: 900, temperature: 0.25 })
+      Object.assign({}, options, { maxTokens: 1800, temperature: 0.25 })
     );
   }
 

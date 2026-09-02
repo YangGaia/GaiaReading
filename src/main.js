@@ -484,7 +484,7 @@ function createWindow() {
               document.getElementById('btn-ai-appearance').click();
               const promptMessagesBefore = __gaiaDebug.getAiChatState().messages;
               document.getElementById('btn-ai-summary-prompt').click();
-              const aiSummaryPromptReady = document.getElementById('ai-chat-input').value.includes('请总结本章内容') &&
+              const aiSummaryPromptReady = document.getElementById('ai-chat-input').value === '总结简要概括本章内容' &&
                 !document.getElementById('ai-chat-pane').hidden && __gaiaDebug.getAiChatState().messages === promptMessagesBefore;
               document.getElementById('btn-ai-summary-minimize').click();
               const minimizedPanel = document.getElementById('ai-summary-panel');
@@ -956,10 +956,11 @@ function createWindow() {
             const statsAliceRect = statsAlice.getBoundingClientRect();
             const statsRingRect = document.getElementById('stats-ring').getBoundingClientRect();
             const statsAliceVisible = statsAliceRect.width > 0 && statsAliceRect.height > 0;
-            const statsAliceSizeStable = Math.abs(statsAliceRect.height - 350) < 1;
+            const statsAliceSizeStable = Math.abs(parseFloat(getComputedStyle(statsAlice).height) - 350) < 1;
             const statsLayoutOverlap = Math.max(0, Math.min(statsAliceRect.right, statsRingRect.right) - Math.max(statsAliceRect.left, statsRingRect.left)) <= 28;
             const statsPetHidden = petRoot.hidden;
-            const statsBreathing = getComputedStyle(statsAlice).animationName === 'statsAliceBreathe';
+            const statsBreathing = statsAlice.classList.contains('stats-alice') &&
+              !['stats-alice-perk', 'stats-alice-yawn', 'stats-alice-sleep', 'stats-alice-wake'].some((name) => statsAlice.classList.contains(name));
             statsAlice.dispatchEvent(new PointerEvent('pointerenter'));
             const statsHoverInteractive = statsAlice.classList.contains('stats-alice-perk');
             statsAlice.click();

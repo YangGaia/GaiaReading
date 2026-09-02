@@ -295,6 +295,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(css.includes('pointer-events: none;'), '桌宠透明根区域应允许点击穿透');
   assert.ok(css.includes('-webkit-line-clamp: 3'), '桌宠台词应允许最多三行显示');
   assert.ok(css.includes('@keyframes pet-sleep-breathe'), '缺少睡眠呼吸动画');
+  assert.ok(css.includes('animation: statsAliceBreathe 4s ease-in-out infinite;'), '统计页有珠待机状态应保留呼吸动画');
   assert.ok(css.includes('@keyframes pet-head-drowse'), '缺少困倦点头的头部动画');
   assert.ok(css.includes('52%, 66% { transform: translateY(7px) rotate(1.8deg) scaleY(0.955); }'), '困倦动作应有明显的缓慢低头停顿');
   assert.ok(css.includes('76% { transform: translateY(-1px) rotate(-0.6deg) scaleY(1.01); }'), '困倦动作应有突然清醒抬头的回弹');
@@ -315,6 +316,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(app.includes('window.GaiaPet.setView(name)'), '桌宠初始化后应同步当前页面与显示状态');
   assert.ok(renderer.includes("const embeddedInStats = currentView === 'stats'"), '统计页展示完整单图有珠时应隐藏分层悬浮桌宠');
   assert.ok(main.includes('statsUsesWholeImage') && main.includes('statsBlinkStarted') && main.includes('statsYawnStarted') && main.includes('statsSleepStarted') && main.includes('statsHasNoDialogue'), '冒烟测试应验证统计页完整单图的眨眼、哈欠、睡觉与无对话互动');
+  assert.ok(main.includes('parseFloat(getComputedStyle(statsAlice).height)'), '统计页立绘固定尺寸应读取布局高度，避免呼吸缩放动画造成冒烟误报');
   assert.ok(app.includes("$('btn-pet-console').addEventListener('click', openPetConsole)"), '设置页应能打开有珠控制台');
   assert.ok(main.includes('petStatus.headCutoutClean === true'), '冒烟测试应逐像素验证身体层没有旧头部残影');
   assert.ok(main.includes("petRoot.style.pointerEvents = 'none'"), '桌宠冒烟测试应隔离真实鼠标输入');

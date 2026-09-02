@@ -3175,7 +3175,7 @@ function showAiAssistantChapter(source) {
 }
 
 function fillAiSummaryPrompt() {
-  const prompt = '请总结本章内容，梳理主要事件、人物关系、重要信息和可能的伏笔。只依据本章正文，不要补写剧情或剧透后续内容。';
+  const prompt = '总结简要概括本章内容';
   els.aiChatInput.value = prompt;
   els.aiChatInput.focus();
   els.aiChatInput.setSelectionRange(prompt.length, prompt.length);
