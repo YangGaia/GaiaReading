@@ -208,6 +208,7 @@ function createWindow() {
                 typeof parsed.idxBefore === 'number' &&
                 (parsed.scrollAfter > parsed.scrollBefore || parsed.idxAfter > parsed.idxBefore) &&
                 parsed.pct != null &&
+                Math.abs(parsed.endPercent - 100) < 0.001 &&
                 parsed.moved > 0 &&
                 parsed.pctMoved === true && parsed.wheelsAfterNav >= 1 &&
                 parsed.eyeOk === true &&

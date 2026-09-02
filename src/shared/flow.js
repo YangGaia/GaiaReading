@@ -17,9 +17,10 @@
  */
 
 class ReadingFlow {
-  constructor({ totalChapters = 1, pagesPerChapter = [], startChapter = 0, startPage = 0 } = {}) {
+  constructor({ totalChapters = 1, pagesPerChapter = [], chapterWeights = [], startChapter = 0, startPage = 0 } = {}) {
     this.totalChapters = Math.max(1, totalChapters);
     this.pagesPerChapter = pagesPerChapter; // 每章页数，未知时为 null
+    this.chapterWeights = Array.isArray(chapterWeights) ? chapterWeights.map((value) => Math.max(0, Number(value) || 0)) : [];
     this.chapter = Math.max(0, Math.min(this.totalChapters - 1, startChapter));
     this.page = Math.max(0, startPage);
   }
@@ -138,8 +139,8 @@ class ReadingFlow {
     return acc + this.page;
   }
 
-  /** 总页数估算：已知章节累加，未知章节按已加载章节平均估。 */
-  estimatedTotalPages() {
+  /** 已加载章节的平均页数，供尚未打开的章节估算使用。 */
+  averageKnownPages() {
     let known = 0;
     let sum = 0;
     for (let i = 0; i < this.totalChapters; i++) {
@@ -149,9 +150,42 @@ class ReadingFlow {
         sum += n;
       }
     }
-    if (known === 0) return this.page + 1;
-    const avg = sum / known;
-    return sum + avg * (this.totalChapters - known);
+    return known ? sum / known : Math.max(1, this.page + 1);
+  }
+
+  estimatedChapterPages(chapterIndex) {
+    const known = this.chapterPages(chapterIndex);
+    return known == null ? this.averageKnownPages() : known;
+  }
+
+  /** 包含未知章节估算值的当前全局页下标。 */
+  estimatedGlobalPage() {
+    let acc = 0;
+    for (let i = 0; i < this.chapter; i++) acc += this.estimatedChapterPages(i);
+    return acc + this.page;
+  }
+
+  /** 总页数估算：已知章节累加，未知章节按已加载章节平均估。 */
+  estimatedTotalPages() {
+    let total = 0;
+    for (let i = 0; i < this.totalChapters; i++) total += this.estimatedChapterPages(i);
+    return total;
+  }
+
+  hasChapterWeights() {
+    return this.chapterWeights.length >= this.totalChapters &&
+      this.chapterWeights.slice(0, this.totalChapters).every((value) => value > 0);
+  }
+
+  weightedPercent() {
+    const totalWeight = this.chapterWeights.slice(0, this.totalChapters).reduce((sum, value) => sum + value, 0);
+    if (!totalWeight) return 0;
+    let completedWeight = 0;
+    for (let i = 0; i < this.chapter; i++) completedWeight += this.chapterWeights[i];
+    const pages = this.currentChapterPages();
+    const chapterFraction = pages == null ? 0 : Math.min(1, (this.page + 1) / pages);
+    completedWeight += this.chapterWeights[this.chapter] * chapterFraction;
+    return Math.min(100, (completedWeight / totalWeight) * 100);
   }
 
   /** 阅读进度 0-100。 */
@@ -161,9 +195,10 @@ class ReadingFlow {
       if (n == null) return 0;
       return Math.min(100, ((this.page + 1) / n) * 100);
     }
+    if (this.hasChapterWeights()) return this.weightedPercent();
     const total = this.estimatedTotalPages();
-    if (total <= 0) return 0;
-    return Math.min(100, (this.globalPage() / total) * 100);
+    if (total <= 1) return 100;
+    return Math.min(100, (this.estimatedGlobalPage() / (total - 1)) * 100);
   }
 }
 

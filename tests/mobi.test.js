@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { detectKind, openMobi, loadChapter, cleanupMobi, planChapterMerge } = require('../src/shared/mobi');
+const { detectKind, openMobi, loadChapter, cleanupMobi, planChapterMerge, chapterContentWeight } = require('../src/shared/mobi');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -41,6 +41,8 @@ test('openMobi 能解析样书并加载章节', async (t) => {
     const opened = await openMobi(f, resDir);
     assert.ok(opened.title.length > 0, `${f} 应解析出标题`);
     assert.ok(opened.chapters.length > 0, `${f} 应解析出章节`);
+    assert.ok(opened.chapters.every((chapter) => Number(chapter.weight) > 0), `${f} 每章都应提供正数内容权重`);
+    assert.ok(opened.chapters.some((chapter) => Number(chapter.weight) > 1), `${f} 章节权重不应退化成等权章节计数`);
     assert.ok(Array.isArray(opened.toc), `${f} 应返回目录数组`);
 
     const chapter = await loadChapter(opened, 0, resDir);
@@ -58,6 +60,12 @@ test('openMobi 能解析样书并加载章节', async (t) => {
       // 清理失败不阻塞
     }
   }
+});
+
+test('章节内容权重使用单章长度而非累计长度', () => {
+  assert.strictEqual(chapterContentWeight({ totalLength: 1234, length: 500, text: '短文' }), 500);
+  assert.strictEqual(chapterContentWeight({ length: 500, text: '短文' }), 500);
+  assert.ok(chapterContentWeight('<p>一段正文</p><img src="x">') > 400);
 });
 
 test('TOC 条目应映射到章节序号', async (t) => {

@@ -732,9 +732,17 @@ async function openMobi(book) {
     chapters: res.chapters || [],
     toc: res.toc || [],
   };
-  state.current.flow = new window.GaiaFlow({ totalChapters: Math.max(1, (res.chapters || []).length) });
+  state.current.flow = new window.GaiaFlow({
+    totalChapters: Math.max(1, (res.chapters || []).length),
+    chapterWeights: (res.chapters || []).map((chapter) => chapter.weight),
+  });
   state.current.paginator = new window.GaiaPaginator(els.readerContent, { pageWidth: 640, gap: 48 });
-  state.current.paginator.onChange = () => updateMobiProgress(false);
+  state.current.paginator.onChange = () => {
+    if (state.current && state.current.flow && state.current.paginator) {
+      state.current.flow.page = state.current.paginator.currentPage;
+    }
+    updateMobiProgress(false);
+  };
   state.current.paginator.onTotalChange = (total) => {
     if (state.current && state.current.flow) state.current.flow.setPages(state.current.flow.chapter, total);
   };
@@ -862,7 +870,12 @@ async function openTxt(book) {
   const res = await window.api.readBook(book.path);
   state.current.flow = new window.GaiaFlow({ totalChapters: 1 });
   state.current.paginator = new window.GaiaPaginator(els.readerContent, { pageWidth: 640, gap: 48 });
-  state.current.paginator.onChange = () => updateMobiProgress(false);
+  state.current.paginator.onChange = () => {
+    if (state.current && state.current.flow && state.current.paginator) {
+      state.current.flow.page = state.current.paginator.currentPage;
+    }
+    updateMobiProgress(false);
+  };
   state.current.paginator.onTotalChange = (total) => {
     if (state.current && state.current.flow) state.current.flow.setPages(0, total);
   };
@@ -2406,6 +2419,14 @@ window.__gaiaDebug = {
     return els.readerContent.scrollTop;
   },
   jumpToMobiChapter: (idx) => loadMobiChapter(idx, { page: 0 }),
+  showPaginatorLastPage: () => {
+    const c = state.current;
+    if (!c || !c.paginator) return false;
+    c.paginator.showPage(Math.max(0, c.paginator.totalPages - 1));
+    if (c.flow) c.flow.page = c.paginator.currentPage;
+    updateMobiProgress(true);
+    return true;
+  },
   getBookmarks: () => (state.current ? state.bookmarks[state.current.path] || [] : []),
   jumpToBookmark: (bm) => jumpToBookmark(bm),
   getPaginatorScroll: () => {

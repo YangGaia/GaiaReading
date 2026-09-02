@@ -54,7 +54,29 @@ test('进度计算：单文档与多章节', () => {
   const single = new ReadingFlow({ totalChapters: 1, pagesPerChapter: [4], startPage: 1 });
   assert.strictEqual(single.percent(), 50);
   const multi = new ReadingFlow({ totalChapters: 2, pagesPerChapter: [2, 2], startChapter: 1, startPage: 0 });
-  assert.strictEqual(multi.percent(), 50);
+  assert.ok(Math.abs(multi.percent() - (2 / 3) * 100) < 0.001);
+});
+
+test('MOBI/AZW3 按章节内容权重与章内页比例计算进度', () => {
+  const flow = new ReadingFlow({
+    totalChapters: 2,
+    pagesPerChapter: [10, 90],
+    chapterWeights: [100, 900],
+  });
+  flow.page = 9;
+  assert.strictEqual(flow.percent(), 10, '读完占全书一成的短章后应为 10%');
+  flow.gotoChapter(1);
+  flow.page = 0;
+  assert.strictEqual(flow.percent(), 11, '长章第一页应在上一章进度上连续增加');
+  flow.page = 89;
+  assert.strictEqual(flow.percent(), 100, '最后一页必须达到 100%');
+});
+
+test('无内容权重时未知章节也参与页数估算', () => {
+  const flow = new ReadingFlow({ totalChapters: 4, pagesPerChapter: [10, null, 20, null], startChapter: 2, startPage: 0 });
+  const estimated = flow.percent();
+  assert.ok(estimated > 40, '位于第三章时不能因前一章未加载而被算到全书前部');
+  assert.ok(estimated < 80, '估算进度仍应为后续章节留出空间');
 });
 
 test('章节未知页数时跨章仍可推进', () => {

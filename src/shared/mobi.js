@@ -166,6 +166,24 @@ function startsWithClosingPagebreak(text) {
   return /^\s*<\s*\/\s*(?:mbp:)?pagebreak/i.test(text || '');
 }
 
+/** 估算章节的阅读内容量，用于在未预加载全部章节时稳定计算全书进度。 */
+function chapterContentWeight(value) {
+  const chapter = value && typeof value === 'object' ? value : null;
+  // parser 的 length 是本章长度；totalLength 在 KF8 中通常是截至本章的累计值，不能优先使用。
+  const structuralLength = chapter ? Number(chapter.length) || Number(chapter.totalLength) || 0 : 0;
+  if (structuralLength > 0) return Math.max(1, structuralLength);
+  const source = String(chapter ? chapter.text || '' : value || '');
+  const imageCount = (source.match(/<img\b/gi) || []).length;
+  const text = source
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&(?:#\d+|#x[\da-f]+|[a-z]+);/gi, '字')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return Math.max(1, text.length + imageCount * 400);
+}
+
 /**
  * 规划 MOBI7 章节合并。
  * MOBI7 的章节按 <mbp:pagebreak/> 切分，部分书籍（尤其中文 MOBI 转档）会把
@@ -248,11 +266,14 @@ async function openMobi(filePath, resourceSaveDir) {
       mergePred[t].push(i);
     }
   }
-  const chapters = mergedKept.map((rawIdx, index) => ({
-    id: String(rawIdx),
-    index,
-    raw: rawIdx,
-  }));
+  const chapters = mergedKept.map((rawIdx, index) => {
+    const sourceIndexes = (mergePred[rawIdx] || []).concat([rawIdx]);
+    const weight = sourceIndexes.reduce((sum, sourceIndex) => {
+      const source = rawChapters[sourceIndex];
+      return sum + chapterContentWeight(source);
+    }, 0);
+    return { id: String(rawIdx), index, raw: rawIdx, weight: Math.max(1, weight) };
+  });
   for (let i = 0; i < rawChapters.length; i++) {
     const frags = rawChapters[i].frags || [];
     for (const frag of frags) {
@@ -346,4 +367,5 @@ module.exports = {
   loadChapter,
   cleanupMobi,
   planChapterMerge,
+  chapterContentWeight,
 };
