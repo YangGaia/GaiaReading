@@ -7,7 +7,8 @@
 ## 当前开发版整改
 
 - 新增独立 AI 阅读中心：首页直接进入，设置抽屉保留当前接口状态与快捷入口；可保存、命名并随时切换多套接口档案
-- 支持 OpenAI、DeepSeek、第三方 OpenAI 兼容中转和本地 Ollama；模型改为可滚动、可筛选的自定义菜单，仍允许手动输入特殊模型 ID
+- 支持 OpenAI、DeepSeek、第三方 OpenAI 兼容中转和本地 Ollama；DeepSeek 内置 `deepseek-chat`、`deepseek-reasoner` 与 V4 系列选项，模型菜单可滚动、可筛选并允许手动输入特殊模型 ID
+- AI 兼容层可解析 Chat Completions、Responses 风格包裹、Gemini/Anthropic/Ollama 常见文本结构、SSE 与 NDJSON；接口不接受 `max_tokens` 或 `temperature` 时会按错误信息自动降级参数
 - 每套 API Key 按接口档案使用 Windows 安全存储加密，正文只发送到用户配置的目标地址
 - 阅读器顶栏可直接切换接口；`✦ AI` 打开可拖动、缩放、最小化且记忆位置的独立悬浮窗，不挤压正文
 - AI 窗口拥有独立字体、字号和行距；对话与本章总结使用独立页签，展开总结不再遮挡聊天内容

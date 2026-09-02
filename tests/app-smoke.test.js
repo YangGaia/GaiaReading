@@ -105,6 +105,10 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(main.includes("ipcMain.handle('ai:profile:activate'"), '缺少多接口切换 IPC');
   assert.ok(main.includes("ipcMain.handle('ai:profile:models'"), '缺少接口模型列表 IPC');
   assert.ok(ai.includes("redirect: 'error'"), 'AI 请求必须拒绝重定向，避免 Key 被转发');
+  assert.ok(ai.includes('function parseEventStream'), 'AI 响应应兼容错误返回的 SSE 增量流');
+  assert.ok(ai.includes('max_completion_tokens'), 'AI 请求应兼容仅接受 max_completion_tokens 的模型');
+  assert.ok(ai.includes('directAnswerMessages'), 'AI 空正文时应自动请求一次可显示的最终答案');
+  assert.ok(ai.includes('responseDiagnostics'), 'AI 空正文错误必须保留结束原因与安全诊断');
   assert.ok(ai.includes("parsed.protocol !== 'https:' && !local"), '远程 AI 接口必须使用 HTTPS');
   assert.ok(app.includes('getAiChapterSource'), 'Electron 冒烟调试接口应能验证章节提取');
   assert.ok(app.includes("window.GaiaPet.speak(result.comment"), '有珠短评应只显示为桌宠台词');
