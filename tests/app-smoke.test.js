@@ -176,18 +176,26 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(pet.includes('function speak(text, duration)'), '桌宠应公开受长度限制的 AI 台词入口');
 });
 
-test('README 界面截图存在且已引用', () => {
+test('README 按拍摄时间引用当前全部界面截图', () => {
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
-  assert.ok(readme.includes('移除鼠标跟随和全部方向帧'), 'README 未记录桌宠鼠标跟随移除');
-  assert.ok(readme.includes('每 6～10 秒以 80% 概率'), 'README 未记录高频梦话规则');
-  assert.ok(!readme.includes('**自然视线跟随**'), 'README 不应继续宣传已移除的鼠标跟随');
-  const shots = ['pet_console_0.5.2', 'PixPin_2026-09-01_20-10-31', 'PixPin_2026-09-01_20-10-44', 'PixPin_2026-09-01_20-10-57', 'PixPin_2026-09-01_20-11-17'];
-  for (const s of shots) {
-    assert.ok(readme.includes('docs/screenshots/' + s + '.png'), 'README 缺少 ' + s + ' 截图引用');
-    const f = path.join(root, 'docs', 'screenshots', s + '.png');
-    assert.ok(fs.existsSync(f), s + '.png 缺失，请先运行 npm run shot');
-    assert.ok(fs.statSync(f).size > 5000, s + '.png 异常过小');
+  const shots = [
+    'PixPin_2026-09-01_20-10-31.png',
+    'PixPin_2026-09-03_01-12-06.png',
+    'PixPin_2026-09-03_01-13-04.png',
+    'PixPin_2026-09-03_01-13-48.png',
+    'PixPin_2026-09-03_01-14-32.png',
+    'PixPin_2026-09-03_01-14-46.png',
+  ];
+  const referenced = Array.from(readme.matchAll(/docs\/screenshots\/([^\s)]+\.png)/g), (match) => match[1]);
+  assert.deepStrictEqual(referenced, shots, 'README 截图必须按拍摄时间从早到晚排列且不引用旧图');
+  const currentFiles = fs.readdirSync(path.join(root, 'docs', 'screenshots')).filter((name) => name.toLowerCase().endsWith('.png')).sort();
+  assert.deepStrictEqual(currentFiles, shots, 'README 必须展示 screenshots 目录中的全部 PNG');
+  for (const shot of shots) {
+    const file = path.join(root, 'docs', 'screenshots', shot);
+    assert.ok(fs.statSync(file).size > 5000, shot + ' 异常过小');
   }
+  assert.ok(readme.includes('当前稳定版本：**1.0.0**'), 'README 应明确当前稳定版本');
+  assert.ok(readme.includes('releases/tag/v1.0.0'), 'README 应提供正式版下载入口');
 });
 
 test('主题/排版/翻页动画/菜单相关配置存在', () => {
