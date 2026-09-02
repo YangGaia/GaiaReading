@@ -188,6 +188,8 @@ test('README 按拍摄时间引用当前全部界面截图', () => {
   ];
   const referenced = Array.from(readme.matchAll(/docs\/screenshots\/([^\s)]+\.png)/g), (match) => match[1]);
   assert.deepStrictEqual(referenced, shots, 'README 截图必须按拍摄时间从早到晚排列且不引用旧图');
+  const screenshotSection = readme.slice(readme.indexOf('## 界面截图'), readme.indexOf('## 主要功能'));
+  assert.ok(!/^###\s+\d{4}-\d{2}-\d{2}/m.test(screenshotSection), '截图标题不应显示拍摄日期或时间');
   const currentFiles = fs.readdirSync(path.join(root, 'docs', 'screenshots')).filter((name) => name.toLowerCase().endsWith('.png')).sort();
   assert.deepStrictEqual(currentFiles, shots, 'README 必须展示 screenshots 目录中的全部 PNG');
   for (const shot of shots) {

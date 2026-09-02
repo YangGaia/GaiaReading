@@ -8,29 +8,29 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 
 ## 界面截图
 
-以下截图严格按拍摄时间从早到晚排列。
+以下截图按拍摄顺序展示。
 
-### 2026-09-01 20:10:31 · 启动画面
+### 启动画面
 
 ![Gaia Reading 启动画面](docs/screenshots/PixPin_2026-09-01_20-10-31.png)
 
-### 2026-09-03 01:12:06 · 首页
+### 首页
 
 ![Gaia Reading 首页](docs/screenshots/PixPin_2026-09-03_01-12-06.png)
 
-### 2026-09-03 01:13:04 · AI 阅读中心
+### AI 阅读中心
 
 ![Gaia Reading AI 阅读中心](docs/screenshots/PixPin_2026-09-03_01-13-04.png)
 
-### 2026-09-03 01:13:48 · 书架与有珠控制台
+### 书架与有珠控制台
 
 ![Gaia Reading 书架与有珠控制台](docs/screenshots/PixPin_2026-09-03_01-13-48.png)
 
-### 2026-09-03 01:14:32 · 双页阅读与 AI 对话
+### 双页阅读与 AI 对话
 
 ![Gaia Reading 双页阅读与 AI 对话](docs/screenshots/PixPin_2026-09-03_01-14-32.png)
 
-### 2026-09-03 01:14:46 · 阅读统计
+### 阅读统计
 
 ![Gaia Reading 阅读统计](docs/screenshots/PixPin_2026-09-03_01-14-46.png)
 
