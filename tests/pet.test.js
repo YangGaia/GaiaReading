@@ -18,6 +18,8 @@ const {
   autoTimeline,
   nextAutoDelay,
   pickAutoBehavior,
+  nextDreamDelay,
+  shouldDream,
   lineFor,
   pick,
   pickIdleExpression,
@@ -113,6 +115,14 @@ test('自动行为按 40% 换脸、30% 动作、30% 说话分配', () => {
   assert.strictEqual(pickAutoBehavior(() => 0.9999), AUTO_BEHAVIORS.SPEECH);
 });
 
+test('梦话每 6 到 10 秒以 80% 高概率尝试触发', () => {
+  assert.strictEqual(nextDreamDelay(() => 0), TIMERS.DREAM_MIN);
+  assert.strictEqual(nextDreamDelay(() => 0.999999), TIMERS.DREAM_MAX);
+  assert.strictEqual(shouldDream(() => 0), true);
+  assert.strictEqual(shouldDream(() => 0.7999), true);
+  assert.strictEqual(shouldDream(() => 0.8), false);
+});
+
 test('控制台情绪均有名称和可用表情', () => {
   for (const key of ['idle', 'thinking', 'shy', 'angry', 'sleepy', 'sleeping', 'wake']) {
     const config = pet.CONTROL_EMOTIONS[key];
@@ -196,7 +206,14 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("drowse: 2200"), '困倦点头动作应有足够缓慢的节奏');
   assert.ok(renderer.includes("{ at: 620, expression: '安心' }"), '困倦低头阶段应闭眼');
   assert.ok(renderer.includes("{ at: 1650, expression: '眼睛微张' }"), '困倦抬头阶段应恢复半睁眼');
-  assert.ok(renderer.includes("resetActivity(now);\n    transientUntil = 0;\n    triggerAction(name, true)"), '手动动作不应被上一段临时状态的收尾计时中断');
+  assert.ok(renderer.includes('const previous = {'), '手动动作应记录并恢复动作前情绪');
+  assert.ok(renderer.includes('applyExpression(previous.expression)'), '手动动作结束后应恢复原表情');
+  assert.ok(renderer.includes("if (brain.state === PET_STATES.SLEEPING || manualHeld) return"), '睡着后鼠标移入不应自动唤醒');
+  assert.ok(renderer.includes("showBubble(lineFor('sleeping'), 3200)"), '睡眠期间应显示梦话');
+  assert.ok(renderer.includes('lockedMood: lockedEmotion'), '情绪锁定应保存明确的情绪键');
+  assert.ok(renderer.includes("const LOCKABLE_EMOTIONS = ['thinking', 'shy', 'angry', 'sleepy']"), '只能锁定稳定手动情绪');
+  assert.ok(renderer.includes("makeToggle('自主活动总开关'"), '自动模式应使用明确的总开关名称');
+  assert.ok(renderer.includes('ui.speechToggle.disabled = !saved.auto'), '关闭自主活动后应禁用子选项');
   assert.ok(!renderer.includes("['stretch', '伸懒腰']"), '不应保留失败的伸懒腰入口');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
   assert.ok(css.includes('.gaia-pet-console'), '缺少桌宠控制台样式');
@@ -221,8 +238,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(app.includes('window.GaiaPet.init().then(updatePetUI)'), '桌宠初始化后应同步设置开关文字');
   assert.ok(main.includes('petStatus.headCutoutClean === true'), '冒烟测试应逐像素验证身体层没有旧头部残影');
   assert.ok(main.includes("petRoot.style.pointerEvents = 'none'"), '桌宠冒烟测试应隔离真实鼠标输入');
-  assert.ok(!main.includes("new PointerEvent('pointerenter', { clientX: 0, clientY: 0 })"), '睡眠冒烟测试不应受真实鼠标进入事件干扰');
   assert.ok(main.includes('petStatus.yawnStarted === true'), '冒烟测试应验证打哈欠动画已启动');
+  assert.ok(main.includes('petStatus.hoverKeepsSleeping === true'), '冒烟测试应验证鼠标移入不会唤醒睡眠');
+  assert.ok(main.includes('petStatus.actionStateRestored === true'), '冒烟测试应验证单独动作恢复原状态');
   assert.ok(main.includes('petStatus.yawnTextVisible === true'), '冒烟测试应验证打哈欠文字已显示');
   assert.ok(main.includes('petStatus.drowseStarted === true'), '冒烟测试应验证困倦低头和闭眼阶段');
   assert.ok(main.includes('petStatus.drowseCleared === true'), '冒烟测试应验证困倦动作恢复半睁眼');

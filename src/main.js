@@ -479,6 +479,8 @@ function createWindow() {
             const sleepAnimation = document.querySelector('.gaia-pet-body').classList.contains('sleeping');
             const sleepHeadPose = petHeadRig.classList.contains('sleeping');
             const zzzVisible = !document.querySelector('.gaia-pet-zzz').hidden;
+            petRoot.dispatchEvent(new PointerEvent('pointerenter', { clientX: 0, clientY: 0 }));
+            const hoverKeepsSleeping = GaiaPet.getBrain().state === 'sleeping';
             petRoot.dispatchEvent(new MouseEvent('click', { clientX: 0, clientY: 0 }));
             const firstClickOnlyWakes = GaiaPet.getBrain().state === 'wake';
             GaiaPet.runEmotion('wake');
@@ -487,12 +489,15 @@ function createWindow() {
             const wakePerformance = petHeadRig.classList.contains('performance-wake');
             const sleepAnimationCleared = !document.querySelector('.gaia-pet-body').classList.contains('sleeping');
             const zzzHidden = document.querySelector('.gaia-pet-zzz').hidden;
+            const actionBeforeState = GaiaPet.getBrain().state;
+            const actionBeforeExpression = document.querySelector('.gaia-pet-face').dataset.exp;
             GaiaPet.runAction('tilt');
             const actionStarted = petHeadRig.classList.contains('performance-tilt') && document.querySelector('.gaia-pet-face').dataset.exp === '倾听';
             await new Promise((resolve) => setTimeout(resolve, 1160));
             const bodyAfterAction = document.querySelector('.gaia-pet-body');
             const actionCleared = !petHeadRig.classList.contains('performance-tilt') && !bodyAfterAction.classList.contains('no-breathe');
             const breathingRestored = getComputedStyle(bodyAfterAction).animationName === 'pet-breathe';
+            const actionStateRestored = GaiaPet.getBrain().state === actionBeforeState && document.querySelector('.gaia-pet-face').dataset.exp === actionBeforeExpression;
             GaiaPet.runAction('yawn');
             await new Promise((resolve) => setTimeout(resolve, 340));
             const yawnHeadActive = petHeadRig.classList.contains('performance-yawn');
@@ -521,7 +526,7 @@ function createWindow() {
             GaiaPet.runAction('blink');
             const spriteBlinkStarted = !!blinkFace && blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, breathingRestored, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted };
+            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -536,6 +541,7 @@ function createWindow() {
             petStatus.sleepAnimation === true &&
             petStatus.sleepHeadPose === true &&
             petStatus.zzzVisible === true &&
+            petStatus.hoverKeepsSleeping === true &&
             petStatus.firstClickOnlyWakes === true &&
             petStatus.awake === true &&
             petStatus.wakePerformance === true &&
@@ -543,6 +549,7 @@ function createWindow() {
             petStatus.zzzHidden === true &&
             petStatus.actionStarted === true &&
             petStatus.actionCleared === true &&
+            petStatus.actionStateRestored === true &&
             petStatus.breathingRestored === true &&
             petStatus.yawnStarted === true &&
             petStatus.yawnTextVisible === true &&

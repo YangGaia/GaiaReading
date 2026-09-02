@@ -31,6 +31,8 @@
     pickIdleExpression,
     nextAutoDelay,
     pickAutoBehavior,
+    nextDreamDelay,
+    shouldDream,
   } = shared;
 
   const FACE_IMG = 'images/pet/faces/';
@@ -43,6 +45,7 @@
     autoSpeech: true,
     autoSleep: true,
     sleepAfter: TIMERS.SLEEP_AFTER,
+    lockedMood: null,
   };
   const FACE = {
     halfbody: { x: 134, y: 137, w: 89, h: 78 },
@@ -57,6 +60,13 @@
     idle: '待机', hover: '注视', poke: '被戳', bored: '无聊', sleepy: '困倦',
     sleeping: '睡觉', wake: '唤醒', manual: '手动',
   };
+  const LOCKABLE_EMOTIONS = ['thinking', 'shy', 'angry', 'sleepy'];
+  const FINAL_EMOTIONS = {
+    thinking: { state: PET_STATES.MANUAL, expression: '思考' },
+    shy: { state: PET_STATES.MANUAL, expression: '害羞' },
+    angry: { state: PET_STATES.MANUAL, expression: '生气' },
+    sleepy: { state: PET_STATES.MANUAL, expression: '眼睛微张' },
+  };
 
   let ui = {};
   let brain = createBrain();
@@ -65,9 +75,11 @@
   let bubbleTimer = null;
   let blinkTimer = null;
   let nextAutoAt = 0;
+  let nextDreamAt = 0;
   let transientUntil = 0;
   let manualHeld = false;
-  let manualLocked = false;
+  let lockedEmotion = null;
+  let manualEmotionKey = null;
   let manualLabel = '';
   let pointerInside = false;
   let consoleOpen = false;
@@ -77,6 +89,7 @@
   let dragOffset = { x: 0, y: 0 };
 
   function save() {
+    saved.lockedMood = lockedEmotion;
     window.api.stateSet('pet', {
       on: saved.on,
       x: Number.isFinite(saved.x) ? saved.x : null,
@@ -85,6 +98,7 @@
       autoSpeech: saved.autoSpeech,
       autoSleep: saved.autoSleep,
       sleepAfter: saved.sleepAfter,
+      lockedMood: lockedEmotion,
     });
   }
 
@@ -173,6 +187,7 @@
       if (token !== effectVersion) return;
       ui.body.classList.remove(cls, 'no-breathe');
     }, duration || ACTION_MS[cls] || 600);
+    return token;
   }
 
   function playPerformance(name, duration, stages) {
@@ -215,12 +230,11 @@
   function triggerAction(name, manual) {
     if (name === 'blink') {
       triggerBlink();
-      return;
+      return null;
     }
     if (name === 'tilt') {
       applyExpression('倾听');
-      playPerformance('tilt', ACTION_MS.tilt);
-      return;
+      return playPerformance('tilt', ACTION_MS.tilt);
     }
     if (name === 'yawn') {
       hideBubble(true);
@@ -233,10 +247,10 @@
       window.setTimeout(() => {
         if (token === effectVersion && (manual || saved.autoSpeech)) showBubble(lineFor('yawn'), 1300);
       }, 280);
-      return;
+      return token;
     }
-    if (name === 'sleep') return;
-    playEffect(name, ACTION_MS[name]);
+    if (name === 'sleep') return null;
+    return playEffect(name, ACTION_MS[name]);
   }
 
   function idlePerformance() {
@@ -272,19 +286,34 @@
     if (!ui.console) return;
     if (ui.consoleState) ui.consoleState.textContent = '当前：' + currentStateLabel();
     if (ui.autoToggle) ui.autoToggle.checked = saved.auto;
-    if (ui.speechToggle) ui.speechToggle.checked = saved.autoSpeech;
-    if (ui.sleepToggle) ui.sleepToggle.checked = saved.autoSleep;
+    if (ui.speechToggle) {
+      ui.speechToggle.checked = saved.autoSpeech;
+      ui.speechToggle.disabled = !saved.auto;
+    }
+    if (ui.sleepToggle) {
+      ui.sleepToggle.checked = saved.autoSleep;
+      ui.sleepToggle.disabled = !saved.auto;
+    }
     if (ui.sleepSelect) {
       ui.sleepSelect.value = String(saved.sleepAfter);
-      ui.sleepSelect.disabled = !saved.autoSleep;
+      ui.sleepSelect.disabled = !saved.auto || !saved.autoSleep;
     }
     if (ui.lockButton) {
-      ui.lockButton.classList.toggle('active', manualLocked);
-      ui.lockButton.textContent = manualLocked ? '解除锁定' : '锁定当前情绪';
+      const canLock = LOCKABLE_EMOTIONS.includes(manualEmotionKey);
+      ui.lockButton.disabled = !canLock;
+      ui.lockButton.classList.toggle('active', !!lockedEmotion);
+      ui.lockButton.textContent = lockedEmotion ? `解除锁定 · ${CONTROL_EMOTIONS[lockedEmotion].label}` : '锁定当前情绪';
+    }
+    if (ui.emotionButtons) {
+      for (const button of ui.emotionButtons) {
+        button.classList.toggle('active', button.dataset.emotion === manualEmotionKey);
+        button.classList.toggle('locked', button.dataset.emotion === lockedEmotion);
+      }
     }
   }
 
   function setState(state, expression) {
+    const wasSleeping = brain.state === PET_STATES.SLEEPING;
     brain.state = state;
     if (ui.root) ui.root.dataset.state = state;
     const sleeping = state === PET_STATES.SLEEPING;
@@ -297,6 +326,8 @@
     }
     if (ui.headRig) ui.headRig.classList.toggle('sleeping', sleeping);
     if (ui.zzz) ui.zzz.hidden = !sleeping;
+    if (sleeping && !wasSleeping) nextDreamAt = Date.now() + nextDreamDelay();
+    if (!sleeping) nextDreamAt = 0;
     applyExpression(expression);
     updateConsole();
   }
@@ -311,6 +342,8 @@
     ++effectVersion;
     clearActions();
     manualHeld = false;
+    lockedEmotion = null;
+    manualEmotionKey = null;
     manualLabel = '';
     transientUntil = 0;
     setState(PET_STATES.IDLE, pickIdleExpression(ui.face && ui.face.dataset.exp));
@@ -321,7 +354,8 @@
     const canWake = brain.state === PET_STATES.SLEEPING || brain.state === PET_STATES.SLEEPY || brain.state === PET_STATES.BORED || manualHeld;
     if (!canWake) return false;
     manualHeld = false;
-    manualLocked = false;
+    lockedEmotion = null;
+    manualEmotionKey = null;
     manualLabel = '';
     const d = decideState(brain, EVENTS.INTERACT, now);
     setState(d.state, '眼睛微张');
@@ -347,6 +381,13 @@
     }
   }
 
+  function maybeDream(now) {
+    if (!nextDreamAt) nextDreamAt = now + nextDreamDelay();
+    if (now < nextDreamAt) return;
+    nextDreamAt = now + nextDreamDelay();
+    if (saved.auto && saved.autoSpeech && shouldDream()) showBubble(lineFor('sleeping'), 3200);
+  }
+
   function runIdleBehavior() {
     const behavior = pickAutoBehavior();
     if (behavior === AUTO_BEHAVIORS.EXPRESSION) {
@@ -361,7 +402,7 @@
   }
 
   function finishTransient(now) {
-    if (!transientUntil || now < transientUntil || manualLocked || manualHeld) return;
+    if (!transientUntil || now < transientUntil || lockedEmotion || manualHeld) return;
     transientUntil = 0;
     manualLabel = '';
     if (pointerInside) {
@@ -375,7 +416,12 @@
     if (!saved.on || dragging) return;
     const now = Date.now();
     finishTransient(now);
-    if (pointerInside || consoleOpen || manualLocked || manualHeld) return;
+    if (consoleOpen) return;
+    if (brain.state === PET_STATES.SLEEPING) {
+      maybeDream(now);
+      return;
+    }
+    if (pointerInside || lockedEmotion || manualHeld) return;
     if (!saved.auto) return;
     if (saved.autoSleep) {
       const change = timeoutState(brain, now, saved.sleepAfter);
@@ -392,7 +438,8 @@
   function onHover() {
     pointerInside = true;
     const now = Date.now();
-    if (manualLocked) return;
+    if (lockedEmotion) return;
+    if (brain.state === PET_STATES.SLEEPING || manualHeld) return;
     if (wakeUp(now)) return;
     resetActivity(now);
     const d = decideState(brain, EVENTS.HOVER, now);
@@ -403,7 +450,7 @@
 
   function onLeave() {
     pointerInside = false;
-    if (dragging || consoleOpen || manualLocked || manualHeld) return;
+    if (dragging || consoleOpen || lockedEmotion || manualHeld) return;
     returnToIdle(Date.now());
   }
 
@@ -411,12 +458,8 @@
     if (Math.abs(ev.clientX - downPos.x) > 4 || Math.abs(ev.clientY - downPos.y) > 4) return;
     const now = Date.now();
     if (wakeUp(now)) return;
-    if (brain.state === PET_STATES.WAKE && transientUntil > now) {
-      resetActivity(now);
-      return;
-    }
     resetActivity(now);
-    if (manualLocked) {
+    if (lockedEmotion) {
       showBubble(lineFor('poke'));
       triggerAction('poke');
       return;
@@ -456,12 +499,6 @@
     if (!ui.console || ui.console.hidden) return;
     ui.console.hidden = true;
     consoleOpen = false;
-    if (reset === false || manualLocked || manualHeld) return;
-    if (brain.state === PET_STATES.MANUAL || brain.state === PET_STATES.SLEEPY || brain.state === PET_STATES.WAKE) {
-      resetActivity(Date.now());
-    } else {
-      returnToIdle(Date.now());
-    }
   }
 
   function runEmotion(key) {
@@ -479,6 +516,8 @@
     }
     if (key === 'wake') {
       manualHeld = false;
+      lockedEmotion = null;
+      manualEmotionKey = null;
       setState(PET_STATES.WAKE, '眼睛微张');
       showBubble(lineFor(config.line));
       playPerformance('wake', ACTION_MS.wake, [{ at: 360, expression: '日常表情' }]);
@@ -487,12 +526,16 @@
     }
     if (key === 'sleeping') {
       manualHeld = true;
+      lockedEmotion = null;
+      manualEmotionKey = null;
       transientUntil = 0;
       setState(PET_STATES.SLEEPING, pick(config.expressions));
       return;
     }
 
     manualHeld = false;
+    manualEmotionKey = key;
+    if (lockedEmotion) lockedEmotion = key;
     if (key === 'thinking') {
       setState(PET_STATES.MANUAL, '思考');
       playPerformance('thinking', 1200);
@@ -503,28 +546,53 @@
       setState(PET_STATES.MANUAL, '冷脸');
       playPerformance('angry', 820, [{ at: 180, expression: '生气' }]);
     } else if (key === 'sleepy') {
-      setState(PET_STATES.SLEEPY, '眼睛微张');
+      setState(PET_STATES.MANUAL, '眼睛微张');
       playDrowsePerformance();
     }
     if (config.line) showBubble(lineFor(config.line));
-    transientUntil = manualLocked ? 0 : now + TIMERS.MANUAL_AFTER;
+    transientUntil = lockedEmotion ? 0 : now + TIMERS.MANUAL_AFTER;
+    save();
   }
 
   function runManualAction(name) {
     const now = Date.now();
-    if (brain.state === PET_STATES.SLEEPING) wakeUp(now);
+    if (!['yawn', 'tilt', 'blink'].includes(name)) return;
+    if (brain.state === PET_STATES.SLEEPING) {
+      if (wakeUp(now)) window.setTimeout(() => runManualAction(name), ACTION_MS.wake + 40);
+      return;
+    }
+    const previous = {
+      state: brain.state,
+      expression: ui.face && ui.face.dataset.exp,
+      label: manualLabel,
+      emotion: manualEmotionKey,
+      held: manualHeld,
+    };
     resetActivity(now);
-    transientUntil = 0;
-    triggerAction(name, true);
+    const duration = name === 'blink' ? 220 : ACTION_MS[name];
+    if (transientUntil) transientUntil = Math.max(transientUntil, now + duration + 40);
+    const token = triggerAction(name, true);
+    if (name === 'blink') return;
+    window.setTimeout(() => {
+      if (token !== effectVersion || brain.state !== previous.state) return;
+      manualLabel = previous.label;
+      manualEmotionKey = previous.emotion;
+      manualHeld = previous.held;
+      applyExpression(previous.expression);
+      updateConsole();
+    }, duration + 20);
   }
 
   function toggleEmotionLock() {
-    manualLocked = !manualLocked;
-    if (manualLocked) {
-      transientUntil = 0;
-    } else if (!manualHeld) {
+    if (!LOCKABLE_EMOTIONS.includes(manualEmotionKey)) return;
+    if (lockedEmotion === manualEmotionKey) {
+      lockedEmotion = null;
       returnToIdle(Date.now());
+    } else {
+      lockedEmotion = manualEmotionKey;
+      transientUntil = 0;
     }
+    save();
     updateConsole();
   }
 
@@ -643,12 +711,14 @@
     emotionTitle.textContent = '快速情绪';
     const emotions = document.createElement('div');
     emotions.className = 'gaia-pet-console-grid';
+    const emotionButtons = [];
     for (const key of ['idle', 'thinking', 'shy', 'angry', 'sleepy', 'sleeping', 'wake', 'random']) {
       const label = key === 'random' ? '随机' : CONTROL_EMOTIONS[key].label;
       const button = makeButton(label);
       button.dataset.emotion = key;
       button.addEventListener('click', () => runEmotion(key));
       emotions.appendChild(button);
+      emotionButtons.push(button);
     }
 
     const actionTitle = document.createElement('div');
@@ -666,20 +736,21 @@
     const autoTitle = document.createElement('div');
     autoTitle.className = 'gaia-pet-console-label';
     autoTitle.textContent = '自动行为';
-    const autoToggle = makeToggle('自动模式', (checked) => {
+    const autoToggle = makeToggle('自主活动总开关', (checked) => {
       saved.auto = checked;
-      resetActivity(Date.now());
+      if (!checked && !manualHeld && !lockedEmotion) returnToIdle(Date.now());
+      else resetActivity(Date.now());
       save();
       updateConsole();
     });
-    const speechToggle = makeToggle('自动说话', (checked) => {
+    const speechToggle = makeToggle('自主台词', (checked) => {
       saved.autoSpeech = checked;
       if (!checked) hideBubble(false);
       save();
     });
-    const sleepToggle = makeToggle('自动睡觉', (checked) => {
+    const sleepToggle = makeToggle('自动休息', (checked) => {
       saved.autoSleep = checked;
-      if (!checked && !manualHeld && brain.state !== PET_STATES.IDLE) returnToIdle(Date.now());
+      if (!checked && !manualHeld && !lockedEmotion && [PET_STATES.BORED, PET_STATES.SLEEPY, PET_STATES.SLEEPING].includes(brain.state)) returnToIdle(Date.now());
       save();
       updateConsole();
     });
@@ -709,6 +780,7 @@
     document.body.appendChild(panel);
     ui.console = panel;
     ui.consoleState = state;
+    ui.emotionButtons = emotionButtons;
     ui.autoToggle = autoToggle.input;
     ui.speechToggle = speechToggle.input;
     ui.sleepToggle = sleepToggle.input;
@@ -771,6 +843,7 @@
       saved.auto = savedState.auto !== false;
       saved.autoSpeech = savedState.autoSpeech !== false;
       saved.autoSleep = savedState.autoSleep !== false;
+      if (LOCKABLE_EMOTIONS.includes(savedState.lockedMood)) saved.lockedMood = savedState.lockedMood;
       if ([20000, 35000, 60000].includes(savedState.sleepAfter)) saved.sleepAfter = savedState.sleepAfter;
       if (Number.isFinite(savedState.x) && Number.isFinite(savedState.y)) {
         saved.x = savedState.x;
@@ -788,7 +861,15 @@
     clampPosition();
     ui.root.hidden = !saved.on;
     manualLabel = '';
-    setState(PET_STATES.IDLE, '日常表情');
+    if (saved.lockedMood) {
+      lockedEmotion = saved.lockedMood;
+      manualEmotionKey = saved.lockedMood;
+      manualLabel = CONTROL_EMOTIONS[saved.lockedMood].label;
+      const restored = FINAL_EMOTIONS[saved.lockedMood];
+      setState(restored.state, restored.expression);
+    } else {
+      setState(PET_STATES.IDLE, '日常表情');
+    }
     resetActivity(Date.now());
     updateConsole();
     window.setInterval(tick, 500);
@@ -808,7 +889,8 @@
       hideBubble(true);
     } else if (ui.root) {
       manualHeld = false;
-      manualLocked = false;
+      lockedEmotion = null;
+      manualEmotionKey = null;
       returnToIdle(Date.now());
     }
     save();

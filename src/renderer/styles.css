@@ -704,12 +704,18 @@ body.eye {
   cursor: pointer;
 }
 .gaia-pet-console-button:hover,
+.gaia-pet-console-button.active,
+.gaia-pet-console-button.locked,
 .gaia-pet-console-lock:hover,
 .gaia-pet-console-lock.active {
   color: var(--accent);
   background: var(--accent-soft);
   border-color: var(--accent);
 }
+.gaia-pet-console-button.locked { box-shadow: inset 0 0 0 1px var(--accent); }
+.gaia-pet-console button:disabled,
+.gaia-pet-console input:disabled,
+.gaia-pet-console select:disabled { cursor: not-allowed; opacity: 0.45; }
 .gaia-pet-console-toggle,
 .gaia-pet-console-select-row {
   display: flex;

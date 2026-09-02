@@ -44,6 +44,9 @@
     SLEEP_AFTER: 35 * 1000,
     TRANSIENT_AFTER: 1200,
     MANUAL_AFTER: 8 * 1000,
+    DREAM_MIN: 6 * 1000,
+    DREAM_MAX: 10 * 1000,
+    DREAM_CHANCE: 0.8,
   };
 
   const AUTO_BEHAVIORS = {
@@ -290,6 +293,16 @@
     return AUTO_BEHAVIORS.SPEECH;
   }
 
+  function nextDreamDelay(rand) {
+    const r = typeof rand === 'function' ? rand : Math.random;
+    return TIMERS.DREAM_MIN + Math.floor(r() * (TIMERS.DREAM_MAX - TIMERS.DREAM_MIN + 1));
+  }
+
+  function shouldDream(rand) {
+    const r = typeof rand === 'function' ? rand : Math.random;
+    return r() < TIMERS.DREAM_CHANCE;
+  }
+
   return {
     PET_STATES,
     EVENTS,
@@ -309,5 +322,7 @@
     inactivityState,
     nextAutoDelay,
     pickAutoBehavior,
+    nextDreamDelay,
+    shouldDream,
   };
 });
