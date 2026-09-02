@@ -3,6 +3,7 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net, safeStorage, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const JSZip = require('jszip');
 const { pathToFileURL } = require('url');
 const { parseEpub } = require('./shared/epub-meta');
@@ -60,18 +61,9 @@ function readAiSecrets() {
   }
 }
 
-function readAiSecret(config) {
-  return String(readAiSecrets()[GaiaAi.secretScopeKey(config)] || '');
-}
-
-function writeAiSecret(config, value) {
-  const secret = String(value || '').trim();
+function writeAiSecrets(secrets) {
   const secretPath = aiSecretFile();
   if (!safeStorage.isEncryptionAvailable()) throw new Error('Windows 安全存储当前不可用，API Key 不会以明文保存');
-  const secrets = readAiSecrets();
-  const scope = GaiaAi.secretScopeKey(config);
-  if (secret) secrets[scope] = secret;
-  else delete secrets[scope];
   if (!Object.keys(secrets).length) {
     try { if (fs.existsSync(secretPath)) fs.unlinkSync(secretPath); } catch (error) {}
     return;
@@ -80,20 +72,76 @@ function writeAiSecret(config, value) {
   fs.writeFileSync(secretPath, safeStorage.encryptString(JSON.stringify(secrets)));
 }
 
-function getAiConfig() {
-  const stored = store ? store.get('aiConfig', GaiaAi.DEFAULT_CONFIG) : GaiaAi.DEFAULT_CONFIG;
-  try { return GaiaAi.normalizeConfig(stored); } catch (error) { return GaiaAi.normalizeConfig(GaiaAi.DEFAULT_CONFIG); }
+function readAiSecret(profileId) {
+  return String(readAiSecrets()[String(profileId || '')] || '');
 }
 
-function publicAiConfig(config) {
-  const value = GaiaAi.normalizeConfig(config || getAiConfig());
+function writeAiSecret(profileId, value) {
+  const secret = String(value || '').trim();
+  const secrets = readAiSecrets();
+  const id = String(profileId || '');
+  if (secret) secrets[id] = secret;
+  else delete secrets[id];
+  writeAiSecrets(secrets);
+}
+
+function migrateLegacyAiProfile() {
+  let legacy;
+  try { legacy = GaiaAi.normalizeConfig(store ? store.get('aiConfig', GaiaAi.DEFAULT_CONFIG) : GaiaAi.DEFAULT_CONFIG); }
+  catch (error) { legacy = GaiaAi.normalizeConfig(GaiaAi.DEFAULT_CONFIG); }
+  const profile = GaiaAi.normalizeProfile({
+    id: 'profile-legacy',
+    name: (GaiaAi.PROVIDERS[legacy.provider] || GaiaAi.PROVIDERS.custom).label,
+    ...legacy,
+  });
+  const profiles = { activeId: profile.id, items: [profile] };
+  if (store) store.set('aiProfiles', profiles);
+  try {
+    const secrets = readAiSecrets();
+    const legacyScope = GaiaAi.secretScopeKey(legacy);
+    const hadLegacySecret = Object.prototype.hasOwnProperty.call(secrets, legacyScope);
+    if (secrets[legacyScope] && !secrets[profile.id]) secrets[profile.id] = secrets[legacyScope];
+    if (hadLegacySecret) {
+      delete secrets[legacyScope];
+      writeAiSecrets(secrets);
+    }
+  } catch (error) {
+    console.warn('AI_KEY_MIGRATION_FAILED', error.message);
+  }
+  return profiles;
+}
+
+function getAiProfiles() {
+  const stored = store ? store.get('aiProfiles', null) : null;
+  try {
+    const profiles = GaiaAi.normalizeProfiles(stored);
+    if (profiles.items.length) return profiles;
+  } catch (error) {}
+  return migrateLegacyAiProfile();
+}
+
+function publicAiProfile(profile) {
+  const value = GaiaAi.normalizeProfile(profile);
   let hasApiKey = false;
-  try { hasApiKey = GaiaAi.providerNeedsKey(value.provider) && !!readAiSecret(value); } catch (error) {}
+  try { hasApiKey = GaiaAi.providerNeedsKey(value.provider) && !!readAiSecret(value.id); } catch (error) {}
   return { ...value, hasApiKey, targetHost: new URL(value.baseUrl).host };
 }
 
-function aiKeyForConfig(config) {
-  return GaiaAi.providerNeedsKey(config.provider) ? readAiSecret(config) : '';
+function publicAiProfiles(profiles) {
+  const value = GaiaAi.normalizeProfiles(profiles || getAiProfiles());
+  return { activeId: value.activeId, items: value.items.map(publicAiProfile) };
+}
+
+function aiProfileById(profileId) {
+  const profiles = getAiProfiles();
+  const requested = String(profileId || profiles.activeId);
+  const profile = profiles.items.find((item) => item.id === requested);
+  if (!profile) throw new Error('所选 AI 接口不存在，请重新选择');
+  return profile;
+}
+
+function aiKeyForProfile(profile) {
+  return GaiaAi.providerNeedsKey(profile.provider) ? readAiSecret(profile.id) : '';
 }
 
 function aiFetch(url, options) {
@@ -358,10 +406,10 @@ function createWindow() {
               const aiChatState = __gaiaDebug.getAiChatState();
               const aiPanelRect = document.getElementById('ai-summary-panel').getBoundingClientRect();
               const aiPanelOpened = !document.getElementById('ai-summary-panel').hidden && aiChatState.messages >= 1 &&
-                aiPanelRect.width >= 320 && Math.abs(aiPanelRect.right - innerWidth) <= 2;
+                aiPanelRect.width >= 340 && aiPanelRect.left > 0 && aiPanelRect.right < innerWidth;
               __gaiaDebug.openAiAssistant();
               const aiUiReady = aiUi.homeEntry && aiUi.centerView && aiUi.settingsSection && aiUi.summaryButton && aiUi.summaryPanel &&
-                aiUi.readerTrigger && aiUi.chatInput && aiCenterOpened && aiCenterLayout && aiCenterReturned && aiPanelOpened &&
+                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiCenterReturned && aiPanelOpened &&
                 aiSource.bookPath === fixture && aiSource.chapterId.startsWith('epub:') && aiSource.content.length > 0;
               const annotationsBefore = __gaiaDebug.getAnnotations().length;
               const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');
@@ -1127,32 +1175,59 @@ ipcMain.handle('state:set', (event, { key, value }) => {
   store.set(key, value);
   return true;
 });
-ipcMain.handle('ai:config:get', () => publicAiConfig());
-ipcMain.handle('ai:config:set', (event, payload) => {
+ipcMain.handle('ai:profiles:get', () => publicAiProfiles());
+ipcMain.handle('ai:profile:save', (event, payload) => {
   const input = payload && typeof payload === 'object' ? payload : {};
-  const config = GaiaAi.normalizeConfig(input);
-  if (input.clearApiKey === true) writeAiSecret(config, '');
-  else if (String(input.apiKey || '').trim()) writeAiSecret(config, input.apiKey);
-  store.set('aiConfig', config);
-  return publicAiConfig(config);
+  const profiles = getAiProfiles();
+  const existingIndex = profiles.items.findIndex((item) => item.id === String(input.id || ''));
+  if (existingIndex < 0 && profiles.items.length >= 20) throw new Error('最多保存 20 套 AI 接口');
+  const id = existingIndex >= 0 ? profiles.items[existingIndex].id : 'profile-' + crypto.randomUUID();
+  const profile = GaiaAi.normalizeProfile({ ...input, id });
+  const endpointChanged = existingIndex >= 0 && GaiaAi.secretScopeKey(profiles.items[existingIndex]) !== GaiaAi.secretScopeKey(profile);
+  if (input.clearApiKey === true) writeAiSecret(profile.id, '');
+  else if (String(input.apiKey || '').trim()) writeAiSecret(profile.id, input.apiKey);
+  else if (endpointChanged) writeAiSecret(profile.id, '');
+  if (existingIndex >= 0) profiles.items[existingIndex] = profile;
+  else profiles.items.push(profile);
+  if (existingIndex < 0 || input.activate === true) profiles.activeId = profile.id;
+  store.set('aiProfiles', profiles);
+  return publicAiProfiles(profiles);
 });
-ipcMain.handle('ai:config:test', async () => {
-  const config = getAiConfig();
-  const result = await GaiaAi.testConnection(aiFetch, config, aiKeyForConfig(config), { timeoutMs: 30000 });
-  return { ok: true, message: result.slice(0, 80), targetHost: new URL(config.baseUrl).host };
+ipcMain.handle('ai:profile:activate', (event, profileId) => {
+  const profiles = getAiProfiles();
+  const profile = aiProfileById(profileId);
+  profiles.activeId = profile.id;
+  store.set('aiProfiles', profiles);
+  return publicAiProfiles(profiles);
+});
+ipcMain.handle('ai:profile:delete', (event, profileId) => {
+  const profiles = getAiProfiles();
+  if (profiles.items.length <= 1) throw new Error('至少需要保留一套 AI 接口');
+  const index = profiles.items.findIndex((item) => item.id === String(profileId || ''));
+  if (index < 0) throw new Error('要删除的 AI 接口不存在');
+  const removed = profiles.items.splice(index, 1)[0];
+  writeAiSecret(removed.id, '');
+  if (profiles.activeId === removed.id) profiles.activeId = profiles.items[0].id;
+  store.set('aiProfiles', profiles);
+  return publicAiProfiles(profiles);
+});
+ipcMain.handle('ai:profile:test', async (event, profileId) => {
+  const profile = aiProfileById(profileId);
+  const result = await GaiaAi.testConnection(aiFetch, profile, aiKeyForProfile(profile), { timeoutMs: 30000 });
+  return { ok: true, message: result.slice(0, 80), targetHost: new URL(profile.baseUrl).host };
 });
 ipcMain.handle('ai:summarize', async (event, payload) => {
   const source = payload && typeof payload === 'object' ? payload : {};
   const content = GaiaAi.cleanChapterText(source.content);
   if (!content) throw new Error('当前章节没有可总结的文字');
   if (content.length > 180000) throw new Error('当前章节超过 18 万字，请缩小总结范围');
-  const config = getAiConfig();
-  const summary = await GaiaAi.summarize(aiFetch, config, aiKeyForConfig(config), {
+  const profile = aiProfileById(source.profileId);
+  const summary = await GaiaAi.summarize(aiFetch, profile, aiKeyForProfile(profile), {
     bookTitle: String(source.bookTitle || '').slice(0, 300),
     chapterTitle: String(source.chapterTitle || '').slice(0, 300),
     content,
   }, { timeoutMs: 90000, maxChunkChars: 12000 });
-  return { summary, provider: config.provider, baseUrl: config.baseUrl, model: config.model, targetHost: new URL(config.baseUrl).host };
+  return { summary, profileId: profile.id, profileName: profile.name, provider: profile.provider, baseUrl: profile.baseUrl, model: profile.model, targetHost: new URL(profile.baseUrl).host };
 });
 ipcMain.handle('ai:chat', async (event, payload) => {
   const input = payload && typeof payload === 'object' ? payload : {};
@@ -1160,14 +1235,27 @@ ipcMain.handle('ai:chat', async (event, payload) => {
   const content = GaiaAi.cleanChapterText(source.content);
   if (!content) throw new Error('当前章节没有可供 AI 阅读的文字');
   if (content.length > 180000) throw new Error('当前章节超过 18 万字，请缩小阅读范围');
-  const config = getAiConfig();
-  const mode = input.mode === 'alice' ? 'alice' : 'assistant';
-  const answer = await GaiaAi.chat(aiFetch, config, aiKeyForConfig(config), {
+  const profile = aiProfileById(input.profileId);
+  const answer = await GaiaAi.chat(aiFetch, profile, aiKeyForProfile(profile), {
     bookTitle: String(source.bookTitle || '').slice(0, 300),
     chapterTitle: String(source.chapterTitle || '').slice(0, 300),
     content,
-  }, input.question, input.history, mode, { timeoutMs: 90000 });
-  return { answer, mode, provider: config.provider, model: config.model, targetHost: new URL(config.baseUrl).host };
+  }, input.question, input.history, { timeoutMs: 90000 });
+  return { answer, provider: profile.provider, model: profile.model, targetHost: new URL(profile.baseUrl).host };
+});
+ipcMain.handle('ai:alice-comment', async (event, payload) => {
+  const input = payload && typeof payload === 'object' ? payload : {};
+  const source = input.source && typeof input.source === 'object' ? input.source : {};
+  const content = GaiaAi.cleanChapterText(source.content);
+  if (!content) throw new Error('当前章节没有可供有珠阅读的文字');
+  if (content.length > 180000) throw new Error('当前章节超过 18 万字，请缩小阅读范围');
+  const profile = aiProfileById(input.profileId);
+  const comment = await GaiaAi.aliceComment(aiFetch, profile, aiKeyForProfile(profile), {
+    bookTitle: String(source.bookTitle || '').slice(0, 300),
+    chapterTitle: String(source.chapterTitle || '').slice(0, 300),
+    content,
+  }, input.kind === 'summary' ? 'summary' : 'comment', { timeoutMs: 90000 });
+  return { comment, kind: input.kind === 'summary' ? 'summary' : 'comment', model: profile.model, targetHost: new URL(profile.baseUrl).host };
 });
 ipcMain.handle('file:exists', (event, filePath) => fs.existsSync(filePath));
 ipcMain.handle('display:frequency', (event) => displayFrequencyForWindow(BrowserWindow.fromWebContents(event.sender)));

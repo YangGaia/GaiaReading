@@ -44,9 +44,16 @@
         <div class="ai-center-orb" aria-hidden="true"><span>✦</span></div>
       </section>
       <div class="ai-center-grid">
+        <section class="ai-center-card ai-profiles-card">
+          <div class="ai-center-card-head"><div><small>PROFILES</small><h2>接口档案</h2></div><button id="btn-ai-profile-new" class="btn" type="button">＋ 新建</button></div>
+          <p class="ai-config-note">可同时保存多套接口，点击档案即可编辑，启用后阅读页立即切换。</p>
+          <div id="ai-profile-list" class="ai-profile-list"></div>
+        </section>
         <section class="ai-center-card ai-config-card">
-          <div class="ai-center-card-head"><div><small>CONNECTION</small><h2>接口配置</h2></div><span id="ai-center-badge" class="ai-center-badge">未配置</span></div>
+          <div class="ai-center-card-head"><div><small>CONNECTION</small><h2>编辑接口</h2></div><span id="ai-center-badge" class="ai-center-badge">未配置</span></div>
           <p class="ai-config-note">Key 由 Windows 加密保存。正文只发送到下方 Base URL，不经过 Gaia 服务器。测试连接和对话可能产生少量费用。</p>
+          <label class="ai-config-label" for="ai-profile-name">接口名称</label>
+          <input id="ai-profile-name" class="ai-config-input" type="text" maxlength="40" spellcheck="false" autocomplete="off" placeholder="例如：我的 DeepSeek">
           <label class="ai-config-label" for="ai-provider">服务商</label>
           <select id="ai-provider" class="drawer-select ai-config-control">
             <option value="deepseek">DeepSeek</option>
@@ -67,9 +74,10 @@
           <p id="ai-config-target" class="ai-config-target"></p>
           <p id="ai-config-status" class="ai-config-status" role="status" aria-live="polite"></p>
           <div class="ai-config-actions">
+            <button id="btn-ai-profile-delete" class="btn danger" type="button">删除接口</button>
             <button id="btn-ai-key-clear" class="btn danger" type="button">清除 Key</button>
             <button id="btn-ai-test" class="btn" type="button">测试连接</button>
-            <button id="btn-ai-save" class="btn primary" type="button">保存设置</button>
+            <button id="btn-ai-save" class="btn primary" type="button">保存并启用</button>
           </div>
         </section>
         <aside class="ai-center-side">
@@ -78,7 +86,7 @@
             <div class="ai-capability-list">
               <div><b>01</b><span><strong>章节总结</strong><small>整理事件、人物和伏笔</small></span></div>
               <div><b>02</b><span><strong>连续追问</strong><small>只围绕当前已读正文回答</small></span></div>
-              <div><b>03</b><span><strong>有珠模式</strong><small>准确分析，再克制地吐槽</small></span></div>
+              <div><b>03</b><span><strong>有珠短评</strong><small>一句概括或吐槽，只在桌宠气泡出现</small></span></div>
             </div>
           </section>
           <section class="ai-center-card ai-privacy-card">
@@ -163,6 +171,7 @@
       <button id="btn-back" class="btn">← 书架</button>
       <span id="reader-title" class="reader-title"></span>
       <div class="actions">
+        <select id="ai-reader-profile" class="reader-ai-profile" aria-label="当前 AI 接口"></select>
         <button id="btn-ai-reader" class="btn ai-reader-trigger"><span>✦</span> AI</button>
         <button id="btn-settings-reader" class="btn">设置</button>
       </div>
@@ -171,17 +180,23 @@
       <nav id="toc-panel" class="side-panel" hidden></nav>
       <nav id="bookmarks-panel" class="side-panel" hidden></nav>
       <aside id="annotations-panel" class="side-panel annotations-panel" hidden></aside>
-      <aside id="ai-summary-panel" class="side-panel ai-summary-panel" hidden>
-        <div class="ai-summary-head">
+      <aside id="ai-summary-panel" class="ai-summary-panel" role="dialog" aria-label="AI 阅读助手" hidden>
+        <div id="ai-panel-drag-handle" class="ai-summary-head">
           <div><small>GAIA · READING COMPANION</small><h2>AI 阅读助手</h2></div>
           <div class="ai-panel-head-actions">
             <button id="btn-ai-chat-clear" class="btn" type="button">清空</button>
+            <button id="btn-ai-summary-minimize" class="btn" type="button" aria-label="最小化 AI 阅读助手">—</button>
             <button id="btn-ai-summary-close" class="btn" type="button" aria-label="关闭 AI 阅读助手">×</button>
           </div>
         </div>
-        <div class="ai-mode-switch" role="group" aria-label="AI 回答模式">
-          <button class="active" type="button" data-ai-mode="assistant">普通助手</button>
-          <button type="button" data-ai-mode="alice">有珠模式</button>
+        <div class="ai-typography-toolbar" aria-label="AI 窗口排版">
+          <select id="ai-font-select" aria-label="AI 字体">
+            <option value="default">默认字体</option><option value="song">宋体</option><option value="kai">楷体</option><option value="hei">黑体</option><option value="yuan">圆体</option>
+          </select>
+          <button id="btn-ai-font-minus" type="button" aria-label="减小 AI 字号">A−</button>
+          <span id="ai-font-value">15px</span>
+          <button id="btn-ai-font-plus" type="button" aria-label="增大 AI 字号">A+</button>
+          <button id="btn-ai-line-height" type="button">行距 1.7</button>
         </div>
         <p id="ai-summary-chapter" class="ai-summary-chapter">当前章节</p>
         <p id="ai-summary-target" class="ai-summary-target"></p>
@@ -189,7 +204,8 @@
           <button id="btn-ai-summary-run" type="button">总结本章</button>
           <button type="button" data-ai-quick="梳理本章出现的人物关系。">人物关系</button>
           <button type="button" data-ai-quick="找出本章重要信息和可能的伏笔，只依据本章正文。">重要伏笔</button>
-          <button type="button" data-ai-quick="请用有珠的口吻简短吐槽一下本章。" data-ai-force-mode="alice">有珠吐槽</button>
+          <button type="button" data-ai-alice="summary">有珠概括</button>
+          <button type="button" data-ai-alice="comment">有珠吐槽</button>
         </div>
         <div id="ai-summary-status" class="ai-summary-status" role="status" aria-live="polite">可以总结，也可以直接提问。</div>
         <details id="ai-summary-card" class="ai-summary-card" hidden>

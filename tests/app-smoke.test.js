@@ -89,20 +89,25 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   const preload = fs.readFileSync(path.join(root, 'src', 'preload.js'), 'utf8');
   const ai = fs.readFileSync(path.join(root, 'src', 'shared', 'ai.js'), 'utf8');
 
-  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'btn-ai-reader', 'btn-ai-summary', 'ai-summary-panel', 'ai-chat-messages', 'ai-chat-input']) {
+  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-summary', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-summary-minimize', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input']) {
     assert.ok(html.includes(`id="${id}"`), `AI 界面缺少 ${id}`);
   }
-  for (const bridge of ['aiConfigGet', 'aiConfigSet', 'aiConfigTest', 'aiSummarize', 'aiChat']) {
+  for (const bridge of ['aiProfilesGet', 'aiProfileSave', 'aiProfileActivate', 'aiProfileDelete', 'aiProfileTest', 'aiSummarize', 'aiChat', 'aiAliceComment']) {
     assert.ok(preload.includes(bridge), `preload 缺少 ${bridge}`);
   }
   assert.ok(main.includes('safeStorage.encryptString'), 'API Key 必须通过 Electron safeStorage 加密');
   assert.ok(main.includes('safeStorage.decryptString'), 'API Key 必须只在主进程解密');
   assert.ok(main.includes("ipcMain.handle('ai:summarize'"), '缺少 AI 总结 IPC');
   assert.ok(main.includes("ipcMain.handle('ai:chat'"), '缺少受控 AI 对话 IPC');
+  assert.ok(main.includes("ipcMain.handle('ai:alice-comment'"), '缺少有珠短评 IPC');
+  assert.ok(main.includes("ipcMain.handle('ai:profile:activate'"), '缺少多接口切换 IPC');
   assert.ok(ai.includes("redirect: 'error'"), 'AI 请求必须拒绝重定向，避免 Key 被转发');
   assert.ok(ai.includes("parsed.protocol !== 'https:' && !local"), '远程 AI 接口必须使用 HTTPS');
   assert.ok(app.includes('getAiChapterSource'), 'Electron 冒烟调试接口应能验证章节提取');
-  assert.ok(app.includes("window.GaiaPet.speak(result.answer"), '有珠模式回答应能显示为桌宠台词');
+  assert.ok(app.includes("window.GaiaPet.speak(result.comment"), '有珠短评应只显示为桌宠台词');
+  assert.ok(!app.includes("messages.push({ role: 'assistant', mode: result.mode"), '有珠短评不应进入普通聊天记录');
+  assert.ok(app.includes('new ResizeObserver'), 'AI 悬浮窗应记忆缩放后的尺寸');
+  assert.ok(app.includes('saveAiPanelGeometry'), 'AI 悬浮窗应保存位置和大小');
   assert.ok(app.includes('document.createTextNode(message.content)'), 'AI 回答必须按纯文本渲染，不能作为 HTML 执行');
   assert.ok(pet.includes('function speak(text, duration)'), '桌宠应公开受长度限制的 AI 台词入口');
 });

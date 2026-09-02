@@ -51,6 +51,7 @@ const els = {
   bookmarksPanel: $('bookmarks-panel'),
   annotationsPanel: $('annotations-panel'),
   aiSummaryPanel: $('ai-summary-panel'),
+  aiPanelDragHandle: $('ai-panel-drag-handle'),
   aiSummaryChapter: $('ai-summary-chapter'),
   aiSummaryTarget: $('ai-summary-target'),
   aiSummaryStatus: $('ai-summary-status'),
@@ -96,6 +97,11 @@ const els = {
   themeValue: $('theme-value'),
   progressFill: $('progress-fill'),
   fontSelect: $('font-select'),
+  aiProfileList: $('ai-profile-list'),
+  aiProfileName: $('ai-profile-name'),
+  aiReaderProfile: $('ai-reader-profile'),
+  aiFontSelect: $('ai-font-select'),
+  aiFontValue: $('ai-font-value'),
   aiProvider: $('ai-provider'),
   aiBaseUrl: $('ai-base-url'),
   aiApiKey: $('ai-api-key'),
@@ -123,11 +129,12 @@ const state = {
   progress: {},
   bookmarks: {},
   annotations: {},
+  aiProfiles: { activeId: '', items: [] },
   aiConfig: null,
+  aiEditingProfileId: null,
   aiSummaries: {},
   aiSummaryLoading: false,
   aiChatLoading: false,
-  aiChatMode: 'assistant',
   aiChats: {},
   aiCenterReturnView: 'home',
   lastAiChapterSource: null,
@@ -141,7 +148,7 @@ const state = {
   lineHeight: 1.8,
   txtFont: 16,
   readMode: 'single',
-  prefs: { theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single' },
+  prefs: { theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null },
   homeReady: null,
   resolveHome: null,
   statsReturnView: 'library',
@@ -252,14 +259,14 @@ function migrateHabitsFromLastBook() {
 
 async function init() {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
-  const [lib, progress, bookmarks, prefs, readingStats, annotations, aiConfig, aiSummaries] = await Promise.all([
+  const [lib, progress, bookmarks, prefs, readingStats, annotations, aiProfiles, aiSummaries] = await Promise.all([
     window.api.stateGet('library'),
     window.api.stateGet('progress'),
     window.api.stateGet('bookmarks'),
     window.api.stateGet('prefs'),
     window.api.stateGet('readingStats'),
     window.api.stateGet('annotations'),
-    window.api.aiConfigGet(),
+    window.api.aiProfilesGet(),
     window.api.stateGet('aiSummaries'),
   ]);
   state.library = lib || [];
@@ -267,9 +274,11 @@ async function init() {
   state.bookmarks = bookmarks || {};
   state.readingStats = createReadingStats(readingStats);
   state.annotations = annotations && typeof annotations === 'object' ? annotations : {};
-  state.aiConfig = aiConfig;
+  state.aiProfiles = aiProfiles && Array.isArray(aiProfiles.items) ? aiProfiles : { activeId: '', items: [] };
+  state.aiConfig = state.aiProfiles.items.find((item) => item.id === state.aiProfiles.activeId) || state.aiProfiles.items[0] || null;
+  state.aiEditingProfileId = state.aiConfig && state.aiConfig.id;
   state.aiSummaries = aiSummaries && typeof aiSummaries === 'object' ? aiSummaries : {};
-  state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single' }, prefs || {});
+  state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
   migrateHabitsFromLastBook();
   state.fontSize = state.prefs.fontSize != null ? state.prefs.fontSize : 100;
@@ -279,6 +288,8 @@ async function init() {
   applyThemeClass();
   els.fontSelect.value = state.prefs.fontName || 'default';
   updateAiConfigForm();
+  applyAiTypography();
+  initAiPanelInteractions();
   initFx();
   window.GaiaBgm.initBgm();
   window.GaiaBgm.positionBgm('home');
@@ -2525,8 +2536,57 @@ function updateAiTarget() {
   els.aiConfigTarget.textContent = host ? '章节正文将直接发送到：' + host : '填写 Base URL 后会显示正文发送目标。';
 }
 
+function activeAiProfile() {
+  return state.aiProfiles.items.find((item) => item.id === state.aiProfiles.activeId) || state.aiProfiles.items[0] || null;
+}
+
+function editingAiProfile() {
+  return state.aiProfiles.items.find((item) => item.id === state.aiEditingProfileId) || null;
+}
+
+function acceptAiProfiles(profiles, editingId) {
+  state.aiProfiles = profiles && Array.isArray(profiles.items) ? profiles : { activeId: '', items: [] };
+  state.aiConfig = activeAiProfile();
+  state.aiEditingProfileId = editingId === null ? null : (editingId || state.aiProfiles.activeId);
+  renderAiProfiles();
+  updateAiConfigForm();
+}
+
+function renderAiProfiles() {
+  els.aiProfileList.replaceChildren();
+  els.aiReaderProfile.replaceChildren();
+  for (const profile of state.aiProfiles.items) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'ai-profile-item' + (profile.id === state.aiEditingProfileId ? ' selected' : '');
+    item.dataset.profileId = profile.id;
+    const name = document.createElement('strong');
+    name.textContent = profile.name;
+    item.appendChild(name);
+    if (profile.id === state.aiProfiles.activeId) {
+      const active = document.createElement('span');
+      active.className = 'ai-profile-active';
+      active.textContent = '使用中';
+      item.appendChild(active);
+    }
+    const detail = document.createElement('small');
+    detail.textContent = (profile.model || '未填写模型') + ' · ' + profile.targetHost;
+    item.appendChild(detail);
+    els.aiProfileList.appendChild(item);
+
+    const option = document.createElement('option');
+    option.value = profile.id;
+    option.textContent = profile.name;
+    els.aiReaderProfile.appendChild(option);
+  }
+  els.aiReaderProfile.value = state.aiProfiles.activeId;
+  els.aiReaderProfile.disabled = !state.aiProfiles.items.length;
+}
+
 function updateAiConfigForm() {
-  const config = state.aiConfig || { provider: 'deepseek', baseUrl: AI_PROVIDERS.deepseek.baseUrl, model: '', autoSummarize: false };
+  renderAiProfiles();
+  const config = editingAiProfile() || { name: '', provider: 'deepseek', baseUrl: AI_PROVIDERS.deepseek.baseUrl, model: '', autoSummarize: false };
+  els.aiProfileName.value = config.name || '';
   els.aiProvider.value = config.provider || 'deepseek';
   els.aiBaseUrl.value = config.baseUrl || (AI_PROVIDERS[els.aiProvider.value] || AI_PROVIDERS.custom).baseUrl;
   els.aiModel.value = config.model || '';
@@ -2536,7 +2596,8 @@ function updateAiConfigForm() {
   els.aiApiKey.value = '';
   els.aiApiKey.placeholder = needsKey ? (config.hasApiKey ? '已加密保存；留空保持不变' : '请输入 API Key') : '本地接口无需 API Key';
   $('btn-ai-key-toggle').disabled = !needsKey;
-  $('btn-ai-key-clear').disabled = !needsKey || !config.hasApiKey;
+  $('btn-ai-key-clear').disabled = !needsKey || !config.hasApiKey || !config.id;
+  $('btn-ai-profile-delete').disabled = !config.id || state.aiProfiles.items.length <= 1;
   const examples = { openai: '例如：gpt-4o-mini', deepseek: '例如：deepseek-chat', ollama: '例如：qwen3:4b', custom: '填写接口支持的模型名称' };
   els.aiModel.placeholder = examples[els.aiProvider.value] || examples.custom;
   updateAiTarget();
@@ -2544,37 +2605,50 @@ function updateAiConfigForm() {
 }
 
 function updateAiConfigurationSummary() {
-  const config = state.aiConfig || {};
+  const selected = editingAiProfile() || {};
+  const selectedProvider = AI_PROVIDERS[selected.provider] || AI_PROVIDERS.custom;
+  const selectedReady = !!selected.model && (!selectedProvider.apiKeyRequired || selected.hasApiKey);
+  const config = activeAiProfile() || {};
   const provider = AI_PROVIDERS[config.provider] || AI_PROVIDERS.custom;
   const ready = !!config.model && (!provider.apiKeyRequired || config.hasApiKey);
-  const title = provider.label || '自定义接口';
+  const title = config.name || provider.label || '自定义接口';
   const detail = ready
     ? (config.model + ' · ' + (config.targetHost || '本地接口'))
     : (config.model ? '还需要保存 API Key' : '还需要填写模型名称');
   els.aiCenterTopState.textContent = ready ? title + ' · 已配置' : '等待配置';
   els.aiCenterTopState.classList.toggle('ready', ready);
-  els.aiCenterBadge.textContent = ready ? '已配置' : '未配置';
-  els.aiCenterBadge.classList.toggle('ready', ready);
+  els.aiCenterBadge.textContent = selectedReady ? (selected.id === state.aiProfiles.activeId ? '使用中' : '可用') : '未配置';
+  els.aiCenterBadge.classList.toggle('ready', selectedReady);
   els.aiSettingsTitle.textContent = ready ? title + ' · ' + config.model : '尚未配置';
   els.aiSettingsState.textContent = detail;
 }
 
 function readAiConfigForm() {
   return {
+    id: state.aiEditingProfileId,
+    name: els.aiProfileName.value.trim(),
     provider: els.aiProvider.value,
     baseUrl: els.aiBaseUrl.value.trim(),
     apiKey: els.aiApiKey.value.trim(),
     model: els.aiModel.value.trim(),
     autoSummarize: els.aiAutoSummarize.checked,
+    activate: true,
   };
 }
 
 async function saveAiConfig(options) {
   const quiet = options && options.quiet;
   try {
-    state.aiConfig = await window.api.aiConfigSet(readAiConfigForm());
-    updateAiConfigForm();
-    if (!quiet) setAiConfigStatus('设置已保存，API Key 不会返回到页面。', 'success');
+    const previous = editingAiProfile();
+    const input = readAiConfigForm();
+    const endpointChanged = previous && (previous.provider !== input.provider || previous.baseUrl !== input.baseUrl);
+    const profiles = await window.api.aiProfileSave(input);
+    acceptAiProfiles(profiles, profiles.activeId);
+    if (!quiet) {
+      setAiConfigStatus(endpointChanged && !input.apiKey && state.aiConfig && !state.aiConfig.hasApiKey
+        ? '接口地址已更改，旧 Key 已清除；请填写新地址对应的 API Key。'
+        : '设置已保存，API Key 不会返回到页面。', endpointChanged && !input.apiKey && state.aiConfig && !state.aiConfig.hasApiKey ? 'error' : 'success');
+    }
     return true;
   } catch (error) {
     setAiConfigStatus(aiErrorMessage(error), 'error');
@@ -2586,9 +2660,9 @@ async function testAiConfig() {
   setAiConfigStatus('正在保存设置并测试连接…');
   if (!await saveAiConfig({ quiet: true })) return;
   try {
-    const result = await window.api.aiConfigTest();
+    const result = await window.api.aiProfileTest(state.aiProfiles.activeId);
     setAiConfigStatus('连接成功：' + result.targetHost, 'success');
-    els.aiCenterTopState.textContent = (AI_PROVIDERS[state.aiConfig.provider] || AI_PROVIDERS.custom).label + ' · 连接成功';
+    els.aiCenterTopState.textContent = state.aiConfig.name + ' · 连接成功';
   } catch (error) {
     setAiConfigStatus(aiErrorMessage(error), 'error');
   }
@@ -2596,9 +2670,48 @@ async function testAiConfig() {
 
 async function clearAiApiKey() {
   try {
-    state.aiConfig = await window.api.aiConfigSet(Object.assign(readAiConfigForm(), { apiKey: '', clearApiKey: true }));
-    updateAiConfigForm();
-    setAiConfigStatus('当前服务商与 Base URL 对应的 API Key 已清除。', 'success');
+    const profiles = await window.api.aiProfileSave(Object.assign(readAiConfigForm(), { apiKey: '', clearApiKey: true }));
+    acceptAiProfiles(profiles, profiles.activeId);
+    setAiConfigStatus('当前接口档案的 API Key 已清除。', 'success');
+  } catch (error) {
+    setAiConfigStatus(aiErrorMessage(error), 'error');
+  }
+}
+
+function newAiProfile() {
+  state.aiEditingProfileId = null;
+  updateAiConfigForm();
+  setAiConfigStatus('正在新建接口，填写后保存即可加入列表。');
+  els.aiProfileName.focus();
+}
+
+async function selectAiProfile(profileId) {
+  state.aiEditingProfileId = profileId;
+  updateAiConfigForm();
+  setAiConfigStatus('');
+}
+
+async function activateAiProfile(profileId) {
+  try {
+    const profiles = await window.api.aiProfileActivate(profileId);
+    acceptAiProfiles(profiles, profileId);
+    els.aiSummaryStatus.textContent = '已切换到接口：' + state.aiConfig.name;
+    if (!els.aiSummaryPanel.hidden) {
+      const source = currentChapterSummarySource();
+      showAiSummaryResult(source, cachedAiSummary(source));
+    }
+  } catch (error) {
+    els.readerStatus.textContent = aiErrorMessage(error);
+  }
+}
+
+async function deleteAiProfile() {
+  const profile = editingAiProfile();
+  if (!profile || !window.confirm('删除接口“' + profile.name + '”？保存的 Key 也会一并清除。')) return;
+  try {
+    const profiles = await window.api.aiProfileDelete(profile.id);
+    acceptAiProfiles(profiles, profiles.activeId);
+    setAiConfigStatus('接口已删除。', 'success');
   } catch (error) {
     setAiConfigStatus(aiErrorMessage(error), 'error');
   }
@@ -2610,10 +2723,11 @@ function changeAiProvider() {
   if (preset.baseUrl) els.aiBaseUrl.value = preset.baseUrl;
   const needsKey = preset.apiKeyRequired;
   els.aiApiKey.disabled = !needsKey;
-  const sameScope = state.aiConfig && state.aiConfig.provider === provider && state.aiConfig.baseUrl === els.aiBaseUrl.value.trim();
-  els.aiApiKey.placeholder = needsKey ? ((sameScope && state.aiConfig.hasApiKey) ? '已加密保存；留空保持不变' : '请输入 API Key') : '本地接口无需 API Key';
+  const selected = editingAiProfile();
+  const sameScope = selected && selected.provider === provider && selected.baseUrl === els.aiBaseUrl.value.trim();
+  els.aiApiKey.placeholder = needsKey ? ((sameScope && selected.hasApiKey) ? '已加密保存；留空保持不变' : '请输入 API Key') : '本地接口无需 API Key';
   $('btn-ai-key-toggle').disabled = !needsKey;
-  $('btn-ai-key-clear').disabled = !needsKey || !(sameScope && state.aiConfig.hasApiKey);
+  $('btn-ai-key-clear').disabled = !needsKey || !(sameScope && selected.hasApiKey);
   const examples = { openai: '例如：gpt-4o-mini', deepseek: '例如：deepseek-chat', ollama: '例如：qwen3:4b', custom: '填写接口支持的模型名称' };
   els.aiModel.placeholder = examples[provider] || examples.custom;
   updateAiTarget();
@@ -2713,18 +2827,16 @@ function renderAiChat(source) {
   if (!messages.length) {
     const empty = document.createElement('p');
     empty.className = 'ai-chat-empty';
-    empty.textContent = state.aiChatMode === 'alice'
-      ? '有珠正在读这一章。让她评价人物，或者直接点“有珠吐槽”。'
-      : '我只会依据当前已读章节回答，不会主动剧透后面的内容。';
+    empty.textContent = '我只会依据当前已读章节回答，不会主动剧透后面的内容。有珠短评只会出现在桌宠气泡里。';
     els.aiChatMessages.appendChild(empty);
     return;
   }
   for (const message of messages) {
     const bubble = document.createElement('div');
-    bubble.className = 'ai-chat-message ' + (message.role === 'user' ? 'user' : 'assistant') + (message.mode === 'alice' ? ' alice' : '');
+    bubble.className = 'ai-chat-message ' + (message.role === 'user' ? 'user' : 'assistant');
     if (message.role !== 'user') {
       const label = document.createElement('small');
-      label.textContent = message.role === 'error' ? '请求失败' : (message.mode === 'alice' ? 'ALICE · 有珠' : 'GAIA · 助手');
+      label.textContent = message.role === 'error' ? '请求失败' : 'GAIA · 助手';
       bubble.appendChild(label);
     }
     bubble.appendChild(document.createTextNode(message.content));
@@ -2733,21 +2845,126 @@ function renderAiChat(source) {
   els.aiChatMessages.scrollTop = els.aiChatMessages.scrollHeight;
 }
 
-function setAiChatMode(mode) {
-  state.aiChatMode = mode === 'alice' ? 'alice' : 'assistant';
-  document.querySelectorAll('[data-ai-mode]').forEach((button) => button.classList.toggle('active', button.dataset.aiMode === state.aiChatMode));
-  els.aiChatInput.placeholder = state.aiChatMode === 'alice'
-    ? '问问有珠对这一章的看法，Ctrl + Enter 发送…'
-    : '问问当前章节，Ctrl + Enter 发送…';
-  if (!els.aiSummaryPanel.hidden) {
-    try { renderAiChat(currentChapterSummarySource()); } catch (error) {}
+function aiTypography() {
+  const value = state.prefs.aiTypography && typeof state.prefs.aiTypography === 'object' ? state.prefs.aiTypography : {};
+  return {
+    fontName: Object.prototype.hasOwnProperty.call(FONTS, value.fontName) ? value.fontName : 'default',
+    fontSize: Math.max(12, Math.min(24, Number(value.fontSize) || 15)),
+    lineHeight: Math.max(1.4, Math.min(2.3, Number(value.lineHeight) || 1.7)),
+  };
+}
+
+function applyAiTypography() {
+  const typography = aiTypography();
+  state.prefs.aiTypography = typography;
+  els.aiSummaryPanel.style.setProperty('--ai-font-family', FONTS[typography.fontName] || 'inherit');
+  els.aiSummaryPanel.style.setProperty('--ai-font-size', typography.fontSize + 'px');
+  els.aiSummaryPanel.style.setProperty('--ai-line-height', String(typography.lineHeight));
+  els.aiFontSelect.value = typography.fontName;
+  els.aiFontValue.textContent = typography.fontSize + 'px';
+  $('btn-ai-line-height').textContent = '行距 ' + typography.lineHeight.toFixed(1);
+}
+
+function changeAiFontSize(delta) {
+  const typography = aiTypography();
+  typography.fontSize = Math.max(12, Math.min(24, typography.fontSize + delta));
+  state.prefs.aiTypography = typography;
+  applyAiTypography();
+  window.api.stateSet('prefs', state.prefs);
+}
+
+function cycleAiLineHeight() {
+  const options = [1.4, 1.7, 2, 2.3];
+  const typography = aiTypography();
+  const index = options.indexOf(typography.lineHeight);
+  typography.lineHeight = options[(index + 1) % options.length];
+  state.prefs.aiTypography = typography;
+  applyAiTypography();
+  window.api.stateSet('prefs', state.prefs);
+}
+
+function saveAiPanelGeometry() {
+  if (els.aiSummaryPanel.hidden || els.aiSummaryPanel.classList.contains('minimized')) return;
+  const body = $('reader-body');
+  const panelRect = els.aiSummaryPanel.getBoundingClientRect();
+  const bodyRect = body.getBoundingClientRect();
+  state.prefs.aiWindow = {
+    left: Math.round(panelRect.left - bodyRect.left),
+    top: Math.round(panelRect.top - bodyRect.top),
+    width: Math.round(panelRect.width),
+    height: Math.round(panelRect.height),
+    minimized: false,
+  };
+  window.api.stateSet('prefs', state.prefs);
+}
+
+function restoreAiPanelGeometry() {
+  const body = $('reader-body');
+  const bounds = body.getBoundingClientRect();
+  if (!bounds.width || !bounds.height) return;
+  const saved = state.prefs.aiWindow || {};
+  const width = Math.max(280, Math.min(Number(saved.width) || 440, bounds.width - 24));
+  const height = Math.max(260, Math.min(Number(saved.height) || Math.min(680, bounds.height - 44), bounds.height - 24));
+  const left = Math.max(0, Math.min(Number.isFinite(Number(saved.left)) ? Number(saved.left) : bounds.width - width - 24, bounds.width - width));
+  const top = Math.max(0, Math.min(Number.isFinite(Number(saved.top)) ? Number(saved.top) : 22, bounds.height - height));
+  els.aiSummaryPanel.style.right = 'auto';
+  els.aiSummaryPanel.style.left = Math.round(left) + 'px';
+  els.aiSummaryPanel.style.top = Math.round(top) + 'px';
+  els.aiSummaryPanel.style.width = Math.round(width) + 'px';
+  els.aiSummaryPanel.style.height = Math.round(height) + 'px';
+  els.aiSummaryPanel.classList.toggle('minimized', saved.minimized === true);
+  $('btn-ai-summary-minimize').textContent = saved.minimized === true ? '□' : '—';
+}
+
+function toggleAiPanelMinimized() {
+  const minimized = els.aiSummaryPanel.classList.contains('minimized');
+  if (!minimized) saveAiPanelGeometry();
+  state.prefs.aiWindow = Object.assign({}, state.prefs.aiWindow || {}, { minimized: !minimized });
+  window.api.stateSet('prefs', state.prefs);
+  if (minimized) restoreAiPanelGeometry();
+  else {
+    els.aiSummaryPanel.classList.add('minimized');
+    $('btn-ai-summary-minimize').textContent = '□';
   }
+}
+
+function initAiPanelInteractions() {
+  let drag = null;
+  els.aiPanelDragHandle.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || event.target.closest('button, input, select, textarea')) return;
+    drag = { x: event.clientX, y: event.clientY, left: els.aiSummaryPanel.offsetLeft, top: els.aiSummaryPanel.offsetTop };
+    els.aiPanelDragHandle.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+  els.aiPanelDragHandle.addEventListener('pointermove', (event) => {
+    if (!drag) return;
+    const body = $('reader-body');
+    const maxLeft = Math.max(0, body.clientWidth - els.aiSummaryPanel.offsetWidth);
+    const maxTop = Math.max(0, body.clientHeight - els.aiSummaryPanel.offsetHeight);
+    els.aiSummaryPanel.style.right = 'auto';
+    els.aiSummaryPanel.style.left = Math.max(0, Math.min(maxLeft, drag.left + event.clientX - drag.x)) + 'px';
+    els.aiSummaryPanel.style.top = Math.max(0, Math.min(maxTop, drag.top + event.clientY - drag.y)) + 'px';
+  });
+  const finishDrag = () => {
+    if (!drag) return;
+    drag = null;
+    saveAiPanelGeometry();
+  };
+  els.aiPanelDragHandle.addEventListener('pointerup', finishDrag);
+  els.aiPanelDragHandle.addEventListener('pointercancel', finishDrag);
+  let resizeTimer = null;
+  new ResizeObserver(() => {
+    clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(saveAiPanelGeometry, 240);
+  }).observe(els.aiSummaryPanel);
+  window.addEventListener('resize', () => {
+    if (!els.aiSummaryPanel.hidden) restoreAiPanelGeometry();
+  });
 }
 
 function closeAiAssistantPanel() {
   els.aiSummaryPanel.hidden = true;
   $('btn-ai-reader').classList.remove('open');
-  resizeEpubRendition();
 }
 
 function openAiSummaryPanel() {
@@ -2761,14 +2978,11 @@ function openAiSummaryPanel() {
     els.readerStatus.textContent = aiErrorMessage(error);
     return;
   }
-  els.tocPanel.hidden = true;
-  els.bookmarksPanel.hidden = true;
-  els.annotationsPanel.hidden = true;
   els.aiSummaryPanel.hidden = false;
+  restoreAiPanelGeometry();
   $('btn-ai-reader').classList.add('open');
   showAiSummaryResult(source, cachedAiSummary(source));
   renderAiChat(source);
-  resizeEpubRendition();
   window.setTimeout(() => els.aiChatInput.focus(), 120);
 }
 
@@ -2797,7 +3011,7 @@ async function summarizeSource(source, options) {
   const existing = cachedAiSummary(source);
   if (existing) return existing;
   ensureAiReady(background);
-  const result = await window.api.aiSummarize(source);
+  const result = await window.api.aiSummarize({ ...source, profileId: state.aiProfiles.activeId });
   return storeAiSummary(pathKey, source, result);
 }
 
@@ -2819,7 +3033,7 @@ async function runCurrentChapterSummary() {
     const result = await summarizeSource(source);
     const chat = currentAiChat(source);
     if (!chat.some((message) => message.kind === 'summary' && message.content === result.summary)) {
-      chat.push({ role: 'assistant', mode: 'assistant', kind: 'summary', content: result.summary });
+      chat.push({ role: 'assistant', kind: 'summary', content: result.summary });
     }
     if (isCurrentAiSource(source)) {
       showAiSummaryResult(source, result);
@@ -2847,8 +3061,6 @@ async function sendAiQuestion(question, options) {
   }
   const prompt = String(question == null ? els.aiChatInput.value : question).trim();
   if (!prompt) return;
-  const mode = options && options.mode === 'alice' ? 'alice' : state.aiChatMode;
-  setAiChatMode(mode);
   try { ensureAiReady(false); } catch (error) {
     els.aiSummaryStatus.textContent = aiErrorMessage(error);
     els.aiSummaryStatus.classList.add('error');
@@ -2865,17 +3077,15 @@ async function sendAiQuestion(question, options) {
   state.aiChatLoading = true;
   els.aiChatSend.disabled = true;
   els.aiSummaryStatus.classList.remove('error');
-  els.aiSummaryStatus.textContent = mode === 'alice' ? '有珠正在读这一章…' : 'AI 正在阅读当前章节…';
-  if (mode === 'alice' && window.GaiaPet) window.GaiaPet.runEmotion('thinking');
+  els.aiSummaryStatus.textContent = 'AI 正在阅读当前章节…';
   try {
-    const result = await window.api.aiChat({ source, question: prompt, history, mode });
-    messages.push({ role: 'assistant', mode: result.mode, content: result.answer });
+    const result = await window.api.aiChat({ source, question: prompt, history, profileId: state.aiProfiles.activeId });
+    messages.push({ role: 'assistant', content: result.answer });
     if (messages.length > 40) messages.splice(0, messages.length - 40);
-    if (result.mode === 'alice' && window.GaiaPet && window.GaiaPet.speak) window.GaiaPet.speak(result.answer, 5200);
     if (isCurrentAiSource(source)) els.aiSummaryStatus.textContent = '回答来自 ' + result.model + ' · ' + result.targetHost;
   } catch (error) {
     const message = aiErrorMessage(error);
-    messages.push({ role: 'error', mode, content: message });
+    messages.push({ role: 'error', content: message });
     if (isCurrentAiSource(source)) {
       els.aiSummaryStatus.textContent = message;
       els.aiSummaryStatus.classList.add('error');
@@ -2884,6 +3094,33 @@ async function sendAiQuestion(question, options) {
     state.aiChatLoading = false;
     els.aiChatSend.disabled = false;
     if (isCurrentAiSource(source)) renderAiChat(source);
+  }
+}
+
+async function runAliceComment(kind) {
+  if (state.aiChatLoading) return;
+  let source;
+  try {
+    source = currentChapterSummarySource();
+    ensureAiReady(false);
+  } catch (error) {
+    els.aiSummaryStatus.textContent = aiErrorMessage(error);
+    els.aiSummaryStatus.classList.add('error');
+    return;
+  }
+  state.aiChatLoading = true;
+  els.aiSummaryStatus.classList.remove('error');
+  els.aiSummaryStatus.textContent = kind === 'summary' ? '有珠正在概括这一章…' : '有珠正在想怎么吐槽…';
+  if (window.GaiaPet) window.GaiaPet.runEmotion('thinking');
+  try {
+    const result = await window.api.aiAliceComment({ source, kind, profileId: state.aiProfiles.activeId });
+    if (window.GaiaPet && window.GaiaPet.speak) window.GaiaPet.speak(result.comment, 5200);
+    els.aiSummaryStatus.textContent = '有珠已经通过桌宠气泡说完了。';
+  } catch (error) {
+    els.aiSummaryStatus.textContent = aiErrorMessage(error);
+    els.aiSummaryStatus.classList.add('error');
+  } finally {
+    state.aiChatLoading = false;
   }
 }
 
@@ -2994,6 +3231,13 @@ function bindEvents() {
   els.settingsDrawer.addEventListener('click', (ev) => ev.stopPropagation());
   els.aiProvider.addEventListener('change', changeAiProvider);
   els.aiBaseUrl.addEventListener('input', updateAiTarget);
+  els.aiProfileList.addEventListener('click', (event) => {
+    const item = event.target.closest('[data-profile-id]');
+    if (item) selectAiProfile(item.dataset.profileId);
+  });
+  els.aiReaderProfile.addEventListener('change', () => activateAiProfile(els.aiReaderProfile.value));
+  $('btn-ai-profile-new').addEventListener('click', newAiProfile);
+  $('btn-ai-profile-delete').addEventListener('click', deleteAiProfile);
   $('btn-ai-save').addEventListener('click', () => saveAiConfig());
   $('btn-ai-test').addEventListener('click', testAiConfig);
   $('btn-ai-key-clear').addEventListener('click', clearAiApiKey);
@@ -3052,11 +3296,20 @@ function bindEvents() {
   $('btn-ai-summary').addEventListener('click', openAiSummaryPanel);
   $('btn-ai-reader').addEventListener('click', openAiSummaryPanel);
   $('btn-ai-summary-close').addEventListener('click', closeAiAssistantPanel);
+  $('btn-ai-summary-minimize').addEventListener('click', toggleAiPanelMinimized);
   $('btn-ai-summary-run').addEventListener('click', runCurrentChapterSummary);
   $('btn-ai-summary-copy').addEventListener('click', copyAiSummary);
   $('btn-ai-chat-clear').addEventListener('click', clearCurrentAiChat);
-  document.querySelectorAll('[data-ai-mode]').forEach((button) => button.addEventListener('click', () => setAiChatMode(button.dataset.aiMode)));
-  document.querySelectorAll('[data-ai-quick]').forEach((button) => button.addEventListener('click', () => sendAiQuestion(button.dataset.aiQuick, { mode: button.dataset.aiForceMode })));
+  document.querySelectorAll('[data-ai-quick]').forEach((button) => button.addEventListener('click', () => sendAiQuestion(button.dataset.aiQuick)));
+  document.querySelectorAll('[data-ai-alice]').forEach((button) => button.addEventListener('click', () => runAliceComment(button.dataset.aiAlice)));
+  els.aiFontSelect.addEventListener('change', () => {
+    state.prefs.aiTypography = Object.assign(aiTypography(), { fontName: els.aiFontSelect.value });
+    applyAiTypography();
+    window.api.stateSet('prefs', state.prefs);
+  });
+  $('btn-ai-font-minus').addEventListener('click', () => changeAiFontSize(-1));
+  $('btn-ai-font-plus').addEventListener('click', () => changeAiFontSize(1));
+  $('btn-ai-line-height').addEventListener('click', cycleAiLineHeight);
   els.aiChatSend.addEventListener('click', () => sendAiQuestion());
   els.aiChatInput.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
@@ -3417,10 +3670,12 @@ window.__gaiaDebug = {
     chatInput: !!els.aiChatInput,
     provider: state.aiConfig && state.aiConfig.provider,
     hasApiKey: !!(state.aiConfig && state.aiConfig.hasApiKey),
+    profileCount: state.aiProfiles.items.length,
+    floatingWindow: els.aiSummaryPanel.classList.contains('ai-summary-panel'),
   }),
   getAiChapterSource: () => currentChapterSummarySource(),
   openAiAssistant: openAiSummaryPanel,
-  getAiChatState: () => ({ mode: state.aiChatMode, loading: state.aiChatLoading, messages: els.aiChatMessages.children.length }),
+  getAiChatState: () => ({ mode: 'assistant', loading: state.aiChatLoading, messages: els.aiChatMessages.children.length }),
   waitHome: () => state.homeReady,
   getView: () => {
     for (const key of Object.keys(views)) {
