@@ -2,7 +2,13 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { normalizeWheelDelta, createWheelGate } = require('../src/shared/reader-input');
+const {
+  normalizeWheelDelta,
+  createWheelGate,
+  clampPdfZoom,
+  nextPdfZoom,
+  shouldScrollPdfPage,
+} = require('../src/shared/reader-input');
 
 test('normalizeWheelDelta: 像素模式原样返回', () => {
   assert.strictEqual(normalizeWheelDelta({ deltaY: 120, deltaMode: 0 }), 120);
@@ -57,4 +63,21 @@ test('滚轮门控: reset 清空累计与冷却', () => {
   gate.feed(120, 0);
   gate.reset();
   assert.strictEqual(gate.feed(120, 0), 'next');
+});
+
+test('PDF Ctrl+滚轮按方向缩放并限制安全倍率', () => {
+  assert.strictEqual(nextPdfZoom(1, -120), 1.1, '向上滚应放大');
+  assert.strictEqual(nextPdfZoom(1, 120), 0.9, '向下滚应缩小');
+  assert.strictEqual(nextPdfZoom(1, -12), 1.02, '触控板的小位移应细腻缩放');
+  assert.strictEqual(nextPdfZoom(2, -120), 2, '放大不得超过 200%');
+  assert.strictEqual(nextPdfZoom(0.6, 120), 0.6, '缩小不得低于 60%');
+  assert.strictEqual(clampPdfZoom(Number.NaN), 1, '非法倍率应恢复为 100%');
+});
+
+test('PDF 普通滚轮优先滚动页内内容，到边缘后才允许翻页', () => {
+  const viewport = { scrollTop: 300, scrollHeight: 1600, clientHeight: 800 };
+  assert.strictEqual(shouldScrollPdfPage(viewport, 120), true);
+  assert.strictEqual(shouldScrollPdfPage(viewport, -120), true);
+  assert.strictEqual(shouldScrollPdfPage({ ...viewport, scrollTop: 800 }, 120), false, '页底向下应交给翻页');
+  assert.strictEqual(shouldScrollPdfPage({ ...viewport, scrollTop: 0 }, -120), false, '页首向上应交给翻页');
 });

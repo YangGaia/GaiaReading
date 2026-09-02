@@ -13,7 +13,13 @@ const { paragraphsToHtml } = window.GaiaTxtHtml;
 const { splitTxtParagraphs, detectTxtChapters, isChapterTitle, chapterAt, chapterTitleForParagraph } = window.GaiaTxtChapters;
 const { epubDisplayPercent, findEpubNavLabel, resolveEpubTocTarget } = window.GaiaEpubProgress;
 const { flattenToc: flattenChapterToc, selectChapterScope } = window.GaiaChapterScope;
-const { normalizeWheelDelta, createWheelGate } = window.GaiaReaderInput;
+const {
+  normalizeWheelDelta,
+  createWheelGate,
+  clampPdfZoom,
+  nextPdfZoom,
+  shouldScrollPdfPage,
+} = window.GaiaReaderInput;
 const {
   createReadingStats,
   setGoalMinutes,
@@ -38,6 +44,7 @@ const {
   sameChapterSource,
 } = window.GaiaAi;
 const readerWheelGate = createWheelGate({ threshold: 60, cooldown: 250 });
+const pdfZoomRuntime = { timer: 0, anchor: null };
 
 const FONTS = {
   default: '',
@@ -54,6 +61,8 @@ const els = {
   readerTitle: $('reader-title'),
   readerContent: $('reader-content'),
   readerStatus: $('reader-status'),
+  pdfZoomControls: $('pdf-zoom-controls'),
+  pdfZoomValue: $('pdf-zoom-value'),
   tocPanel: $('toc-panel'),
   bookmarksPanel: $('bookmarks-panel'),
   annotationsPanel: $('annotations-panel'),
@@ -638,6 +647,8 @@ function closeReaderContent() {
     if (c.mobiSession) { try { window.api.mobiClose(c.mobiSession); } catch (e) {} }
   }
   els.readerContent.innerHTML = '';
+  cancelPendingPdfZoomRender();
+  els.pdfZoomControls.hidden = true;
   hideSelectionToolbar();
   els.pageNav.hidden = true;
   $('btn-ai-reader').classList.remove('open');
@@ -847,13 +858,102 @@ async function openPdf(book) {
   state.current.zoom = 1;
   const pdfSettings = state.progress[book.path] && state.progress[book.path].settings;
   if (pdfSettings && pdfSettings.zoom) state.current.zoom = pdfSettings.zoom;
+  state.current.zoom = clampPdfZoom(state.current.zoom);
   const saved = state.progress[book.path];
   if (saved && saved.page >= 1 && saved.page <= pdf.numPages) state.current.page = saved.page;
   await renderPdfPage();
 }
 
-async function renderPdfPage() {
+function updatePdfZoomUi() {
   const c = state.current;
+  const isPdf = !!(c && c.format === 'pdf');
+  els.pdfZoomControls.hidden = !isPdf;
+  if (isPdf) els.pdfZoomValue.textContent = Math.round((c.zoom || 1) * 100) + '%';
+}
+
+function pdfZoomAnchorAt(clientX, clientY) {
+  const page = els.readerContent.querySelector('.pdf-page');
+  if (!page) return null;
+  const pageRect = page.getBoundingClientRect();
+  const readerRect = els.readerContent.getBoundingClientRect();
+  if (!pageRect.width || !pageRect.height) return null;
+  const x = Math.min(1, Math.max(0, (clientX - pageRect.left) / pageRect.width));
+  const y = Math.min(1, Math.max(0, (clientY - pageRect.top) / pageRect.height));
+  return { x, y, viewportX: clientX - readerRect.left, viewportY: clientY - readerRect.top };
+}
+
+function centeredPdfZoomAnchor() {
+  const rect = els.readerContent.getBoundingClientRect();
+  return pdfZoomAnchorAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
+}
+
+function restorePdfZoomAnchor(page, anchor) {
+  if (!page || !anchor) return;
+  const readerRect = els.readerContent.getBoundingClientRect();
+  const pageRect = page.getBoundingClientRect();
+  const desiredX = readerRect.left + anchor.viewportX;
+  const desiredY = readerRect.top + anchor.viewportY;
+  els.readerContent.scrollLeft += pageRect.left + pageRect.width * anchor.x - desiredX;
+  els.readerContent.scrollTop += pageRect.top + pageRect.height * anchor.y - desiredY;
+}
+
+function cancelPendingPdfZoomRender() {
+  if (pdfZoomRuntime.timer) window.clearTimeout(pdfZoomRuntime.timer);
+  pdfZoomRuntime.timer = 0;
+  pdfZoomRuntime.anchor = null;
+}
+
+function showPdfZoomStatus() {
+  const c = state.current;
+  if (!c || c.format !== 'pdf') return;
+  els.readerStatus.textContent = '第 ' + c.page + ' / ' + c.pages + ' 页 · 缩放 ' + Math.round(c.zoom * 100) + '%';
+  updatePdfZoomUi();
+}
+
+function schedulePdfZoomRender(anchor) {
+  const c = state.current;
+  if (!c || c.format !== 'pdf') return;
+  pdfZoomRuntime.anchor = anchor;
+  if (pdfZoomRuntime.timer) window.clearTimeout(pdfZoomRuntime.timer);
+  const bookPath = c.path;
+  pdfZoomRuntime.timer = window.setTimeout(() => {
+    const pendingAnchor = pdfZoomRuntime.anchor;
+    pdfZoomRuntime.timer = 0;
+    pdfZoomRuntime.anchor = null;
+    if (!state.current || state.current.path !== bookPath || state.current.format !== 'pdf') return;
+    rememberSettings();
+    renderPdfPage({ anchor: pendingAnchor }).catch((error) => console.error(error));
+  }, 80);
+}
+
+function queuePdfWheelZoom(wheelDelta, ev) {
+  const c = state.current;
+  if (!c || c.format !== 'pdf') return;
+  const next = nextPdfZoom(c.zoom, wheelDelta);
+  if (next === c.zoom) {
+    showPdfZoomStatus();
+    return;
+  }
+  const anchor = pdfZoomAnchorAt(ev.clientX, ev.clientY) || centeredPdfZoomAnchor();
+  c.zoom = next;
+  showPdfZoomStatus();
+  schedulePdfZoomRender(anchor);
+}
+
+function setPdfZoom(zoom) {
+  const c = state.current;
+  if (!c || c.format !== 'pdf') return;
+  const next = clampPdfZoom(zoom);
+  if (next === c.zoom) return showPdfZoomStatus();
+  const anchor = centeredPdfZoomAnchor();
+  c.zoom = next;
+  showPdfZoomStatus();
+  schedulePdfZoomRender(anchor);
+}
+
+async function renderPdfPage(options) {
+  const c = state.current;
+  const renderOptions = options && typeof options === 'object' ? options : {};
   hideSelectionToolbar();
   const page = await c.pdf.getPage(c.page);
   const base = page.getViewport({ scale: 1 });
@@ -876,6 +976,9 @@ async function renderPdfPage() {
   els.readerContent.classList.toggle('pdf-dark', state.prefs.theme === 'dark');
   wrap.appendChild(canvas);
   els.readerContent.appendChild(wrap);
+  if (renderOptions.scrollTarget === 'top') els.readerContent.scrollTop = 0;
+  else if (renderOptions.scrollTarget === 'bottom') els.readerContent.scrollTop = Math.max(0, els.readerContent.scrollHeight - els.readerContent.clientHeight);
+  else restorePdfZoomAnchor(wrap, renderOptions.anchor);
 
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -894,7 +997,8 @@ async function renderPdfPage() {
     if (overlay) wrap.appendChild(overlay);
   }
 
-  updateProgress((c.page / c.pages) * 100, '第 ' + c.page + ' / ' + c.pages + ' 页');
+  updateProgress((c.page / c.pages) * 100, '第 ' + c.page + ' / ' + c.pages + ' 页 · 缩放 ' + Math.round(c.zoom * 100) + '%');
+  updatePdfZoomUi();
   if (!c.pdfHasText) els.readerStatus.textContent += ' · 本页无文字层，无法划线';
   saveProgress(c.path, { page: c.page, percent: (c.page / c.pages) * 100 });
 }
@@ -1117,7 +1221,7 @@ function applyTxtTypography() {
   applyMobiTypography();
 }
 
-function nextPage() {
+function nextPage(pdfScrollTarget) {
   const c = state.current;
   if (!c) return;
   hideSelectionToolbar();
@@ -1125,7 +1229,12 @@ function nextPage() {
   if (c.format === 'epub') {
     if (c.rendition) { animatePage('next'); return c.rendition.next(); }
   } else if (c.format === 'pdf') {
-    if (c.page < c.pages) { c.page += 1; animatePage('next'); return renderPdfPage(); }
+    if (c.page < c.pages) {
+      cancelPendingPdfZoomRender();
+      c.page += 1;
+      animatePage('next');
+      return renderPdfPage({ scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top' });
+    }
   } else if (c.paginator) {
     const step = state.readMode === 'spread' ? 2 : 1;
     const moved = c.paginator.next(step);
@@ -1143,7 +1252,7 @@ function nextPage() {
   }
 }
 
-function prevPage() {
+function prevPage(pdfScrollTarget) {
   const c = state.current;
   if (!c) return;
   hideSelectionToolbar();
@@ -1151,7 +1260,12 @@ function prevPage() {
   if (c.format === 'epub') {
     if (c.rendition) { animatePage('prev'); return c.rendition.prev(); }
   } else if (c.format === 'pdf') {
-    if (c.page > 1) { c.page -= 1; animatePage('prev'); return renderPdfPage(); }
+    if (c.page > 1) {
+      cancelPendingPdfZoomRender();
+      c.page -= 1;
+      animatePage('prev');
+      return renderPdfPage({ scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top' });
+    }
   } else if (c.paginator) {
     const step = state.readMode === 'spread' ? 2 : 1;
     const moved = c.paginator.prev(step);
@@ -1197,10 +1311,21 @@ function onReaderWheel(ev) {
   noteReadingActivity();
   const d = normalizeWheelDelta(ev);
   if (Math.abs(d) < 0.01) return;
+  const c = state.current;
+  if (c && c.format === 'pdf' && (ev.ctrlKey || ev.metaKey)) {
+    ev.preventDefault();
+    readerWheelGate.reset();
+    queuePdfWheelZoom(d, ev);
+    return;
+  }
+  if (c && c.format === 'pdf' && shouldScrollPdfPage(els.readerContent, d)) {
+    readerWheelGate.reset();
+    return;
+  }
   ev.preventDefault();
   const dir = readerWheelGate.feed(d, Date.now());
-  if (dir === 'next') nextPage();
-  else if (dir === 'prev') prevPage();
+  if (dir === 'next') nextPage('top');
+  else if (dir === 'prev') prevPage(c && c.format === 'pdf' ? 'bottom' : 'top');
 }
 
 function bindReaderKeyboard(target) {
@@ -1235,8 +1360,9 @@ function adjustFont(delta) {
     state.fontSize = Math.min(200, Math.max(80, state.fontSize + delta * 10));
     applyEpubTypography();
   } else if (c.format === 'pdf') {
-    c.zoom = Math.min(2, Math.max(0.6, (c.zoom || 1) + delta * 0.2));
-    renderPdfPage();
+    setPdfZoom((c.zoom || 1) + delta * 0.2);
+    if (isSettingsOpen()) updateSettingsValues();
+    return;
   } else if (c.paginator) {
     state.fontSize = Math.min(200, Math.max(80, state.fontSize + delta * 10));
     state.txtFont = Math.min(28, Math.max(12, Math.round((state.fontSize / 100) * 16)));
@@ -3675,6 +3801,9 @@ function bindEvents() {
 
   $('btn-font-minus').addEventListener('click', () => adjustFont(-1));
   $('btn-font-plus').addEventListener('click', () => adjustFont(1));
+  $('btn-pdf-zoom-out').addEventListener('click', () => setPdfZoom((state.current && state.current.zoom || 1) - 0.1));
+  $('btn-pdf-zoom-reset').addEventListener('click', () => setPdfZoom(1));
+  $('btn-pdf-zoom-in').addEventListener('click', () => setPdfZoom((state.current && state.current.zoom || 1) + 0.1));
   $('btn-line-height').addEventListener('click', cycleLineHeight);
   $('btn-margin').addEventListener('click', cycleMargin);
   $('btn-spread').addEventListener('click', toggleSpread);
@@ -3818,7 +3947,11 @@ function bindEvents() {
   bindReaderWheel(els.readerContent);
   window.addEventListener('resize', () => {
     const c = state.current;
-    if (c && c.format === 'pdf') renderPdfPage();
+    if (c && c.format === 'pdf') {
+      const anchor = centeredPdfZoomAnchor();
+      cancelPendingPdfZoomRender();
+      renderPdfPage({ anchor });
+    }
     if (c && c.format === 'epub') resizeEpubRendition();
   });
 }

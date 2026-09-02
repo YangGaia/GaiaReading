@@ -182,6 +182,7 @@ test('README 界面截图存在且已引用', () => {
 });
 
 test('主题/排版/翻页动画/菜单相关配置存在', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
   assert.ok(css.includes('body.dark'), '缺少夜间模式变量');
   assert.ok(css.includes('body.eye'), '缺少护眼模式变量');
@@ -192,6 +193,13 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
   assert.ok(html.includes('font-select'), '缺少字体选择');
   assert.ok(html.includes('btn-theme'), '缺少主题切换');
   assert.ok(html.includes('btn-pet-console'), '设置页缺少有珠控制台入口');
+  for (const id of ['pdf-zoom-controls', 'btn-pdf-zoom-out', 'btn-pdf-zoom-reset', 'btn-pdf-zoom-in', 'pdf-zoom-value']) {
+    assert.ok(html.includes(`id="${id}"`), `PDF 阅读器缺少手动缩放控件 ${id}`);
+  }
+  assert.ok(app.includes("c.format === 'pdf' && (ev.ctrlKey || ev.metaKey)") && app.includes('queuePdfWheelZoom(d, ev)'), 'PDF 应支持 Ctrl+滚轮缩放');
+  assert.ok(app.includes('shouldScrollPdfPage(els.readerContent, d)'), 'PDF 普通滚轮应优先滚动当前页');
+  assert.ok(app.includes('restorePdfZoomAnchor(wrap, renderOptions.anchor)'), 'PDF 缩放后应保持鼠标所指阅读位置');
+  assert.ok(css.includes('.pdf-zoom-controls'), 'PDF 手动缩放控件缺少样式');
   assert.ok(html.includes('progress-fill'), '缺少阅读进度条');
   assert.match(html, /class="drawer-row appearance-row"[\s\S]*?class="appearance-control"[\s\S]*?id="btn-theme"[\s\S]*?<\/div>\s*<div class="appearance-control">[\s\S]*?id="btn-pet-toggle"/, '主题与桌宠应为同一行内的同级控制组');
   assert.ok(css.includes('.appearance-control { display: flex; align-items: center;'), '主题与桌宠控制组应垂直居中');

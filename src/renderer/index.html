@@ -178,6 +178,11 @@
       <button id="btn-back" class="btn">← 书架</button>
       <span id="reader-title" class="reader-title"></span>
       <div class="actions">
+        <div id="pdf-zoom-controls" class="pdf-zoom-controls" aria-label="PDF 缩放" hidden>
+          <button id="btn-pdf-zoom-out" type="button" title="缩小 PDF" aria-label="缩小 PDF">−</button>
+          <button id="btn-pdf-zoom-reset" type="button" title="恢复 100%" aria-label="恢复 PDF 为 100%"><span id="pdf-zoom-value">100%</span></button>
+          <button id="btn-pdf-zoom-in" type="button" title="放大 PDF" aria-label="放大 PDF">＋</button>
+        </div>
         <select id="ai-reader-profile" class="reader-ai-profile" aria-label="当前 AI 接口"></select>
         <button id="btn-ai-reader" class="btn ai-reader-trigger"><span>✦</span> AI</button>
         <button id="btn-settings-reader" class="btn">设置</button>
