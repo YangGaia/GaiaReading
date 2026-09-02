@@ -23,6 +23,8 @@ const {
   lineFor,
   pick,
   pickIdleExpression,
+  pokeLineKey,
+  formatReadingDuration,
 } = pet;
 
 test('初始大脑为待机状态', () => {
@@ -61,6 +63,28 @@ test('连续点击 5 次触发生气表情，2.5 秒后重置', () => {
   const reset = decideState(brain, EVENTS.CLICK, 3000);
   assert.strictEqual(reset.pokeCount, 1);
   assert.strictEqual(reset.pokeMany, false);
+});
+
+test('连续点击台词从普通回应升级为警告和不耐烦', () => {
+  assert.strictEqual(pokeLineKey(1), 'poke');
+  assert.strictEqual(pokeLineKey(3), 'pokeAgain');
+  assert.strictEqual(pokeLineKey(5), 'pokeMany');
+  const brain = createBrain(0);
+  let result;
+  for (let i = 1; i <= 3; i += 1) {
+    result = decideState(brain, EVENTS.CLICK, i * 100);
+    brain.pokeCount = result.pokeCount;
+    brain.lastPokeAt = i * 100;
+  }
+  assert.strictEqual(result.pokeLine, 'pokeAgain');
+  assert.ok(pet.LINES.pokeAgain.length >= 6);
+});
+
+test('阅读计时格式可用于控制台实时验收', () => {
+  assert.strictEqual(formatReadingDuration(0), '00:00');
+  assert.strictEqual(formatReadingDuration(61_999), '01:01');
+  assert.strictEqual(formatReadingDuration(45 * 60 * 1000), '45:00');
+  assert.strictEqual(TIMERS.READER_CARE_AFTER, 45 * 60 * 1000);
 });
 
 test('默认自动时间轴为 15 秒无聊、25 秒困倦、35 秒睡觉', () => {
@@ -187,6 +211,15 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("key === 'sleeping'"), '控制台应能手动睡觉');
   assert.ok(renderer.includes('saved.autoSpeech'), '控制台应能关闭自动说话');
   assert.ok(renderer.includes('saved.autoSleep'), '控制台应能关闭自动睡觉');
+  assert.ok(renderer.includes("makeToggle('连续阅读提醒'"), '控制台应提供阅读关怀独立开关');
+  assert.ok(renderer.includes("[60000, '测试 · 1分钟']"), '控制台应提供一分钟验收间隔');
+  assert.ok(renderer.includes("makeButton('立即测试提醒'"), '控制台应支持立即测试关怀台词');
+  assert.ok(renderer.includes("window.addEventListener('blur', resetReadingSession)"), '切换程序时应清零连续阅读计时');
+  assert.ok(renderer.includes("document.addEventListener('visibilitychange'"), '最小化窗口时应清零连续阅读计时');
+  assert.ok(renderer.includes("if (nextView !== currentView) resetReadingSession()"), '离开阅读页时应清零连续阅读计时');
+  assert.ok(renderer.includes("showBubble(lineFor('readingCare'), 4200)"), '阅读超时后应显示关怀台词');
+  assert.ok(renderer.includes("showBubble(lineFor('sleepTransition'), 2600)"), '进入睡眠时应显示状态过渡台词');
+  assert.ok(renderer.includes('showBubble(lineFor(d.pokeLine))'), '连续点击应使用逐级变化的台词');
   assert.ok(renderer.includes("PART_IMG + 'body.png'"), '桌宠身体应使用挖空头部的分层素材');
   assert.ok(renderer.includes("PART_IMG + 'head.png'"), '桌宠应加载独立头部素材');
   assert.ok(!renderer.includes('GAZE_IMG'), '桌宠不应再加载鼠标跟随方向帧');
@@ -264,6 +297,11 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes('petStatus.actionStateRestored === true'), '冒烟测试应验证单独动作恢复原状态');
   assert.ok(main.includes('petStatus.autoRestWhileConsoleOpen === true'), '冒烟测试应验证控制台打开时仍会自动休息');
   assert.ok(main.includes('petStatus.autoSleepWhileConsoleOpen === true'), '冒烟测试应验证控制台打开时仍会自动入睡');
+  assert.ok(main.includes('petStatus.immediateCareTest === true'), '冒烟测试应验证阅读关怀可立即试播');
+  assert.ok(main.includes('petStatus.readingTimerAdvanced === true'), '冒烟测试应验证连续阅读计时会推进');
+  assert.ok(main.includes('petStatus.readingTimerResetOnBlur === true'), '冒烟测试应验证失焦会清零连续阅读计时');
+  assert.ok(main.includes('petStatus.readingTimerResetOnLeave === true'), '冒烟测试应验证离开阅读页会清零连续阅读计时');
+  assert.ok(main.includes('petStatus.readingCareReminderTriggered === true'), '冒烟测试应验证到达间隔会显示关怀台词');
   assert.ok(main.includes('petStatus.blinkInterruptedYawn === true'), '冒烟测试应验证眨眼可打断打哈欠闭眼阶段');
   assert.ok(main.includes('petStatus.blinkInterruptedDrowse === true'), '冒烟测试应验证眨眼可打断困倦闭眼阶段');
   assert.ok(main.includes('petStatus.repeatedBlinkCleaned === true'), '冒烟测试应验证连续眨眼可以正常清理');

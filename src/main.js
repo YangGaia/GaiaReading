@@ -443,6 +443,11 @@ function createWindow() {
             const panel = document.querySelector('.gaia-pet-console');
             const emotionButtons = panel ? panel.querySelectorAll('[data-emotion]').length : 0;
             const actionButtons = panel ? panel.querySelectorAll('[data-action]').length : 0;
+            const careToggle = panel && panel.querySelector('[data-reading-care-toggle]');
+            const careSelect = panel && panel.querySelector('[data-reading-care-interval]');
+            const careStatus = panel && panel.querySelector('.gaia-pet-console-care-status');
+            const careTest = panel && panel.querySelector('[data-reading-care-test]');
+            const readingCareControls = !!careToggle && !!careSelect && !!careStatus && !!careTest;
             const panelVisible = !!panel && !panel.hidden && panel.offsetWidth > 0 && panel.offsetHeight > 0;
             const rect = panel ? panel.getBoundingClientRect() : null;
             const panelInViewport = !!rect && rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight;
@@ -475,6 +480,30 @@ function createWindow() {
             const petTarget = petRoot.querySelector('.gaia-pet-hitbox');
             petRoot.style.pointerEvents = 'none';
             petTarget.style.pointerEvents = 'none';
+            careTest.click();
+            const careTestBubble = document.querySelector('.gaia-pet-bubble');
+            const immediateCareTest = careTestBubble.classList.contains('show') && GaiaPetShared.LINES.readingCare.includes(careTestBubble.textContent);
+            GaiaPet.setView('reader');
+            careSelect.value = '60000';
+            careSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            const readingDateNow = Date.now;
+            Date.now = () => readingDateNow() + 30000;
+            await new Promise((resolve) => setTimeout(resolve, 600));
+            const readingTimerAdvanced = careStatus.textContent.includes('00:30 / 01:00');
+            window.dispatchEvent(new Event('blur'));
+            const readingTimerResetOnBlur = careStatus.textContent.includes('00:00 / 01:00');
+            Date.now = readingDateNow;
+            GaiaPet.setView('home');
+            const readingTimerResetOnLeave = careStatus.textContent.includes('未在阅读');
+            GaiaPet.runEmotion('sleeping');
+            GaiaPet.setView('reader');
+            Date.now = () => readingDateNow() + 61000;
+            await new Promise((resolve) => setTimeout(resolve, 600));
+            const readingCareReminderTriggered = careTestBubble.classList.contains('show') &&
+              GaiaPetShared.LINES.readingCare.includes(careTestBubble.textContent) &&
+              careStatus.textContent.includes('00:00 / 01:00');
+            Date.now = readingDateNow;
+            GaiaPet.setView('home');
             GaiaPet.runEmotion('idle');
             const originalDateNow = Date.now;
             Date.now = () => originalDateNow() + 26000;
@@ -563,13 +592,19 @@ function createWindow() {
             blinkFace.dispatchEvent(blinkEnd);
             const repeatedBlinkCleaned = !blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned };
+            return { panelVisible, panelInViewport, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
             petStatus.panelInViewport === true &&
             petStatus.emotionButtons === 8 &&
             petStatus.actionButtons === 3 &&
+            petStatus.readingCareControls === true &&
+            petStatus.immediateCareTest === true &&
+            petStatus.readingTimerAdvanced === true &&
+            petStatus.readingTimerResetOnBlur === true &&
+            petStatus.readingTimerResetOnLeave === true &&
+            petStatus.readingCareReminderTriggered === true &&
             petStatus.layeredPet === true &&
             petStatus.headCutoutClean === true &&
             petStatus.oldLidRemoved === true &&

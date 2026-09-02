@@ -47,6 +47,7 @@
     DREAM_MIN: 6 * 1000,
     DREAM_MAX: 10 * 1000,
     DREAM_CHANCE: 0.8,
+    READER_CARE_AFTER: 45 * 60 * 1000,
   };
 
   const AUTO_BEHAVIORS = {
@@ -114,6 +115,14 @@
       '……好冷。',
       '……哈。',
     ],
+    pokeAgain: [
+      '……还有事？',
+      '第二次了。',
+      '……你很闲吗。',
+      '我已经注意到你了。',
+      '……别一直戳。',
+      '书不看了？',
+    ],
     pokeMany: [
       '……吵死了。',
       '够了。',
@@ -157,6 +166,13 @@
       '……红茶的……香气……',
       '……月亮……别走……',
     ],
+    sleepTransition: [
+      '……那我先睡了。',
+      '灯关小一点。晚安。',
+      '剩下的，明天再说。',
+      '……别吵醒我。',
+      '夜还长，稍微休息一下。',
+    ],
     wake: [
       '……嗯？',
       '……是你。',
@@ -174,6 +190,14 @@
       '哈啊——',
       '唔……有点困。',
       '再眯一会儿……',
+    ],
+    readingCare: [
+      '已经看很久了。看看远处吧。',
+      '先喝点水，书又不会逃走。',
+      '坐姿变差了吧。起来活动一下。',
+      '眼睛也需要休息。几分钟就好。',
+      '先合上书吧。我可以等你。',
+      '休息一下再继续，效率反而会更高。',
     ],
     idle: [
       '……红茶，一天七次是理想。',
@@ -214,6 +238,19 @@
     return list[Math.floor(r() * list.length)];
   }
 
+  function pokeLineKey(count) {
+    if (count >= 5) return 'pokeMany';
+    if (count >= 3) return 'pokeAgain';
+    return 'poke';
+  }
+
+  function formatReadingDuration(ms) {
+    const totalSeconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+  }
+
   /** 事件驱动迁移：返回 { state, expression, ... }，无迁移返回 null。 */
   function decideState(brain, event, now) {
     const t = now == null ? Date.now() : now;
@@ -230,6 +267,7 @@
           expression: pick(many ? STATE_EXPRESSIONS.pokeMany : STATE_EXPRESSIONS.poke),
           pokeCount: count,
           pokeMany: many,
+          pokeLine: pokeLineKey(count),
         };
       }
       case EVENTS.INTERACT:
@@ -314,6 +352,8 @@
     LINES,
     createBrain,
     pick,
+    pokeLineKey,
+    formatReadingDuration,
     decideState,
     timeoutState,
     lineFor,

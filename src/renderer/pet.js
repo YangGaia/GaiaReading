@@ -33,6 +33,7 @@
     pickAutoBehavior,
     nextDreamDelay,
     shouldDream,
+    formatReadingDuration,
   } = shared;
 
   const FACE_IMG = 'images/pet/faces/';
@@ -47,6 +48,8 @@
     autoSpeech: true,
     autoSleep: true,
     sleepAfter: TIMERS.SLEEP_AFTER,
+    readerCare: true,
+    readerCareAfter: TIMERS.READER_CARE_AFTER,
     lockedMood: null,
     scale: 1,
     opacity: 1,
@@ -61,6 +64,7 @@
   const ACTION_CLASSES = ['poke', 'drop', 'perk', 'recoil', 'shiver', 'lean', 'drowse', 'wake'];
   const PERFORMANCE_CLASSES = ['performance-tilt', 'performance-thinking', 'performance-peek', 'performance-listen', 'performance-shy', 'performance-angry', 'performance-bored', 'performance-drowse', 'performance-wake', 'performance-yawn'];
   const ACTION_MS = { poke: 350, tilt: 1100, drop: 400, perk: 500, recoil: 360, shiver: 420, yawn: 1700, lean: 600, drowse: 2200, wake: 900 };
+  const READER_CARE_INTERVALS = [60 * 1000, 30 * 60 * 1000, 45 * 60 * 1000, 60 * 60 * 1000];
   const STATE_LABELS = {
     idle: '待机', hover: '注视', poke: '被戳', bored: '无聊', sleepy: '困倦',
     sleeping: '睡觉', wake: '唤醒', manual: '手动',
@@ -94,6 +98,7 @@
   let speechHistory = [];
   let effectVersion = 0;
   let activePerformance = null;
+  let readingStartedAt = 0;
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
 
@@ -109,6 +114,8 @@
       autoSpeech: saved.autoSpeech,
       autoSleep: saved.autoSleep,
       sleepAfter: saved.sleepAfter,
+      readerCare: saved.readerCare,
+      readerCareAfter: saved.readerCareAfter,
       lockedMood: lockedEmotion,
       scale: saved.scale,
       opacity: saved.opacity,
@@ -368,6 +375,61 @@
     ]);
   }
 
+  function canTrackReading() {
+    return saved.on && saved.readerCare && currentView === 'reader' && !document.hidden && document.hasFocus();
+  }
+
+  function readingElapsed(now) {
+    return readingStartedAt ? Math.max(0, now - readingStartedAt) : 0;
+  }
+
+  function updateReadingCareStatus(now) {
+    if (!ui.readingCareStatus) return;
+    if (!saved.readerCare) {
+      ui.readingCareStatus.textContent = '阅读关怀已关闭';
+      return;
+    }
+    if (currentView !== 'reader') {
+      ui.readingCareStatus.textContent = '未在阅读 · 进入阅读页后开始计时';
+      return;
+    }
+    ui.readingCareStatus.textContent = '连续阅读 ' + formatReadingDuration(readingElapsed(now == null ? Date.now() : now)) +
+      ' / ' + formatReadingDuration(saved.readerCareAfter);
+  }
+
+  function resetReadingSession() {
+    readingStartedAt = 0;
+    updateReadingCareStatus(Date.now());
+  }
+
+  function startReadingSession(now) {
+    if (!canTrackReading()) return false;
+    if (!readingStartedAt) readingStartedAt = now == null ? Date.now() : now;
+    updateReadingCareStatus(now);
+    return true;
+  }
+
+  function showReadingCareReminder(resetTimer) {
+    showBubble(lineFor('readingCare'), 4200);
+    if (resetTimer) readingStartedAt = Date.now();
+    if (brain.state === PET_STATES.SLEEPING) nextDreamAt = Date.now() + nextDreamDelay();
+    updateReadingCareStatus(Date.now());
+  }
+
+  function updateReadingCare(now) {
+    if (!canTrackReading()) {
+      if (readingStartedAt) resetReadingSession();
+      return false;
+    }
+    if (!readingStartedAt) readingStartedAt = now;
+    if (readingElapsed(now) >= saved.readerCareAfter) {
+      showReadingCareReminder(true);
+      return true;
+    }
+    updateReadingCareStatus(now);
+    return false;
+  }
+
   function currentStateLabel() {
     if (brain.state === PET_STATES.MANUAL && manualLabel) return manualLabel;
     return STATE_LABELS[brain.state] || '待机';
@@ -389,6 +451,13 @@
       ui.sleepSelect.value = String(saved.sleepAfter);
       ui.sleepSelect.disabled = !saved.auto || !saved.autoSleep;
     }
+    if (ui.readingCareToggle) ui.readingCareToggle.checked = saved.readerCare;
+    if (ui.readingCareSelect) {
+      ui.readingCareSelect.value = String(saved.readerCareAfter);
+      ui.readingCareSelect.disabled = !saved.readerCare;
+    }
+    if (ui.readingCareTest) ui.readingCareTest.disabled = !saved.readerCare;
+    updateReadingCareStatus(Date.now());
     if (ui.scaleSelect) ui.scaleSelect.value = String(saved.scale);
     if (ui.opacitySelect) ui.opacitySelect.value = String(saved.opacity);
     if (ui.readerModeSelect) ui.readerModeSelect.value = saved.readerMode;
@@ -469,7 +538,8 @@
       playDrowsePerformance();
     } else if (change.state === PET_STATES.SLEEPING) {
       setState(change.state, '安心');
-      hideBubble(false);
+      if (saved.autoSpeech) showBubble(lineFor('sleepTransition'), 2600);
+      else hideBubble(false);
     }
   }
 
@@ -505,8 +575,9 @@
   }
 
   function tick() {
-    if (!saved.on || dragging) return;
     const now = Date.now();
+    const careTriggered = updateReadingCare(now);
+    if (!saved.on || dragging || careTriggered) return;
     finishTransient(now);
     if (brain.state === PET_STATES.SLEEPING) {
       maybeDream(now);
@@ -563,7 +634,7 @@
     brain.pokeCount = d.pokeCount;
     brain.lastPokeAt = now;
     setState(d.state, d.expression);
-    showBubble(lineFor(d.pokeMany ? 'pokeMany' : 'poke'));
+    showBubble(lineFor(d.pokeLine));
     triggerAction(d.pokeMany ? 'shiver' : 'poke');
     transientUntil = now + TIMERS.TRANSIENT_AFTER;
   }
@@ -627,6 +698,7 @@
       manualEmotionKey = null;
       transientUntil = 0;
       setState(PET_STATES.SLEEPING, pick(config.expressions));
+      showBubble(lineFor('sleepTransition'), 2600);
       save();
       return;
     }
@@ -757,6 +829,12 @@
       ev.stopImmediatePropagation();
       closeConsole(true);
     }, true);
+    window.addEventListener('blur', resetReadingSession);
+    window.addEventListener('focus', () => startReadingSession(Date.now()));
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) resetReadingSession();
+      else startReadingSession(Date.now());
+    });
     window.addEventListener('resize', () => {
       restorePositionFromRatios();
       clampPosition();
@@ -900,6 +978,43 @@
     });
     sleepRow.append(sleepLabel, sleepSelect);
 
+    const careTitle = document.createElement('div');
+    careTitle.className = 'gaia-pet-console-label';
+    careTitle.textContent = '阅读关怀';
+    const careToggle = makeToggle('连续阅读提醒', (checked) => {
+      saved.readerCare = checked;
+      resetReadingSession();
+      if (checked) startReadingSession(Date.now());
+      save();
+      updateConsole();
+    });
+    careToggle.input.dataset.readingCareToggle = 'true';
+    const careStatus = document.createElement('div');
+    careStatus.className = 'gaia-pet-console-care-status';
+    const careRow = document.createElement('label');
+    careRow.className = 'gaia-pet-console-select-row';
+    const careLabel = document.createElement('span');
+    careLabel.textContent = '提醒间隔';
+    const careSelect = document.createElement('select');
+    careSelect.dataset.readingCareInterval = 'true';
+    for (const item of [[60000, '测试 · 1分钟'], [1800000, '30分钟'], [2700000, '45分钟'], [3600000, '60分钟']]) {
+      const option = document.createElement('option');
+      option.value = String(item[0]);
+      option.textContent = item[1];
+      careSelect.appendChild(option);
+    }
+    careSelect.addEventListener('change', () => {
+      saved.readerCareAfter = Number(careSelect.value) || TIMERS.READER_CARE_AFTER;
+      resetReadingSession();
+      startReadingSession(Date.now());
+      save();
+      updateConsole();
+    });
+    careRow.append(careLabel, careSelect);
+    const careTest = makeButton('立即测试提醒', 'gaia-pet-console-button gaia-pet-console-care-test');
+    careTest.dataset.readingCareTest = 'true';
+    careTest.addEventListener('click', () => showReadingCareReminder(false));
+
     const displayTitle = document.createElement('div');
     displayTitle.className = 'gaia-pet-console-label';
     displayTitle.textContent = '显示设置';
@@ -953,7 +1068,8 @@
     const lock = makeButton('锁定当前情绪', 'gaia-pet-console-lock');
     lock.addEventListener('click', toggleEmotionLock);
     panel.append(header, state, emotionTitle, emotions, actionTitle, actions, autoTitle,
-      autoToggle.row, speechToggle.row, sleepToggle.row, sleepRow, lock, displayTitle,
+      autoToggle.row, speechToggle.row, sleepToggle.row, sleepRow, careTitle, careToggle.row,
+      careStatus, careRow, careTest, lock, displayTitle,
       scale.row, opacity.row, readerMode.row, historyTitle, history);
     document.body.appendChild(panel);
     ui.console = panel;
@@ -963,6 +1079,10 @@
     ui.speechToggle = speechToggle.input;
     ui.sleepToggle = sleepToggle.input;
     ui.sleepSelect = sleepSelect;
+    ui.readingCareToggle = careToggle.input;
+    ui.readingCareStatus = careStatus;
+    ui.readingCareSelect = careSelect;
+    ui.readingCareTest = careTest;
     ui.lockButton = lock;
     ui.scaleSelect = scale.select;
     ui.opacitySelect = opacity.select;
@@ -1035,8 +1155,10 @@
       saved.auto = savedState.auto !== false;
       saved.autoSpeech = savedState.autoSpeech !== false;
       saved.autoSleep = savedState.autoSleep !== false;
+      saved.readerCare = savedState.readerCare !== false;
       if (LOCKABLE_EMOTIONS.includes(savedState.lockedMood)) saved.lockedMood = savedState.lockedMood;
       if ([20000, 35000, 60000].includes(savedState.sleepAfter)) saved.sleepAfter = savedState.sleepAfter;
+      if (READER_CARE_INTERVALS.includes(savedState.readerCareAfter)) saved.readerCareAfter = savedState.readerCareAfter;
       if ([0.75, 1, 1.25, 1.5].includes(savedState.scale)) saved.scale = savedState.scale;
       if ([0.4, 0.6, 0.8, 1].includes(savedState.opacity)) saved.opacity = savedState.opacity;
       if (['normal', 'dim', 'hidden'].includes(savedState.readerMode)) saved.readerMode = savedState.readerMode;
@@ -1087,6 +1209,7 @@
     saved.on = !!on;
     updateVisibility();
     if (!saved.on) {
+      resetReadingSession();
       closeConsole(false);
       hideBubble(true);
     } else if (ui.root) {
@@ -1094,13 +1217,18 @@
       lockedEmotion = null;
       manualEmotionKey = null;
       returnToIdle(Date.now());
+      startReadingSession(Date.now());
     }
     save();
   }
 
   function setView(view) {
-    currentView = view || 'home';
+    const nextView = view || 'home';
+    if (nextView !== currentView) resetReadingSession();
+    currentView = nextView;
     updateVisibility();
+    startReadingSession(Date.now());
+    updateReadingCareStatus(Date.now());
   }
 
   return {

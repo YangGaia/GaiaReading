@@ -750,6 +750,16 @@ body.eye {
   border-radius: 7px;
   font-size: 11px;
 }
+.gaia-pet-console-care-status {
+  margin: 2px 0 5px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: var(--text-soft);
+  background: var(--accent-soft);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.gaia-pet-console-care-test { width: 100%; margin-top: 4px; }
 .gaia-pet-console-lock { width: 100%; margin-top: 8px; }
 .gaia-pet-console-history-title { display: flex; align-items: center; justify-content: space-between; }
 .gaia-pet-console-history-clear {
