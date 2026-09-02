@@ -2089,12 +2089,12 @@ function closeReadingStats() {
   if (!views.reader.hidden) noteReadingActivity();
 }
 
-const STATS_ALICE_IMAGE_ROOT = 'images/pet/cells/';
+const STATS_ALICE_IMAGE_ROOT = 'images/pet/stats/';
 const STATS_ALICE_IMAGES = {
-  idle: '日常表情.png',
-  blink: '安心.png',
-  drowsy: '眼睛微张.png',
-  yawn: '叹气.png',
+  idle: 'idle.png',
+  blink: 'blink.png',
+  drowsy: 'drowsy.png',
+  yawn: 'yawn.png',
 };
 const STATS_ALICE_CLASSES = ['stats-alice-perk', 'stats-alice-yawn', 'stats-alice-sleep', 'stats-alice-wake'];
 const statsAliceActionTimers = new Set();

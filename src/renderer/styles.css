@@ -280,7 +280,7 @@ body.dark #stats-view {
 .stats-secondary { color: var(--stats-hero-soft); margin: 10px 0 0; font-size: 13px; }
 .stats-alice-line { position: relative; max-width: 410px; margin: 23px 0 0; padding: 10px 14px 10px 17px; border-left: 2px solid var(--stats-accent); background: rgba(255,255,255,.07); color: var(--stats-hero-text); font-family: Georgia, "Times New Roman", "SimSun", serif; font-size: 13px; line-height: 1.65; letter-spacing: .03em; }
 .stats-hero-visual { position: absolute; z-index: 1; right: 25px; top: 0; width: 340px; height: 100%; pointer-events: none; }
-.stats-alice { position: absolute; z-index: 3; height: 225px; width: 225px; object-fit: contain; right: -2px; bottom: -4px; filter: drop-shadow(-12px 8px 18px rgba(0,0,0,.35)); opacity: .96; transform-origin: 50% 88%; pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none; animation: statsAliceBreathe 4s ease-in-out infinite; }
+.stats-alice { position: absolute; z-index: 3; height: 350px; width: auto; right: -4px; bottom: -142px; filter: drop-shadow(-12px 8px 18px rgba(0,0,0,.35)); opacity: .96; transform-origin: 50% 88%; pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none; animation: statsAliceBreathe 4s ease-in-out infinite; }
 .stats-alice:focus-visible { outline: 2px solid var(--stats-hero-soft); outline-offset: -12px; }
 .stats-alice.stats-alice-perk { animation: statsAlicePerk .42s ease; }
 .stats-alice.stats-alice-yawn { animation: statsAliceYawn 1.6s ease-in-out; }

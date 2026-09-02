@@ -62,7 +62,7 @@ test('阅读仪表盘使用有珠主题素材并兼容三种阅读模式', () =>
   const css = fs.readFileSync(path.join(root, 'src/renderer/styles.css'), 'utf8');
   const app = fs.readFileSync(path.join(root, 'src/renderer/app.js'), 'utf8');
   assert.ok(html.includes('有珠的阅读记录'), '仪表盘标题应体现有珠主题');
-  assert.ok(html.includes('id="stats-alice"') && html.includes('images/pet/cells/日常表情.png'), '仪表盘应使用不拆分头身的预合成有珠立绘');
+  assert.ok(html.includes('id="stats-alice"') && html.includes('images/pet/stats/idle.png'), '仪表盘应使用不拆分头身的完整尺寸预合成立绘');
   assert.ok(html.includes('draggable="false"'), '仪表盘有珠不应允许拖动');
   assert.ok(html.includes('id="stats-alice-zzz"'), '统计页睡觉动作应显示 Zzz 状态');
   assert.ok(html.includes('id="stats-alice-line"'), '缺少有珠动态阅读台词');
@@ -70,7 +70,15 @@ test('阅读仪表盘使用有珠主题素材并兼容三种阅读模式', () =>
   assert.ok(css.includes('@keyframes statsOrbit'), '目标仪式盘应具有低干扰轨道动画');
   assert.ok(css.includes('@keyframes statsAliceBreathe') && css.includes('@keyframes statsAliceYawn') && css.includes('@keyframes statsAliceSleep'), '完整有珠立绘应支持呼吸、打哈欠和睡觉动作');
   assert.ok(app.includes('interactWithStatsAlice') && app.includes("stats-alice-perk"), '仪表盘有珠应支持无对话的移入和点击互动');
-  assert.ok(app.includes("idle: '日常表情.png'") && app.includes("blink: '安心.png'") && app.includes("yawn: '叹气.png'"), '统计页动作必须整图切换，不能拆分头身');
+  assert.ok(app.includes("idle: 'idle.png'") && app.includes("blink: 'blink.png'") && app.includes("yawn: 'yawn.png'"), '统计页动作必须切换等尺寸完整立绘，不能拆分头身');
   assert.ok(app.includes("const actions = ['blink', 'yawn', 'sleep']") && app.includes('scheduleStatsAliceBlink'), '点击应依次提供眨眼、哈欠、睡觉，并保留自然眨眼');
   assert.ok(app.includes('readingCompanionLine(summary)'), '仪表盘应按阅读状态刷新有珠台词');
+  const statsAssetDir = path.join(root, 'src/renderer/images/pet/stats');
+  const assets = ['idle.png', 'blink.png', 'drowsy.png', 'yawn.png'].map((name) => fs.readFileSync(path.join(statsAssetDir, name)));
+  for (const asset of assets) {
+    assert.strictEqual(asset.readUInt32BE(16), 356, '统计页表情立绘宽度必须保持为完整原图尺寸');
+    assert.strictEqual(asset.readUInt32BE(20), 647, '统计页表情立绘高度必须保持为完整原图尺寸');
+  }
+  assert.notDeepStrictEqual(assets[1], assets[3], '闭眼和打哈欠不能使用同一张图片冒充');
+  assert.ok(fs.existsSync(path.join(root, 'scripts/build-stats-alice-assets.ps1')), '应保留完整立绘合成脚本以便素材更新时重新生成');
 });

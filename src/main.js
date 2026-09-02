@@ -647,22 +647,26 @@ function createWindow() {
             const statsView = document.getElementById('stats-view');
             const statsAlice = document.getElementById('stats-alice');
             const statsViewVisible = !statsView.hidden;
-            const statsUsesWholeImage = decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/日常表情.png') && statsAlice.naturalWidth > 0;
-            const statsAliceVisible = statsAlice.getBoundingClientRect().width > 0 && statsAlice.getBoundingClientRect().height > 0;
+            const statsUsesWholeImage = statsAlice.src.endsWith('/images/pet/stats/idle.png') && statsAlice.naturalWidth === 356 && statsAlice.naturalHeight === 647;
+            const statsAliceRect = statsAlice.getBoundingClientRect();
+            const statsRingRect = document.getElementById('stats-ring').getBoundingClientRect();
+            const statsAliceVisible = statsAliceRect.width > 0 && statsAliceRect.height > 0;
+            const statsAliceSizeStable = Math.abs(statsAliceRect.height - 350) < 1;
+            const statsLayoutOverlap = Math.max(0, Math.min(statsAliceRect.right, statsRingRect.right) - Math.max(statsAliceRect.left, statsRingRect.left)) <= 28;
             const statsPetHidden = petRoot.hidden;
             const statsBreathing = getComputedStyle(statsAlice).animationName === 'statsAliceBreathe';
             statsAlice.dispatchEvent(new PointerEvent('pointerenter'));
             const statsHoverInteractive = statsAlice.classList.contains('stats-alice-perk');
             statsAlice.click();
-            const statsBlinkStarted = decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/安心.png');
+            const statsBlinkStarted = statsAlice.src.endsWith('/images/pet/stats/blink.png');
             await new Promise((resolve) => setTimeout(resolve, 210));
             statsAlice.click();
-            const statsYawnStarted = statsAlice.classList.contains('stats-alice-yawn') && decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/眼睛微张.png');
+            const statsYawnStarted = statsAlice.classList.contains('stats-alice-yawn') && statsAlice.src.endsWith('/images/pet/stats/drowsy.png');
             await new Promise((resolve) => setTimeout(resolve, 310));
-            const statsYawnExpression = decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/叹气.png');
+            const statsYawnExpression = statsAlice.src.endsWith('/images/pet/stats/yawn.png');
             await new Promise((resolve) => setTimeout(resolve, 1320));
             statsAlice.click();
-            const statsSleepStarted = statsAlice.classList.contains('stats-alice-sleep') && !document.getElementById('stats-alice-zzz').hidden && decodeURIComponent(statsAlice.src).endsWith('/images/pet/cells/安心.png');
+            const statsSleepStarted = statsAlice.classList.contains('stats-alice-sleep') && !document.getElementById('stats-alice-zzz').hidden && statsAlice.src.endsWith('/images/pet/stats/blink.png');
             statsAlice.click();
             const statsWakeStarted = statsAlice.classList.contains('stats-alice-wake') && document.getElementById('stats-alice-zzz').hidden;
             const dragEvent = new Event('dragstart', { cancelable: true });
@@ -672,7 +676,7 @@ function createWindow() {
             __gaiaDebug.closeReadingStats();
             await new Promise((resolve) => setTimeout(resolve, 80));
             const statsPetRestored = !petRoot.hidden;
-            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsTargetMatchesDisplay, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned, statsViewVisible, statsUsesWholeImage, statsAliceVisible, statsPetHidden, statsBreathing, statsHoverInteractive, statsDragDisabled, statsBlinkStarted, statsYawnStarted, statsYawnExpression, statsSleepStarted, statsWakeStarted, statsHasNoDialogue, statsPetRestored };
+            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsTargetMatchesDisplay, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned, statsViewVisible, statsUsesWholeImage, statsAliceVisible, statsAliceSizeStable, statsLayoutOverlap, statsPetHidden, statsBreathing, statsHoverInteractive, statsDragDisabled, statsBlinkStarted, statsYawnStarted, statsYawnExpression, statsSleepStarted, statsWakeStarted, statsHasNoDialogue, statsPetRestored };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -731,6 +735,8 @@ function createWindow() {
             petStatus.statsViewVisible === true &&
             petStatus.statsUsesWholeImage === true &&
             petStatus.statsAliceVisible === true &&
+            petStatus.statsAliceSizeStable === true &&
+            petStatus.statsLayoutOverlap === true &&
             petStatus.statsPetHidden === true &&
             petStatus.statsBreathing === true &&
             petStatus.statsHoverInteractive === true &&
