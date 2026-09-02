@@ -69,7 +69,12 @@
             <button id="btn-ai-key-toggle" class="btn" type="button">显示</button>
           </div>
           <label class="ai-config-label" for="ai-model">模型名称</label>
-          <input id="ai-model" class="ai-config-input" type="text" spellcheck="false" autocomplete="off" placeholder="填写服务商提供的模型名称">
+          <div class="ai-model-row">
+            <input id="ai-model" class="ai-config-input" type="text" list="ai-model-options" spellcheck="false" autocomplete="off" placeholder="选择或填写模型名称">
+            <button id="btn-ai-model-refresh" class="btn" type="button">读取模型</button>
+          </div>
+          <datalist id="ai-model-options"></datalist>
+          <p id="ai-model-hint" class="ai-model-hint">可直接选择内置模型，也可以输入接口支持的其他模型 ID。</p>
           <label class="ai-auto-row"><input id="ai-auto-summarize" type="checkbox"> 向后进入新章节时，自动总结刚读完的章节</label>
           <p id="ai-config-target" class="ai-config-target"></p>
           <p id="ai-config-status" class="ai-config-status" role="status" aria-live="polite"></p>
@@ -185,18 +190,20 @@
           <div><small>GAIA · READING COMPANION</small><h2>AI 阅读助手</h2></div>
           <div class="ai-panel-head-actions">
             <button id="btn-ai-chat-clear" class="btn" type="button">清空</button>
+            <button id="btn-ai-appearance" class="btn" type="button" aria-expanded="false" aria-controls="ai-appearance-popover">Aa</button>
             <button id="btn-ai-summary-minimize" class="btn" type="button" aria-label="最小化 AI 阅读助手">—</button>
             <button id="btn-ai-summary-close" class="btn" type="button" aria-label="关闭 AI 阅读助手">×</button>
           </div>
         </div>
-        <div class="ai-typography-toolbar" aria-label="AI 窗口排版">
+        <div id="ai-appearance-popover" class="ai-appearance-popover" aria-label="AI 窗口排版" hidden>
+          <label for="ai-font-select">字体</label>
           <select id="ai-font-select" aria-label="AI 字体">
             <option value="default">默认字体</option><option value="song">宋体</option><option value="kai">楷体</option><option value="hei">黑体</option><option value="yuan">圆体</option>
           </select>
-          <button id="btn-ai-font-minus" type="button" aria-label="减小 AI 字号">A−</button>
-          <span id="ai-font-value">15px</span>
-          <button id="btn-ai-font-plus" type="button" aria-label="增大 AI 字号">A+</button>
-          <button id="btn-ai-line-height" type="button">行距 1.7</button>
+          <label>字号</label>
+          <div class="ai-appearance-stepper"><button id="btn-ai-font-minus" type="button" aria-label="减小 AI 字号">A−</button><span id="ai-font-value">15px</span><button id="btn-ai-font-plus" type="button" aria-label="增大 AI 字号">A+</button></div>
+          <label>行距</label>
+          <button id="btn-ai-line-height" type="button">1.7</button>
         </div>
         <p id="ai-summary-chapter" class="ai-summary-chapter">当前章节</p>
         <p id="ai-summary-target" class="ai-summary-target"></p>

@@ -3,11 +3,13 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const {
+  PROVIDERS,
   normalizeBaseUrl,
   normalizeConfig,
   normalizeProfile,
   normalizeProfiles,
   chatEndpoint,
+  modelsEndpoint,
   chunkText,
   chunkMessages,
   compactChapterForChat,
@@ -16,10 +18,13 @@ const {
   aliceCommentMessages,
   cleanAliceComment,
   extractResponseText,
+  extractModelIds,
   cacheKey,
   configIdentity,
   secretScopeKey,
   requestChat,
+  testConnection,
+  listModels,
   summarize,
   chat,
   aliceComment,
@@ -32,6 +37,10 @@ test('AI 服务配置支持 OpenAI、DeepSeek、本地与自定义接口', () =>
   assert.strictEqual(normalizeConfig({ provider: 'custom', baseUrl: 'https://relay.example/v1/' }).baseUrl, 'https://relay.example/v1');
   assert.strictEqual(chatEndpoint('https://relay.example/v1'), 'https://relay.example/v1/chat/completions');
   assert.strictEqual(chatEndpoint('https://relay.example/v1/chat/completions'), 'https://relay.example/v1/chat/completions');
+  assert.ok(PROVIDERS.deepseek.models.some((item) => item.id === 'deepseek-v4-flash'));
+  assert.ok(PROVIDERS.openai.models.some((item) => item.id === 'gpt-5.6-luna'));
+  assert.strictEqual(modelsEndpoint('https://relay.example/v1'), 'https://relay.example/v1/models');
+  assert.strictEqual(modelsEndpoint('https://relay.example/v1/chat/completions'), 'https://relay.example/v1/models');
 });
 
 test('API Key 与总结缓存按服务商和 Base URL 隔离', () => {
@@ -73,6 +82,19 @@ test('Chat Completions 返回解析兼容字符串与内容数组', () => {
   assert.strictEqual(extractResponseText({ choices: [{ message: { content: '总结' } }] }), '总结');
   assert.strictEqual(extractResponseText({ choices: [{ message: { content: [{ text: '总' }, { text: '结' }] } }] }), '总结');
   assert.throws(() => extractResponseText({ choices: [] }), /为空/);
+});
+
+test('模型列表兼容 OpenAI 与 Ollama 返回格式', async () => {
+  assert.deepStrictEqual(extractModelIds({ data: [{ id: 'model-a' }, { id: 'model-b' }] }), ['model-a', 'model-b']);
+  assert.deepStrictEqual(extractModelIds({ models: [{ name: 'qwen3:4b' }, { model: 'llama3.2' }] }), ['qwen3:4b', 'llama3.2']);
+  let requestedUrl = '';
+  const fakeFetch = async (url) => {
+    requestedUrl = url;
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: 'model-a' }] }) };
+  };
+  const models = await listModels(fakeFetch, { provider: 'custom', baseUrl: 'https://relay.example/v1', model: '' }, 'key');
+  assert.deepStrictEqual(models, ['model-a']);
+  assert.strictEqual(requestedUrl, 'https://relay.example/v1/models');
 });
 
 test('阅读对话只接受用户与助手历史，并隔离章节内提示词', () => {
@@ -141,6 +163,26 @@ test('普通对话不套用有珠人设', async () => {
   assert.strictEqual(captured.temperature, 0.25);
   assert.strictEqual(captured.messages[0].role, 'system');
   assert.doesNotMatch(captured.messages[0].content, /有珠/);
+});
+
+test('DeepSeek V4 连接测试关闭默认思考并兼容空正文', async () => {
+  let captured;
+  const fakeFetch = async (url, options) => {
+    captured = JSON.parse(options.body);
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '', reasoning_content: '连接正常' } }] }) };
+  };
+  const result = await testConnection(fakeFetch, { provider: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash' }, 'key');
+  assert.strictEqual(result, '连接成功');
+  assert.strictEqual(captured.max_tokens, 256);
+  assert.deepStrictEqual(captured.thinking, { type: 'disabled' });
+});
+
+test('连接测试不会把完全空白的消息误判为成功', async () => {
+  const fakeFetch = async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '' } }] }) });
+  await assert.rejects(
+    testConnection(fakeFetch, { provider: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash' }, 'key'),
+    /为空/
+  );
 });
 
 test('有珠只生成受控的一句话短评并限制输出长度', async () => {

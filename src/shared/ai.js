@@ -6,10 +6,25 @@
   'use strict';
 
   const PROVIDERS = {
-    openai: { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKeyRequired: true },
-    deepseek: { label: 'DeepSeek', baseUrl: 'https://api.deepseek.com', apiKeyRequired: true },
-    ollama: { label: 'Ollama（本地）', baseUrl: 'http://127.0.0.1:11434/v1', apiKeyRequired: false },
-    custom: { label: '自定义兼容接口', baseUrl: '', apiKeyRequired: true },
+    openai: {
+      label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKeyRequired: true,
+      models: [
+        { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna（轻量）' },
+        { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra（均衡）' },
+        { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol（旗舰）' },
+        { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini（兼容）' },
+      ],
+    },
+    deepseek: {
+      label: 'DeepSeek', baseUrl: 'https://api.deepseek.com', apiKeyRequired: true,
+      models: [
+        { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash（推荐）' },
+        { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
+        { id: 'deepseek-v4-flash-vision-exp', label: 'DeepSeek V4 Flash Vision（实验）' },
+      ],
+    },
+    ollama: { label: 'Ollama（本地）', baseUrl: 'http://127.0.0.1:11434/v1', apiKeyRequired: false, models: [] },
+    custom: { label: '自定义兼容接口', baseUrl: '', apiKeyRequired: true, models: [] },
   };
 
   const DEFAULT_CONFIG = {
@@ -70,6 +85,13 @@
   function chatEndpoint(baseUrl) {
     const base = normalizeBaseUrl(baseUrl);
     return /\/chat\/completions$/i.test(base) ? base : base + '/chat/completions';
+  }
+
+  function modelsEndpoint(baseUrl) {
+    const base = normalizeBaseUrl(baseUrl);
+    return /\/chat\/completions$/i.test(base)
+      ? base.replace(/\/chat\/completions$/i, '/models')
+      : (/\/models$/i.test(base) ? base : base + '/models');
   }
 
   function providerNeedsKey(provider) {
@@ -262,6 +284,16 @@
     throw new Error('AI 返回内容为空或格式不兼容');
   }
 
+  function extractModelIds(value) {
+    const candidates = value && Array.isArray(value.data)
+      ? value.data
+      : (value && Array.isArray(value.models) ? value.models : []);
+    return Array.from(new Set(candidates.map((item) => {
+      if (typeof item === 'string') return item.trim();
+      return String(item && (item.id || item.name || item.model) || '').trim();
+    }).filter(Boolean))).slice(0, 200);
+  }
+
   function textHash(value) {
     const text = String(value || '');
     let hash = 2166136261;
@@ -287,18 +319,23 @@
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (String(apiKey || '').trim()) headers.Authorization = 'Bearer ' + String(apiKey).trim();
+      const body = {
+        model: normalized.model,
+        messages,
+        temperature: Number.isFinite(options && options.temperature) ? options.temperature : 0.2,
+        stream: false,
+        max_tokens: Number(options && options.maxTokens) || 1000,
+      };
+      const officialDeepSeekV4 = normalized.provider === 'deepseek' &&
+        new URL(normalized.baseUrl).hostname === 'api.deepseek.com' &&
+        /^deepseek-v4-/i.test(normalized.model);
+      if (officialDeepSeekV4) body.thinking = { type: 'disabled' };
       const response = await fetchImpl(chatEndpoint(normalized.baseUrl), {
         method: 'POST',
         headers,
         redirect: 'error',
         signal: controller.signal,
-        body: JSON.stringify({
-          model: normalized.model,
-          messages,
-          temperature: Number.isFinite(options && options.temperature) ? options.temperature : 0.2,
-          stream: false,
-          max_tokens: Number(options && options.maxTokens) || 1000,
-        }),
+        body: JSON.stringify(body),
       });
       let data = null;
       try { data = await response.json(); } catch (error) {}
@@ -306,7 +343,14 @@
         const detail = data && data.error && (data.error.message || data.error.code);
         throw new Error('AI 接口返回 ' + response.status + (detail ? '：' + detail : ''));
       }
-      return extractResponseText(data);
+      try {
+        return extractResponseText(data);
+      } catch (error) {
+        const message = data && data.choices && data.choices[0] && data.choices[0].message;
+        const reasoning = message && (message.reasoning_content || message.reasoning);
+        if (options && options.allowEmptyResponse && typeof reasoning === 'string' && reasoning.trim()) return '连接成功';
+        throw error;
+      }
     } catch (error) {
       if (error && error.name === 'AbortError') throw new Error('AI 请求超时，请检查网络或模型状态');
       throw error;
@@ -319,7 +363,34 @@
     return requestChat(fetchImpl, config, apiKey, [
       { role: 'system', content: '你是连接测试助手。' },
       { role: 'user', content: '只回复“连接成功”。' },
-    ], Object.assign({}, options, { maxTokens: 16 }));
+    ], Object.assign({}, options, { maxTokens: 256, allowEmptyResponse: true }));
+  }
+
+  async function listModels(fetchImpl, config, apiKey, options) {
+    if (typeof fetchImpl !== 'function') throw new Error('当前环境无法读取模型列表');
+    const normalized = normalizeConfig(config);
+    if (providerNeedsKey(normalized.provider) && !String(apiKey || '').trim()) throw new Error('请填写并保存 API Key');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(1000, Number(options && options.timeoutMs) || 20000));
+    try {
+      const headers = {};
+      if (String(apiKey || '').trim()) headers.Authorization = 'Bearer ' + String(apiKey).trim();
+      const response = await fetchImpl(modelsEndpoint(normalized.baseUrl), { method: 'GET', headers, redirect: 'error', signal: controller.signal });
+      let data = null;
+      try { data = await response.json(); } catch (error) {}
+      if (!response.ok) {
+        const detail = data && data.error && (data.error.message || data.error.code);
+        throw new Error('模型列表接口返回 ' + response.status + (detail ? '：' + detail : ''));
+      }
+      const models = extractModelIds(data);
+      if (!models.length) throw new Error('接口没有返回可用模型，请手动填写模型名称');
+      return models;
+    } catch (error) {
+      if (error && error.name === 'AbortError') throw new Error('读取模型列表超时');
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async function summarize(fetchImpl, config, apiKey, source, options) {
@@ -366,6 +437,7 @@
     normalizeProfile,
     normalizeProfiles,
     chatEndpoint,
+    modelsEndpoint,
     providerNeedsKey,
     configIdentity,
     secretScopeKey,
@@ -379,10 +451,12 @@
     aliceCommentMessages,
     cleanAliceComment,
     extractResponseText,
+    extractModelIds,
     textHash,
     cacheKey,
     requestChat,
     testConnection,
+    listModels,
     summarize,
     chat,
     aliceComment,

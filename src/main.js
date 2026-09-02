@@ -400,6 +400,7 @@ function createWindow() {
               const aiCenterOpened = __gaiaDebug.getView() === 'ai';
               const aiCenterCard = document.querySelector('.ai-config-card');
               const aiCenterLayout = !!aiCenterCard && aiCenterCard.offsetWidth >= 420 && aiCenterCard.offsetHeight > 300;
+              const aiModelPresets = document.getElementById('ai-model-options').children.length >= 3;
               document.getElementById('btn-ai-back').click();
               const aiCenterReturned = __gaiaDebug.getView() === 'reader';
               __gaiaDebug.openAiAssistant();
@@ -407,9 +408,12 @@ function createWindow() {
               const aiPanelRect = document.getElementById('ai-summary-panel').getBoundingClientRect();
               const aiPanelOpened = !document.getElementById('ai-summary-panel').hidden && aiChatState.messages >= 1 &&
                 aiPanelRect.width >= 340 && aiPanelRect.left > 0 && aiPanelRect.right < innerWidth;
+              document.getElementById('btn-ai-appearance').click();
+              const aiAppearanceCompact = !document.getElementById('ai-appearance-popover').hidden && !document.querySelector('.ai-typography-toolbar');
+              document.getElementById('btn-ai-appearance').click();
               __gaiaDebug.openAiAssistant();
               const aiUiReady = aiUi.homeEntry && aiUi.centerView && aiUi.settingsSection && aiUi.summaryButton && aiUi.summaryPanel &&
-                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiCenterReturned && aiPanelOpened &&
+                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiCenterReturned && aiPanelOpened && aiAppearanceCompact &&
                 aiSource.bookPath === fixture && aiSource.chapterId.startsWith('epub:') && aiSource.content.length > 0;
               const annotationsBefore = __gaiaDebug.getAnnotations().length;
               const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');
@@ -560,7 +564,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -1212,9 +1216,22 @@ ipcMain.handle('ai:profile:delete', (event, profileId) => {
   return publicAiProfiles(profiles);
 });
 ipcMain.handle('ai:profile:test', async (event, profileId) => {
-  const profile = aiProfileById(profileId);
-  const result = await GaiaAi.testConnection(aiFetch, profile, aiKeyForProfile(profile), { timeoutMs: 30000 });
-  return { ok: true, message: result.slice(0, 80), targetHost: new URL(profile.baseUrl).host };
+  try {
+    const profile = aiProfileById(profileId);
+    const result = await GaiaAi.testConnection(aiFetch, profile, aiKeyForProfile(profile), { timeoutMs: 30000 });
+    return { ok: true, message: result.slice(0, 80), targetHost: new URL(profile.baseUrl).host };
+  } catch (error) {
+    return { ok: false, error: String(error && error.message || error || '连接测试失败') };
+  }
+});
+ipcMain.handle('ai:profile:models', async (event, profileId) => {
+  try {
+    const profile = aiProfileById(profileId);
+    const models = await GaiaAi.listModels(aiFetch, profile, aiKeyForProfile(profile), { timeoutMs: 20000 });
+    return { ok: true, models, targetHost: new URL(profile.baseUrl).host };
+  } catch (error) {
+    return { ok: false, error: String(error && error.message || error || '读取模型列表失败') };
+  }
 });
 ipcMain.handle('ai:summarize', async (event, payload) => {
   const source = payload && typeof payload === 'object' ? payload : {};

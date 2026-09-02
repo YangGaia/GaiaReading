@@ -102,10 +102,13 @@ const els = {
   aiReaderProfile: $('ai-reader-profile'),
   aiFontSelect: $('ai-font-select'),
   aiFontValue: $('ai-font-value'),
+  aiAppearancePopover: $('ai-appearance-popover'),
   aiProvider: $('ai-provider'),
   aiBaseUrl: $('ai-base-url'),
   aiApiKey: $('ai-api-key'),
   aiModel: $('ai-model'),
+  aiModelOptions: $('ai-model-options'),
+  aiModelHint: $('ai-model-hint'),
   aiAutoSummarize: $('ai-auto-summarize'),
   aiConfigTarget: $('ai-config-target'),
   aiConfigStatus: $('ai-config-status'),
@@ -132,6 +135,7 @@ const state = {
   aiProfiles: { activeId: '', items: [] },
   aiConfig: null,
   aiEditingProfileId: null,
+  aiDiscoveredModels: {},
   aiSummaries: {},
   aiSummaryLoading: false,
   aiChatLoading: false,
@@ -2583,6 +2587,26 @@ function renderAiProfiles() {
   els.aiReaderProfile.disabled = !state.aiProfiles.items.length;
 }
 
+function updateAiModelOptions() {
+  const providerId = els.aiProvider.value || 'custom';
+  const provider = AI_PROVIDERS[providerId] || AI_PROVIDERS.custom;
+  const discovered = state.aiDiscoveredModels[state.aiEditingProfileId] || [];
+  const presets = Array.isArray(provider.models) ? provider.models : [];
+  const labels = new Map(presets.map((item) => [item.id, item.label || item.id]));
+  const ids = Array.from(new Set([...presets.map((item) => item.id), ...discovered]));
+  els.aiModelOptions.replaceChildren();
+  for (const id of ids) {
+    const option = document.createElement('option');
+    option.value = id;
+    option.label = labels.get(id) || id;
+    els.aiModelOptions.appendChild(option);
+  }
+  if (discovered.length) els.aiModelHint.textContent = '已从当前接口读取 ' + discovered.length + ' 个模型；也可以手动输入其他模型 ID。';
+  else if (presets.length) els.aiModelHint.textContent = '已内置 ' + presets.length + ' 个常用模型；也可以手动输入其他模型 ID。';
+  else els.aiModelHint.textContent = providerId === 'ollama' ? '点击“读取模型”获取本机已安装模型，也可以手动输入。' : '点击“读取模型”获取接口模型，也可以手动输入模型 ID。';
+  els.aiModel.placeholder = presets.length ? '请选择模型或输入其他模型 ID' : '填写或读取模型 ID';
+}
+
 function updateAiConfigForm() {
   renderAiProfiles();
   const config = editingAiProfile() || { name: '', provider: 'deepseek', baseUrl: AI_PROVIDERS.deepseek.baseUrl, model: '', autoSummarize: false };
@@ -2598,8 +2622,7 @@ function updateAiConfigForm() {
   $('btn-ai-key-toggle').disabled = !needsKey;
   $('btn-ai-key-clear').disabled = !needsKey || !config.hasApiKey || !config.id;
   $('btn-ai-profile-delete').disabled = !config.id || state.aiProfiles.items.length <= 1;
-  const examples = { openai: '例如：gpt-4o-mini', deepseek: '例如：deepseek-chat', ollama: '例如：qwen3:4b', custom: '填写接口支持的模型名称' };
-  els.aiModel.placeholder = examples[els.aiProvider.value] || examples.custom;
+  updateAiModelOptions();
   updateAiTarget();
   updateAiConfigurationSummary();
 }
@@ -2661,8 +2684,24 @@ async function testAiConfig() {
   if (!await saveAiConfig({ quiet: true })) return;
   try {
     const result = await window.api.aiProfileTest(state.aiProfiles.activeId);
+    if (!result || result.ok !== true) throw new Error(result && result.error ? result.error : '连接测试失败');
     setAiConfigStatus('连接成功：' + result.targetHost, 'success');
     els.aiCenterTopState.textContent = state.aiConfig.name + ' · 连接成功';
+  } catch (error) {
+    setAiConfigStatus(aiErrorMessage(error), 'error');
+  }
+}
+
+async function refreshAiModels() {
+  setAiConfigStatus('正在保存接口并读取模型列表…');
+  if (!await saveAiConfig({ quiet: true })) return;
+  try {
+    const result = await window.api.aiProfileModels(state.aiProfiles.activeId);
+    if (!result || result.ok !== true) throw new Error(result && result.error ? result.error : '读取模型列表失败');
+    state.aiDiscoveredModels[state.aiProfiles.activeId] = result.models;
+    updateAiModelOptions();
+    if (!els.aiModel.value && result.models[0]) els.aiModel.value = result.models[0];
+    setAiConfigStatus('已读取 ' + result.models.length + ' 个模型，请选择后保存。', 'success');
   } catch (error) {
     setAiConfigStatus(aiErrorMessage(error), 'error');
   }
@@ -2681,6 +2720,8 @@ async function clearAiApiKey() {
 function newAiProfile() {
   state.aiEditingProfileId = null;
   updateAiConfigForm();
+  const preset = AI_PROVIDERS[els.aiProvider.value] && AI_PROVIDERS[els.aiProvider.value].models;
+  if (preset && preset[0]) els.aiModel.value = preset[0].id;
   setAiConfigStatus('正在新建接口，填写后保存即可加入列表。');
   els.aiProfileName.focus();
 }
@@ -2721,15 +2762,18 @@ function changeAiProvider() {
   const provider = els.aiProvider.value;
   const preset = AI_PROVIDERS[provider] || AI_PROVIDERS.custom;
   if (preset.baseUrl) els.aiBaseUrl.value = preset.baseUrl;
+  const selected = editingAiProfile();
+  if (!selected || selected.provider !== provider) {
+    if (preset.models && preset.models[0]) els.aiModel.value = preset.models[0].id;
+    else if (provider === 'ollama') els.aiModel.value = '';
+  }
   const needsKey = preset.apiKeyRequired;
   els.aiApiKey.disabled = !needsKey;
-  const selected = editingAiProfile();
   const sameScope = selected && selected.provider === provider && selected.baseUrl === els.aiBaseUrl.value.trim();
   els.aiApiKey.placeholder = needsKey ? ((sameScope && selected.hasApiKey) ? '已加密保存；留空保持不变' : '请输入 API Key') : '本地接口无需 API Key';
   $('btn-ai-key-toggle').disabled = !needsKey;
   $('btn-ai-key-clear').disabled = !needsKey || !(sameScope && selected.hasApiKey);
-  const examples = { openai: '例如：gpt-4o-mini', deepseek: '例如：deepseek-chat', ollama: '例如：qwen3:4b', custom: '填写接口支持的模型名称' };
-  els.aiModel.placeholder = examples[provider] || examples.custom;
+  updateAiModelOptions();
   updateAiTarget();
   setAiConfigStatus('');
 }
@@ -2801,7 +2845,7 @@ function showAiSummaryResult(source, cached) {
     : (state.aiConfig && state.aiConfig.model ? state.aiConfig.model + ' · ' + state.aiConfig.targetHost : '尚未配置 AI 接口');
   els.aiSummaryContent.textContent = cached && cached.summary ? cached.summary : '';
   els.aiSummaryCard.hidden = !(cached && cached.summary);
-  els.aiSummaryCard.open = !!(cached && cached.summary);
+  els.aiSummaryCard.open = false;
   els.aiSummaryStatus.textContent = cached ? '已读取本章的本地总结。' : '可以总结，也可以直接提问。';
   els.aiSummaryStatus.classList.remove('error');
   $('btn-ai-summary-copy').disabled = !(cached && cached.summary);
@@ -2862,7 +2906,16 @@ function applyAiTypography() {
   els.aiSummaryPanel.style.setProperty('--ai-line-height', String(typography.lineHeight));
   els.aiFontSelect.value = typography.fontName;
   els.aiFontValue.textContent = typography.fontSize + 'px';
-  $('btn-ai-line-height').textContent = '行距 ' + typography.lineHeight.toFixed(1);
+  $('btn-ai-line-height').textContent = typography.lineHeight.toFixed(1);
+}
+
+function setAiAppearanceOpen(open) {
+  els.aiAppearancePopover.hidden = !open;
+  $('btn-ai-appearance').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function toggleAiAppearanceMenu() {
+  setAiAppearanceOpen(els.aiAppearancePopover.hidden);
 }
 
 function changeAiFontSize(delta) {
@@ -2917,6 +2970,7 @@ function restoreAiPanelGeometry() {
 }
 
 function toggleAiPanelMinimized() {
+  setAiAppearanceOpen(false);
   const minimized = els.aiSummaryPanel.classList.contains('minimized');
   if (!minimized) saveAiPanelGeometry();
   state.prefs.aiWindow = Object.assign({}, state.prefs.aiWindow || {}, { minimized: !minimized });
@@ -2963,6 +3017,7 @@ function initAiPanelInteractions() {
 }
 
 function closeAiAssistantPanel() {
+  setAiAppearanceOpen(false);
   els.aiSummaryPanel.hidden = true;
   $('btn-ai-reader').classList.remove('open');
 }
@@ -3037,6 +3092,7 @@ async function runCurrentChapterSummary() {
     }
     if (isCurrentAiSource(source)) {
       showAiSummaryResult(source, result);
+      els.aiSummaryCard.open = true;
       renderAiChat(source);
       els.aiSummaryStatus.textContent = '总结完成并已保存在本地。';
     }
@@ -3240,6 +3296,7 @@ function bindEvents() {
   $('btn-ai-profile-delete').addEventListener('click', deleteAiProfile);
   $('btn-ai-save').addEventListener('click', () => saveAiConfig());
   $('btn-ai-test').addEventListener('click', testAiConfig);
+  $('btn-ai-model-refresh').addEventListener('click', refreshAiModels);
   $('btn-ai-key-clear').addEventListener('click', clearAiApiKey);
   $('btn-ai-key-toggle').addEventListener('click', () => {
     const visible = els.aiApiKey.type === 'text';
@@ -3296,6 +3353,7 @@ function bindEvents() {
   $('btn-ai-summary').addEventListener('click', openAiSummaryPanel);
   $('btn-ai-reader').addEventListener('click', openAiSummaryPanel);
   $('btn-ai-summary-close').addEventListener('click', closeAiAssistantPanel);
+  $('btn-ai-appearance').addEventListener('click', toggleAiAppearanceMenu);
   $('btn-ai-summary-minimize').addEventListener('click', toggleAiPanelMinimized);
   $('btn-ai-summary-run').addEventListener('click', runCurrentChapterSummary);
   $('btn-ai-summary-copy').addEventListener('click', copyAiSummary);
@@ -3310,6 +3368,9 @@ function bindEvents() {
   $('btn-ai-font-minus').addEventListener('click', () => changeAiFontSize(-1));
   $('btn-ai-font-plus').addEventListener('click', () => changeAiFontSize(1));
   $('btn-ai-line-height').addEventListener('click', cycleAiLineHeight);
+  document.addEventListener('pointerdown', (event) => {
+    if (!els.aiAppearancePopover.hidden && !event.target.closest('#ai-appearance-popover, #btn-ai-appearance')) setAiAppearanceOpen(false);
+  });
   els.aiChatSend.addEventListener('click', () => sendAiQuestion());
   els.aiChatInput.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
