@@ -210,8 +210,6 @@
         <p id="ai-summary-chapter" class="ai-summary-chapter">当前章节</p>
         <p id="ai-summary-target" class="ai-summary-target"></p>
         <div class="ai-quick-actions">
-          <button type="button" data-ai-quick="梳理本章出现的人物关系。">人物关系</button>
-          <button type="button" data-ai-quick="找出本章重要信息和可能的伏笔，只依据本章正文。">重要伏笔</button>
           <button type="button" data-ai-alice="summary">有珠概括</button>
           <button type="button" data-ai-alice="comment">有珠吐槽</button>
         </div>
@@ -221,7 +219,9 @@
             <div id="ai-chat-messages" class="ai-chat-messages" aria-live="polite"></div>
             <div class="ai-chat-composer">
               <div class="ai-chat-input-shortcuts" aria-label="输入快捷指令">
-                <button id="btn-ai-summary-prompt" type="button">总结本章</button>
+                <button id="btn-ai-summary-prompt" type="button" data-ai-prompt="简要概括本章内容">总结本章</button>
+                <button id="btn-ai-characters-prompt" type="button" data-ai-prompt="总结本章人物关系">人物关系</button>
+                <button id="btn-ai-foreshadow-prompt" type="button" data-ai-prompt="总结本章伏笔">伏笔</button>
               </div>
               <div class="ai-chat-compose-row">
                 <textarea id="ai-chat-input" maxlength="2000" rows="3" placeholder="问问当前章节，Ctrl + Enter 发送…"></textarea>

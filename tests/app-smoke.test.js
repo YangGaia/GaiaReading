@@ -90,15 +90,16 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   const ai = fs.readFileSync(path.join(root, 'src', 'shared', 'ai.js'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
 
-  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-menu', 'btn-ai-model-refresh', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-assistant', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-minimize', 'btn-ai-summary-prompt', 'ai-chat-pane', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input', 'drawer-lookup', 'search-engine', 'search-custom-row', 'search-custom-template']) {
+  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-menu', 'btn-ai-model-refresh', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-assistant', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-minimize', 'btn-ai-summary-prompt', 'btn-ai-characters-prompt', 'btn-ai-foreshadow-prompt', 'ai-chat-pane', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input', 'drawer-lookup', 'search-engine', 'search-custom-row', 'search-custom-template']) {
     assert.ok(html.includes(`id="${id}"`), `AI 界面缺少 ${id}`);
   }
-  for (const bridge of ['aiProfilesGet', 'aiProfileSave', 'aiProfileActivate', 'aiProfileDelete', 'aiProfileTest', 'aiProfileModels', 'aiChat', 'aiAliceComment', 'dictionaryOpen', 'searchWeb']) {
+  for (const bridge of ['aiProfilesGet', 'aiProfileSave', 'aiProfileActivate', 'aiProfileDelete', 'aiProfileTest', 'aiProfileModels', 'aiChat', 'aiChatCancel', 'aiAliceComment', 'dictionaryOpen', 'searchWeb']) {
     assert.ok(preload.includes(bridge), `preload 缺少 ${bridge}`);
   }
   assert.ok(main.includes('safeStorage.encryptString'), 'API Key 必须通过 Electron safeStorage 加密');
   assert.ok(main.includes('safeStorage.decryptString'), 'API Key 必须只在主进程解密');
   assert.ok(main.includes("ipcMain.handle('ai:chat'"), '缺少受控 AI 对话 IPC');
+  assert.ok(main.includes("ipcMain.handle('ai:chat:cancel'") && ai.includes('externalSignal.addEventListener'), 'AI 对话必须能取消实际网络请求');
   assert.ok(!main.includes("ipcMain.handle('ai:summarize'") && !preload.includes('aiSummarize'), '独立总结调用链应被移除');
   assert.ok(main.includes("ipcMain.handle('ai:alice-comment'"), '缺少有珠短评 IPC');
   assert.ok(main.includes("ipcMain.handle('ai:profile:activate'"), '缺少多接口切换 IPC');
@@ -118,10 +119,14 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(app.includes('toggleAiAppearanceMenu'), 'AI 排版设置应收进 Aa 弹出菜单');
   assert.ok(app.includes('setAiAppearanceOpen(els.aiAppearancePopover.hidden)'), 'Aa 按钮应能正确切换 AI 排版弹层');
   assert.ok(!html.includes('id="ai-summary-pane"') && !html.includes('id="btn-ai-tab-summary"'), '独立本章总结页签应被移除');
-  assert.ok(app.includes("$('btn-ai-summary-prompt').addEventListener('click', fillAiSummaryPrompt)"), '总结本章应作为输入框快捷指令');
-  const summaryPrompt = app.slice(app.indexOf('function fillAiSummaryPrompt()'), app.indexOf('function aiChatKey'));
-  assert.ok(summaryPrompt.includes("const prompt = '总结简要概括本章内容'") && summaryPrompt.includes('els.aiChatInput.value = prompt') && summaryPrompt.includes('确认后点击发送'), '总结快捷键应只填入指定的简短待确认指令');
+  assert.ok(app.includes("document.querySelectorAll('[data-ai-prompt]')"), '三个章节快捷键应共用输入逻辑');
+  for (const prompt of ['简要概括本章内容', '总结本章人物关系', '总结本章伏笔']) {
+    assert.ok(html.includes(`data-ai-prompt="${prompt}"`), `缺少快捷指令：${prompt}`);
+  }
+  const summaryPrompt = app.slice(app.indexOf('function fillAiPrompt('), app.indexOf('function aiChatKey'));
+  assert.ok(summaryPrompt.includes('els.aiChatInput.value = prompt') && summaryPrompt.includes('确认后点击发送'), '章节快捷键应只填入指定的简短待确认指令');
   assert.ok(!summaryPrompt.includes('sendAiQuestion') && !summaryPrompt.includes('window.api.aiChat'), '点击总结快捷键不得自动提交请求');
+  assert.ok(app.includes("'打断并发送'") && app.includes("'停止生成'") && app.includes('await cancelActiveAiChat()'), '回复期间应支持停止或用新消息打断');
   assert.ok(app.includes('findEpubNavLabel(nav, href)'), 'AI 章节标题应按当前 EPUB 资源路径精确匹配目录');
   assert.ok(app.includes('resolveEpubTocTarget(epub.spine && epub.spine.spineItems, item.href)'), 'EPUB 目录跳转前应把目录路径解析为 spine 目标');
   assert.ok(app.includes('selectChapterScope(entries, index, currentOffset)'), 'EPUB 对话应按目录边界截取当前小章');

@@ -47,6 +47,7 @@ let dictionaryWindow = null;
 let dictionarySessionSecured = false;
 let store = null;
 const repairedEpubCache = new Map();
+const aiChatRequests = new Map();
 
 function aiSecretFile() {
   return path.join(app.getPath('userData'), 'gaia-ai-key.bin');
@@ -149,6 +150,12 @@ function aiKeyForProfile(profile) {
 
 function aiFetch(url, options) {
   return net.fetch(url, options);
+}
+
+function aiChatRequestKey(sender, requestId) {
+  const id = String(requestId || '').trim();
+  if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) throw new Error('AI 请求 ID 无效');
+  return String(sender.id) + ':' + id;
 }
 
 function epubFileStamp(filePath) {
@@ -483,8 +490,15 @@ function createWindow() {
               const aiAppearanceCompact = !document.getElementById('ai-appearance-popover').hidden && !document.querySelector('.ai-typography-toolbar');
               document.getElementById('btn-ai-appearance').click();
               const promptMessagesBefore = __gaiaDebug.getAiChatState().messages;
-              document.getElementById('btn-ai-summary-prompt').click();
-              const aiSummaryPromptReady = document.getElementById('ai-chat-input').value === '总结简要概括本章内容' &&
+              const promptShortcuts = [
+                ['btn-ai-summary-prompt', '简要概括本章内容'],
+                ['btn-ai-characters-prompt', '总结本章人物关系'],
+                ['btn-ai-foreshadow-prompt', '总结本章伏笔'],
+              ];
+              const aiSummaryPromptReady = promptShortcuts.every(([id, expected]) => {
+                document.getElementById(id).click();
+                return document.getElementById('ai-chat-input').value === expected;
+              }) &&
                 !document.getElementById('ai-chat-pane').hidden && __gaiaDebug.getAiChatState().messages === promptMessagesBefore;
               document.getElementById('btn-ai-summary-minimize').click();
               const minimizedPanel = document.getElementById('ai-summary-panel');
@@ -1343,6 +1357,14 @@ ipcMain.handle('ai:profile:models', async (event, profileId) => {
     return { ok: false, error: String(error && error.message || error || '读取模型列表失败') };
   }
 });
+ipcMain.handle('ai:chat:cancel', (event, requestId) => {
+  let key;
+  try { key = aiChatRequestKey(event.sender, requestId); } catch (error) { return false; }
+  const controller = aiChatRequests.get(key);
+  if (!controller) return false;
+  controller.abort();
+  return true;
+});
 ipcMain.handle('ai:chat', async (event, payload) => {
   const input = payload && typeof payload === 'object' ? payload : {};
   const source = input.source && typeof input.source === 'object' ? input.source : {};
@@ -1350,12 +1372,21 @@ ipcMain.handle('ai:chat', async (event, payload) => {
   if (!content) throw new Error('当前章节没有可供 AI 阅读的文字');
   if (content.length > 180000) throw new Error('当前章节超过 18 万字，请缩小阅读范围');
   const profile = aiProfileById(input.profileId);
-  const answer = await GaiaAi.chat(aiFetch, profile, aiKeyForProfile(profile), {
-    bookTitle: String(source.bookTitle || '').slice(0, 300),
-    chapterTitle: String(source.chapterTitle || '').slice(0, 300),
-    content,
-  }, input.question, input.history, { timeoutMs: 90000 });
-  return { answer, provider: profile.provider, model: profile.model, targetHost: new URL(profile.baseUrl).host };
+  const requestKey = aiChatRequestKey(event.sender, input.requestId);
+  const controller = new AbortController();
+  const previous = aiChatRequests.get(requestKey);
+  if (previous) previous.abort();
+  aiChatRequests.set(requestKey, controller);
+  try {
+    const answer = await GaiaAi.chat(aiFetch, profile, aiKeyForProfile(profile), {
+      bookTitle: String(source.bookTitle || '').slice(0, 300),
+      chapterTitle: String(source.chapterTitle || '').slice(0, 300),
+      content,
+    }, input.question, input.history, { timeoutMs: 90000, signal: controller.signal });
+    return { answer, provider: profile.provider, model: profile.model, targetHost: new URL(profile.baseUrl).host };
+  } finally {
+    if (aiChatRequests.get(requestKey) === controller) aiChatRequests.delete(requestKey);
+  }
 });
 ipcMain.handle('ai:alice-comment', async (event, payload) => {
   const input = payload && typeof payload === 'object' ? payload : {};

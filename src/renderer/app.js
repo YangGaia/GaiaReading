@@ -146,6 +146,9 @@ const state = {
   aiEditingProfileId: null,
   aiDiscoveredModels: {},
   aiChatLoading: false,
+  aiChatRequestId: '',
+  aiChatInterrupting: false,
+  aiAliceLoading: false,
   aiChats: {},
   aiCenterReturnView: 'home',
   readingStats: createReadingStats(),
@@ -638,6 +641,11 @@ function closeReaderContent() {
   hideSelectionToolbar();
   els.pageNav.hidden = true;
   $('btn-ai-reader').classList.remove('open');
+  if (state.aiChatRequestId) window.api.aiChatCancel(state.aiChatRequestId).catch(() => {});
+  state.aiChatLoading = false;
+  state.aiChatRequestId = '';
+  state.aiChatInterrupting = false;
+  updateAiChatComposer();
   state.current = null;
 }
 
@@ -3174,17 +3182,47 @@ function showAiAssistantChapter(source) {
   els.aiSummaryStatus.classList.remove('error');
 }
 
-function fillAiSummaryPrompt() {
-  const prompt = '总结简要概括本章内容';
+function fillAiPrompt(prompt) {
+  prompt = String(prompt || '').trim();
+  if (!prompt) return;
   els.aiChatInput.value = prompt;
   els.aiChatInput.focus();
   els.aiChatInput.setSelectionRange(prompt.length, prompt.length);
-  els.aiSummaryStatus.textContent = '总结指令已填入输入框，确认后点击发送。';
+  els.aiSummaryStatus.textContent = '快捷指令已填入输入框，确认后点击发送。';
   els.aiSummaryStatus.classList.remove('error');
 }
 
 function aiChatKey(source) {
   return chapterSourceKey(source);
+}
+
+function nextAiChatRequestId() {
+  return 'chat-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function updateAiChatComposer() {
+  if (state.aiChatInterrupting) {
+    els.aiChatSend.disabled = true;
+    els.aiChatSend.textContent = '正在打断…';
+    return;
+  }
+  if (state.aiAliceLoading) {
+    els.aiChatSend.disabled = true;
+    els.aiChatSend.textContent = '有珠回应中';
+    return;
+  }
+  els.aiChatSend.disabled = false;
+  if (!state.aiChatLoading) {
+    els.aiChatSend.textContent = '发送';
+    return;
+  }
+  els.aiChatSend.textContent = els.aiChatInput.value.trim() ? '打断并发送' : '停止生成';
+}
+
+async function cancelActiveAiChat() {
+  const requestId = state.aiChatRequestId;
+  if (!state.aiChatLoading || !requestId) return false;
+  try { return await window.api.aiChatCancel(requestId); } catch (error) { return false; }
 }
 
 function isCurrentAiSource(source) {
@@ -3399,15 +3437,25 @@ function ensureAiReady() {
 }
 
 async function sendAiQuestion(question, options) {
-  if (state.aiChatLoading) return;
+  if (state.aiAliceLoading || state.aiChatInterrupting) return;
+  const prompt = String(question == null ? els.aiChatInput.value : question).trim();
+  if (state.aiChatLoading) {
+    state.aiChatInterrupting = true;
+    updateAiChatComposer();
+    els.aiSummaryStatus.classList.remove('error');
+    els.aiSummaryStatus.textContent = prompt ? '正在打断上一条回答…' : '正在停止生成…';
+    await cancelActiveAiChat();
+    state.aiChatInterrupting = false;
+    updateAiChatComposer();
+    if (!prompt) return;
+  }
+  if (!prompt) return;
   let source;
   try { source = currentChapterSummarySource(); } catch (error) {
     els.aiSummaryStatus.textContent = aiErrorMessage(error);
     els.aiSummaryStatus.classList.add('error');
     return;
   }
-  const prompt = String(question == null ? els.aiChatInput.value : question).trim();
-  if (!prompt) return;
   try { ensureAiReady(); } catch (error) {
     els.aiSummaryStatus.textContent = aiErrorMessage(error);
     els.aiSummaryStatus.classList.add('error');
@@ -3421,31 +3469,43 @@ async function sendAiQuestion(question, options) {
   if (messages.length > 40) messages.splice(0, messages.length - 40);
   els.aiChatInput.value = '';
   renderAiChat(source);
+  const requestId = nextAiChatRequestId();
   state.aiChatLoading = true;
-  els.aiChatSend.disabled = true;
+  state.aiChatRequestId = requestId;
+  updateAiChatComposer();
   els.aiSummaryStatus.classList.remove('error');
   els.aiSummaryStatus.textContent = 'AI 正在阅读当前章节…';
   try {
-    const result = await window.api.aiChat({ source, question: prompt, history, profileId: state.aiProfiles.activeId });
+    const result = await window.api.aiChat({ source, question: prompt, history, profileId: state.aiProfiles.activeId, requestId });
+    if (state.aiChatRequestId !== requestId) return;
     messages.push({ role: 'assistant', content: result.answer });
     if (messages.length > 40) messages.splice(0, messages.length - 40);
     if (isCurrentAiSource(source)) els.aiSummaryStatus.textContent = '回答来自 ' + result.model + ' · ' + result.targetHost;
   } catch (error) {
+    if (state.aiChatRequestId !== requestId) return;
     const message = aiErrorMessage(error);
+    if (/AI 请求已取消/.test(message)) {
+      els.aiSummaryStatus.textContent = '已停止生成。';
+      els.aiSummaryStatus.classList.remove('error');
+      return;
+    }
     messages.push({ role: 'error', content: message });
     if (isCurrentAiSource(source)) {
       els.aiSummaryStatus.textContent = message;
       els.aiSummaryStatus.classList.add('error');
     }
   } finally {
-    state.aiChatLoading = false;
-    els.aiChatSend.disabled = false;
-    if (isCurrentAiSource(source)) renderAiChat(source);
+    if (state.aiChatRequestId === requestId) {
+      state.aiChatLoading = false;
+      state.aiChatRequestId = '';
+      updateAiChatComposer();
+      if (isCurrentAiSource(source)) renderAiChat(source);
+    }
   }
 }
 
 async function runAliceComment(kind) {
-  if (state.aiChatLoading) return;
+  if (state.aiChatLoading || state.aiAliceLoading) return;
   let source;
   try {
     source = currentChapterSummarySource();
@@ -3455,7 +3515,8 @@ async function runAliceComment(kind) {
     els.aiSummaryStatus.classList.add('error');
     return;
   }
-  state.aiChatLoading = true;
+  state.aiAliceLoading = true;
+  updateAiChatComposer();
   els.aiSummaryStatus.classList.remove('error');
   els.aiSummaryStatus.textContent = kind === 'summary' ? '有珠正在概括这一章…' : '有珠正在想怎么吐槽…';
   if (window.GaiaPet) window.GaiaPet.runEmotion('thinking');
@@ -3467,7 +3528,8 @@ async function runAliceComment(kind) {
     els.aiSummaryStatus.textContent = aiErrorMessage(error);
     els.aiSummaryStatus.classList.add('error');
   } finally {
-    state.aiChatLoading = false;
+    state.aiAliceLoading = false;
+    updateAiChatComposer();
   }
 }
 
@@ -3651,9 +3713,8 @@ function bindEvents() {
   $('btn-ai-summary-close').addEventListener('click', closeAiAssistantPanel);
   $('btn-ai-appearance').addEventListener('click', toggleAiAppearanceMenu);
   $('btn-ai-summary-minimize').addEventListener('click', toggleAiPanelMinimized);
-  $('btn-ai-summary-prompt').addEventListener('click', fillAiSummaryPrompt);
+  document.querySelectorAll('[data-ai-prompt]').forEach((button) => button.addEventListener('click', () => fillAiPrompt(button.dataset.aiPrompt)));
   $('btn-ai-chat-clear').addEventListener('click', clearCurrentAiChat);
-  document.querySelectorAll('[data-ai-quick]').forEach((button) => button.addEventListener('click', () => sendAiQuestion(button.dataset.aiQuick)));
   document.querySelectorAll('[data-ai-alice]').forEach((button) => button.addEventListener('click', () => runAliceComment(button.dataset.aiAlice)));
   els.aiFontSelect.addEventListener('change', () => {
     state.prefs.aiTypography = Object.assign(aiTypography(), { fontName: els.aiFontSelect.value });
@@ -3668,6 +3729,7 @@ function bindEvents() {
     if (!els.aiModelOptions.hidden && !event.target.closest('#ai-model-picker')) setAiModelMenuOpen(false);
   });
   els.aiChatSend.addEventListener('click', () => sendAiQuestion());
+  els.aiChatInput.addEventListener('input', updateAiChatComposer);
   els.aiChatInput.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
       ev.preventDefault();
@@ -4065,7 +4127,7 @@ window.__gaiaDebug = {
   getAiChapterSource: () => currentChapterSummarySource(),
   resolveAiChapterSource: async () => resolveSparseMobiAiSource(currentChapterSummarySource()),
   openAiAssistant: openAiAssistantPanel,
-  getAiChatState: () => ({ mode: 'assistant', loading: state.aiChatLoading, messages: els.aiChatMessages.children.length }),
+  getAiChatState: () => ({ mode: 'assistant', loading: state.aiChatLoading, requestId: state.aiChatRequestId, messages: els.aiChatMessages.children.length }),
   waitHome: () => state.homeReady,
   getView: () => {
     for (const key of Object.keys(views)) {

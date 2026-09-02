@@ -477,7 +477,17 @@
     if (providerNeedsKey(normalized.provider) && !String(apiKey || '').trim()) throw new Error('请填写并保存 API Key');
     const timeoutMs = Math.max(1000, Number(options && options.timeoutMs) || 60000);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const externalSignal = options && options.signal;
+    let timedOut = false;
+    const abortFromExternal = () => controller.abort();
+    if (externalSignal && typeof externalSignal.addEventListener === 'function') {
+      if (externalSignal.aborted) controller.abort();
+      else externalSignal.addEventListener('abort', abortFromExternal, { once: true });
+    }
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (String(apiKey || '').trim()) headers.Authorization = 'Bearer ' + String(apiKey).trim();
@@ -532,10 +542,14 @@
         throw emptyResponseError(data);
       }
     } catch (error) {
-      if (error && error.name === 'AbortError') throw new Error('AI 请求超时，请检查网络或模型状态');
+      if (externalSignal && externalSignal.aborted && !timedOut) throw new Error('AI 请求已取消');
+      if (error && error.name === 'AbortError') {
+        throw new Error('AI 请求超时，请检查网络或模型状态');
+      }
       throw error;
     } finally {
       clearTimeout(timer);
+      if (externalSignal && typeof externalSignal.removeEventListener === 'function') externalSignal.removeEventListener('abort', abortFromExternal);
     }
   }
 

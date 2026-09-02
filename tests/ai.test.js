@@ -207,6 +207,27 @@ test('成功状态返回非 JSON 网页时显示准确诊断', async () => {
   );
 });
 
+test('外部取消信号会中止实际 AI 请求并区别于超时', async () => {
+  const external = new AbortController();
+  let requestAborted = false;
+  const fakeFetch = async (url, options) => new Promise((resolve, reject) => {
+    options.signal.addEventListener('abort', () => {
+      requestAborted = true;
+      reject(new Error('net::ERR_ABORTED'));
+    }, { once: true });
+  });
+  const pending = requestChat(
+    fakeFetch,
+    { provider: 'custom', baseUrl: 'https://relay.example/v1', model: 'demo' },
+    'key',
+    [{ role: 'user', content: 'hi' }],
+    { signal: external.signal, timeoutMs: 5000 }
+  );
+  external.abort();
+  await assert.rejects(pending, /AI 请求已取消/);
+  assert.strictEqual(requestAborted, true);
+});
+
 test('模型列表兼容 OpenAI 与 Ollama 返回格式', async () => {
   assert.deepStrictEqual(extractModelIds({ data: [{ id: 'model-a' }, { id: 'model-b' }] }), ['model-a', 'model-b']);
   assert.deepStrictEqual(extractModelIds({ models: [{ name: 'qwen3:4b' }, { model: 'llama3.2' }] }), ['qwen3:4b', 'llama3.2']);

@@ -345,8 +345,8 @@ body.dark {
 .ai-chat-message small { display: block; margin-bottom: 4px; color: var(--text-soft); font-size: 9px; letter-spacing: .08em; }
 .ai-chat-empty { margin: auto; padding: 20px; color: var(--text-soft); text-align: center; font-size: 11px; line-height: 1.65; }
 .ai-chat-composer { flex: 0 0 auto; display: flex; flex-direction: column; gap: 7px; margin: 7px -14px -14px; padding: 9px 14px 14px; border-top: 1px solid var(--border); background: var(--surface); }
-.ai-chat-input-shortcuts { display: flex; gap: 6px; }
-.ai-chat-input-shortcuts button { padding: 4px 9px; border: 1px solid var(--accent); border-radius: 999px; color: var(--accent); background: var(--accent-soft); cursor: pointer; font-size: 11px; font-weight: 700; }
+.ai-chat-input-shortcuts { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.ai-chat-input-shortcuts button { flex: 0 0 auto; padding: 4px 9px; border: 1px solid var(--accent); border-radius: 999px; color: var(--accent); background: var(--accent-soft); cursor: pointer; font-size: 11px; font-weight: 700; }
 .ai-chat-input-shortcuts button:hover { color: #fff; background: var(--accent); }
 .ai-chat-compose-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
 .ai-chat-composer textarea { min-height: 58px; max-height: 130px; resize: vertical; padding: 9px; border: 1px solid var(--border-strong); border-radius: 9px; outline: none; color: var(--text); background: var(--bg); font-family: var(--ai-font-family); font-size: var(--ai-font-size); line-height: var(--ai-line-height); }

@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('api', {
   aiProfileTest: (profileId) => ipcRenderer.invoke('ai:profile:test', profileId),
   aiProfileModels: (profileId) => ipcRenderer.invoke('ai:profile:models', profileId),
   aiChat: (payload) => ipcRenderer.invoke('ai:chat', payload),
+  aiChatCancel: (requestId) => ipcRenderer.invoke('ai:chat:cancel', requestId),
   aiAliceComment: (payload) => ipcRenderer.invoke('ai:alice-comment', payload),
   dictionaryOpen: (query) => ipcRenderer.invoke('dictionary:open', query),
   searchWeb: (query, options) => ipcRenderer.invoke('selection:search', { query, ...(options || {}) }),
