@@ -491,6 +491,7 @@ function createWindow() {
             const wakePerformance = petHeadRig.classList.contains('performance-wake');
             const sleepAnimationCleared = !document.querySelector('.gaia-pet-body').classList.contains('sleeping');
             const zzzHidden = document.querySelector('.gaia-pet-zzz').hidden;
+            await new Promise((resolve) => setTimeout(resolve, 900));
             const actionBeforeState = GaiaPet.getBrain().state;
             const actionBeforeExpression = document.querySelector('.gaia-pet-face').dataset.exp;
             GaiaPet.runAction('tilt');
@@ -500,6 +501,19 @@ function createWindow() {
             const actionCleared = !petHeadRig.classList.contains('performance-tilt') && !bodyAfterAction.classList.contains('no-breathe');
             const breathingRestored = getComputedStyle(bodyAfterAction).animationName === 'pet-breathe';
             const actionStateRestored = GaiaPet.getBrain().state === actionBeforeState && document.querySelector('.gaia-pet-face').dataset.exp === actionBeforeExpression;
+            const interruptBaseExpression = document.querySelector('.gaia-pet-face').dataset.exp;
+            GaiaPet.runAction('yawn');
+            await new Promise((resolve) => setTimeout(resolve, 1230));
+            const yawnClosedBeforeInterrupt = petHeadRig.classList.contains('performance-yawn') && document.querySelector('.gaia-pet-face').dataset.exp === '安心';
+            GaiaPet.runAction('blink');
+            const blinkInterruptedYawn = !petHeadRig.classList.contains('performance-yawn') &&
+              !bodyAfterAction.classList.contains('no-breathe') &&
+              blinkFace.classList.contains('blink') &&
+              document.querySelector('.gaia-pet-face').dataset.exp === interruptBaseExpression;
+            const blinkEnd = new Event('animationend');
+            Object.defineProperty(blinkEnd, 'animationName', { value: 'pet-eye-sprite-blink' });
+            blinkFace.dispatchEvent(blinkEnd);
+            const interruptedBlinkCleaned = !blinkFace.classList.contains('blink') && document.querySelector('.gaia-pet-face').dataset.exp === interruptBaseExpression;
             GaiaPet.runAction('yawn');
             await new Promise((resolve) => setTimeout(resolve, 340));
             const yawnHeadActive = petHeadRig.classList.contains('performance-yawn');
@@ -515,7 +529,14 @@ function createWindow() {
             const drowseStarted = petHeadRig.classList.contains('performance-drowse') &&
               getComputedStyle(bodyAfterAction).animationName === 'pet-body-drowse' &&
               document.querySelector('.gaia-pet-face').dataset.exp === '安心';
-            await new Promise((resolve) => setTimeout(resolve, 1460));
+            GaiaPet.runAction('blink');
+            const blinkInterruptedDrowse = !petHeadRig.classList.contains('performance-drowse') &&
+              !bodyAfterAction.classList.contains('no-breathe') &&
+              blinkFace.classList.contains('blink') &&
+              document.querySelector('.gaia-pet-face').dataset.exp === '眼睛微张';
+            blinkFace.dispatchEvent(blinkEnd);
+            GaiaPet.runEmotion('sleepy');
+            await new Promise((resolve) => setTimeout(resolve, 2260));
             const drowseCleared = !petHeadRig.classList.contains('performance-drowse') &&
               !bodyAfterAction.classList.contains('no-breathe') &&
               document.querySelector('.gaia-pet-face').dataset.exp === '眼睛微张';
@@ -527,8 +548,12 @@ function createWindow() {
             const angryPerformanceCleared = !petHeadRig.classList.contains('performance-angry');
             GaiaPet.runAction('blink');
             const spriteBlinkStarted = !!blinkFace && blinkFace.classList.contains('blink');
+            GaiaPet.runAction('blink');
+            const repeatedBlinkRestarted = blinkFace.classList.contains('blink');
+            blinkFace.dispatchEvent(blinkEnd);
+            const repeatedBlinkCleaned = !blinkFace.classList.contains('blink');
             GaiaPet.closeConsole();
-            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted };
+            return { panelVisible, panelInViewport, emotionButtons, actionButtons, layeredPet, headCutoutClean, oldLidRemoved, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -553,15 +578,21 @@ function createWindow() {
             petStatus.actionCleared === true &&
             petStatus.actionStateRestored === true &&
             petStatus.breathingRestored === true &&
+            petStatus.yawnClosedBeforeInterrupt === true &&
+            petStatus.blinkInterruptedYawn === true &&
+            petStatus.interruptedBlinkCleaned === true &&
             petStatus.yawnStarted === true &&
             petStatus.yawnTextVisible === true &&
             petStatus.yawnCleared === true &&
             petStatus.drowseStarted === true &&
+            petStatus.blinkInterruptedDrowse === true &&
             petStatus.drowseCleared === true &&
             petStatus.angryPerformanceStarted === true &&
             petStatus.angryExpressionMatched === true &&
             petStatus.angryPerformanceCleared === true &&
-            petStatus.spriteBlinkStarted === true;
+            petStatus.spriteBlinkStarted === true &&
+            petStatus.repeatedBlinkRestarted === true &&
+            petStatus.repeatedBlinkCleaned === true;
           if (!debugOk) console.error('PET_SMOKE_CHECKS_FAILED:', JSON.stringify(petStatus));
         }
         const errors = messages.filter((m) => m.level >= 3);

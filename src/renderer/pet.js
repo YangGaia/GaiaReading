@@ -79,6 +79,7 @@
   let initPromise = null;
   let bubbleTimer = null;
   let blinkTimer = null;
+  let blinkCleanupTimer = null;
   let nextAutoAt = 0;
   let nextDreamAt = 0;
   let transientUntil = 0;
@@ -92,6 +93,7 @@
   let currentView = 'home';
   let speechHistory = [];
   let effectVersion = 0;
+  let activePerformance = null;
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
 
@@ -241,10 +243,27 @@
     ui.body.classList.remove('no-breathe');
   }
 
+  function clearBlink() {
+    window.clearTimeout(blinkCleanupTimer);
+    blinkCleanupTimer = null;
+    if (ui.blinkFace) ui.blinkFace.classList.remove('blink');
+  }
+
+  function interruptEffects() {
+    ++effectVersion;
+    const restoreExpression = activePerformance && activePerformance.restoreExpression;
+    activePerformance = null;
+    clearActions();
+    clearBlink();
+    if (restoreExpression) applyExpression(restoreExpression);
+  }
+
   function playEffect(cls, duration) {
     if (!ui.body) return;
+    const startExpression = ui.face && ui.face.dataset.exp;
+    interruptEffects();
+    applyExpression(startExpression);
     const token = ++effectVersion;
-    clearActions();
     void ui.body.offsetWidth;
     ui.body.classList.add('no-breathe', cls);
     window.setTimeout(() => {
@@ -254,33 +273,41 @@
     return token;
   }
 
-  function playPerformance(name, duration, stages) {
+  function playPerformance(name, duration, stages, restoreExpression) {
     if (!ui.body || !ui.headRig) return null;
+    const startExpression = ui.face && ui.face.dataset.exp;
+    interruptEffects();
+    applyExpression(startExpression);
     const token = ++effectVersion;
     const cls = 'performance-' + name;
-    clearActions();
+    const timeline = stages || [];
+    const finalExpression = restoreExpression || (timeline.length && timeline[timeline.length - 1].expression) || startExpression;
+    activePerformance = { token, restoreExpression: finalExpression };
     void ui.body.offsetWidth;
     void ui.headRig.offsetWidth;
     ui.body.classList.add('no-breathe', cls);
     ui.headRig.classList.add(cls);
-    for (const stage of stages || []) {
+    for (const stage of timeline) {
       window.setTimeout(() => {
         if (token === effectVersion) applyExpression(stage.expression);
       }, stage.at);
     }
     window.setTimeout(() => {
-      if (token !== effectVersion) return;
-      ui.body.classList.remove(cls, 'no-breathe');
-      ui.headRig.classList.remove(cls);
+      if (token !== effectVersion || !activePerformance || activePerformance.token !== token) return;
+      activePerformance = null;
+      clearActions();
+      applyExpression(finalExpression);
     }, duration);
     return token;
   }
 
-  function triggerBlink() {
+  function triggerBlink(interrupt) {
     if (!ui.blinkFace || !saved.on || dragging || brain.state === PET_STATES.SLEEPING) return;
-    ui.blinkFace.classList.remove('blink');
+    if (interrupt) interruptEffects();
+    clearBlink();
     void ui.blinkFace.offsetWidth;
     ui.blinkFace.classList.add('blink');
+    blinkCleanupTimer = window.setTimeout(clearBlink, 300);
   }
 
   function scheduleBlink() {
@@ -291,14 +318,14 @@
     }, 2600 + Math.random() * 2600);
   }
 
-  function triggerAction(name, manual) {
+  function triggerAction(name, manual, restoreExpression) {
     if (name === 'blink') {
-      triggerBlink();
+      triggerBlink(!!manual);
       return null;
     }
     if (name === 'tilt') {
       applyExpression('倾听');
-      return playPerformance('tilt', ACTION_MS.tilt);
+      return playPerformance('tilt', ACTION_MS.tilt, null, restoreExpression);
     }
     if (name === 'yawn') {
       hideBubble(true);
@@ -307,7 +334,7 @@
         { at: 260, expression: '打哈欠' },
         { at: 1180, expression: '安心' },
         { at: 1480, expression: '日常表情' },
-      ]);
+      ], restoreExpression);
       window.setTimeout(() => {
         if (token === effectVersion && (manual || saved.autoSpeech)) showBubble(lineFor('yawn'), 1300);
       }, 280);
@@ -386,8 +413,7 @@
     const sleeping = state === PET_STATES.SLEEPING;
     if (ui.body) {
       if (sleeping) {
-        ++effectVersion;
-        clearActions();
+        interruptEffects();
       }
       ui.body.classList.toggle('sleeping', sleeping);
     }
@@ -406,8 +432,7 @@
   }
 
   function returnToIdle(now) {
-    ++effectVersion;
-    clearActions();
+    interruptEffects();
     manualHeld = false;
     lockedEmotion = null;
     manualEmotionKey = null;
@@ -636,7 +661,7 @@
     }
     const previous = {
       state: brain.state,
-      expression: ui.face && ui.face.dataset.exp,
+      expression: (activePerformance && activePerformance.restoreExpression) || (ui.face && ui.face.dataset.exp),
       label: manualLabel,
       emotion: manualEmotionKey,
       held: manualHeld,
@@ -644,7 +669,7 @@
     resetActivity(now);
     const duration = name === 'blink' ? 220 : ACTION_MS[name];
     if (transientUntil) transientUntil = Math.max(transientUntil, now + duration + 40);
-    const token = triggerAction(name, true);
+    const token = triggerAction(name, true, previous.expression);
     if (name === 'blink') return;
     window.setTimeout(() => {
       if (token !== effectVersion || brain.state !== previous.state) return;
@@ -686,6 +711,9 @@
     target.addEventListener('pointerleave', onLeave);
     target.addEventListener('click', onClick);
     target.addEventListener('contextmenu', openConsole);
+    ui.blinkFace.addEventListener('animationend', (ev) => {
+      if (ev.animationName === 'pet-eye-sprite-blink') clearBlink();
+    });
     target.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter' || ev.key === ' ') {
         ev.preventDefault();

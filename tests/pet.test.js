@@ -216,7 +216,13 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("{ at: 620, expression: '安心' }"), '困倦低头阶段应闭眼');
   assert.ok(renderer.includes("{ at: 1650, expression: '眼睛微张' }"), '困倦抬头阶段应恢复半睁眼');
   assert.ok(renderer.includes('const previous = {'), '手动动作应记录并恢复动作前情绪');
+  assert.ok(renderer.includes('(activePerformance && activePerformance.restoreExpression)'), '打断动作时应继承前一动作的基础表情，而不是中途闭眼表情');
   assert.ok(renderer.includes('applyExpression(previous.expression)'), '手动动作结束后应恢复原表情');
+  assert.ok(renderer.includes('function interruptEffects()'), '动作切换应经过统一的可打断收尾');
+  assert.ok(renderer.includes('if (interrupt) interruptEffects()'), '手动眨眼应立即打断上一动作');
+  assert.ok(renderer.includes('activePerformance = { token, restoreExpression: finalExpression }'), '表演应记录被打断时的正确落点表情');
+  assert.ok(renderer.includes("ev.animationName === 'pet-eye-sprite-blink'"), '眨眼动画结束时应主动移除闭眼贴片');
+  assert.ok(renderer.includes('blinkCleanupTimer = window.setTimeout(clearBlink, 300)'), '眨眼应有超时清理兜底');
   assert.ok(renderer.includes("if (brain.state === PET_STATES.SLEEPING || manualHeld) return"), '睡着后鼠标移入不应自动唤醒');
   assert.ok(renderer.includes("showBubble(lineFor('sleeping'), 3200)"), '睡眠期间应显示梦话');
   assert.ok(renderer.includes('lockedMood: lockedEmotion'), '情绪锁定应保存明确的情绪键');
@@ -255,6 +261,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes('petStatus.yawnStarted === true'), '冒烟测试应验证打哈欠动画已启动');
   assert.ok(main.includes('petStatus.hoverKeepsSleeping === true'), '冒烟测试应验证鼠标移入不会唤醒睡眠');
   assert.ok(main.includes('petStatus.actionStateRestored === true'), '冒烟测试应验证单独动作恢复原状态');
+  assert.ok(main.includes('petStatus.blinkInterruptedYawn === true'), '冒烟测试应验证眨眼可打断打哈欠闭眼阶段');
+  assert.ok(main.includes('petStatus.blinkInterruptedDrowse === true'), '冒烟测试应验证眨眼可打断困倦闭眼阶段');
+  assert.ok(main.includes('petStatus.repeatedBlinkCleaned === true'), '冒烟测试应验证连续眨眼可以正常清理');
   assert.ok(main.includes('petStatus.yawnTextVisible === true'), '冒烟测试应验证打哈欠文字已显示');
   assert.ok(main.includes('petStatus.drowseStarted === true'), '冒烟测试应验证困倦低头和闭眼阶段');
   assert.ok(main.includes('petStatus.drowseCleared === true'), '冒烟测试应验证困倦动作恢复半睁眼');
