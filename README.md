@@ -2,9 +2,9 @@
 
 Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB、PDF、TXT、MOBI 和 AZW3。它把多格式阅读、章节级 AI 对话、划线笔记、阅读统计和桌面角色「久远寺有珠」放在同一个应用中。
 
-当前稳定版本：**1.0.0**
+当前稳定版本：**1.0.1**
 
-[下载 1.0.0](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.0) · [查看本版说明](RELEASE_NOTES_1.0.0.md) · [版本记录](CHANGELOG.md)
+[下载 1.0.1](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.1) · [查看本版说明](RELEASE_NOTES_1.0.1.md) · [版本记录](CHANGELOG.md)
 
 ## 界面截图
 
@@ -42,6 +42,7 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 - EPUB、MOBI、AZW3 支持目录跳转；TXT 可识别常见中英文章节标题。
 - 阅读页左下角可随时打开目录；鼠标触碰阅读区最左侧时，目录会自动滑出并在离开后收回。
 - 支持单页、双页、日间、护眼和夜间模式，并可调整字体、字号、行距与页边距。
+- 日间、护眼和夜间主题均可切换高对比文字，分别使用纯黑、深棕黑和纯白增强可读性。
 - EPUB、TXT、MOBI、AZW3 的双页间隙可在阅读设置中按 0、24、56、96px 四档即时调节。
 - PDF 支持 60%～200% 缩放，可使用顶栏按钮或 `Ctrl + 鼠标滚轮`；普通滚轮先滚动当前页，到边缘后再翻页。
 - 五种格式均可添加书签、三色划线和笔记。
@@ -70,8 +71,8 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 
 ## 下载与运行
 
-1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.0)。
-2. 下载 `Gaia.Reading.1.0.0.exe`。
+1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.1)。
+2. 下载 `Gaia Reading 1.0.1.exe`。
 3. 双击运行，无需安装 Node.js，也无需执行安装程序。
 
 系统要求：Windows 10/11 x64。当前发行文件未购买商业代码签名证书，Windows 首次运行时可能显示 SmartScreen 提示；请确认下载来源并核对 Release 中公布的 SHA-256。
@@ -139,4 +140,4 @@ tests/               自动化测试和测试用电子书
 assets/bgm/          内置音乐资源
 ```
 
-完整的 1.0.0 变化与 0.5.2 对比请阅读 [RELEASE_NOTES_1.0.0.md](RELEASE_NOTES_1.0.0.md)。
+本次更新详情请阅读 [RELEASE_NOTES_1.0.1.md](RELEASE_NOTES_1.0.1.md)；首个正式版的完整说明仍可查看 [RELEASE_NOTES_1.0.0.md](RELEASE_NOTES_1.0.0.md)。

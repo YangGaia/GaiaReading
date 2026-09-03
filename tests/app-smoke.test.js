@@ -94,11 +94,11 @@ test('阅读目录支持左下角按钮与左缘悬停两种展开方式', () =>
   assert.ok(css.includes('min-height: 48px') && css.includes('padding: 9px 16px 8px'), '底栏控件上下应保留足够留白');
 });
 
-test('版本号为 1.0.0 且界面同步', () => {
+test('版本号为 1.0.1 且界面同步', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.0.0');
+  assert.strictEqual(pkg.version, '1.0.1');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.ok(html.includes('Gaia Reading 1.0.0'), '关于面板版本号未同步');
+  assert.ok(html.includes('Gaia Reading 1.0.1'), '关于面板版本号未同步');
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
   assert.ok(html.includes('btn-theme'), '缺少主题切换');
   assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
@@ -111,6 +111,15 @@ test('1.0.0 Release 说明完整并包含发行文件校验值', () => {
   }
   assert.match(notes, /SHA-256：`[A-F0-9]{64}`/, 'Release 说明缺少 exe 的 SHA-256');
   assert.ok(!notes.includes('{{SHA256}}'), 'Release 说明不得保留校验值占位符');
+});
+
+test('1.0.1 Release 说明覆盖阅读交互、可读性和校验值', () => {
+  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.0.1.md'), 'utf8');
+  for (const section of ['目录与翻页', '双页与排版', '高对比文字', '有珠交互', '发布文件']) {
+    assert.ok(notes.includes(section), `1.0.1 Release 说明缺少 ${section}`);
+  }
+  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/, '1.0.1 Release 说明缺少 exe 的 SHA-256');
+  assert.ok(!notes.includes('{{SHA256}}'), '1.0.1 Release 说明不得保留校验值占位符');
 });
 
 test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => {
@@ -229,8 +238,8 @@ test('README 按拍摄时间引用当前全部界面截图', () => {
     const file = path.join(root, 'docs', 'screenshots', shot);
     assert.ok(fs.statSync(file).size > 5000, shot + ' 异常过小');
   }
-  assert.ok(readme.includes('当前稳定版本：**1.0.0**'), 'README 应明确当前稳定版本');
-  assert.ok(readme.includes('releases/tag/v1.0.0'), 'README 应提供正式版下载入口');
+  assert.ok(readme.includes('当前稳定版本：**1.0.1**'), 'README 应明确当前稳定版本');
+  assert.ok(readme.includes('releases/tag/v1.0.1'), 'README 应提供正式版下载入口');
 });
 
 test('主题/排版/翻页动画/菜单相关配置存在', () => {

@@ -1,6 +1,6 @@
 {
   "name": "gaia-reading",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "电子书阅读器（Electron + epub.js）",
   "main": "src/main.js",
   "scripts": {
@@ -32,7 +32,7 @@
     "productName": "Gaia Reading",
     "files": [
       "src/**/*",
-    "assets/bgm/**",
+      "assets/bgm/**",
       "package.json"
     ],
     "directories": {
