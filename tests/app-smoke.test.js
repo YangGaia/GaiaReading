@@ -19,6 +19,8 @@ test('项目关键文件齐全', () => {
   assert.ok(main.includes("capture('pet_console.png')"), '截图验收应包含有珠控制台界面');
   assert.ok(main.includes('const importResult = await __gaiaDebug.importPaths([fixture])'), 'EPUB 烟雾测试应走真实导入流程');
   assert.ok(main.includes('parsed.importSucceeded === true'), 'EPUB 烟雾测试应验证导入成功');
+  assert.ok(main.includes("await __gaiaDebug.runBookSearch('测试内容')"), 'EPUB 烟雾测试应执行真实全文搜索');
+  assert.ok(main.includes('parsed.bookSearchRuntimeReady === true'), 'EPUB 烟雾测试应验证搜索跳转与正文高亮');
   assert.ok(main.includes('parsed.aiUiReady === true'), 'EPUB 烟雾测试应验证 AI 界面与章节提取');
   for (const frame of ['pet_tilt_early.png', 'pet_tilt_peak.png', 'pet_tilt_return.png']) {
     assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少歪头动作帧 ${frame}`);

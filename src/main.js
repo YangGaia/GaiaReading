@@ -53,6 +53,42 @@ function aiSecretFile() {
   return path.join(app.getPath('userData'), 'gaia-ai-key.bin');
 }
 
+function searchIndexCacheFile(filePath) {
+  const id = crypto.createHash('sha256').update(String(filePath || '')).digest('hex');
+  return path.join(app.getPath('userData'), 'search-index', id + '.json');
+}
+
+function readSearchIndex(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    const cached = JSON.parse(fs.readFileSync(searchIndexCacheFile(filePath), 'utf8'));
+    if (!cached || cached.version !== 1 || !Array.isArray(cached.sections)) return null;
+    if (cached.size !== stat.size || Math.trunc(cached.mtimeMs) !== Math.trunc(stat.mtimeMs)) return null;
+    return cached.sections;
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeSearchIndex(filePath, sections) {
+  const stat = fs.statSync(filePath);
+  const safeSections = (Array.isArray(sections) ? sections : []).map((section, index) => ({
+    id: String(section && section.id != null ? section.id : index),
+    title: String(section && section.title || '正文').slice(0, 500),
+    text: String(section && section.text || ''),
+    locator: section && section.locator && typeof section.locator === 'object' ? section.locator : {},
+  }));
+  const cachePath = searchIndexCacheFile(filePath);
+  fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+  fs.writeFileSync(cachePath, JSON.stringify({
+    version: 1,
+    size: stat.size,
+    mtimeMs: Math.trunc(stat.mtimeMs),
+    sections: safeSections,
+  }));
+  return true;
+}
+
 function readAiSecrets() {
   const secretPath = aiSecretFile();
   if (!fs.existsSync(secretPath)) return {};
@@ -473,6 +509,14 @@ function createWindow() {
               const importSucceeded = importResult.added === 1 && importResult.failures.length === 0 && !!importedBook;
               await __gaiaDebug.openBook(importedBook || { path: fixture, format: 'epub', title: 'fixture' });
               await __gaiaDebug.waitLocations();
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, cancelable: true }));
+              await new Promise((r) => setTimeout(r, 50));
+              const bookSearchShortcutState = __gaiaDebug.getBookSearchState();
+              const bookSearchRunState = await __gaiaDebug.runBookSearch('测试内容');
+              const bookSearchActivatedState = await __gaiaDebug.activateBookSearchResult(0);
+              const bookSearchRuntimeReady = bookSearchShortcutState.open === true && bookSearchShortcutState.focused === true &&
+                bookSearchRunState.results > 0 && bookSearchActivatedState.activeIndex === 0 && bookSearchActivatedState.highlightCount > 0;
+              __gaiaDebug.closeBookSearch();
               await GaiaPet.whenReady();
               const readingCareBefore = GaiaPet.getReadingCareState();
               GaiaPet.openConsole();
@@ -772,7 +816,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -786,6 +830,7 @@ function createWindow() {
               parsed.viewAfterSplash === 'home' &&
               parsed.splashHidden === true &&
               parsed.importSucceeded === true &&
+              parsed.bookSearchRuntimeReady === true &&
               parsed.petReadingTimerSurvivesIframeFocus === true &&
               parsed.aiUiReady === true &&
               parsed.selectionPrepared === true &&
@@ -1402,6 +1447,8 @@ ipcMain.handle('state:set', (event, { key, value }) => {
   store.set(key, value);
   return true;
 });
+ipcMain.handle('search:index:get', (event, filePath) => readSearchIndex(filePath));
+ipcMain.handle('search:index:set', (event, { filePath, sections }) => writeSearchIndex(filePath, sections));
 ipcMain.handle('ai:profiles:get', () => publicAiProfiles());
 ipcMain.handle('ai:profile:save', (event, payload) => {
   const input = payload && typeof payload === 'object' ? payload : {};

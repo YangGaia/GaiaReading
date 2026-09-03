@@ -243,6 +243,36 @@ body.dark {
 .pdf-text-layer span, .pdf-text-layer br { position: absolute; color: transparent; white-space: pre; transform-origin: 0 0; cursor: text; }
 .pdf-text-layer ::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
 
+/* ===== 书内全文搜索 ===== */
+.book-search-panel { flex: 0 0 340px; width: 340px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--surface); color: var(--text); text-align: left; }
+.book-search-panel[hidden] { display: none; }
+.book-search-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 14px 10px; }
+.book-search-head div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.book-search-head small { color: var(--text-soft); font-size: 9px; letter-spacing: 1.5px; }
+.book-search-head strong { font-size: 15px; }
+.book-search-head .btn { width: 30px; height: 30px; padding: 0; font-size: 18px; }
+.book-search-box { display: flex; gap: 7px; padding: 0 14px 10px; }
+.book-search-box input { min-width: 0; flex: 1; height: 36px; padding: 0 11px; border: 1px solid var(--border-strong); border-radius: 9px; outline: none; background: var(--bg); color: var(--text); font: inherit; font-size: 13px; }
+.book-search-box input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.book-search-nav { display: flex; gap: 4px; }
+.book-search-nav .btn { min-width: 32px; height: 36px; padding: 0; }
+.book-search-status { min-height: 18px; margin: 0; padding: 0 14px 10px; color: var(--text-soft); font-size: 11px; line-height: 1.55; }
+.book-search-status.error { color: var(--danger); }
+.book-search-results { min-height: 0; flex: 1; overflow-y: auto; padding: 0 10px 14px; }
+.book-search-result { display: block; width: 100%; margin: 0 0 7px; padding: 9px 10px; border: 1px solid transparent; border-radius: 9px; background: var(--bg); color: var(--text); text-align: left; cursor: pointer; }
+.book-search-result:hover { border-color: var(--border-strong); background: var(--accent-soft); }
+.book-search-result.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.book-search-result strong { display: block; margin-bottom: 4px; color: var(--accent); font-size: 11px; font-weight: 600; }
+.book-search-result span { display: -webkit-box; overflow: hidden; color: var(--text); font-size: 12px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.book-search-empty { margin: 30px 12px; color: var(--text-soft); font-size: 12px; line-height: 1.7; text-align: center; }
+.gaia-search-highlight { border-radius: 3px; outline: 2px solid rgba(124, 88, 174, .5); background: rgba(250, 204, 74, .72) !important; color: inherit; animation: gaiaSearchTarget 1.15s ease; }
+.pdf-text-layer .gaia-search-highlight { color: transparent; }
+@keyframes gaiaSearchTarget { 0%, 45% { outline-width: 4px; background: rgba(250, 204, 74, .96); } 100% { outline-width: 2px; } }
+@media (max-width: 760px) {
+  .book-search-panel { position: absolute; z-index: 45; inset: 0 auto 0 0; width: min(340px, calc(100% - 36px)); box-shadow: 12px 0 28px rgba(0, 0, 0, .18); }
+  .reader-search-trigger { padding-left: 8px; padding-right: 8px; }
+}
+
 /* ===== 划线与笔记 ===== */
 .annotations-panel { width: 320px; color: var(--text); }
 .annotations-panel-head { display: flex; align-items: center; justify-content: space-between; margin: 2px 2px 12px; }

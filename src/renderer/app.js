@@ -57,8 +57,10 @@ const {
   cleanChapterText,
   sameChapterSource,
 } = window.GaiaAi;
+const { findInText: findBookSearchMatches, searchSections: searchBookSections } = window.GaiaBookSearch;
 const readerWheelGate = createWheelGate({ threshold: 60, cooldown: 250 });
 const pdfZoomRuntime = { timer: 0, anchor: null };
+let bookSearchTimer = 0;
 
 const FONTS = {
   default: '',
@@ -83,6 +85,12 @@ const els = {
   readerTocButton: $('btn-reader-toc'),
   bookmarksPanel: $('bookmarks-panel'),
   annotationsPanel: $('annotations-panel'),
+  bookSearchPanel: $('book-search-panel'),
+  bookSearchInput: $('book-search-input'),
+  bookSearchStatus: $('book-search-status'),
+  bookSearchResults: $('book-search-results'),
+  bookSearchPrev: $('btn-book-search-prev'),
+  bookSearchNext: $('btn-book-search-next'),
   aiSummaryPanel: $('ai-summary-panel'),
   aiPanelDragHandle: $('ai-panel-drag-handle'),
   aiSummaryChapter: $('ai-summary-chapter'),
@@ -675,6 +683,7 @@ function updateSettingsValues() {
 
 function closeReaderContent() {
   closeNoteEditor();
+  closeBookSearch({ reset: true });
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   const c = state.current;
   if (c) {
@@ -721,6 +730,7 @@ async function openBook(book) {
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
+  els.bookSearchPanel.hidden = true;
   els.aiSummaryPanel.hidden = true;
   $('btn-ai-reader').classList.remove('open');
   els.tocPanel.textContent = '（本书没有目录）';
@@ -758,7 +768,10 @@ async function openEpub(book) {
     bindReaderKeyboard(contents.document || contents.window);
     bindSelectionDismissal(contents.document);
   });
-  rendition.on('rendered', () => bindEpubWheel());
+  rendition.on('rendered', () => {
+    bindEpubWheel();
+    window.setTimeout(restoreBookSearchHighlight, 0);
+  });
   rendition.on('selected', (cfiRange, contents) => captureEpubSelection(cfiRange, contents));
 
   applyEpubTypography();
@@ -1058,6 +1071,7 @@ async function renderPdfPage(options) {
   if (textLayer) {
     bindTextAnnotationInputs(document, textLayer);
     restoreTextAnnotations();
+    restoreBookSearchHighlight();
   }
 
   if (state.prefs.theme === 'dark') {
@@ -1166,6 +1180,7 @@ async function loadMobiChapter(chapterIndex, opts) {
       }
       c.paginator.showPage(p);
       restoreTextAnnotations();
+      restoreBookSearchHighlight();
       if (c.flow) c.flow.page = Math.min(Math.max(0, p), total - 1);
       updateMobiProgress(true);
       window.setTimeout(observeAiChapter, 0);
@@ -1282,6 +1297,7 @@ async function openTxt(book) {
   const saved = state.progress[book.path];
   if (saved && typeof saved.page === 'number') state.current.paginator.showPage(saved.page);
   restoreTextAnnotations();
+  restoreBookSearchHighlight();
   updateMobiProgress(true);
   window.setTimeout(observeAiChapter, 0);
 }
@@ -1366,9 +1382,15 @@ function isReaderTyping(target) {
 function onReaderKey(ev) {
   if (ev.key === 'Escape') {
     if (els.selectionToolbar && !els.selectionToolbar.hidden) { ev.preventDefault(); hideSelectionToolbar(); return; }
+    if (els.bookSearchPanel && !els.bookSearchPanel.hidden) { ev.preventDefault(); closeBookSearch(); return; }
     if (isSettingsOpen()) { ev.preventDefault(); closeSettings(); return; }
     if (els.contextMenu && !els.contextMenu.hidden) { ev.preventDefault(); hideContextMenu(); return; }
     if (!views.reader.hidden) { ev.preventDefault(); backToLibrary(); }
+    return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && String(ev.key).toLowerCase() === 'f' && !views.reader.hidden) {
+    ev.preventDefault();
+    openBookSearch();
     return;
   }
   if (isReaderTyping(ev.target)) return;
@@ -1507,6 +1529,7 @@ function setTocMode(nextMode, options) {
 
 function toggleReaderToc() {
   hideSelectionToolbar();
+  if (!els.bookSearchPanel.hidden) closeBookSearch();
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
   els.aiSummaryPanel.hidden = true;
@@ -1518,6 +1541,7 @@ function toggleReaderToc() {
 function openTocFromEdge() {
   if (!state.current || !views.reader || views.reader.hidden) return;
   hideSelectionToolbar();
+  if (!els.bookSearchPanel.hidden) closeBookSearch();
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
   els.aiSummaryPanel.hidden = true;
@@ -1557,6 +1581,7 @@ function togglePanel(which) {
   const target = panels[which] || els.bookmarksPanel;
   const targetHidden = target.hidden;
   hideSelectionToolbar();
+  if (!els.bookSearchPanel.hidden) closeBookSearch();
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
@@ -1826,6 +1851,411 @@ function rangeTextOffsets(root, range) {
     total += len;
   }
   return start >= 0 && end > start ? { start, end } : null;
+}
+
+function rangeFromTextOffsets(root, start, end) {
+  if (!root || end <= start) return null;
+  const doc = root.ownerDocument || document;
+  const range = doc.createRange();
+  let total = 0;
+  let startNode = null;
+  let startOffset = 0;
+  let endNode = null;
+  let endOffset = 0;
+  for (const node of textNodes(root)) {
+    const length = (node.textContent || '').length;
+    if (!startNode && start <= total + length) {
+      startNode = node;
+      startOffset = Math.max(0, Math.min(length, start - total));
+    }
+    if (!endNode && end <= total + length) {
+      endNode = node;
+      endOffset = Math.max(0, Math.min(length, end - total));
+      break;
+    }
+    total += length;
+  }
+  if (!startNode || !endNode) return null;
+  try {
+    range.setStart(startNode, startOffset);
+    range.setEnd(endNode, endOffset);
+    return range;
+  } catch (error) {
+    return null;
+  }
+}
+
+function setBookSearchStatus(message, type) {
+  els.bookSearchStatus.textContent = message || '';
+  els.bookSearchStatus.classList.toggle('error', type === 'error');
+}
+
+function assertCurrentSearchBook(current) {
+  if (!current || state.current !== current) {
+    const error = new Error('搜索已取消');
+    error.code = 'SEARCH_CANCELLED';
+    throw error;
+  }
+}
+
+async function buildBookSearchIndex() {
+  const c = state.current;
+  if (!c) return [];
+  if (Array.isArray(c.bookSearchIndex)) return c.bookSearchIndex;
+  if (c.bookSearchBuildPromise) return c.bookSearchBuildPromise;
+  c.bookSearchBuildPromise = (async () => {
+    try {
+      const cached = await window.api.searchIndexGet(c.path);
+      assertCurrentSearchBook(c);
+      if (Array.isArray(cached)) {
+        c.bookSearchIndex = cached;
+        setBookSearchStatus('索引已就绪，正在搜索…');
+        return cached;
+      }
+      const sections = [];
+      if (c.format === 'epub') {
+        const items = c.epub && c.epub.spine ? c.epub.spine.spineItems || [] : [];
+        for (let index = 0; index < items.length; index += 1) {
+          assertCurrentSearchBook(c);
+          const item = items[index];
+          setBookSearchStatus('正在读取 EPUB 章节 ' + (index + 1) + ' / ' + items.length + '…');
+          let text = '';
+          try {
+            await item.load(c.epub.load.bind(c.epub));
+            text = item.document && item.document.body ? item.document.body.textContent || '' : '';
+          } finally {
+            try { item.unload(); } catch (error) {}
+          }
+          sections.push({
+            id: 'epub:' + index,
+            title: epubChapterTitle(c.epub, index, item.href),
+            text,
+            locator: { section: index, href: item.href },
+          });
+          await delay(0);
+        }
+      } else if (c.format === 'pdf') {
+        for (let pageNumber = 1; pageNumber <= c.pages; pageNumber += 1) {
+          assertCurrentSearchBook(c);
+          setBookSearchStatus('正在读取 PDF 第 ' + pageNumber + ' / ' + c.pages + ' 页…');
+          const page = await c.pdf.getPage(pageNumber);
+          let text = '';
+          try {
+            const content = await page.getTextContent();
+            text = (content.items || []).map((item) => String(item.str || '') + (item.hasEOL ? '\n' : ' ')).join('');
+          } finally {
+            try { page.cleanup(); } catch (error) {}
+          }
+          sections.push({ id: 'pdf:' + pageNumber, title: '第 ' + pageNumber + ' 页', text, locator: { page: pageNumber } });
+          await delay(0);
+        }
+      } else if (c.format === 'mobi' || c.format === 'azw3') {
+        const chapters = c.mobi && Array.isArray(c.mobi.chapters) ? c.mobi.chapters : [];
+        for (let index = 0; index < chapters.length; index += 1) {
+          assertCurrentSearchBook(c);
+          setBookSearchStatus('正在读取 ' + c.format.toUpperCase() + ' 章节 ' + (index + 1) + ' / ' + chapters.length + '…');
+          const chapter = await window.api.mobiChapter(c.mobiSession, index);
+          const parsed = new DOMParser().parseFromString(String(chapter && chapter.html || ''), 'text/html');
+          sections.push({
+            id: c.format + ':' + index,
+            title: mobiChapterTitle(c.mobi, index),
+            text: parsed.body ? parsed.body.textContent || '' : '',
+            locator: { chapter: index },
+          });
+          await delay(0);
+        }
+      } else {
+        const root = c.paginator && c.paginator.doc && c.paginator.doc.body;
+        sections.push({ id: 'txt:0', title: '全文', text: root ? root.textContent || '' : '', locator: { chapter: 0 } });
+      }
+      assertCurrentSearchBook(c);
+      c.bookSearchIndex = sections;
+      window.api.searchIndexSet(c.path, sections).catch((error) => console.warn('SEARCH_INDEX_CACHE_FAILED', error));
+      return sections;
+    } finally {
+      if (state.current === c) c.bookSearchBuildPromise = null;
+    }
+  })();
+  return c.bookSearchBuildPromise;
+}
+
+function clearBookSearchHighlightsFrom(root) {
+  if (!root || !root.querySelectorAll) return;
+  for (const mark of Array.from(root.querySelectorAll('mark.gaia-search-highlight'))) {
+    mark.replaceWith(mark.ownerDocument.createTextNode(mark.textContent || ''));
+  }
+  try { root.normalize(); } catch (error) {}
+}
+
+function clearBookSearchHighlights() {
+  const c = state.current;
+  if (!c) return;
+  if (c.rendition) {
+    try {
+      c.rendition.getContents().forEach((contents) => clearBookSearchHighlightsFrom(contents.document && contents.document.body));
+    } catch (error) {}
+  }
+  clearBookSearchHighlightsFrom(c.pdfTextRoot);
+  clearBookSearchHighlightsFrom(c.paginator && c.paginator.doc && c.paginator.doc.body);
+}
+
+function applyBookSearchHighlight(root, match) {
+  if (!root || !match || match.end <= match.start) return false;
+  const nodes = textNodes(root);
+  let total = 0;
+  let firstMark = null;
+  for (const node of nodes) {
+    const value = node.textContent || '';
+    const nodeStart = total;
+    const nodeEnd = total + value.length;
+    total = nodeEnd;
+    const from = Math.max(match.start, nodeStart);
+    const to = Math.min(match.end, nodeEnd);
+    if (to <= from || !node.parentNode) continue;
+    const fragment = node.ownerDocument.createDocumentFragment();
+    const before = value.slice(0, from - nodeStart);
+    const selected = value.slice(from - nodeStart, to - nodeStart);
+    const after = value.slice(to - nodeStart);
+    if (before) fragment.appendChild(node.ownerDocument.createTextNode(before));
+    const mark = node.ownerDocument.createElement('mark');
+    mark.className = 'gaia-search-highlight';
+    mark.dataset.gaiaSearch = 'true';
+    mark.style.background = 'rgba(250, 204, 74, .72)';
+    mark.style.color = 'inherit';
+    mark.style.borderRadius = '3px';
+    mark.textContent = selected;
+    fragment.appendChild(mark);
+    if (!firstMark) firstMark = mark;
+    if (after) fragment.appendChild(node.ownerDocument.createTextNode(after));
+    node.replaceWith(fragment);
+  }
+  if (firstMark) {
+    try { firstMark.scrollIntoView({ block: 'center', inline: 'center' }); } catch (error) {}
+  }
+  return !!firstMark;
+}
+
+function matchForSearchResult(root, result) {
+  const c = state.current;
+  if (!root || !c || !result || !c.bookSearchQuery) return null;
+  const matches = findBookSearchMatches(root.textContent || '', c.bookSearchQuery, { limit: result.ordinal + 1 });
+  return matches[result.ordinal] || null;
+}
+
+function restoreBookSearchHighlight() {
+  const c = state.current;
+  const result = c && c.bookSearchActiveResult;
+  if (!c || !result || els.bookSearchPanel.hidden) return false;
+  let root = null;
+  if (c.format === 'epub' && c.rendition) {
+    let contents = [];
+    try { contents = c.rendition.getContents(); } catch (error) {}
+    const wanted = Number(result.locator && result.locator.section);
+    const content = contents.find((item) => item && item.section && item.section.index === wanted) || contents[0];
+    root = content && content.document && content.document.body;
+  } else if (c.format === 'pdf') {
+    if (Number(result.locator && result.locator.page) !== Number(c.page)) return false;
+    root = c.pdfTextRoot;
+  } else if (c.paginator) {
+    const chapter = Number(result.locator && result.locator.chapter) || 0;
+    if ((c.format === 'mobi' || c.format === 'azw3') && (!c.flow || c.flow.chapter !== chapter)) return false;
+    root = c.paginator.doc && c.paginator.doc.body;
+  }
+  if (!root) return false;
+  clearBookSearchHighlightsFrom(root);
+  const match = matchForSearchResult(root, result);
+  return match ? applyBookSearchHighlight(root, match) : false;
+}
+
+function renderBookSearchResults() {
+  const c = state.current;
+  const results = c && Array.isArray(c.bookSearchResults) ? c.bookSearchResults : [];
+  els.bookSearchResults.innerHTML = '';
+  els.bookSearchPrev.disabled = results.length === 0;
+  els.bookSearchNext.disabled = results.length === 0;
+  if (!results.length) {
+    const empty = document.createElement('p');
+    empty.className = 'book-search-empty';
+    empty.textContent = c && c.bookSearchQuery ? '没有找到匹配内容。' : '输入关键词后，搜索结果会按章节或页码显示在这里。';
+    els.bookSearchResults.appendChild(empty);
+    return;
+  }
+  results.forEach((result, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'book-search-result' + (index === c.bookSearchActiveIndex ? ' active' : '');
+    button.dataset.searchIndex = String(index);
+    const title = document.createElement('strong');
+    title.textContent = result.title;
+    const excerpt = document.createElement('span');
+    excerpt.textContent = result.excerpt || result.quote;
+    button.append(title, excerpt);
+    button.addEventListener('click', () => activateBookSearchResult(index));
+    els.bookSearchResults.appendChild(button);
+  });
+}
+
+async function runBookSearch() {
+  const c = state.current;
+  if (!c || els.bookSearchPanel.hidden) return;
+  const query = els.bookSearchInput.value.trim();
+  c.bookSearchQuery = query;
+  c.bookSearchActiveIndex = -1;
+  c.bookSearchActiveResult = null;
+  clearBookSearchHighlights();
+  if (!query) {
+    c.bookSearchResults = [];
+    setBookSearchStatus('输入关键词后搜索当前书籍。');
+    renderBookSearchResults();
+    return;
+  }
+  setBookSearchStatus('正在准备全文索引…');
+  try {
+    const sections = await buildBookSearchIndex();
+    assertCurrentSearchBook(c);
+    if (els.bookSearchInput.value.trim() !== query || els.bookSearchPanel.hidden) return;
+    const results = searchBookSections(sections, query, { limit: 500 });
+    if (c.format === 'txt' && c.paginator) {
+      for (const result of results) {
+        const paragraph = c.paginator.paragraphIndexOfTextOffset(result.start);
+        result.title = chapterTitleForParagraph(c.txtChapters || [], Math.max(0, paragraph)) || '全文';
+      }
+    }
+    c.bookSearchResults = results;
+    const emptyTextSections = sections.filter((section) => !String(section.text || '').trim()).length;
+    if (c.format === 'pdf' && emptyTextSections === sections.length) {
+      setBookSearchStatus('这份 PDF 没有可搜索的文字层，扫描版需要 OCR。', 'error');
+    } else if (results.length >= 500) {
+      setBookSearchStatus('找到至少 500 处结果，请输入更具体的关键词。');
+    } else if (results.length) {
+      const suffix = c.format === 'pdf' && emptyTextSections ? ' · ' + emptyTextSections + ' 页无文字层' : '';
+      setBookSearchStatus('找到 ' + results.length + ' 处结果' + suffix + '。');
+    } else {
+      setBookSearchStatus('没有找到“' + query.slice(0, 40) + '”。');
+    }
+    renderBookSearchResults();
+  } catch (error) {
+    if (error && error.code === 'SEARCH_CANCELLED') return;
+    console.error('BOOK_SEARCH_FAILED', error);
+    setBookSearchStatus('搜索失败：' + String(error && error.message || error), 'error');
+  }
+}
+
+function scheduleBookSearch() {
+  window.clearTimeout(bookSearchTimer);
+  bookSearchTimer = window.setTimeout(runBookSearch, 180);
+}
+
+function openBookSearch() {
+  if (!state.current || views.reader.hidden) return;
+  closeSettings();
+  hideSelectionToolbar();
+  setTocMode(TOC_MODES.CLOSED, { immediate: true });
+  els.bookmarksPanel.hidden = true;
+  els.annotationsPanel.hidden = true;
+  els.aiSummaryPanel.hidden = true;
+  $('btn-ai-reader').classList.remove('open');
+  els.bookSearchPanel.hidden = false;
+  $('btn-book-search').classList.add('open');
+  $('btn-book-search').setAttribute('aria-expanded', 'true');
+  resizeEpubRendition();
+  window.setTimeout(() => {
+    els.bookSearchInput.focus();
+    els.bookSearchInput.select();
+  }, 0);
+  if (els.bookSearchInput.value.trim()) runBookSearch();
+  else renderBookSearchResults();
+}
+
+function closeBookSearch(options) {
+  const opts = options || {};
+  window.clearTimeout(bookSearchTimer);
+  bookSearchTimer = 0;
+  clearBookSearchHighlights();
+  els.bookSearchPanel.hidden = true;
+  $('btn-book-search').classList.remove('open');
+  $('btn-book-search').setAttribute('aria-expanded', 'false');
+  if (state.current) {
+    state.current.bookSearchActiveIndex = -1;
+    state.current.bookSearchActiveResult = null;
+  }
+  if (opts.reset) {
+    els.bookSearchInput.value = '';
+    els.bookSearchResults.innerHTML = '';
+    setBookSearchStatus('输入关键词后搜索当前书籍。');
+  }
+  resizeEpubRendition();
+}
+
+function toggleBookSearch() {
+  if (els.bookSearchPanel.hidden) openBookSearch();
+  else closeBookSearch();
+}
+
+async function activateBookSearchResult(index) {
+  const c = state.current;
+  const result = c && c.bookSearchResults && c.bookSearchResults[index];
+  if (!c || !result) return;
+  c.bookSearchActiveIndex = index;
+  c.bookSearchActiveResult = result;
+  renderBookSearchResults();
+  clearBookSearchHighlights();
+  try {
+    if (c.format === 'epub' && c.rendition) {
+      await c.rendition.display(result.locator.href || undefined);
+      assertCurrentSearchBook(c);
+      let contents = c.rendition.getContents();
+      let content = contents.find((item) => item && item.section && item.section.index === Number(result.locator.section)) || contents[0];
+      let root = content && content.document && content.document.body;
+      let match = matchForSearchResult(root, result);
+      if (content && root && match && typeof content.cfiFromRange === 'function') {
+        const range = rangeFromTextOffsets(root, match.start, match.end);
+        const cfi = range && content.cfiFromRange(range);
+        if (cfi) await c.rendition.display(cfi);
+      }
+      window.setTimeout(restoreBookSearchHighlight, 30);
+    } else if (c.format === 'pdf') {
+      c.page = Math.max(1, Math.min(c.pages, Number(result.locator.page) || 1));
+      await renderPdfPage();
+    } else if (c.format === 'mobi' || c.format === 'azw3') {
+      await loadMobiChapter(Number(result.locator.chapter) || 0, {});
+      const root = c.paginator && c.paginator.doc && c.paginator.doc.body;
+      const match = matchForSearchResult(root, result);
+      if (match) {
+        const page = c.paginator.locate(match.start);
+        if (page >= 0) c.paginator.showPage(page);
+      }
+      restoreBookSearchHighlight();
+      updateMobiProgress(true);
+    } else if (c.paginator) {
+      const root = c.paginator.doc && c.paginator.doc.body;
+      const match = matchForSearchResult(root, result);
+      if (match) {
+        const page = c.paginator.locate(match.start);
+        if (page >= 0) c.paginator.showPage(page);
+      }
+      restoreBookSearchHighlight();
+      updateTxtProgress(true);
+    }
+    const active = els.bookSearchResults.querySelector('[data-search-index="' + index + '"]');
+    if (active) active.scrollIntoView({ block: 'nearest' });
+    noteReadingActivity();
+  } catch (error) {
+    if (error && error.code === 'SEARCH_CANCELLED') return;
+    console.error('BOOK_SEARCH_JUMP_FAILED', error);
+    setBookSearchStatus('无法跳转到该结果：' + String(error && error.message || error), 'error');
+  }
+}
+
+function stepBookSearch(direction) {
+  const c = state.current;
+  const results = c && c.bookSearchResults || [];
+  if (!results.length) return;
+  const current = Number.isInteger(c.bookSearchActiveIndex) ? c.bookSearchActiveIndex : -1;
+  const next = direction < 0
+    ? (current <= 0 ? results.length - 1 : current - 1)
+    : (current >= results.length - 1 ? 0 : current + 1);
+  activateBookSearchResult(next);
 }
 
 function clearTextHighlights(root) {
@@ -2236,6 +2666,7 @@ async function removeSelectionAnnotation() {
 function restoreCurrentAnnotations() {
   if (state.current && state.current.format === 'epub') restoreEpubAnnotations();
   else restoreTextAnnotations();
+  restoreBookSearchHighlight();
 }
 
 function annotationChapterLabel(annotation) {
@@ -3718,6 +4149,7 @@ function closeAiAssistantPanel() {
 
 function showAiAssistantPanel() {
   closeSettings();
+  if (!els.bookSearchPanel.hidden) closeBookSearch();
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   let source;
   try { source = currentChapterSummarySource(); } catch (error) {
@@ -4022,6 +4454,17 @@ function bindEvents() {
     closeSettings();
     toggleReaderToc();
   });
+  $('btn-book-search-drawer').addEventListener('click', openBookSearch);
+  $('btn-book-search').addEventListener('click', toggleBookSearch);
+  $('btn-book-search-close').addEventListener('click', () => closeBookSearch());
+  els.bookSearchInput.addEventListener('input', scheduleBookSearch);
+  els.bookSearchInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    stepBookSearch(event.shiftKey ? -1 : 1);
+  });
+  els.bookSearchPrev.addEventListener('click', () => stepBookSearch(-1));
+  els.bookSearchNext.addEventListener('click', () => stepBookSearch(1));
   els.readerTocButton.addEventListener('click', toggleReaderToc);
   els.tocBackdrop.addEventListener('pointerdown', dismissManualToc);
   els.tocEdgeTrigger.addEventListener('pointerenter', openTocFromEdge);
@@ -4165,6 +4608,40 @@ window.__gaiaDebug = {
   openBook,
   backToLibrary,
   showView,
+  openBookSearch,
+  closeBookSearch,
+  runBookSearch: async (query) => {
+    openBookSearch();
+    els.bookSearchInput.value = String(query || '');
+    await runBookSearch();
+    return window.__gaiaDebug.getBookSearchState();
+  },
+  activateBookSearchResult: async (index) => {
+    await activateBookSearchResult(index);
+    await delay(100);
+    return window.__gaiaDebug.getBookSearchState();
+  },
+  getBookSearchState: () => {
+    const c = state.current;
+    let highlightCount = 0;
+    if (c && c.rendition) {
+      try {
+        highlightCount += c.rendition.getContents().reduce((total, contents) =>
+          total + (contents.document ? contents.document.querySelectorAll('mark.gaia-search-highlight').length : 0), 0);
+      } catch (error) {}
+    }
+    if (c && c.pdfTextRoot) highlightCount += c.pdfTextRoot.querySelectorAll('mark.gaia-search-highlight').length;
+    if (c && c.paginator && c.paginator.doc) highlightCount += c.paginator.doc.querySelectorAll('mark.gaia-search-highlight').length;
+    return {
+      open: !els.bookSearchPanel.hidden,
+      focused: document.activeElement === els.bookSearchInput,
+      query: els.bookSearchInput.value,
+      status: els.bookSearchStatus.textContent,
+      results: c && Array.isArray(c.bookSearchResults) ? c.bookSearchResults.length : 0,
+      activeIndex: c && Number.isInteger(c.bookSearchActiveIndex) ? c.bookSearchActiveIndex : -1,
+      highlightCount,
+    };
+  },
   nextPage,
   prevPage,
   openReadingStats,

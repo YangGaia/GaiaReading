@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('api', {
   mobiClose: (sessionId) => ipcRenderer.invoke('mobi:close', sessionId),
   stateGet: (key) => ipcRenderer.invoke('state:get', key),
   stateSet: (key, value) => ipcRenderer.invoke('state:set', { key, value }),
+  searchIndexGet: (filePath) => ipcRenderer.invoke('search:index:get', filePath),
+  searchIndexSet: (filePath, sections) => ipcRenderer.invoke('search:index:set', { filePath, sections }),
   aiProfilesGet: () => ipcRenderer.invoke('ai:profiles:get'),
   aiProfileSave: (profile) => ipcRenderer.invoke('ai:profile:save', profile),
   aiProfileActivate: (profileId) => ipcRenderer.invoke('ai:profile:activate', profileId),
