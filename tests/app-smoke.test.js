@@ -21,7 +21,7 @@ test('项目关键文件齐全', () => {
   assert.ok(main.includes('const importResult = await __gaiaDebug.importPaths([fixture])'), 'EPUB 烟雾测试应走真实导入流程');
   assert.ok(main.includes('parsed.importSucceeded === true'), 'EPUB 烟雾测试应验证导入成功');
   assert.ok(main.includes('parsed.importChooserReady === true') && main.includes('parsed.importChooserClosed === true'), 'EPUB 烟雾测试应验证添加图书窗口的打开、聚焦与关闭');
-  assert.ok(main.includes("document.getElementById('btn-add-bookmark').click()") && main.includes('parsed.bookmarkActionOpenedPanel === true'), 'EPUB 烟雾测试应通过真实按钮验证添加书签交互');
+  assert.ok(main.includes("const addBookmarkButton = document.getElementById('btn-add-bookmark')") && main.includes('parsed.bookmarkActionOpenedImmediately === true'), 'EPUB 烟雾测试应验证点击添加书签后立即打开侧栏');
   assert.ok(main.includes("await __gaiaDebug.runBookSearch('测试内容')"), 'EPUB 烟雾测试应执行真实全文搜索');
   assert.ok(main.includes('parsed.bookSearchRuntimeReady === true'), 'EPUB 烟雾测试应验证搜索跳转与正文高亮');
   assert.ok(main.includes('parsed.singleFits === true') && main.includes('parsed.pairingWorks === true') && main.includes('parsed.zoomModesWork === true'), 'PDF 烟雾测试应验证整页适配、双页配对和缩放模式');
@@ -365,7 +365,7 @@ test('书签支持内容锚点、重命名与 TXT 章节识别', () => {
   const addBookmarkButton = html.match(/<button id="btn-add-bookmark" class="([^"]+)"/);
   assert.ok(addBookmarkButton && addBookmarkButton[1] === 'btn block', '添加书签应与功能区同级按钮保持一致的中性样式');
   assert.ok(app.includes("$('btn-add-bookmark').addEventListener('click', addBookmarkFromSettings)"), '添加书签按钮必须绑定可等待的保存流程');
-  assert.ok(app.includes("if (els.bookmarksPanel.hidden) togglePanel('bookmarks')"), '添加成功后应打开书签列表提供明确反馈');
+  assert.ok(app.indexOf("if (els.bookmarksPanel.hidden) togglePanel('bookmarks')") < app.indexOf('return await pendingBookmark'), '添加书签应先打开侧栏，再等待保存完成');
 });
 
 test('分页器保留左右页边距（版心）', () => {

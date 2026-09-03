@@ -2110,11 +2110,10 @@ async function addBookmarkFromSettings() {
   if (button.disabled) return false;
   button.disabled = true;
   try {
-    const added = await addBookmark();
-    if (!added) return false;
+    const pendingBookmark = addBookmark();
     closeSettings();
     if (els.bookmarksPanel.hidden) togglePanel('bookmarks');
-    return true;
+    return await pendingBookmark;
   } catch (error) {
     els.readerStatus.textContent = '添加书签失败，请重试';
     console.error('添加书签失败', error);
