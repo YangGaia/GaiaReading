@@ -174,17 +174,25 @@
   </div>
 
   <div id="reader-view" hidden>
-    <header class="topbar">
+    <header class="topbar reader-topbar">
       <button id="btn-back" class="btn">← 书架</button>
       <span id="reader-title" class="reader-title"></span>
-      <div class="actions">
+      <div class="actions reader-actions">
         <div id="pdf-zoom-controls" class="pdf-zoom-controls" aria-label="PDF 缩放" hidden>
           <button id="btn-pdf-zoom-out" type="button" title="缩小 PDF" aria-label="缩小 PDF">−</button>
           <button id="btn-pdf-zoom-reset" type="button" title="恢复 100%" aria-label="恢复 PDF 为 100%"><span id="pdf-zoom-value">100%</span></button>
           <button id="btn-pdf-zoom-in" type="button" title="放大 PDF" aria-label="放大 PDF">＋</button>
         </div>
-        <select id="ai-reader-profile" class="reader-ai-profile" aria-label="当前 AI 接口"></select>
-        <button id="btn-ai-reader" class="btn ai-reader-trigger"><span>✦</span> AI</button>
+        <div id="reader-bgm-slot" class="reader-bgm-slot" aria-label="阅读音乐"></div>
+        <div class="alice-reader-actions" role="group" aria-label="有珠快捷操作">
+          <button id="btn-alice-summary" class="alice-reader-action alice-reader-summary" type="button" data-ai-alice="summary" title="让有珠总结当前章节">
+            <span class="alice-action-mark" aria-hidden="true">◆</span><span class="alice-action-prefix">有珠</span><span class="alice-action-text">总结</span>
+          </button>
+          <button id="btn-alice-comment" class="alice-reader-action alice-reader-comment" type="button" data-ai-alice="comment" title="让有珠吐槽当前章节">
+            <span class="alice-action-mark" aria-hidden="true">◇</span><span class="alice-action-prefix">有珠</span><span class="alice-action-text">吐槽</span>
+          </button>
+        </div>
+        <button id="btn-ai-reader" class="btn ai-reader-trigger"><span>✦</span> 对话</button>
         <button id="btn-settings-reader" class="btn">设置</button>
       </div>
     </header>
@@ -216,9 +224,9 @@
         </div>
         <p id="ai-summary-chapter" class="ai-summary-chapter">当前章节</p>
         <p id="ai-summary-target" class="ai-summary-target"></p>
-        <div class="ai-quick-actions">
-          <button type="button" data-ai-alice="summary">有珠概括</button>
-          <button type="button" data-ai-alice="comment">有珠吐槽</button>
+        <div class="ai-panel-profile-row">
+          <label for="ai-reader-profile">当前接口</label>
+          <select id="ai-reader-profile" class="reader-ai-profile" aria-label="当前 AI 接口"></select>
         </div>
         <div id="ai-summary-status" class="ai-summary-status" role="status" aria-live="polite">可以直接提问，或先选择一条快捷指令。</div>
         <div class="ai-content-stage">

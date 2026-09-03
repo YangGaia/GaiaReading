@@ -583,6 +583,13 @@ function createWindow() {
               const wheelsAfterNav = __gaiaDebug.countBoundWheels();
               const bgmCapsule = !!document.getElementById("bgm-capsule");
               const bgmInTopbar = !!document.querySelector("#reader-view .topbar .bgm-capsule");
+              const aliceSummaryAction = document.getElementById('btn-alice-summary');
+              const aliceCommentAction = document.getElementById('btn-alice-comment');
+              const aliceQuickActionsReady = !!aliceSummaryAction && !!aliceCommentAction &&
+                aliceSummaryAction.closest('.reader-topbar') && aliceCommentAction.closest('.reader-topbar') &&
+                aliceSummaryAction.offsetHeight === aliceCommentAction.offsetHeight && aliceSummaryAction.offsetHeight >= 30 &&
+                getComputedStyle(aliceSummaryAction).backgroundImage !== getComputedStyle(aliceCommentAction).backgroundImage &&
+                document.getElementById('ai-summary-panel').contains(document.getElementById('ai-reader-profile'));
               const progTrack = document.getElementById("progress-track");
               const progressVisible = !!progTrack && progTrack.offsetHeight > 0 && !!document.getElementById("progress-fill");
               const bgmTrackBefore = __gaiaDebug.bgmState().trackId;
@@ -677,6 +684,7 @@ function createWindow() {
               const appearanceControlsAligned = Math.abs(themeButtonRect.top - petButtonRect.top) <= 1 && Math.abs(themeButtonRect.height - petButtonRect.height) <= 1;
               const bgmAvoidsSettings = settingsCapsuleRect.right <= settingsDrawerRect.left - 16;
               const bgmSettingsState = settingsCapsule.dataset.settingsOpen === '1' && settingsCapsule.parentElement === document.body;
+              const readerActionsAvoidSettings = getComputedStyle(document.querySelector('.reader-actions')).visibility === 'hidden';
               __gaiaDebug.closeSettings();
               const settingsClosingAnimation = settingsCapsule.getAnimations().find((a) => a.id === 'bgm-settings-restore-flip');
               const bgmSettingsClosingAnimation = !!settingsClosingAnimation && settingsClosingAnimation.playState === 'running';
@@ -733,7 +741,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, petReadingTimerSurvivesIframeFocus, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, petReadingTimerSurvivesIframeFocus, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -760,6 +768,7 @@ function createWindow() {
               parsed.searchSettingsReady === true &&
               parsed.appearanceControlsAligned === true &&
               parsed.bgmAvoidsSettings === true &&
+              parsed.readerActionsAvoidSettings === true &&
               parsed.bgmSettingsState === true &&
               parsed.bgmSettingsRestored === true &&
               parsed.bgmSettingsOpeningAnimation === true &&
@@ -800,6 +809,7 @@ function createWindow() {
               parsed.countAfterAdd === 1 &&
               parsed.bgmCapsule === true &&
               parsed.bgmInTopbar === true &&
+              parsed.aliceQuickActionsReady === true &&
               parsed.progressVisible === true &&
               parsed.bgmTrackAfter !== parsed.bgmTrackBefore &&
               parsed.bgmVolumeOk === true &&

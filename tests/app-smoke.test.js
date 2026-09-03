@@ -122,7 +122,7 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   const ai = fs.readFileSync(path.join(root, 'src', 'shared', 'ai.js'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
 
-  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-menu', 'btn-ai-model-refresh', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-assistant', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-minimize', 'btn-ai-summary-prompt', 'btn-ai-characters-prompt', 'btn-ai-foreshadow-prompt', 'ai-chat-pane', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input', 'drawer-lookup', 'search-engine', 'search-custom-row', 'search-custom-template']) {
+  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-menu', 'btn-ai-model-refresh', 'reader-bgm-slot', 'btn-alice-summary', 'btn-alice-comment', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-assistant', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-minimize', 'btn-ai-summary-prompt', 'btn-ai-characters-prompt', 'btn-ai-foreshadow-prompt', 'ai-chat-pane', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input', 'drawer-lookup', 'search-engine', 'search-custom-row', 'search-custom-template']) {
     assert.ok(html.includes(`id="${id}"`), `AI 界面缺少 ${id}`);
   }
   for (const bridge of ['aiProfilesGet', 'aiProfileSave', 'aiProfileActivate', 'aiProfileDelete', 'aiProfileTest', 'aiProfileModels', 'aiChat', 'aiChatCancel', 'aiAliceComment', 'dictionaryOpen', 'searchWeb']) {
@@ -145,6 +145,16 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(app.includes('getAiChapterSource'), 'Electron 冒烟调试接口应能验证章节提取');
   assert.ok(app.includes("window.GaiaPet.speak(result.comment"), '有珠短评应只显示为桌宠台词');
   assert.ok(!app.includes("messages.push({ role: 'assistant', mode: result.mode"), '有珠短评不应进入普通聊天记录');
+  const readerHeaderStart = html.indexOf('<header class="topbar reader-topbar">');
+  const readerHeader = html.slice(readerHeaderStart, html.indexOf('</header>', readerHeaderStart));
+  const aiPanelStart = html.indexOf('id="ai-summary-panel"');
+  const aiPanel = html.slice(aiPanelStart, html.indexOf('</aside>', aiPanelStart));
+  assert.ok(readerHeader.includes('data-ai-alice="summary"') && readerHeader.includes('data-ai-alice="comment"'), '有珠总结与吐槽应位于阅读顶栏');
+  assert.ok(!aiPanel.includes('data-ai-alice='), 'AI 对话框内不应重复显示有珠快捷操作');
+  assert.ok(aiPanel.includes('id="ai-reader-profile"'), 'AI 接口选择器应移入对话框以释放顶栏空间');
+  assert.ok(css.includes('.alice-reader-summary') && css.includes('#342653') && css.includes('#5b4a82'), '有珠总结应使用月光紫配色');
+  assert.ok(css.includes('.alice-reader-comment') && css.includes('#40203a') && css.includes('#713851'), '有珠吐槽应使用暗红紫配色');
+  assert.ok(app.includes("state.aiAliceKind === 'summary' ? '总结中' : '构思中'"), '顶栏快捷操作应显示独立加载状态');
   assert.ok(app.includes('new ResizeObserver'), 'AI 悬浮窗应记忆缩放后的尺寸');
   assert.ok(app.includes('saveAiPanelGeometry'), 'AI 悬浮窗应保存位置和大小');
   assert.ok(app.includes('setAiPanelMinimized'), 'AI 悬浮窗应统一更新最小化状态和无障碍标签');
@@ -374,12 +384,13 @@ test('BGM 胶囊封面与阅读进度条细节', () => {
   assert.ok(bgm.includes('bgm://local/cover.jpg'), '胶囊应加载专辑封面');
   assert.ok(css.includes('.bgm-cover'), '应有封面缩略图样式');
   assert.ok(css.includes('.bgm-capsule.in-topbar'), '阅读界面胶囊应嵌入顶栏');
-  assert.ok(bgm.includes('#reader-view .topbar'), '渲染进程应把胶囊放入阅读页顶栏');
+  assert.ok(bgm.includes('#reader-bgm-slot'), '渲染进程应把胶囊放入阅读页专用槽位');
   assert.ok(bgm.includes('function setSettingsOpen(open)'), 'BGM 应响应设置抽屉开关状态');
   assert.ok(app.includes('window.GaiaBgm.setSettingsOpen(true)'), '打开设置时应通知 BGM 胶囊避让');
   assert.ok(app.includes('window.GaiaBgm.setSettingsOpen(false)'), '关闭设置时应恢复 BGM 胶囊位置');
   assert.ok(css.includes('.bgm-capsule[data-settings-open="1"]'), '设置打开时应有胶囊避让样式');
   assert.ok(css.includes('calc(var(--settings-drawer-width) + 24px)'), '胶囊应移动到设置抽屉左侧');
+  assert.ok(css.includes('#reader-view.settings-open .reader-actions'), '设置打开时应收起顶栏操作，避免与音乐胶囊重叠');
   assert.ok(css.includes('@media (max-width: 760px)'), '窄窗口下应隐藏无空间避让的胶囊');
   assert.ok(bgm.includes('function animateSettingsEntry(fromRect)'), '打开设置时应从胶囊原位置开始移动');
   assert.ok(bgm.includes("settingsAnimation.id = 'bgm-settings-entry-flip'"), '打开设置应使用真实位置间的 FLIP 动画');

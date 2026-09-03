@@ -177,6 +177,7 @@ const state = {
   aiChatRequestId: '',
   aiChatInterrupting: false,
   aiAliceLoading: false,
+  aiAliceKind: '',
   aiChats: {},
   aiCenterReturnView: 'home',
   readingStats: createReadingStats(),
@@ -640,6 +641,7 @@ function openSettings(section) {
   if (inReader) updateSettingsValues();
   updatePetUI();
   if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(true);
+  views.reader.classList.toggle('settings-open', !views.reader.hidden);
   els.settingsOverlay.hidden = false;
   updateSearchSettingsUi();
   updateAiConfigForm();
@@ -647,6 +649,7 @@ function openSettings(section) {
 
 function closeSettings() {
   els.settingsOverlay.hidden = true;
+  views.reader.classList.remove('settings-open');
   if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(false);
 }
 
@@ -3469,6 +3472,14 @@ function nextAiChatRequestId() {
 }
 
 function updateAiChatComposer() {
+  document.querySelectorAll('[data-ai-alice]').forEach((button) => {
+    const active = state.aiAliceLoading && button.dataset.aiAlice === state.aiAliceKind;
+    button.disabled = state.aiChatLoading || state.aiAliceLoading;
+    button.classList.toggle('loading', active);
+    button.setAttribute('aria-busy', String(active));
+    const label = button.querySelector('.alice-action-text');
+    if (label) label.textContent = active ? (state.aiAliceKind === 'summary' ? '总结中' : '构思中') : (button.dataset.aiAlice === 'summary' ? '总结' : '吐槽');
+  });
   if (state.aiChatInterrupting) {
     els.aiChatSend.disabled = true;
     els.aiChatSend.textContent = '正在打断…';
@@ -3785,6 +3796,7 @@ async function runAliceComment(kind) {
     return;
   }
   state.aiAliceLoading = true;
+  state.aiAliceKind = kind;
   updateAiChatComposer();
   els.aiSummaryStatus.classList.remove('error');
   els.aiSummaryStatus.textContent = kind === 'summary' ? '有珠正在概括这一章…' : '有珠正在想怎么吐槽…';
@@ -3798,6 +3810,7 @@ async function runAliceComment(kind) {
     els.aiSummaryStatus.classList.add('error');
   } finally {
     state.aiAliceLoading = false;
+    state.aiAliceKind = '';
     updateAiChatComposer();
   }
 }

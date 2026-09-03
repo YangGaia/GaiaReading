@@ -135,7 +135,7 @@
       return;
     }
     const topbarSelector = currentView === 'reader'
-      ? '#reader-view .topbar'
+      ? '#reader-bgm-slot'
       : (currentView === 'library' ? '#library-view .topbar' : (currentView === 'ai' ? '#ai-view .topbar' : null));
     const topbar = topbarSelector ? document.querySelector(topbarSelector) : null;
     if (topbar) {
