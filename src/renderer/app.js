@@ -61,6 +61,7 @@ const { findInText: findBookSearchMatches, searchSections: searchBookSections } 
 const readerWheelGate = createWheelGate({ threshold: 60, cooldown: 250 });
 const pdfZoomRuntime = { timer: 0, anchor: null };
 let bookSearchTimer = 0;
+let epubWindowResizeTimer = 0;
 let readerLayoutSyncVersion = 0;
 let readerLayoutSyncPromise = Promise.resolve(false);
 
@@ -689,6 +690,8 @@ function updateSettingsValues() {
 function closeReaderContent() {
   closeNoteEditor();
   closeBookSearch({ reset: true, refresh: false });
+  window.clearTimeout(epubWindowResizeTimer);
+  epubWindowResizeTimer = 0;
   readerLayoutSyncVersion += 1;
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   const c = state.current;
@@ -866,13 +869,13 @@ async function openEpub(book) {
 
 function resizeEpubRendition() {
   const c = state.current;
-  if (c && c.rendition && typeof c.rendition.resize === 'function') {
-    try {
-      c.rendition.resize();
-    } catch (e) {
-      console.error(e);
-    }
-  }
+  if (!c || c.format !== 'epub' || !c.rendition) return;
+  window.clearTimeout(epubWindowResizeTimer);
+  epubWindowResizeTimer = window.setTimeout(() => {
+    epubWindowResizeTimer = 0;
+    const anchor = captureReaderLayoutAnchor();
+    if (anchor) scheduleReaderLayoutRefresh(anchor, { force: true });
+  }, 120);
 }
 
 function animatePage(direction) {
@@ -1118,9 +1121,13 @@ async function renderPdfTextLayer(page, viewport, wrap) {
 }
 
 function readerViewportSize() {
+  const c = state.current;
+  const bounds = els.readerContent.getBoundingClientRect();
+  const epubWidth = c && c.format === 'epub' ? Math.floor(bounds.width || 0) : 0;
+  const epubHeight = c && c.format === 'epub' ? Math.floor(bounds.height || 0) : 0;
   return {
-    width: Math.max(0, els.readerContent.clientWidth || 0),
-    height: Math.max(0, els.readerContent.clientHeight || 0),
+    width: Math.max(0, epubWidth || els.readerContent.clientWidth || 0),
+    height: Math.max(0, epubHeight || els.readerContent.clientHeight || 0),
   };
 }
 
@@ -1145,12 +1152,13 @@ function captureReaderLayoutAnchor() {
   return anchor;
 }
 
-async function refreshReaderLayout(anchor) {
+async function refreshReaderLayout(anchor, options) {
   const c = state.current;
   if (!c || !anchor || c.path !== anchor.bookPath || c.format !== anchor.format) return false;
+  const opts = options || {};
   const size = readerViewportSize();
   if (!size.width || !size.height) return false;
-  if (size.width === anchor.width && size.height === anchor.height) return true;
+  if (!opts.force && size.width === anchor.width && size.height === anchor.height) return true;
   if (c.format === 'epub' && c.rendition) {
     c.rendition.resize(size.width, size.height, anchor.cfi || undefined);
     if (anchor.cfi) await c.rendition.display(anchor.cfi);
@@ -1180,13 +1188,14 @@ async function refreshReaderLayout(anchor) {
   return false;
 }
 
-function scheduleReaderLayoutRefresh(anchor) {
+function scheduleReaderLayoutRefresh(anchor, options) {
   const captured = anchor || captureReaderLayoutAnchor();
+  const opts = options || {};
   const version = ++readerLayoutSyncVersion;
   readerLayoutSyncPromise = (async () => {
     await new Promise((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)));
     if (version !== readerLayoutSyncVersion) return false;
-    return refreshReaderLayout(captured);
+    return refreshReaderLayout(captured, opts);
   })().catch((error) => {
     console.error('READER_LAYOUT_REFRESH_FAILED', error);
     return false;
