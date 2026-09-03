@@ -174,6 +174,7 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(!app.includes("messages.push({ role: 'assistant', mode: result.mode"), '有珠短评不应进入普通聊天记录');
   const readerHeaderStart = html.indexOf('<header class="topbar reader-topbar">');
   const readerHeader = html.slice(readerHeaderStart, html.indexOf('</header>', readerHeaderStart));
+  assert.ok(readerHeader.indexOf('id="btn-ai-reader"') < readerHeader.indexOf('id="btn-book-search"'), '阅读顶栏中 AI 对话按钮应位于全文搜索按钮左侧');
   const aiPanelStart = html.indexOf('id="ai-summary-panel"');
   const aiPanel = html.slice(aiPanelStart, html.indexOf('</aside>', aiPanelStart));
   assert.ok(readerHeader.includes('data-ai-alice="summary"') && readerHeader.includes('data-ai-alice="comment"'), '有珠总结与吐槽应位于阅读顶栏');
