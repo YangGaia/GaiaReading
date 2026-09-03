@@ -100,6 +100,7 @@
   let effectVersion = 0;
   let activePerformance = null;
   let readingStartedAt = 0;
+  let appWindowFocused = true;
   let fpsRafId = 0;
   let fpsSampleStarted = 0;
   let fpsFrameCount = 0;
@@ -180,7 +181,7 @@
 
   function sampleFps(now) {
     fpsRafId = window.requestAnimationFrame(sampleFps);
-    if (document.hidden || !document.hasFocus()) {
+    if (document.hidden || !appWindowFocused) {
       resetFpsSampling(true);
       return;
     }
@@ -466,7 +467,7 @@
   }
 
   function canTrackReading() {
-    return saved.on && saved.readerCare && currentView === 'reader' && !document.hidden && document.hasFocus();
+    return saved.on && saved.readerCare && currentView === 'reader' && !document.hidden && appWindowFocused;
   }
 
   function readingElapsed(now) {
@@ -497,6 +498,13 @@
     if (!readingStartedAt) readingStartedAt = now == null ? Date.now() : now;
     updateReadingCareStatus(now);
     return true;
+  }
+
+  function handleAppWindowFocus(focused) {
+    appWindowFocused = !!focused;
+    if (appWindowFocused) startReadingSession(Date.now());
+    else resetReadingSession();
+    resetFpsSampling(true);
   }
 
   function showReadingCareReminder(resetTimer) {
@@ -920,14 +928,7 @@
       ev.stopImmediatePropagation();
       closeConsole(true);
     }, true);
-    window.addEventListener('blur', () => {
-      resetReadingSession();
-      resetFpsSampling(true);
-    });
-    window.addEventListener('focus', () => {
-      startReadingSession(Date.now());
-      resetFpsSampling(true);
-    });
+    window.api.onWindowFocusChanged(handleAppWindowFocus);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         resetReadingSession();
@@ -1297,6 +1298,8 @@
     ui.root.style.width = Math.round(150 * saved.scale) + 'px';
     layoutFace();
     bind();
+    try { handleAppWindowFocus(await window.api.isWindowFocused()); }
+    catch (error) { handleAppWindowFocus(document.hasFocus()); }
     if (!restorePositionFromRatios() && (saved.x == null || saved.y == null)) {
       const r = ui.root.getBoundingClientRect();
       saved.x = Math.max(8, window.innerWidth - r.width - 24);
@@ -1373,6 +1376,13 @@
     setView,
     getState: () => Object.assign({}, saved),
     getBrain: () => Object.assign({}, brain),
+    getReadingCareState: () => ({
+      startedAt: readingStartedAt,
+      elapsed: readingElapsed(Date.now()),
+      windowFocused: appWindowFocused,
+      tracking: canTrackReading(),
+    }),
+    setWindowFocusedForTest: handleAppWindowFocus,
     openConsole: () => openConsole({ preventDefault() {} }),
     closeConsole: () => closeConsole(true),
     runEmotion,

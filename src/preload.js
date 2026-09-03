@@ -30,4 +30,10 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('display:frequency-changed', listener);
     return () => ipcRenderer.removeListener('display:frequency-changed', listener);
   },
+  isWindowFocused: () => ipcRenderer.invoke('window:is-focused'),
+  onWindowFocusChanged: (callback) => {
+    const listener = (event, focused) => callback(!!focused);
+    ipcRenderer.on('window:focus-changed', listener);
+    return () => ipcRenderer.removeListener('window:focus-changed', listener);
+  },
 });

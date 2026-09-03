@@ -379,6 +379,12 @@ function createWindow() {
     clearTimeout(displayUpdateTimer);
     displayUpdateTimer = setTimeout(sendDisplayFrequency, 120);
   };
+  const sendWindowFocusState = (focused) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send('window:focus-changed', !!focused);
+  };
+  mainWindow.on('focus', () => sendWindowFocusState(true));
+  mainWindow.on('blur', () => sendWindowFocusState(false));
   mainWindow.on('move', scheduleDisplayFrequency);
   mainWindow.on('resize', scheduleDisplayFrequency);
   screen.on('display-metrics-changed', scheduleDisplayFrequency);
@@ -467,6 +473,24 @@ function createWindow() {
               const importSucceeded = importResult.added === 1 && importResult.failures.length === 0 && !!importedBook;
               await __gaiaDebug.openBook(importedBook || { path: fixture, format: 'epub', title: 'fixture' });
               await __gaiaDebug.waitLocations();
+              await GaiaPet.whenReady();
+              const readingCareBefore = GaiaPet.getReadingCareState();
+              GaiaPet.openConsole();
+              const petHitbox = document.querySelector('.gaia-pet-hitbox');
+              if (petHitbox) {
+                petHitbox.focus();
+                petHitbox.click();
+              }
+              const readingFrame = document.querySelector('#reader-content iframe');
+              if (readingFrame && readingFrame.contentWindow) readingFrame.contentWindow.focus();
+              await new Promise((r) => setTimeout(r, 650));
+              const readingCareAfter = GaiaPet.getReadingCareState();
+              const petReadingTimerSurvivesIframeFocus = readingCareBefore.tracking === true &&
+                readingCareAfter.tracking === true && readingCareBefore.startedAt > 0 &&
+                readingCareAfter.startedAt === readingCareBefore.startedAt &&
+                readingCareAfter.elapsed > readingCareBefore.elapsed;
+              GaiaPet.closeConsole();
+              window.focus();
               const aiUi = __gaiaDebug.getAiUiState();
               const aiSource = __gaiaDebug.getAiChapterSource();
               __gaiaDebug.openAiCenter('reader');
@@ -709,7 +733,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, petReadingTimerSurvivesIframeFocus, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -723,6 +747,7 @@ function createWindow() {
               parsed.viewAfterSplash === 'home' &&
               parsed.splashHidden === true &&
               parsed.importSucceeded === true &&
+              parsed.petReadingTimerSurvivesIframeFocus === true &&
               parsed.aiUiReady === true &&
               parsed.selectionPrepared === true &&
               parsed.noteEditorOpen === true &&
@@ -888,9 +913,10 @@ function createWindow() {
             Date.now = () => readingDateNow() + 30000;
             await new Promise((resolve) => setTimeout(resolve, 600));
             const readingTimerAdvanced = careStatus.textContent.includes('00:30 / 01:00');
-            window.dispatchEvent(new Event('blur'));
+            GaiaPet.setWindowFocusedForTest(false);
             const readingTimerResetOnBlur = careStatus.textContent.includes('00:00 / 01:00');
             const fpsUnavailableOnBlur = fpsLabel.textContent.startsWith('FPS -- / ') && fpsLabel.dataset.level === 'idle';
+            GaiaPet.setWindowFocusedForTest(true);
             Date.now = readingDateNow;
             GaiaPet.setView('home');
             const readingTimerResetOnLeave = careStatus.textContent.includes('未在阅读');
@@ -1449,6 +1475,10 @@ ipcMain.handle('selection:search', async (event, payload) => {
 });
 ipcMain.handle('file:exists', (event, filePath) => fs.existsSync(filePath));
 ipcMain.handle('display:frequency', (event) => displayFrequencyForWindow(BrowserWindow.fromWebContents(event.sender)));
+ipcMain.handle('window:is-focused', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return !!(win && !win.isDestroyed() && win.isFocused());
+});
 
 function setupMenu() {
   const template = [

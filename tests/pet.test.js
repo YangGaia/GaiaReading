@@ -230,7 +230,12 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(preload.includes("ipcRenderer.on('display:frequency-changed'"), '预加载层应转发刷新率变化');
   assert.ok(renderer.includes("[60000, '测试 · 1分钟']"), '控制台应提供一分钟验收间隔');
   assert.ok(renderer.includes("makeButton('立即测试提醒'"), '控制台应支持立即测试关怀台词');
-  assert.match(renderer, /window\.addEventListener\('blur', \(\) => \{\s+resetReadingSession\(\);\s+resetFpsSampling\(true\);/, '切换程序时应清零连续阅读计时并暂停帧率显示');
+  assert.ok(main.includes("mainWindow.webContents.send('window:focus-changed', !!focused)"), '主进程应报告应用窗口的真实焦点状态');
+  assert.ok(preload.includes("ipcRenderer.invoke('window:is-focused')") && preload.includes("ipcRenderer.on('window:focus-changed'"), '预加载层应安全转发应用窗口焦点');
+  assert.ok(renderer.includes('window.api.onWindowFocusChanged(handleAppWindowFocus)'), '阅读计时应监听应用窗口焦点，而不是正文 iframe 焦点');
+  assert.ok(renderer.includes('!document.hidden && appWindowFocused'), '阅读计时条件应允许焦点停留在正文 iframe');
+  assert.ok(!renderer.includes("window.addEventListener('blur'"), '不能把主页面到正文 iframe 的焦点切换误判为切出程序');
+  assert.ok(main.includes('GaiaPet.setWindowFocusedForTest(false)'), '冒烟测试应验证应用窗口真正失焦后计时仍会清零');
   assert.ok(renderer.includes("document.addEventListener('visibilitychange'"), '最小化窗口时应清零连续阅读计时');
   assert.ok(renderer.includes("if (nextView !== currentView) resetReadingSession()"), '离开阅读页时应清零连续阅读计时');
   assert.ok(renderer.includes("showBubble(lineFor('readingCare'), 4200)"), '阅读超时后应显示关怀台词');
