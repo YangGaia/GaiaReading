@@ -189,7 +189,9 @@
       </div>
     </header>
     <div id="reader-body">
-      <nav id="toc-panel" class="side-panel" hidden></nav>
+      <div id="toc-backdrop" class="toc-backdrop" hidden></div>
+      <div id="toc-edge-trigger" class="toc-edge-trigger" aria-hidden="true"></div>
+      <nav id="toc-panel" class="side-panel toc-panel" aria-label="书籍目录" aria-hidden="true" hidden></nav>
       <nav id="bookmarks-panel" class="side-panel" hidden></nav>
       <aside id="annotations-panel" class="side-panel annotations-panel" hidden></aside>
       <aside id="ai-summary-panel" class="ai-summary-panel" role="dialog" aria-label="AI 阅读助手" hidden>
@@ -237,6 +239,7 @@
         </div>
       </aside>
       <div id="reader-content"></div>
+      <button id="btn-reader-toc" class="reader-toc-button" type="button" aria-controls="toc-panel" aria-expanded="false" title="打开目录"><span aria-hidden="true">☰</span>目录</button>
     </div>
     <footer class="statusbar">
       <div id="progress-track"><div id="progress-fill"></div></div>
@@ -396,6 +399,7 @@
   <script src="../shared/epub-progress.js"></script>
   <script src="../shared/chapter-scope.js"></script>
   <script src="../shared/reader-input.js"></script>
+  <script src="../shared/toc-panel.js"></script>
   <script src="../shared/reading-stats.js"></script>
   <script src="../shared/annotations.js"></script>
   <script src="../shared/ai.js"></script>

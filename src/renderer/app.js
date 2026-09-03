@@ -21,6 +21,14 @@ const {
   shouldScrollPdfPage,
 } = window.GaiaReaderInput;
 const {
+  MODES: TOC_MODES,
+  toggleManual: toggleTocManualMode,
+  enterEdge: enterTocEdgeMode,
+  leaveHover: leaveTocHoverMode,
+  activateItem: activateTocItemMode,
+  dismissManual: dismissTocManualMode,
+} = window.GaiaTocPanel;
+const {
   createReadingStats,
   setGoalMinutes,
   addReadingTime,
@@ -64,6 +72,9 @@ const els = {
   pdfZoomControls: $('pdf-zoom-controls'),
   pdfZoomValue: $('pdf-zoom-value'),
   tocPanel: $('toc-panel'),
+  tocBackdrop: $('toc-backdrop'),
+  tocEdgeTrigger: $('toc-edge-trigger'),
+  readerTocButton: $('btn-reader-toc'),
   bookmarksPanel: $('bookmarks-panel'),
   annotationsPanel: $('annotations-panel'),
   aiSummaryPanel: $('ai-summary-panel'),
@@ -185,6 +196,9 @@ state.homeReady = new Promise((resolve) => {
 
 let lastProgressSave = {};
 let lastTxtSave = 0;
+let tocMode = TOC_MODES.CLOSED;
+let tocHideTimer = 0;
+let tocHoverCloseTimer = 0;
 
 function toUint8Array(value) {
   return value instanceof Uint8Array ? value : new Uint8Array(value);
@@ -216,6 +230,7 @@ function saveProgress(pathKey, value) {
 }
 
 function showView(name) {
+  setTocMode(TOC_MODES.CLOSED, { immediate: true });
   for (const key of Object.keys(views)) {
     views[key].hidden = key !== name;
   }
@@ -608,6 +623,7 @@ function openSettings(section) {
     openAiCenter();
     return;
   }
+  setTocMode(TOC_MODES.CLOSED, { immediate: true });
   const inReader = state.current != null;
   els.drawerReading.hidden = !inReader;
   els.drawerFuncs.hidden = !inReader;
@@ -639,6 +655,7 @@ function updateSettingsValues() {
 
 function closeReaderContent() {
   closeNoteEditor();
+  setTocMode(TOC_MODES.CLOSED, { immediate: true });
   const c = state.current;
   if (c) {
     if (c.rendition) { try { c.rendition.destroy(); } catch (e) {} }
@@ -681,12 +698,12 @@ async function openBook(book) {
   readerWheelGate.reset();
   showView('reader');
   els.readerTitle.textContent = book.title || book.path;
-  els.tocPanel.hidden = true;
+  setTocMode(TOC_MODES.CLOSED, { immediate: true });
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
   els.aiSummaryPanel.hidden = true;
   $('btn-ai-reader').classList.remove('open');
-  els.tocPanel.innerHTML = '';
+  els.tocPanel.textContent = '（本书没有目录）';
   els.readerStatus.textContent = '加载中…';
   els.pageNav.hidden = false;
   state.current = { path: book.path, format: book.format, title: book.title || book.path, cover: book.cover || '', percent: 0 };
@@ -791,9 +808,7 @@ async function openEpub(book) {
         const target = resolveEpubTocTarget(epub.spine && epub.spine.spineItems, item.href);
         a.dataset.epubTarget = String(target);
         try {
-          els.tocPanel.hidden = true;
-          resizeEpubRendition();
-          await new Promise((resolve) => requestAnimationFrame(resolve));
+          handleTocItemActivation();
           await rendition.display(target);
         } catch (error) {
           console.error('EPUB_TOC_DISPLAY_FAILED', item.href, target, error);
@@ -1170,6 +1185,7 @@ function renderMobiToc() {
       a.textContent = '\\u3000'.repeat(depth) + (item.label || '').trim();
       a.addEventListener('click', (ev) => {
         ev.preventDefault();
+        handleTocItemActivation();
         if (typeof item.index === 'number' && item.index >= 0) loadMobiChapter(item.index, { page: 0, selector: item.selector || '' });
       });
       els.tocPanel.appendChild(a);
@@ -1401,12 +1417,89 @@ function cycleMargin() {
   rememberSettings();
 }
 
+function setTocMode(nextMode, options) {
+  const opts = options || {};
+  window.clearTimeout(tocHideTimer);
+  window.clearTimeout(tocHoverCloseTimer);
+  tocHideTimer = 0;
+  tocHoverCloseTimer = 0;
+  tocMode = nextMode;
+  const open = tocMode !== TOC_MODES.CLOSED;
+  els.readerTocButton.setAttribute('aria-expanded', String(open));
+  els.tocPanel.setAttribute('aria-hidden', String(!open));
+  els.tocPanel.dataset.openMode = tocMode;
+  els.tocBackdrop.hidden = tocMode !== TOC_MODES.MANUAL;
+  if (open) {
+    const wasHidden = els.tocPanel.hidden;
+    els.tocPanel.hidden = false;
+    if (wasHidden) void els.tocPanel.offsetWidth;
+    els.tocPanel.classList.add('toc-panel-open');
+    return;
+  }
+  els.tocPanel.classList.remove('toc-panel-open');
+  if (opts.immediate) {
+    els.tocPanel.hidden = true;
+  } else {
+    tocHideTimer = window.setTimeout(() => {
+      if (tocMode === TOC_MODES.CLOSED) els.tocPanel.hidden = true;
+      tocHideTimer = 0;
+    }, 230);
+  }
+}
+
+function toggleReaderToc() {
+  hideSelectionToolbar();
+  els.bookmarksPanel.hidden = true;
+  els.annotationsPanel.hidden = true;
+  els.aiSummaryPanel.hidden = true;
+  $('btn-ai-reader').classList.remove('open');
+  setTocMode(toggleTocManualMode(tocMode));
+  resizeEpubRendition();
+}
+
+function openTocFromEdge() {
+  if (!state.current || !views.reader || views.reader.hidden) return;
+  hideSelectionToolbar();
+  els.bookmarksPanel.hidden = true;
+  els.annotationsPanel.hidden = true;
+  els.aiSummaryPanel.hidden = true;
+  $('btn-ai-reader').classList.remove('open');
+  setTocMode(enterTocEdgeMode(tocMode));
+  resizeEpubRendition();
+}
+
+function scheduleTocHoverClose() {
+  if (tocMode !== TOC_MODES.HOVER) return;
+  window.clearTimeout(tocHoverCloseTimer);
+  tocHoverCloseTimer = window.setTimeout(() => {
+    setTocMode(leaveTocHoverMode(tocMode));
+  }, 160);
+}
+
+function cancelTocHoverClose() {
+  window.clearTimeout(tocHoverCloseTimer);
+  tocHoverCloseTimer = 0;
+}
+
+function handleTocItemActivation() {
+  setTocMode(activateTocItemMode(tocMode));
+}
+
+function dismissManualToc() {
+  const nextMode = dismissTocManualMode(tocMode);
+  if (nextMode !== tocMode) setTocMode(nextMode);
+}
+
 function togglePanel(which) {
-  const panels = { toc: els.tocPanel, bookmarks: els.bookmarksPanel, annotations: els.annotationsPanel, ai: els.aiSummaryPanel };
-  const target = panels[which] || els.tocPanel;
+  if (which === 'toc') {
+    toggleReaderToc();
+    return;
+  }
+  const panels = { bookmarks: els.bookmarksPanel, annotations: els.annotationsPanel, ai: els.aiSummaryPanel };
+  const target = panels[which] || els.bookmarksPanel;
   const targetHidden = target.hidden;
   hideSelectionToolbar();
-  els.tocPanel.hidden = true;
+  setTocMode(TOC_MODES.CLOSED, { immediate: true });
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
   els.aiSummaryPanel.hidden = true;
@@ -2020,7 +2113,7 @@ function closeNoteEditor() {
 }
 
 function openAnnotationsPanelAt(annotationId) {
-  els.tocPanel.hidden = true;
+  setTocMode(TOC_MODES.CLOSED, { immediate: true });
   els.bookmarksPanel.hidden = true;
   els.aiSummaryPanel.hidden = true;
   els.annotationsPanel.hidden = false;
@@ -3526,6 +3619,7 @@ function closeAiAssistantPanel() {
 
 function showAiAssistantPanel() {
   closeSettings();
+  setTocMode(TOC_MODES.CLOSED, { immediate: true });
   let source;
   try { source = currentChapterSummarySource(); } catch (error) {
     els.readerStatus.textContent = aiErrorMessage(error);
@@ -3823,8 +3917,14 @@ function bindEvents() {
   });
   $('btn-toc').addEventListener('click', () => {
     closeSettings();
-    togglePanel('toc');
+    toggleReaderToc();
   });
+  els.readerTocButton.addEventListener('click', toggleReaderToc);
+  els.tocBackdrop.addEventListener('pointerdown', dismissManualToc);
+  els.tocEdgeTrigger.addEventListener('pointerenter', openTocFromEdge);
+  els.tocEdgeTrigger.addEventListener('pointerleave', scheduleTocHoverClose);
+  els.tocPanel.addEventListener('pointerenter', cancelTocHoverClose);
+  els.tocPanel.addEventListener('pointerleave', scheduleTocHoverClose);
   $('btn-bookmarks').addEventListener('click', () => {
     closeSettings();
     togglePanel('bookmarks');
@@ -3854,6 +3954,7 @@ function bindEvents() {
   $('btn-ai-font-plus').addEventListener('click', () => changeAiFontSize(1));
   $('btn-ai-line-height').addEventListener('click', cycleAiLineHeight);
   document.addEventListener('pointerdown', (event) => {
+    if (tocMode === TOC_MODES.MANUAL && !event.target.closest('#toc-panel, #btn-reader-toc, #btn-toc')) dismissManualToc();
     if (!els.aiAppearancePopover.hidden && !event.target.closest('#ai-appearance-popover, #btn-ai-appearance')) setAiAppearanceOpen(false);
     if (!els.aiModelOptions.hidden && !event.target.closest('#ai-model-picker')) setAiModelMenuOpen(false);
   });
@@ -4298,7 +4399,9 @@ window.__gaiaDebug = {
     state.current && state.current.locationsReady
       ? state.current.locationsReady
       : Promise.resolve(false),
-  getPanels: () => ({ tocHidden: els.tocPanel.hidden, bookmarksHidden: els.bookmarksPanel.hidden }),
+  getPanels: () => ({ tocHidden: els.tocPanel.hidden, tocMode, bookmarksHidden: els.bookmarksPanel.hidden }),
+  openTocFromEdge,
+  leaveTocHover: () => setTocMode(leaveTocHoverMode(tocMode)),
   getRenditionSize: () => {
     const c = state.current;
     if (!c || !c.rendition) return { w: 0, h: 0 };

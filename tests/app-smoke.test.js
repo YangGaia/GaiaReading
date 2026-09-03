@@ -36,6 +36,7 @@ test('项目关键文件齐全', () => {
     'src/shared/epub-repair.js',
     'src/shared/library.js',
     'src/shared/pet.js',
+    'src/shared/toc-panel.js',
     'src/renderer/index.html',
     'src/renderer/app.js',
     'src/renderer/pet.js',
@@ -69,6 +70,23 @@ test('桌宠素材与映射表完整', () => {
   const yawnFace = path.join(petDir, 'faces', '打哈欠.png');
   assert.ok(fs.existsSync(yawnFace), '缺少打哈欠专用表情贴片');
   assert.ok(fs.statSync(yawnFace).size > 10000, '打哈欠专用表情贴片异常');
+});
+
+test('阅读目录支持左下角按钮与左缘悬停两种展开方式', () => {
+  const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+  for (const id of ['btn-reader-toc', 'toc-panel', 'toc-backdrop', 'toc-edge-trigger']) {
+    assert.ok(html.includes(`id="${id}"`), `阅读目录缺少 ${id}`);
+  }
+  assert.ok(html.includes('../shared/toc-panel.js'), '渲染层未加载目录状态机');
+  assert.ok(app.includes('toggleTocManualMode(tocMode)'), '目录按钮必须进入手动模式');
+  assert.ok(app.includes('enterTocEdgeMode(tocMode)'), '阅读区左缘必须进入悬停模式');
+  assert.ok(app.includes('activateTocItemMode(tocMode)'), '目录跳转后应根据打开来源决定是否关闭');
+  assert.ok(app.includes("els.tocEdgeTrigger.addEventListener('pointerenter'"), '左缘缺少鼠标进入监听');
+  assert.ok(app.includes("els.tocPanel.addEventListener('pointerleave'"), '目录缺少鼠标离开监听');
+  assert.ok(css.includes('transform: translateX(-102%)') && css.includes('.toc-panel.toc-panel-open'), '目录缺少从左向右滑出的动画');
+  assert.ok(css.includes('.reader-toc-button'), '阅读页左下角目录按钮缺少样式');
 });
 
 test('版本号为 1.0.0 且界面同步', () => {
