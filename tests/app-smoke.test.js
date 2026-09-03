@@ -361,6 +361,8 @@ test('书签支持内容锚点、重命名与 TXT 章节识别', () => {
   assert.ok(app.includes('txtChapters'), '应识别 TXT 章节');
   assert.ok(html.includes('txt-chapters.js'), '应加载 TXT 章节识别模块');
   assert.ok(fs.existsSync(path.join(root, 'src', 'shared', 'txt-chapters.js')), 'txt-chapters 模块缺失');
+  const addBookmarkButton = html.match(/<button id="btn-add-bookmark" class="([^"]+)"/);
+  assert.ok(addBookmarkButton && addBookmarkButton[1] === 'btn block', '添加书签应与功能区同级按钮保持一致的中性样式');
 });
 
 test('分页器保留左右页边距（版心）', () => {
