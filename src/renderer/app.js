@@ -124,6 +124,8 @@ const els = {
   fontValue: $('font-value'),
   lineHeightValue: $('line-height-value'),
   marginValue: $('margin-value'),
+  textContrastRow: $('drawer-text-contrast'),
+  textContrastValue: $('text-contrast-value'),
   drawerSpread: $('drawer-spread'),
   spreadValue: $('spread-value'),
   spreadGapRow: $('drawer-spread-gap'),
@@ -189,7 +191,7 @@ const state = {
   lineHeight: 1.8,
   txtFont: 16,
   readMode: 'single',
-  prefs: { theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null },
+  prefs: { theme: 'light', readerTextContrast: 'standard', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null },
   homeReady: null,
   resolveHome: null,
   statsReturnView: 'library',
@@ -298,7 +300,7 @@ function migrateHabitsFromLastBook() {
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const last = entries[0] && entries[0].settings;
   if (!last) return;
-  for (const k of ['theme', 'fontName', 'fontSize', 'txtFont', 'lineHeight', 'marginPct', 'readMode', 'spreadGap']) {
+  for (const k of ['theme', 'readerTextContrast', 'fontName', 'fontSize', 'txtFont', 'lineHeight', 'marginPct', 'readMode', 'spreadGap']) {
     if (state.prefs[k] == null && last[k] != null) state.prefs[k] = last[k];
   }
 }
@@ -322,7 +324,8 @@ async function init() {
   state.aiProfiles = aiProfiles && Array.isArray(aiProfiles.items) ? aiProfiles : { activeId: '', items: [] };
   state.aiConfig = state.aiProfiles.items.find((item) => item.id === state.aiProfiles.activeId) || state.aiProfiles.items[0] || null;
   state.aiEditingProfileId = state.aiConfig && state.aiConfig.id;
-  state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
+  state.prefs = Object.assign({ theme: 'light', readerTextContrast: 'standard', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
+  state.prefs.readerTextContrast = window.GaiaReaderContrast.normalizeReaderTextContrast(state.prefs.readerTextContrast);
   state.prefs.spreadGap = normalizeSpreadGap(state.prefs.spreadGap);
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
   migrateHabitsFromLastBook();
@@ -662,9 +665,11 @@ function updateSettingsValues() {
   els.fontValue.textContent = c && c.format === 'pdf' ? Math.round((c.zoom || 1) * 100) + '%' : (c && c.paginator ? state.fontSize + '%' : state.fontSize + '%');
   els.lineHeightValue.textContent = state.lineHeight.toFixed(1);
   els.marginValue.textContent = (state.prefs.marginPct != null ? state.prefs.marginPct : 8) + '%';
+  els.textContrastValue.textContent = window.GaiaReaderContrast.readerTextContrastLabel(state.prefs.readerTextContrast);
   els.spreadValue.textContent = state.readMode === 'spread' ? '双页' : '单页';
   els.spreadGapValue.textContent = spreadGapLabel(currentSpreadGap());
   els.spreadGapRow.hidden = !!c && c.format === 'pdf';
+  els.textContrastRow.hidden = !!c && c.format === 'pdf';
   $('btn-spread-gap').disabled = state.readMode !== 'spread';
 }
 
@@ -1113,6 +1118,7 @@ async function openMobi(book) {
     if (state.current && state.current.flow) state.current.flow.setPages(state.current.flow.chapter, total);
   };
   state.current.paginator.setTheme(state.prefs.theme);
+  state.current.paginator.setTextContrast(state.prefs.readerTextContrast);
   state.current.paginator.setMargin(state.prefs.marginPct != null ? state.prefs.marginPct : 8);
   const saved = state.progress[book.path];
   let startChapter = 0;
@@ -1183,7 +1189,10 @@ function applyMobiTypography() {
 
 function applyMobiTheme() {
   const c = state.current;
-  if (c && c.paginator) c.paginator.setTheme(state.prefs.theme);
+  if (c && c.paginator) {
+    c.paginator.setTheme(state.prefs.theme);
+    c.paginator.setTextContrast(state.prefs.readerTextContrast);
+  }
 }
 
 let lastMobiSave = 0;
@@ -1259,6 +1268,7 @@ async function openTxt(book) {
     if (state.current && state.current.flow) state.current.flow.setPages(0, total);
   };
   state.current.paginator.setTheme(state.prefs.theme);
+  state.current.paginator.setTextContrast(state.prefs.readerTextContrast);
   state.current.paginator.setMargin(state.prefs.marginPct != null ? state.prefs.marginPct : 8);
   const paragraphs = splitTxtParagraphs(res.text);
   state.current.txtParagraphs = paragraphs;
@@ -2556,6 +2566,22 @@ async function cycleTheme() {
   await applyTheme(order[(idx + 1) % order.length]);
 }
 
+function cycleReaderTextContrast() {
+  const current = window.GaiaReaderContrast.normalizeReaderTextContrast(state.prefs.readerTextContrast);
+  state.prefs.readerTextContrast = current === window.GaiaReaderContrast.HIGH
+    ? window.GaiaReaderContrast.STANDARD
+    : window.GaiaReaderContrast.HIGH;
+  const c = state.current;
+  if (c && c.format === 'epub' && c.rendition) {
+    try { c.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
+    restoreEpubAnnotations();
+  }
+  if (c && c.paginator) applyMobiTheme();
+  updateSettingsValues();
+  els.readerStatus.textContent = '夜间文字：' + window.GaiaReaderContrast.readerTextContrastLabel(state.prefs.readerTextContrast);
+  rememberSettings();
+}
+
 function applyReaderStyles(contents) {
   const doc = contents.document;
   let style = doc.getElementById('gaia-reader-style');
@@ -2563,7 +2589,10 @@ function applyReaderStyles(contents) {
   const font = FONTS[state.fontName] || '';
   let css = '';
   if (theme === 'dark') {
-    css += 'html, body { background: #000 !important; } body { color: #e6edf3 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #e6edf3 !important; } a { color: #58a6ff !important; }';
+    const textColor = window.GaiaReaderContrast.darkReaderTextColor(state.prefs.readerTextContrast);
+    const textSelectors = 'body, main, article, section, p, div, span, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, em, strong, small';
+    css += 'html, body { background: #000 !important; } ' + textSelectors + ' { color: ' + textColor + ' !important; -webkit-text-fill-color: ' + textColor + ' !important; } a, a * { color: #58a6ff !important; -webkit-text-fill-color: #58a6ff !important; }';
+    if (state.prefs.readerTextContrast === window.GaiaReaderContrast.HIGH) css += textSelectors + ' { opacity: 1 !important; }';
   } else if (theme === 'eye') {
     css += 'html, body { background: #f5ecd9 !important; } body { color: #4a3826 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #4a3826 !important; } a { color: #8a6d3b !important; }';
   }
@@ -2901,6 +2930,7 @@ function updateProgress(percent, text) {
 function applyGlobalHabits() {
   const p = state.prefs;
   if (p.theme) { state.prefs.theme = p.theme; applyThemeClass(); }
+  state.prefs.readerTextContrast = window.GaiaReaderContrast.normalizeReaderTextContrast(p.readerTextContrast);
   if (p.fontName) { state.fontName = p.fontName; els.fontSelect.value = p.fontName; }
   if (p.fontSize != null) state.fontSize = p.fontSize;
   if (p.txtFont != null) state.txtFont = p.txtFont;
@@ -2912,6 +2942,7 @@ function applyGlobalHabits() {
 function rememberSettings() {
   state.prefs = Object.assign({}, state.prefs, {
     theme: state.prefs.theme,
+    readerTextContrast: window.GaiaReaderContrast.normalizeReaderTextContrast(state.prefs.readerTextContrast),
     fontName: state.fontName,
     fontSize: state.fontSize,
     txtFont: state.txtFont,
@@ -3962,6 +3993,7 @@ function bindEvents() {
   $('btn-pdf-zoom-in').addEventListener('click', () => setPdfZoom((state.current && state.current.zoom || 1) + 0.1));
   $('btn-line-height').addEventListener('click', cycleLineHeight);
   $('btn-margin').addEventListener('click', cycleMargin);
+  $('btn-text-contrast').addEventListener('click', cycleReaderTextContrast);
   $('btn-spread').addEventListener('click', toggleSpread);
   $('btn-spread-gap').addEventListener('click', cycleSpreadGap);
   $('btn-theme').addEventListener('click', cycleTheme);
@@ -4378,6 +4410,7 @@ window.__gaiaDebug = {
   getProgressWidth: () => els.progressFill.style.width,
   getCurrentSettings: () => ({
     theme: state.prefs.theme,
+    readerTextContrast: window.GaiaReaderContrast.normalizeReaderTextContrast(state.prefs.readerTextContrast),
     fontName: state.fontName,
     fontSize: state.fontSize,
     txtFont: state.txtFont,

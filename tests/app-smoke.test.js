@@ -243,6 +243,7 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
   assert.ok(css.includes('book-progress'), '缺少书架进度样式');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
   assert.ok(html.includes('font-select'), '缺少字体选择');
+  assert.ok(html.includes('btn-text-contrast') && html.includes('text-contrast-value'), '缺少夜间文字对比度控制');
   assert.ok(html.includes('btn-theme'), '缺少主题切换');
   assert.ok(html.includes('btn-pet-console'), '设置页缺少有珠控制台入口');
   for (const id of ['pdf-zoom-controls', 'btn-pdf-zoom-out', 'btn-pdf-zoom-reset', 'btn-pdf-zoom-in', 'pdf-zoom-value']) {
@@ -329,6 +330,20 @@ test('分页器保留左右页边距（版心）', () => {
   assert.ok(p.includes("padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box"), '上下留白应计入分页高度，不能挤出可视区域');
   assert.ok(!p.includes("'p { text-indent: 2em !important; margin: 0 0 0.8em !important;"), '段落排版不应再重置左右边距');
   assert.ok(p.includes("margin-top: 0 !important; margin-bottom: 0.8em !important"), '段落应只设上下边距，保留版心左右留白');
+});
+
+test('高对比白即时应用于所有可重排格式并保持 PDF 原样', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
+  assert.ok(html.includes('../shared/reader-contrast.js'), '页面应加载夜间文字对比度模块');
+  assert.ok(app.includes('function cycleReaderTextContrast()'), '缺少文字对比度切换逻辑');
+  assert.ok(app.includes('readerTextContrast: window.GaiaReaderContrast.normalizeReaderTextContrast'), '文字对比度应写入全局阅读习惯');
+  assert.ok(app.includes("els.textContrastRow.hidden = !!c && c.format === 'pdf'"), 'PDF 设置中不得显示文字对比度控制');
+  assert.ok(app.includes('-webkit-text-fill-color: '), 'EPUB 应强制覆盖特殊文字填充色');
+  assert.ok(app.includes('c.paginator.setTextContrast(state.prefs.readerTextContrast)'), 'TXT/MOBI/AZW3 应同步文字对比度');
+  assert.ok(pag.includes('setTextContrast(value)') && pag.includes('darkReaderTextColor(this.textContrast)'), '分页器应支持高对比纯白');
+  assert.ok(pag.includes('opacity: 1 !important'), '高对比模式应清除正文元素异常透明度');
 });
 
 test('可调节页边距功能接入', () => {
