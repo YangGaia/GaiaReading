@@ -510,6 +510,26 @@ function createWindow() {
               const aiPanelOpened = !document.getElementById('ai-summary-panel').hidden && aiChatState.messages >= 1 &&
                 aiPanelRect.width >= 340 && aiPanelRect.left > 0 && aiPanelRect.right < innerWidth;
               const aiChapterLabelMatches = document.getElementById('ai-summary-chapter').textContent === aiSource.chapterTitle;
+              const aiChatInput = document.getElementById('ai-chat-input');
+              const aiChatInputRect = aiChatInput.getBoundingClientRect();
+              const petRoot = document.getElementById('gaia-pet');
+              const petInlineStyle = petRoot.getAttribute('style');
+              petRoot.style.left = (aiChatInputRect.left + aiChatInputRect.width / 2 - 75) + 'px';
+              petRoot.style.top = (aiChatInputRect.top + aiChatInputRect.height / 2 - 75) + 'px';
+              petRoot.style.right = 'auto';
+              petRoot.style.bottom = 'auto';
+              const aiChatInputTopElement = document.elementFromPoint(
+                aiChatInputRect.left + aiChatInputRect.width / 2,
+                aiChatInputRect.top + aiChatInputRect.height / 2
+              );
+              aiChatInput.focus();
+              aiChatInput.value = '';
+              const aiChatInserted = document.execCommand('insertText', false, 'AI 输入测试');
+              const aiChatInputEditable = aiChatInputTopElement === aiChatInput &&
+                document.activeElement === aiChatInput && aiChatInserted && aiChatInput.value === 'AI 输入测试';
+              aiChatInput.value = '';
+              if (petInlineStyle == null) petRoot.removeAttribute('style');
+              else petRoot.setAttribute('style', petInlineStyle);
               document.getElementById('btn-ai-appearance').click();
               const aiAppearanceCompact = !document.getElementById('ai-appearance-popover').hidden && !document.querySelector('.ai-typography-toolbar');
               document.getElementById('btn-ai-appearance').click();
@@ -538,7 +558,7 @@ function createWindow() {
               __gaiaDebug.openAiAssistant();
               const selectionDismissed = await __gaiaDebug.verifySelectionDismissal();
               const aiUiReady = aiUi.homeEntry && aiUi.centerView && aiUi.settingsSection && aiUi.assistantButton && aiUi.assistantPanel && aiUi.summaryPromptButton &&
-                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiModelMenuScrollable && aiCenterReturned && aiPanelOpened && aiChapterLabelMatches && aiAppearanceCompact && aiSummaryPromptReady && aiMinimizedLayout && aiRestoredLayout && selectionAiTools && selectionDismissed &&
+                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiModelMenuScrollable && aiCenterReturned && aiPanelOpened && aiChapterLabelMatches && aiChatInputEditable && aiAppearanceCompact && aiSummaryPromptReady && aiMinimizedLayout && aiRestoredLayout && selectionAiTools && selectionDismissed &&
                 aiSource.bookPath === fixture && aiSource.chapterId.startsWith('epub:') && aiSource.content.length > 0;
               const annotationsBefore = __gaiaDebug.getAnnotations().length;
               const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');
@@ -741,7 +761,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, petReadingTimerSurvivesIframeFocus, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';

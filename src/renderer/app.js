@@ -245,6 +245,7 @@ function showView(name) {
   for (const key of Object.keys(views)) {
     views[key].hidden = key !== name;
   }
+  document.body.classList.toggle('ai-assistant-open', name === 'reader' && !els.aiSummaryPanel.hidden);
   const el = views[name];
   el.classList.remove('view-fade');
   void el.offsetWidth;
@@ -3713,6 +3714,7 @@ function initAiPanelInteractions() {
 function closeAiAssistantPanel() {
   setAiAppearanceOpen(false);
   els.aiSummaryPanel.hidden = true;
+  document.body.classList.remove('ai-assistant-open');
   $('btn-ai-reader').classList.remove('open');
 }
 
@@ -3725,6 +3727,7 @@ function showAiAssistantPanel() {
     return false;
   }
   els.aiSummaryPanel.hidden = false;
+  document.body.classList.add('ai-assistant-open');
   restoreAiPanelGeometry();
   $('btn-ai-reader').classList.add('open');
   showAiAssistantChapter(source);
