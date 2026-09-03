@@ -57,7 +57,7 @@
   function clampPdfZoom(value) {
     const zoom = Number(value);
     if (!Number.isFinite(zoom)) return 1;
-    return Math.round(Math.min(2, Math.max(0.6, zoom)) * 100) / 100;
+    return Math.round(Math.min(4, Math.max(0.1, zoom)) * 100) / 100;
   }
 
   function nextPdfZoom(current, wheelDelta, step) {
@@ -66,7 +66,7 @@
     if (!Number.isFinite(delta) || delta === 0) return clampPdfZoom(current);
     const increment = Number.isFinite(amount) && amount > 0
       ? amount
-      : Math.min(0.2, Math.max(0.02, Math.abs(delta) / 1200));
+      : Math.min(0.25, Math.max(0.02, Math.abs(delta) / 1200));
     return clampPdfZoom((Number(current) || 1) + (delta < 0 ? increment : -increment));
   }
 

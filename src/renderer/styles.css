@@ -234,8 +234,12 @@ body.dark {
 .pdf-zoom-controls button { min-width: 34px; height: 100%; padding: 0 9px; border: 0; border-right: 1px solid var(--border); color: var(--text); background: transparent; cursor: pointer; font-family: inherit; font-size: 15px; font-weight: 600; line-height: 1; }
 .pdf-zoom-controls button:last-child { border-right: 0; }
 .pdf-zoom-controls button:hover { color: var(--accent); background: var(--accent-soft); }
-#btn-pdf-zoom-reset { min-width: 58px; font-size: 12px; font-variant-numeric: tabular-nums; }
-.pdf-page { position: relative; margin: 16px auto; display: block; }
+#btn-pdf-zoom-reset { min-width: 72px; font-size: 12px; font-variant-numeric: tabular-nums; }
+#btn-pdf-pairing { min-width: 48px; font-size: 12px; font-variant-numeric: tabular-nums; }
+#btn-pdf-pairing[hidden] { display: none; }
+.pdf-spread { display: flex; align-items: flex-start; justify-content: center; box-sizing: content-box; margin: 16px auto; }
+.pdf-page { position: relative; flex: 0 0 auto; margin: 0; display: block; }
+.pdf-page-placeholder { flex: 0 0 auto; visibility: hidden; }
 .pdf-page canvas { position: absolute; left: 0; top: 0; }
 .pdf-canvas-base { box-shadow: 0 1px 6px rgba(0,0,0,.15); }
 #reader-content.pdf-dark .pdf-canvas-base { filter: invert(1) hue-rotate(180deg); }

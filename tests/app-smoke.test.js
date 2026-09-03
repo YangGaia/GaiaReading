@@ -15,12 +15,14 @@ test('项目关键文件齐全', () => {
   assert.ok(pkg.scripts.test, '缺少 test 脚本');
   assert.ok(pkg.scripts.smoke, '缺少 smoke 脚本');
   assert.ok(pkg.scripts['smoke:open'], '缺少 smoke:open 脚本');
+  assert.ok(pkg.scripts['smoke:pdf'], '缺少 smoke:pdf 脚本');
   assert.ok(pkg.scripts.shot, '缺少 shot 截图脚本');
   assert.ok(main.includes("capture('pet_console.png')"), '截图验收应包含有珠控制台界面');
   assert.ok(main.includes('const importResult = await __gaiaDebug.importPaths([fixture])'), 'EPUB 烟雾测试应走真实导入流程');
   assert.ok(main.includes('parsed.importSucceeded === true'), 'EPUB 烟雾测试应验证导入成功');
   assert.ok(main.includes("await __gaiaDebug.runBookSearch('测试内容')"), 'EPUB 烟雾测试应执行真实全文搜索');
   assert.ok(main.includes('parsed.bookSearchRuntimeReady === true'), 'EPUB 烟雾测试应验证搜索跳转与正文高亮');
+  assert.ok(main.includes('parsed.singleFits === true') && main.includes('parsed.pairingWorks === true') && main.includes('parsed.zoomModesWork === true'), 'PDF 烟雾测试应验证整页适配、双页配对和缩放模式');
   assert.ok(main.includes("__gaiaDebug.setMode('spread')") && main.includes('epubSearchSpreadAligned'), 'EPUB 搜索烟雾测试必须在双页模式验证整页对齐');
   assert.ok(main.includes('window.resizeTo(smokeWindowWidth + 220') && main.includes('epubSearchWindowResizeReady'), 'EPUB 搜索烟雾测试必须覆盖搜索框开启时的窗口放大重排');
   assert.ok(main.includes('parsed.sidePanelLayoutOk === true') && main.includes('parsed.sidePanelAnchorOk === true') && main.includes('parsed.fullBookSearchLayoutOk === true'), 'MOBI/AZW3 烟雾测试应验证侧栏重排、搜索跳转与阅读锚点');
@@ -41,6 +43,7 @@ test('项目关键文件齐全', () => {
     'src/shared/epub-repair.js',
     'src/shared/library.js',
     'src/shared/pet.js',
+    'src/shared/pdf-layout.js',
     'src/shared/toc-panel.js',
     'src/shared/spread-gap.js',
     'src/renderer/index.html',
@@ -279,12 +282,15 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
   assert.ok(html.includes('btn-text-contrast') && html.includes('text-contrast-value'), '缺少夜间文字对比度控制');
   assert.ok(html.includes('btn-theme'), '缺少主题切换');
   assert.ok(html.includes('btn-pet-console'), '设置页缺少有珠控制台入口');
-  for (const id of ['pdf-zoom-controls', 'btn-pdf-zoom-out', 'btn-pdf-zoom-reset', 'btn-pdf-zoom-in', 'pdf-zoom-value']) {
+  for (const id of ['pdf-zoom-controls', 'btn-pdf-zoom-out', 'btn-pdf-zoom-reset', 'btn-pdf-zoom-in', 'btn-pdf-pairing', 'pdf-zoom-value']) {
     assert.ok(html.includes(`id="${id}"`), `PDF 阅读器缺少手动缩放控件 ${id}`);
   }
   assert.ok(app.includes("c.format === 'pdf' && (ev.ctrlKey || ev.metaKey)") && app.includes('queuePdfWheelZoom(d, ev)'), 'PDF 应支持 Ctrl+滚轮缩放');
   assert.ok(app.includes('shouldScrollPdfPage(els.readerContent, d)'), 'PDF 普通滚轮应优先滚动当前页');
-  assert.ok(app.includes('restorePdfZoomAnchor(wrap, renderOptions.anchor)'), 'PDF 缩放后应保持鼠标所指阅读位置');
+  assert.ok(app.includes('restorePdfZoomAnchor(stage, renderOptions.anchor)'), 'PDF 缩放后应保持鼠标所指阅读位置');
+  assert.ok(html.includes('../shared/pdf-layout.js') && app.includes('pdfLayoutForPage(c.page, c.pages, spread, c.pdfPairing)'), 'PDF 阅读器应接入单页/双页布局模块');
+  assert.ok(app.includes('PDF_ZOOM_MODES.FIT_PAGE') && app.includes('PDF_ZOOM_MODES.FIT_WIDTH') && app.includes('PDF_ZOOM_MODES.MANUAL'), 'PDF 应支持适合页面、适合宽度和手动缩放');
+  assert.ok(app.includes('c.pdfTextRoots = textRoots'), 'PDF 双页必须分别保存每页文字层以支持搜索和笔记');
   assert.ok(css.includes('.pdf-zoom-controls'), 'PDF 手动缩放控件缺少样式');
   assert.ok(html.includes('progress-fill'), '缺少阅读进度条');
   assert.match(html, /class="drawer-row appearance-row"[\s\S]*?class="appearance-control"[\s\S]*?id="btn-theme"[\s\S]*?<\/div>\s*<div class="appearance-control">[\s\S]*?id="btn-pet-toggle"/, '主题与桌宠应为同一行内的同级控制组');
@@ -365,6 +371,14 @@ test('分页器保留左右页边距（版心）', () => {
   assert.ok(p.includes("margin-top: 0 !important; margin-bottom: 0.8em !important"), '段落应只设上下边距，保留版心左右留白');
 });
 
+test('测试用 PDF fixture 包含五页并可重复生成', () => {
+  const fixture = path.join(root, 'tests', 'fixtures', 'sample.pdf');
+  assert.ok(fs.existsSync(fixture), 'PDF fixture 缺失，请运行 node scripts/make-pdf-fixture.js');
+  assert.ok(fs.statSync(fixture).size > 1000);
+  assert.ok(fs.existsSync(path.join(root, 'scripts', 'make-pdf-fixture.js')));
+  assert.ok(fs.existsSync(path.join(root, 'scripts', 'pdf-smoke.js')));
+});
+
 test('全主题高对比文字即时应用于所有可重排格式并保持 PDF 原样', () => {
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
@@ -395,7 +409,7 @@ test('可调节页边距功能接入', () => {
   assert.ok(pag.includes('this.marginPct'), '分页器应保存边距档位');
 });
 
-test('EPUB、TXT、MOBI 与 AZW3 共用可调双页间隙且不改变 PDF', () => {
+test('EPUB、PDF、TXT、MOBI 与 AZW3 共用可调双页间隙', () => {
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
@@ -403,7 +417,7 @@ test('EPUB、TXT、MOBI 与 AZW3 共用可调双页间隙且不改变 PDF', () =
   assert.ok(html.includes('../shared/spread-gap.js'), '渲染层未加载双页间隙档位模块');
   assert.ok(app.includes("gap: currentSpreadGap()"), 'EPUB 初始化时应使用用户设置的间隙');
   assert.strictEqual((app.match(/new window\.GaiaPaginator\(els\.readerContent, \{ pageWidth: 640, gap: currentSpreadGap\(\) \}\)/g) || []).length, 2, 'TXT 与 MOBI/AZW3 应使用同一间隙');
-  assert.ok(app.includes("c.format === 'pdf' || state.readMode !== 'spread'"), 'PDF 和单页模式不得应用双页间隙调节');
+  assert.ok(app.includes("if (!c || state.readMode !== 'spread') return") && app.includes('const gap = spread ? currentSpreadGap() : 0'), 'PDF 应仅在双页模式应用共用页面间隙');
   assert.ok(app.includes('spreadGap: currentSpreadGap()'), '双页间隙应写入全局阅读习惯');
   assert.ok(pag.includes('setGap(px)') && pag.includes('initialGap') && pag.includes('initialGap : 0'), '分页器应支持0px间隙和实时更新');
   assert.ok(app.includes("column-rule: 1px solid rgba(127,127,127,.28)"), '无额外间隙时仍应显示细书脊线区分左右页');

@@ -456,6 +456,20 @@ function createWindow() {
               debugOk = false;
               console.error('DEBUG_TXT_UNPARSEABLE:', parseErr && parseErr.message, txtStatus);
             }
+          } else if (debugExt === '.pdf') {
+            await mainWindow.webContents.executeJavaScript('window.__PDF_SMOKE_PATH = ' + JSON.stringify(DEBUG_OPEN_PATH) + ';');
+            const pdfScript = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'pdf-smoke.js'), 'utf8');
+            const pdfStatus = await mainWindow.webContents.executeJavaScript(pdfScript);
+            console.log('DEBUG_PDF:', pdfStatus);
+            try {
+              const parsed = JSON.parse(pdfStatus);
+              debugOk = parsed.singleFits === true && parsed.oddSpreadFits === true && parsed.pairingWorks === true &&
+                parsed.zoomModesWork === true && parsed.searchWorks === true;
+              if (!debugOk) console.error('DEBUG_PDF_CHECKS_FAILED:', JSON.stringify(parsed));
+            } catch (parseErr) {
+              debugOk = false;
+              console.error('DEBUG_PDF_UNPARSEABLE:', parseErr && parseErr.message, pdfStatus);
+            }
           } else if (debugExt === '.mobi' || debugExt === '.azw3') {
             await mainWindow.webContents.executeJavaScript("window.__MOBI_SMOKE_PATH = " + JSON.stringify(DEBUG_OPEN_PATH) + "; window.__MOBI_SMOKE_FORMAT = " + JSON.stringify(debugExt.slice(1)) + ";");
             const mobiScript = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'mobi-smoke.js'), 'utf8');

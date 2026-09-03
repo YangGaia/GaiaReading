@@ -65,12 +65,12 @@ test('滚轮门控: reset 清空累计与冷却', () => {
   assert.strictEqual(gate.feed(120, 0), 'next');
 });
 
-test('PDF Ctrl+滚轮按方向缩放并限制安全倍率', () => {
+test('PDF Ctrl+滚轮按方向缩放并支持 10% 到 400%', () => {
   assert.strictEqual(nextPdfZoom(1, -120), 1.1, '向上滚应放大');
   assert.strictEqual(nextPdfZoom(1, 120), 0.9, '向下滚应缩小');
   assert.strictEqual(nextPdfZoom(1, -12), 1.02, '触控板的小位移应细腻缩放');
-  assert.strictEqual(nextPdfZoom(2, -120), 2, '放大不得超过 200%');
-  assert.strictEqual(nextPdfZoom(0.6, 120), 0.6, '缩小不得低于 60%');
+  assert.strictEqual(nextPdfZoom(4, -120), 4, '放大不得超过 400%');
+  assert.strictEqual(nextPdfZoom(0.1, 120), 0.1, '缩小不得低于 10%');
   assert.strictEqual(clampPdfZoom(Number.NaN), 1, '非法倍率应恢复为 100%');
 });
 

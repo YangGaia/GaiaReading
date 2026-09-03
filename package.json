@@ -10,6 +10,7 @@
     "copy-vendor": "node scripts/copy-vendor.js",
     "postinstall": "node scripts/copy-vendor.js",
     "smoke:open": "electron . --smoke-test --debug-open tests/fixtures/sample.epub",
+    "smoke:pdf": "electron . --smoke-test --debug-open tests/fixtures/sample.pdf",
     "dist": "electron-builder --win",
     "shot": "electron . --shot-dir docs/screenshots --debug-open tests/fixtures/sample.epub"
   },

@@ -180,8 +180,9 @@
       <div class="actions reader-actions">
         <div id="pdf-zoom-controls" class="pdf-zoom-controls" aria-label="PDF 缩放" hidden>
           <button id="btn-pdf-zoom-out" type="button" title="缩小 PDF" aria-label="缩小 PDF">−</button>
-          <button id="btn-pdf-zoom-reset" type="button" title="恢复 100%" aria-label="恢复 PDF 为 100%"><span id="pdf-zoom-value">100%</span></button>
+          <button id="btn-pdf-zoom-reset" type="button" title="切换 PDF 适配方式" aria-label="切换 PDF 适配方式"><span id="pdf-zoom-value">适合页面</span></button>
           <button id="btn-pdf-zoom-in" type="button" title="放大 PDF" aria-label="放大 PDF">＋</button>
+          <button id="btn-pdf-pairing" type="button" title="切换 PDF 双页配对" aria-label="切换 PDF 双页配对" hidden>1–2</button>
         </div>
         <div id="reader-bgm-slot" class="reader-bgm-slot" aria-label="阅读音乐"></div>
         <div class="alice-reader-actions" role="group" aria-label="有珠快捷操作">
@@ -432,6 +433,7 @@
   <script src="../shared/epub-progress.js"></script>
   <script src="../shared/chapter-scope.js"></script>
   <script src="../shared/reader-input.js"></script>
+  <script src="../shared/pdf-layout.js"></script>
   <script src="../shared/toc-panel.js"></script>
   <script src="../shared/spread-gap.js"></script>
   <script src="../shared/reading-stats.js"></script>
