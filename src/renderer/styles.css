@@ -724,7 +724,6 @@ body.dark #stats-view {
   outline: none;
   clip-path: polygon(25% 2%, 78% 2%, 91% 28%, 86% 54%, 96% 100%, 8% 100%, 16% 55%, 10% 30%);
 }
-body.ai-assistant-open .gaia-pet-hitbox { pointer-events: none; }
 .gaia-pet.fps-hidden .gaia-pet-hitbox { bottom: 0; }
 .gaia-pet-hitbox:focus-visible { filter: drop-shadow(0 0 5px var(--accent)); }
 .gaia-pet.dragging .gaia-pet-hitbox { cursor: grabbing; }

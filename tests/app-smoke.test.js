@@ -195,8 +195,7 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(css.includes('.ai-content-stage { flex: 1; min-height: 0; overflow: hidden; }'), 'AI 对话内容区不得覆盖标题和状态文字');
   assert.ok(css.includes('.ai-chat-input-shortcuts'), '对话输入区应显示快捷指令栏');
   assert.ok(css.includes('z-index: 9050;'), 'AI 对话框应位于桌宠命中层之上，避免输入框被遮挡');
-  assert.ok(css.includes('body.ai-assistant-open .gaia-pet-hitbox { pointer-events: none; }'), 'AI 对话框打开时桌宠命中层应让出输入操作');
-  assert.ok(app.includes("document.body.classList.add('ai-assistant-open')") && app.includes("document.body.classList.remove('ai-assistant-open')"), 'AI 对话框开关应同步桌宠交互避让状态');
+  assert.ok(!css.includes('body.ai-assistant-open .gaia-pet-hitbox'), 'AI 对话框打开时不得全局禁用桌宠拖动');
   assert.ok(css.includes('min-width: 0 !important; min-height: 0 !important;'), 'AI 最小化时必须覆盖普通窗口的最小尺寸');
   assert.ok(css.includes('.ai-summary-panel.minimized #btn-ai-chat-clear'), 'AI 最小化时应隐藏清空与排版按钮');
   assert.ok(css.includes('max-height: 220px; overflow-y: auto;'), '模型选择菜单应限制高度并支持纵向滚动');

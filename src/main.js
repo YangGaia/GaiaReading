@@ -505,6 +505,7 @@ function createWindow() {
               document.getElementById('btn-ai-back').click();
               const aiCenterReturned = __gaiaDebug.getView() === 'reader';
               __gaiaDebug.openAiAssistant();
+              await new Promise((r) => setTimeout(r, 350));
               const aiChatState = __gaiaDebug.getAiChatState();
               const aiPanelRect = document.getElementById('ai-summary-panel').getBoundingClientRect();
               const aiPanelOpened = !document.getElementById('ai-summary-panel').hidden && aiChatState.messages >= 1 &&
@@ -514,6 +515,16 @@ function createWindow() {
               const aiChatInputRect = aiChatInput.getBoundingClientRect();
               const petRoot = document.getElementById('gaia-pet');
               const petInlineStyle = petRoot.getAttribute('style');
+              petRoot.style.left = '20px';
+              petRoot.style.top = '150px';
+              petRoot.style.right = 'auto';
+              petRoot.style.bottom = 'auto';
+              const petTestRect = petRoot.getBoundingClientRect();
+              const petTopElement = document.elementFromPoint(
+                petTestRect.left + petTestRect.width / 2,
+                petTestRect.top + petTestRect.height / 2
+              );
+              const petInteractiveOutsidePanel = !!petTopElement && petTopElement.classList.contains('gaia-pet-hitbox');
               petRoot.style.left = (aiChatInputRect.left + aiChatInputRect.width / 2 - 75) + 'px';
               petRoot.style.top = (aiChatInputRect.top + aiChatInputRect.height / 2 - 75) + 'px';
               petRoot.style.right = 'auto';
@@ -525,7 +536,7 @@ function createWindow() {
               aiChatInput.focus();
               aiChatInput.value = '';
               const aiChatInserted = document.execCommand('insertText', false, 'AI 输入测试');
-              const aiChatInputEditable = aiChatInputTopElement === aiChatInput &&
+              const aiChatInputEditable = petInteractiveOutsidePanel && aiChatInputTopElement === aiChatInput &&
                 document.activeElement === aiChatInput && aiChatInserted && aiChatInput.value === 'AI 输入测试';
               aiChatInput.value = '';
               if (petInlineStyle == null) petRoot.removeAttribute('style');
