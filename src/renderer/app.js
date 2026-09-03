@@ -2047,7 +2047,7 @@ function makeBookmarkNameEditable(titleEl, bm, index) {
 
 async function addBookmark() {
   const c = state.current;
-  if (!c) return;
+  if (!c) return false;
   let loc = '';
   let anchor = null;
   let chapter = '';
@@ -2056,7 +2056,7 @@ async function addBookmark() {
     const locObj = c.rendition && c.rendition.currentLocation();
     if (!locObj || !locObj.start) {
       els.readerStatus.textContent = '暂无法获取当前位置';
-      return;
+      return false;
     }
     loc = locObj.start.cfi;
     percent = typeof state.current.displayPercent === 'number' ? state.current.displayPercent : 0;
@@ -2102,6 +2102,26 @@ async function addBookmark() {
   await saveBookmarksNow();
   renderBookmarksPanel();
   els.readerStatus.textContent = '已添加书签';
+  return true;
+}
+
+async function addBookmarkFromSettings() {
+  const button = $('btn-add-bookmark');
+  if (button.disabled) return false;
+  button.disabled = true;
+  try {
+    const added = await addBookmark();
+    if (!added) return false;
+    closeSettings();
+    if (els.bookmarksPanel.hidden) togglePanel('bookmarks');
+    return true;
+  } catch (error) {
+    els.readerStatus.textContent = '添加书签失败，请重试';
+    console.error('添加书签失败', error);
+    return false;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function removeBookmarkAt(index) {
@@ -4834,10 +4854,7 @@ function bindEvents() {
     closeSettings();
     togglePanel('bookmarks');
   });
-  $('btn-add-bookmark').addEventListener('click', () => {
-    closeSettings();
-    addBookmark();
-  });
+  $('btn-add-bookmark').addEventListener('click', addBookmarkFromSettings);
   $('btn-annotations').addEventListener('click', () => {
     closeSettings();
     togglePanel('annotations');
@@ -5105,6 +5122,7 @@ window.__gaiaDebug = {
   setNoteEditorText: (value) => { els.noteEditorInput.value = String(value || ''); },
   commitNoteEditor,
   addBookmark,
+  addBookmarkFromSettings,
   removeBookmarkAt,
   togglePanel,
   toggleSpread,
