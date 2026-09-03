@@ -2565,6 +2565,7 @@ function applyReaderStyles(contents) {
     css += 'html, body { background: #f5ecd9 !important; } body { color: #4a3826 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #4a3826 !important; } a { color: #8a6d3b !important; }';
   }
   css += 'p { text-indent: 2em !important; margin: 0 0 0.8em !important; line-height: ' + state.lineHeight + ' !important; } h1, h2, h3, h4 { line-height: 1.4 !important; margin: 1.2em 0 0.6em !important; }';
+  css += 'body { box-sizing: border-box !important; padding-top: 28px !important; padding-bottom: 28px !important; }';
   const marginPct = state.prefs.marginPct != null ? state.prefs.marginPct : 8;
   css += 'body > * { margin-left: ' + marginPct + '% !important; margin-right: ' + marginPct + '% !important; }';
   if (state.readMode === 'spread') css += 'body { column-rule: 1px solid rgba(127,127,127,.28) !important; }';

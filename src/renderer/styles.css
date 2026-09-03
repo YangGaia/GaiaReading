@@ -442,7 +442,7 @@ body.eye {
 #txt-content { line-height: 1.9; }
 
 /* ===== 底部进度条 ===== */
-.statusbar { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; min-height: 42px; box-sizing: border-box; padding: 7px 16px 6px; }
+.statusbar { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; min-height: 48px; box-sizing: border-box; padding: 9px 16px 8px; }
 #progress-track { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--border); }
 #progress-fill { height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
 

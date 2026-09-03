@@ -36,6 +36,7 @@ class Paginator {
     this.theme = 'light';
     this.pageBg = '#fffdf7';
     this.marginPct = 8;
+    this.verticalPadding = 28;
     this._boundResize = () => this.reflow();
   }
 
@@ -206,7 +207,7 @@ class Paginator {
     base.textContent =
       'html, body { margin: 0; padding: 0; }' +
       'body { column-width: ' + this.pageWidth + 'px; column-gap: ' + gap + 'px; ' +
-      'height: ' + hostH + 'px; overflow: hidden; }';
+      'height: ' + hostH + 'px; padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box; overflow: hidden; }';
     // 页面内容左右内边距（列内容不贴边，像真实书籍版心）
     base.textContent +=
       'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; }' +

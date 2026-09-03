@@ -91,6 +91,7 @@ test('阅读目录支持左下角按钮与左缘悬停两种展开方式', () =>
   const footer = html.slice(html.indexOf('<footer class="statusbar">'), html.indexOf('</footer>') + 9);
   assert.ok(footer.includes('id="btn-reader-toc"') && footer.includes('id="page-nav"'), '目录与翻页按钮应位于状态栏，不能悬浮遮挡正文');
   assert.ok(css.includes('grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)'), '底栏应为左目录、中翻页、右状态的三栏布局');
+  assert.ok(css.includes('min-height: 48px') && css.includes('padding: 9px 16px 8px'), '底栏控件上下应保留足够留白');
 });
 
 test('版本号为 1.0.0 且界面同步', () => {
@@ -314,6 +315,8 @@ test('书签支持内容锚点、重命名与 TXT 章节识别', () => {
 test('分页器保留左右页边距（版心）', () => {
   const p = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   assert.ok(p.includes("'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; }'"), '页面应注入左右页边距');
+  assert.ok(p.includes('this.verticalPadding = 28;'), '分页正文应保留舒适的上下留白');
+  assert.ok(p.includes("padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box"), '上下留白应计入分页高度，不能挤出可视区域');
   assert.ok(!p.includes("'p { text-indent: 2em !important; margin: 0 0 0.8em !important;"), '段落排版不应再重置左右边距');
   assert.ok(p.includes("margin-top: 0 !important; margin-bottom: 0.8em !important"), '段落应只设上下边距，保留版心左右留白');
 });
@@ -328,6 +331,7 @@ test('可调节页边距功能接入', () => {
   assert.ok(app.includes('function cycleMargin()'), '缺少边距循环函数');
   assert.ok(app.includes('paginator.setMargin('), '应调用分页器边距');
   assert.ok(app.includes("'body > * { margin-left: ' + marginPct + '% !important;"), 'EPUB 应注入可调边距');
+  assert.ok(app.includes('padding-top: 28px !important; padding-bottom: 28px !important;'), 'EPUB 正文应保留上下留白');
   assert.ok(pag.includes('setMargin(pct)'), '分页器应支持 setMargin');
   assert.ok(pag.includes('this.marginPct'), '分页器应保存边距档位');
 });
