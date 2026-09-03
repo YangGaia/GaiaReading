@@ -339,7 +339,8 @@ test('EPUB、TXT、MOBI 与 AZW3 共用可调双页间隙且不改变 PDF', () =
   assert.strictEqual((app.match(/new window\.GaiaPaginator\(els\.readerContent, \{ pageWidth: 640, gap: currentSpreadGap\(\) \}\)/g) || []).length, 2, 'TXT 与 MOBI/AZW3 应使用同一间隙');
   assert.ok(app.includes("c.format === 'pdf' || state.readMode !== 'spread'"), 'PDF 和单页模式不得应用双页间隙调节');
   assert.ok(app.includes('spreadGap: currentSpreadGap()'), '双页间隙应写入全局阅读习惯');
-  assert.ok(pag.includes('setGap(px)') && pag.includes('this.gap = opts.gap || 16'), '分页器应支持实时更新间隙并使用紧凑默认值');
+  assert.ok(pag.includes('setGap(px)') && pag.includes('initialGap') && pag.includes('initialGap : 0'), '分页器应支持0px间隙和实时更新');
+  assert.ok(app.includes("column-rule: 1px solid rgba(127,127,127,.28)"), '无额外间隙时仍应显示细书脊线区分左右页');
 });
 
 test('内置 BGM 功能接入', () => {

@@ -23,7 +23,8 @@ class Paginator {
   constructor(host, opts) {
     this.host = host;
     this.pageWidth = opts.pageWidth || 640;
-    this.gap = opts.gap || 16;
+    const initialGap = Number(opts.gap);
+    this.gap = Number.isFinite(initialGap) && initialGap >= 0 ? initialGap : 0;
     this.mode = 'single'; // single | spread
     this.currentPage = 0;
     this.totalPages = 1;
@@ -136,7 +137,7 @@ class Paginator {
   /** 设置双页之间的列间距，并保持当前页索引。 */
   setGap(px) {
     const gap = Number(px);
-    this.gap = Number.isFinite(gap) && gap >= 0 ? gap : 16;
+    this.gap = Number.isFinite(gap) && gap >= 0 ? gap : 0;
     if (this.doc) this.applyLayout();
   }
 

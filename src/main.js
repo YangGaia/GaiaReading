@@ -628,7 +628,7 @@ function createWindow() {
               await new Promise((r) => setTimeout(r, 350));
               const drawerOpen = __gaiaDebug.isSettingsOpen();
               const spreadGapButton = document.getElementById('btn-spread-gap');
-              const spreadGapControlReady = !!spreadGapButton && !spreadGapButton.disabled && document.getElementById('spread-gap-value').textContent === spreadGapAfter + 'px';
+              const spreadGapControlReady = !!spreadGapButton && !spreadGapButton.disabled && document.getElementById('spread-gap-value').textContent.endsWith(spreadGapAfter + 'px');
               const searchEngineSelect = document.getElementById('search-engine');
               const searchEngineOptionsReady = ['google', 'bing', 'baidu', 'custom'].every((value) => !!searchEngineSelect.querySelector('option[value="' + value + '"]'));
               searchEngineSelect.value = 'bing';

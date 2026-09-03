@@ -24,6 +24,7 @@ const {
   DEFAULT_GAP: DEFAULT_SPREAD_GAP,
   normalizeGap: normalizeSpreadGap,
   nextGap: nextSpreadGap,
+  gapLabel: spreadGapLabel,
 } = window.GaiaSpreadGap;
 const {
   MODES: TOC_MODES,
@@ -659,7 +660,7 @@ function updateSettingsValues() {
   els.lineHeightValue.textContent = state.lineHeight.toFixed(1);
   els.marginValue.textContent = (state.prefs.marginPct != null ? state.prefs.marginPct : 8) + '%';
   els.spreadValue.textContent = state.readMode === 'spread' ? '双页' : '单页';
-  els.spreadGapValue.textContent = currentSpreadGap() + 'px';
+  els.spreadGapValue.textContent = spreadGapLabel(currentSpreadGap());
   els.spreadGapRow.hidden = !!c && c.format === 'pdf';
   $('btn-spread-gap').disabled = state.readMode !== 'spread';
 }
@@ -858,6 +859,7 @@ function toggleSpread() {
   if (c) {
     if (c.format === 'epub' && c.rendition) {
       c.rendition.spread(state.readMode === 'spread' ? 'auto' : 'none', 700);
+      try { c.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (error) {}
     } else if (c.paginator) {
       c.paginator.setMode(state.readMode);
       updateMobiProgress(true);
@@ -2565,6 +2567,7 @@ function applyReaderStyles(contents) {
   css += 'p { text-indent: 2em !important; margin: 0 0 0.8em !important; line-height: ' + state.lineHeight + ' !important; } h1, h2, h3, h4 { line-height: 1.4 !important; margin: 1.2em 0 0.6em !important; }';
   const marginPct = state.prefs.marginPct != null ? state.prefs.marginPct : 8;
   css += 'body > * { margin-left: ' + marginPct + '% !important; margin-right: ' + marginPct + '% !important; }';
+  if (state.readMode === 'spread') css += 'body { column-rule: 1px solid rgba(127,127,127,.28) !important; }';
   if (font) css += 'body, p, div, span, li { font-family: ' + font + ' !important; }';
   if (style) style.remove();
   if (!css) return;
@@ -4190,6 +4193,7 @@ window.__gaiaDebug = {
       if (c) {
         if (c.format === 'epub' && c.rendition) {
           try { c.rendition.spread(mode === 'spread' ? 'auto' : 'none', 700); } catch (e) {}
+          try { c.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
         } else if (c.paginator) {
           c.paginator.setMode(mode);
           updateMobiProgress(true);
