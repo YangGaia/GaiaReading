@@ -22,6 +22,7 @@ test('阅读区左缘只在关闭状态开启悬停模式', () => {
   assert.strictEqual(enterEdge(MODES.CLOSED), MODES.HOVER);
   assert.strictEqual(enterEdge(MODES.MANUAL), MODES.MANUAL);
   assert.strictEqual(enterEdge(MODES.HOVER), MODES.HOVER);
+  assert.strictEqual(enterEdge(MODES.CLOSED, true), MODES.CLOSED, '其他阅读工具开启时不得抢占界面');
 });
 
 test('鼠标离开只关闭触边展开的目录', () => {

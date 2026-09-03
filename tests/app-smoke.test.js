@@ -21,6 +21,7 @@ test('项目关键文件齐全', () => {
   assert.ok(main.includes('parsed.importSucceeded === true'), 'EPUB 烟雾测试应验证导入成功');
   assert.ok(main.includes("await __gaiaDebug.runBookSearch('测试内容')"), 'EPUB 烟雾测试应执行真实全文搜索');
   assert.ok(main.includes('parsed.bookSearchRuntimeReady === true'), 'EPUB 烟雾测试应验证搜索跳转与正文高亮');
+  assert.ok(main.includes('parsed.sidePanelLayoutOk === true') && main.includes('parsed.sidePanelAnchorOk === true') && main.includes('parsed.fullBookSearchLayoutOk === true'), 'MOBI/AZW3 烟雾测试应验证侧栏重排、搜索跳转与阅读锚点');
   assert.ok(main.includes('parsed.aiUiReady === true'), 'EPUB 烟雾测试应验证 AI 界面与章节提取');
   for (const frame of ['pet_tilt_early.png', 'pet_tilt_peak.png', 'pet_tilt_return.png']) {
     assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少歪头动作帧 ${frame}`);
@@ -84,7 +85,8 @@ test('阅读目录支持左下角按钮与左缘悬停两种展开方式', () =>
   }
   assert.ok(html.includes('../shared/toc-panel.js'), '渲染层未加载目录状态机');
   assert.ok(app.includes('toggleTocManualMode(tocMode)'), '目录按钮必须进入手动模式');
-  assert.ok(app.includes('enterTocEdgeMode(tocMode)'), '阅读区左缘必须进入悬停模式');
+  assert.ok(app.includes('enterTocEdgeMode(tocMode, readerInteractionBlocksEdgeToc())'), '阅读区左缘必须在空闲时进入悬停模式');
+  assert.ok(css.includes('.toc-edge-trigger.disabled'), '其他阅读工具开启时必须禁用左缘感应区');
   assert.ok(app.includes('activateTocItemMode(tocMode)'), '目录跳转后应根据打开来源决定是否关闭');
   assert.ok(app.includes("els.tocEdgeTrigger.addEventListener('pointerenter'"), '左缘缺少鼠标进入监听');
   assert.ok(app.includes("els.tocPanel.addEventListener('pointerleave'"), '目录缺少鼠标离开监听');
@@ -94,6 +96,17 @@ test('阅读目录支持左下角按钮与左缘悬停两种展开方式', () =>
   assert.ok(footer.includes('id="btn-reader-toc"') && footer.includes('id="page-nav"'), '目录与翻页按钮应位于状态栏，不能悬浮遮挡正文');
   assert.ok(css.includes('grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)'), '底栏应为左目录、中翻页、右状态的三栏布局');
   assert.ok(css.includes('min-height: 48px') && css.includes('padding: 9px 16px 8px'), '底栏控件上下应保留足够留白');
+});
+
+test('侧栏尺寸变化统一刷新全部阅读格式并保留阅读锚点', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+  assert.ok(css.includes('#reader-content { min-width: 0; min-height: 0;'), '阅读区必须允许在侧栏出现后正确收缩');
+  assert.ok(app.includes('function captureReaderLayoutAnchor()') && app.includes('function scheduleReaderLayoutRefresh(anchor)'), '侧栏变化必须统一捕获并恢复阅读位置');
+  assert.ok(app.includes('c.rendition.resize(size.width, size.height, anchor.cfi'), 'EPUB 必须按实际阅读区尺寸与 CFI 重排');
+  assert.ok(app.includes("c.format === 'pdf' && c.pdf") && app.includes('renderPdfPage({ anchor: pdfAnchor })'), 'PDF 必须随阅读区尺寸重新渲染并保持相对视口锚点');
+  assert.ok(app.includes('c.paginator.reflow()') && app.includes('c.paginator.locate(textOffset)'), 'TXT、MOBI、AZW3 必须重排并恢复正文偏移');
+  assert.ok(app.includes('await waitForReaderLayoutRefresh()'), '搜索结果跳转必须等待侧栏布局稳定');
 });
 
 test('版本号为 1.0.1 且界面同步', () => {

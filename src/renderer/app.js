@@ -61,6 +61,8 @@ const { findInText: findBookSearchMatches, searchSections: searchBookSections } 
 const readerWheelGate = createWheelGate({ threshold: 60, cooldown: 250 });
 const pdfZoomRuntime = { timer: 0, anchor: null };
 let bookSearchTimer = 0;
+let readerLayoutSyncVersion = 0;
+let readerLayoutSyncPromise = Promise.resolve(false);
 
 const FONTS = {
   default: '',
@@ -263,6 +265,7 @@ function showView(name) {
   if (name === 'stats') renderReadingStats();
   const companionView = name === 'stats' ? 'library' : name;
   if (window.GaiaBgm && window.GaiaBgm.positionBgm) window.GaiaBgm.positionBgm(companionView);
+  updateTocEdgeAvailability();
   window.GaiaPet.init().then(() => {
     window.GaiaPet.setView(name);
     updatePetUI();
@@ -654,6 +657,7 @@ function openSettings(section) {
   if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(true);
   views.reader.classList.toggle('settings-open', !views.reader.hidden);
   els.settingsOverlay.hidden = false;
+  updateTocEdgeAvailability();
   updateSearchSettingsUi();
   updateAiConfigForm();
 }
@@ -662,6 +666,7 @@ function closeSettings() {
   els.settingsOverlay.hidden = true;
   views.reader.classList.remove('settings-open');
   if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(false);
+  updateTocEdgeAvailability();
 }
 
 function isSettingsOpen() {
@@ -683,7 +688,8 @@ function updateSettingsValues() {
 
 function closeReaderContent() {
   closeNoteEditor();
-  closeBookSearch({ reset: true });
+  closeBookSearch({ reset: true, refresh: false });
+  readerLayoutSyncVersion += 1;
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   const c = state.current;
   if (c) {
@@ -704,6 +710,7 @@ function closeReaderContent() {
   state.aiChatInterrupting = false;
   updateAiChatComposer();
   state.current = null;
+  updateTocEdgeAvailability();
 }
 
 async function backToLibrary() {
@@ -737,6 +744,7 @@ async function openBook(book) {
   els.readerStatus.textContent = '加载中…';
   els.pageNav.hidden = false;
   state.current = { path: book.path, format: book.format, title: book.title || book.path, cover: book.cover || '', percent: 0 };
+  updateTocEdgeAvailability();
   noteReadingActivity();
   applyGlobalHabits();
   const savedProg = state.progress[book.path];
@@ -1107,6 +1115,100 @@ async function renderPdfTextLayer(page, viewport, wrap) {
     console.error('PDF 文字层渲染失败', err);
     return null;
   }
+}
+
+function readerViewportSize() {
+  return {
+    width: Math.max(0, els.readerContent.clientWidth || 0),
+    height: Math.max(0, els.readerContent.clientHeight || 0),
+  };
+}
+
+function captureReaderLayoutAnchor() {
+  const c = state.current;
+  if (!c) return null;
+  const size = readerViewportSize();
+  const anchor = { bookPath: c.path, format: c.format, width: size.width, height: size.height };
+  if (c.format === 'epub' && c.rendition) {
+    try {
+      const location = c.rendition.currentLocation();
+      anchor.cfi = location && location.start ? location.start.cfi : '';
+    } catch (error) {}
+  } else if (c.format === 'pdf') {
+    anchor.page = c.page;
+    anchor.pdfViewport = centeredPdfZoomAnchor();
+  } else if (c.paginator) {
+    anchor.chapter = c.flow ? c.flow.chapter : 0;
+    anchor.page = c.paginator.currentPage;
+    anchor.text = c.paginator.anchor();
+  }
+  return anchor;
+}
+
+async function refreshReaderLayout(anchor) {
+  const c = state.current;
+  if (!c || !anchor || c.path !== anchor.bookPath || c.format !== anchor.format) return false;
+  const size = readerViewportSize();
+  if (!size.width || !size.height) return false;
+  if (size.width === anchor.width && size.height === anchor.height) return true;
+  if (c.format === 'epub' && c.rendition) {
+    c.rendition.resize(size.width, size.height, anchor.cfi || undefined);
+    if (anchor.cfi) await c.rendition.display(anchor.cfi);
+    return true;
+  }
+  if (c.format === 'pdf' && c.pdf) {
+    cancelPendingPdfZoomRender();
+    if (Number.isFinite(anchor.page)) c.page = Math.max(1, Math.min(c.pages, anchor.page));
+    const pdfAnchor = anchor.pdfViewport ? {
+      ...anchor.pdfViewport,
+      viewportX: anchor.pdfViewport.viewportX * size.width / Math.max(1, anchor.width),
+      viewportY: anchor.pdfViewport.viewportY * size.height / Math.max(1, anchor.height),
+    } : null;
+    await renderPdfPage({ anchor: pdfAnchor });
+    return true;
+  }
+  if (c.paginator) {
+    c.paginator.reflow();
+    const sameChapter = !c.flow || c.flow.chapter === anchor.chapter;
+    const textOffset = sameChapter && anchor.text && Number.isFinite(anchor.text.off) ? anchor.text.off : null;
+    const page = textOffset == null ? anchor.page : c.paginator.locate(textOffset);
+    if (Number.isFinite(page) && page >= 0) c.paginator.showPage(page);
+    if (c.flow) c.flow.page = c.paginator.currentPage;
+    updateMobiProgress(true);
+    return true;
+  }
+  return false;
+}
+
+function scheduleReaderLayoutRefresh(anchor) {
+  const captured = anchor || captureReaderLayoutAnchor();
+  const version = ++readerLayoutSyncVersion;
+  readerLayoutSyncPromise = (async () => {
+    await new Promise((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)));
+    if (version !== readerLayoutSyncVersion) return false;
+    return refreshReaderLayout(captured);
+  })().catch((error) => {
+    console.error('READER_LAYOUT_REFRESH_FAILED', error);
+    return false;
+  });
+  return readerLayoutSyncPromise;
+}
+
+function waitForReaderLayoutRefresh() {
+  return readerLayoutSyncPromise;
+}
+
+function readerInteractionBlocksEdgeToc() {
+  return !state.current || views.reader.hidden ||
+    !els.bookSearchPanel.hidden || !els.bookmarksPanel.hidden || !els.annotationsPanel.hidden ||
+    !els.aiSummaryPanel.hidden || isSettingsOpen() ||
+    (els.selectionToolbar && !els.selectionToolbar.hidden) ||
+    (els.noteEditorOverlay && !els.noteEditorOverlay.hidden);
+}
+
+function updateTocEdgeAvailability() {
+  if (!els.tocEdgeTrigger) return;
+  els.tocEdgeTrigger.classList.toggle('disabled', readerInteractionBlocksEdgeToc());
 }
 
 async function openMobi(book) {
@@ -1528,26 +1630,23 @@ function setTocMode(nextMode, options) {
 }
 
 function toggleReaderToc() {
+  const layoutAnchor = captureReaderLayoutAnchor();
   hideSelectionToolbar();
-  if (!els.bookSearchPanel.hidden) closeBookSearch();
+  if (!els.bookSearchPanel.hidden) closeBookSearch({ refresh: false });
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
   els.aiSummaryPanel.hidden = true;
   $('btn-ai-reader').classList.remove('open');
   setTocMode(toggleTocManualMode(tocMode));
-  resizeEpubRendition();
+  updateTocEdgeAvailability();
+  scheduleReaderLayoutRefresh(layoutAnchor);
 }
 
 function openTocFromEdge() {
   if (!state.current || !views.reader || views.reader.hidden) return;
-  hideSelectionToolbar();
-  if (!els.bookSearchPanel.hidden) closeBookSearch();
-  els.bookmarksPanel.hidden = true;
-  els.annotationsPanel.hidden = true;
-  els.aiSummaryPanel.hidden = true;
-  $('btn-ai-reader').classList.remove('open');
-  setTocMode(enterTocEdgeMode(tocMode));
-  resizeEpubRendition();
+  const nextMode = enterTocEdgeMode(tocMode, readerInteractionBlocksEdgeToc());
+  if (nextMode === tocMode) return;
+  setTocMode(nextMode);
 }
 
 function scheduleTocHoverClose() {
@@ -1580,8 +1679,9 @@ function togglePanel(which) {
   const panels = { bookmarks: els.bookmarksPanel, annotations: els.annotationsPanel, ai: els.aiSummaryPanel };
   const target = panels[which] || els.bookmarksPanel;
   const targetHidden = target.hidden;
+  const layoutAnchor = captureReaderLayoutAnchor();
   hideSelectionToolbar();
-  if (!els.bookSearchPanel.hidden) closeBookSearch();
+  if (!els.bookSearchPanel.hidden) closeBookSearch({ refresh: false });
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   els.bookmarksPanel.hidden = true;
   els.annotationsPanel.hidden = true;
@@ -1593,7 +1693,8 @@ function togglePanel(which) {
     target.hidden = false;
     if (which === 'annotations') renderAnnotationsPanel();
   }
-  resizeEpubRendition();
+  updateTocEdgeAvailability();
+  scheduleReaderLayoutRefresh(layoutAnchor);
 }
 
 function mobiChapterTitle(mobi, ch) {
@@ -2148,6 +2249,7 @@ function scheduleBookSearch() {
 
 function openBookSearch() {
   if (!state.current || views.reader.hidden) return;
+  const layoutAnchor = captureReaderLayoutAnchor();
   closeSettings();
   hideSelectionToolbar();
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
@@ -2158,7 +2260,8 @@ function openBookSearch() {
   els.bookSearchPanel.hidden = false;
   $('btn-book-search').classList.add('open');
   $('btn-book-search').setAttribute('aria-expanded', 'true');
-  resizeEpubRendition();
+  updateTocEdgeAvailability();
+  scheduleReaderLayoutRefresh(layoutAnchor);
   window.setTimeout(() => {
     els.bookSearchInput.focus();
     els.bookSearchInput.select();
@@ -2169,6 +2272,8 @@ function openBookSearch() {
 
 function closeBookSearch(options) {
   const opts = options || {};
+  const wasOpen = !els.bookSearchPanel.hidden;
+  const layoutAnchor = wasOpen && opts.refresh !== false ? captureReaderLayoutAnchor() : null;
   window.clearTimeout(bookSearchTimer);
   bookSearchTimer = 0;
   clearBookSearchHighlights();
@@ -2184,7 +2289,8 @@ function closeBookSearch(options) {
     els.bookSearchResults.innerHTML = '';
     setBookSearchStatus('输入关键词后搜索当前书籍。');
   }
-  resizeEpubRendition();
+  updateTocEdgeAvailability();
+  if (layoutAnchor) scheduleReaderLayoutRefresh(layoutAnchor);
 }
 
 function toggleBookSearch() {
@@ -2201,6 +2307,8 @@ async function activateBookSearchResult(index) {
   renderBookSearchResults();
   clearBookSearchHighlights();
   try {
+    await waitForReaderLayoutRefresh();
+    assertCurrentSearchBook(c);
     if (c.format === 'epub' && c.rendition) {
       await c.rendition.display(result.locator.href || undefined);
       assertCurrentSearchBook(c);
@@ -2381,12 +2489,14 @@ function showSelectionToolbar(context) {
   toolbar.style.left = Math.max(8, Math.min(window.innerWidth - width - 8, center - width / 2)) + 'px';
   const above = rect.top - height - 10;
   toolbar.style.top = (above >= 8 ? above : Math.min(window.innerHeight - height - 8, rect.bottom + 10)) + 'px';
+  updateTocEdgeAvailability();
 }
 
 function hideSelectionToolbar() {
   if (!els.selectionToolbar) return;
   els.selectionToolbar.hidden = true;
   state.selectionContext = null;
+  updateTocEdgeAvailability();
 }
 
 function selectionQuote(context, maxChars) {
@@ -2584,6 +2694,7 @@ function openNoteEditor(context) {
   els.noteEditorError.textContent = '';
   els.noteEditorOverlay.hidden = false;
   hideSelectionToolbar();
+  updateTocEdgeAvailability();
   window.requestAnimationFrame(() => {
     els.noteEditorInput.focus();
     els.noteEditorInput.setSelectionRange(els.noteEditorInput.value.length, els.noteEditorInput.value.length);
@@ -2598,15 +2709,18 @@ function closeNoteEditor() {
   state.noteEditorContext = null;
   state.noteEditorSaving = false;
   els.noteEditorSave.disabled = false;
+  updateTocEdgeAvailability();
 }
 
 function openAnnotationsPanelAt(annotationId) {
+  const layoutAnchor = captureReaderLayoutAnchor();
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   els.bookmarksPanel.hidden = true;
   els.aiSummaryPanel.hidden = true;
   els.annotationsPanel.hidden = false;
   renderAnnotationsPanel();
-  resizeEpubRendition();
+  updateTocEdgeAvailability();
+  scheduleReaderLayoutRefresh(layoutAnchor);
   window.requestAnimationFrame(() => {
     const card = els.annotationsPanel.querySelector('[data-annotation-id="' + CSS.escape(annotationId) + '"]');
     if (!card) return;
@@ -4145,6 +4259,7 @@ function closeAiAssistantPanel() {
   setAiAppearanceOpen(false);
   els.aiSummaryPanel.hidden = true;
   $('btn-ai-reader').classList.remove('open');
+  updateTocEdgeAvailability();
 }
 
 function showAiAssistantPanel() {
@@ -4159,6 +4274,7 @@ function showAiAssistantPanel() {
   els.aiSummaryPanel.hidden = false;
   restoreAiPanelGeometry();
   $('btn-ai-reader').classList.add('open');
+  updateTocEdgeAvailability();
   showAiAssistantChapter(source);
   renderAiChat(source);
   window.setTimeout(() => els.aiChatInput.focus(), 120);
@@ -4640,6 +4756,25 @@ window.__gaiaDebug = {
       results: c && Array.isArray(c.bookSearchResults) ? c.bookSearchResults.length : 0,
       activeIndex: c && Number.isInteger(c.bookSearchActiveIndex) ? c.bookSearchActiveIndex : -1,
       highlightCount,
+    };
+  },
+  waitForReaderLayoutRefresh,
+  getReaderLayoutState: () => {
+    const c = state.current;
+    const size = readerViewportSize();
+    const frame = c && c.paginator ? c.paginator.frame : els.readerContent.querySelector('iframe');
+    const pdfPage = els.readerContent.querySelector('.pdf-page');
+    return {
+      format: c && c.format,
+      readerWidth: size.width,
+      readerHeight: size.height,
+      frameWidth: frame ? frame.clientWidth : 0,
+      frameHeight: frame ? frame.clientHeight : 0,
+      pdfPageWidth: pdfPage ? pdfPage.clientWidth : 0,
+      paginatorMode: c && c.paginator ? c.paginator.mode : '',
+      paginatorPage: c && c.paginator ? c.paginator.currentPage : -1,
+      paginatorAnchor: c && c.paginator ? c.paginator.anchor() : null,
+      edgeTocDisabled: els.tocEdgeTrigger.classList.contains('disabled'),
     };
   },
   nextPage,

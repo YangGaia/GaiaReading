@@ -17,6 +17,22 @@
     // 跳到第 10 章（长正文）验证章内连续翻页与进度逐页推进
     await __gaiaDebug.jumpToMobiChapter(10);
     await new Promise((r) => setTimeout(r, 600));
+    if (!__gaiaDebug.getSpreadMode()) await __gaiaDebug.setMode('spread');
+    await new Promise((r) => setTimeout(r, 200));
+    const layoutBeforeSearch = __gaiaDebug.getReaderLayoutState();
+    __gaiaDebug.openBookSearch();
+    await __gaiaDebug.waitForReaderLayoutRefresh();
+    const layoutWithSearch = __gaiaDebug.getReaderLayoutState();
+    __gaiaDebug.closeBookSearch();
+    await __gaiaDebug.waitForReaderLayoutRefresh();
+    const layoutAfterSearch = __gaiaDebug.getReaderLayoutState();
+    const originalAnchorOffset = layoutBeforeSearch.paginatorAnchor && layoutBeforeSearch.paginatorAnchor.off;
+    const sidePanelLayoutOk = layoutBeforeSearch.paginatorMode === 'spread' && layoutWithSearch.paginatorMode === 'spread' &&
+      layoutWithSearch.readerWidth < layoutBeforeSearch.readerWidth &&
+      layoutWithSearch.frameWidth <= layoutWithSearch.readerWidth && layoutWithSearch.edgeTocDisabled === true &&
+      layoutAfterSearch.readerWidth === layoutBeforeSearch.readerWidth && layoutAfterSearch.frameWidth <= layoutAfterSearch.readerWidth &&
+      layoutAfterSearch.edgeTocDisabled === false;
+    const sidePanelAnchorOk = Number.isFinite(originalAnchorOffset) && __gaiaDebug.getAnchorInView(originalAnchorOffset);
     const aiSource = await __gaiaDebug.resolveAiChapterSource();
     const aiContentLen = aiSource && aiSource.content ? aiSource.content.length : 0;
     const aiChapterTitle = aiSource && aiSource.chapterTitle;
@@ -103,7 +119,23 @@
     __gaiaDebug.showPaginatorLastPage();
     await new Promise((r) => setTimeout(r, 200));
     const endPercent = __gaiaDebug.getPercent();
-    return JSON.stringify({ status, contentLen, initialAiContentLen, initialAiChapterTitle, aiContentLen, aiChapterTitle, aiContentLenAfterPaging, aiChapterTitleAfterPaging, chapters, tocCount, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
+    const fullSearchSource = __gaiaDebug.getAiChapterSource();
+    const fullSearchText = String(fullSearchSource && fullSearchSource.content || '');
+    const fullSearchMatch = fullSearchText.match(/[\u4e00-\u9fff]{2,6}/) || fullSearchText.match(/[A-Za-z]{4,12}/);
+    const fullSearchQuery = fullSearchMatch ? fullSearchMatch[0] : '';
+    const fullSearchLayoutBefore = __gaiaDebug.getReaderLayoutState();
+    const fullSearchRun = await __gaiaDebug.runBookSearch(fullSearchQuery);
+    const fullSearchActivated = await __gaiaDebug.activateBookSearchResult(0);
+    const fullSearchLayoutOpen = __gaiaDebug.getReaderLayoutState();
+    __gaiaDebug.closeBookSearch();
+    await __gaiaDebug.waitForReaderLayoutRefresh();
+    const fullSearchLayoutClosed = __gaiaDebug.getReaderLayoutState();
+    const fullBookSearchLayoutOk = !!fullSearchQuery && fullSearchRun.results > 0 &&
+      fullSearchActivated.activeIndex === 0 && fullSearchActivated.highlightCount > 0 &&
+      fullSearchLayoutOpen.frameWidth <= fullSearchLayoutOpen.readerWidth &&
+      fullSearchLayoutClosed.readerWidth === fullSearchLayoutBefore.readerWidth &&
+      fullSearchLayoutClosed.frameWidth <= fullSearchLayoutClosed.readerWidth;
+    return JSON.stringify({ status, contentLen, initialAiContentLen, initialAiChapterTitle, aiContentLen, aiChapterTitle, aiContentLenAfterPaging, aiChapterTitleAfterPaging, chapters, tocCount, sidePanelLayoutOk, sidePanelAnchorOk, fullBookSearchLayoutOk, fullSearchQuery, fullSearchRun, fullSearchActivated, fullSearchLayoutBefore, fullSearchLayoutOpen, fullSearchLayoutClosed, layoutBeforeSearch, layoutWithSearch, layoutAfterSearch, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
   } catch (e) {
     console.error('MOBI_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';

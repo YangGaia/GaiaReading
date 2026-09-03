@@ -24,8 +24,9 @@
     return normalize(mode) === MODES.MANUAL ? MODES.CLOSED : MODES.MANUAL;
   }
 
-  function enterEdge(mode) {
+  function enterEdge(mode, blocked) {
     const current = normalize(mode);
+    if (blocked) return current;
     return current === MODES.CLOSED ? MODES.HOVER : current;
   }
 

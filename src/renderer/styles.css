@@ -157,7 +157,7 @@ body.dark {
 
 /* ===== 阅读页 ===== */
 #reader-body { position: relative; flex: 1; display: flex; overflow: hidden; }
-.side-panel { width: 260px; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); padding: 12px; font-size: 13px; text-align: left; color: var(--text-soft); }
+.side-panel { flex: 0 0 260px; width: 260px; box-sizing: border-box; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); padding: 12px; font-size: 13px; text-align: left; color: var(--text-soft); }
 .side-panel[hidden] { display: none; }
 .side-panel a { display: block; padding: 6px 8px; color: var(--text); text-decoration: none; border-radius: 6px; }
 .side-panel a:hover { background: var(--bg); }
@@ -186,6 +186,7 @@ body.dark {
 .toc-backdrop { position: absolute; z-index: 30; inset: 0; background: rgba(0, 0, 0, .06); }
 .toc-backdrop[hidden] { display: none; }
 .toc-edge-trigger { position: absolute; z-index: 29; top: 0; bottom: 0; left: 0; width: 10px; }
+.toc-edge-trigger.disabled { pointer-events: none; }
 .reader-toc-button {
   justify-self: start;
   display: inline-flex;
@@ -214,7 +215,7 @@ body.dark {
 .bookmark-edit { padding: 2px 7px; font-size: 12px; border-radius: 4px; color: var(--text-soft); border-color: var(--border-strong); background: var(--surface); cursor: pointer; }
 .bookmark-edit:hover { background: var(--accent-soft); color: var(--accent); }
 .bookmark-name-input { flex: 1; min-width: 0; font-size: 13px; padding: 2px 6px; border: 1px solid var(--accent); border-radius: 4px; background: var(--surface); color: var(--text); outline: none; }
-#reader-content { flex: 1; overflow: auto; background: var(--reader-bg); text-align: center; position: relative; }
+#reader-content { min-width: 0; min-height: 0; flex: 1; overflow: auto; background: var(--reader-bg); text-align: center; position: relative; }
 .paginator-frame { border: 0; display: block; margin: 0 auto; background: transparent; box-shadow: 0 2px 18px rgba(0,0,0,.12); }
 #txt-content { padding: 32px 40px; max-width: 720px; margin: 0 auto; white-space: pre-wrap; word-break: break-word; line-height: 1.8; font-size: 16px; text-align: left; color: var(--reader-text); }
 #mobi-content { padding: 32px 40px; max-width: 760px; margin: 0 auto; text-align: left; line-height: 1.8; font-size: 16px; color: var(--reader-text); min-height: 100%; box-sizing: border-box; }
@@ -274,7 +275,7 @@ body.dark {
 }
 
 /* ===== 划线与笔记 ===== */
-.annotations-panel { width: 320px; color: var(--text); }
+.annotations-panel { flex-basis: 320px; width: 320px; color: var(--text); }
 .annotations-panel-head { display: flex; align-items: center; justify-content: space-between; margin: 2px 2px 12px; }
 .annotations-panel-head strong { font-size: 15px; }
 .annotation-card { border: 1px solid var(--border); border-left: 4px solid var(--annotation-color); border-radius: 10px; padding: 10px; margin-bottom: 10px; background: var(--bg); }
