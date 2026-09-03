@@ -2,9 +2,9 @@
 
 Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB、PDF、TXT、MOBI 和 AZW3。它把多格式阅读、章节级 AI 对话、划线笔记、阅读统计和桌面角色「久远寺有珠」放在同一个应用中。
 
-当前稳定版本：**1.0.1**
+当前稳定版本：**1.0.2**
 
-[下载 1.0.1](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.1) · [查看本版说明](RELEASE_NOTES_1.0.1.md) · [版本记录](CHANGELOG.md)
+[下载 1.0.2](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.2) · [查看本版说明](RELEASE_NOTES_1.0.2.md) · [版本记录](CHANGELOG.md)
 
 ## 界面截图
 
@@ -74,8 +74,8 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 
 ## 下载与运行
 
-1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.1)。
-2. 下载 `Gaia.Reading.1.0.1.exe`。
+1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.2)。
+2. 下载 `Gaia.Reading.1.0.2.exe`。
 3. 双击运行，无需安装 Node.js，也无需执行安装程序。
 
 系统要求：Windows 10/11 x64。当前发行文件未购买商业代码签名证书，Windows 首次运行时可能显示 SmartScreen 提示；请确认下载来源并核对 Release 中公布的 SHA-256。
@@ -144,4 +144,4 @@ tests/               自动化测试和测试用电子书
 assets/bgm/          内置音乐资源
 ```
 
-本次更新详情请阅读 [RELEASE_NOTES_1.0.1.md](RELEASE_NOTES_1.0.1.md)；首个正式版的完整说明仍可查看 [RELEASE_NOTES_1.0.0.md](RELEASE_NOTES_1.0.0.md)。
+本次更新详情请阅读 [RELEASE_NOTES_1.0.2.md](RELEASE_NOTES_1.0.2.md)；上一版本说明可查看 [RELEASE_NOTES_1.0.1.md](RELEASE_NOTES_1.0.1.md)。
