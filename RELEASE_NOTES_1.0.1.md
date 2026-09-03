@@ -31,13 +31,13 @@ Gaia Reading 1.0.1 集中改善阅读页的目录访问、双页排版、文字�
 
 ## 升级和运行方式
 
-- 请先退出正在运行的旧版本，再启动 `Gaia Reading 1.0.1.exe`。
+- 请先退出正在运行的旧版本，再启动下载的 `Gaia.Reading.1.0.1.exe`。
 - 本版本为绿色免安装版，不需要安装 Node.js。
 - Windows 首次运行未签名程序时可能显示 SmartScreen 提示；请确认文件来自本仓库 Release，并核对下方 SHA-256。
 
 ## 发布文件
 
-- 文件：`Gaia Reading 1.0.1.exe`
+- GitHub Release 文件：`Gaia.Reading.1.0.1.exe`
 - SHA-256：`44A79EADD35585A70ADC71214E6C1EC8E6D93E449C682D3A0C1F2940B55863C5`
 
 ## 验证情况
