@@ -88,6 +88,9 @@ test('阅读目录支持左下角按钮与左缘悬停两种展开方式', () =>
   assert.ok(app.includes("els.tocPanel.addEventListener('pointerleave'"), '目录缺少鼠标离开监听');
   assert.ok(css.includes('transform: translateX(-102%)') && css.includes('.toc-panel.toc-panel-open'), '目录缺少从左向右滑出的动画');
   assert.ok(css.includes('.reader-toc-button'), '阅读页左下角目录按钮缺少样式');
+  const footer = html.slice(html.indexOf('<footer class="statusbar">'), html.indexOf('</footer>') + 9);
+  assert.ok(footer.includes('id="btn-reader-toc"') && footer.includes('id="page-nav"'), '目录与翻页按钮应位于状态栏，不能悬浮遮挡正文');
+  assert.ok(css.includes('grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)'), '底栏应为左目录、中翻页、右状态的三栏布局');
 });
 
 test('版本号为 1.0.0 且界面同步', () => {
