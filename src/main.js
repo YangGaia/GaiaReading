@@ -609,6 +609,14 @@ function createWindow() {
               __gaiaDebug.setMode('spread');
               await new Promise((r) => setTimeout(r, 600));
               const spreadAfter = __gaiaDebug.getSpreadMode();
+              const spreadGapBefore = __gaiaDebug.getSpreadGap();
+              const spreadGapLocationBefore = __gaiaDebug.getLoc();
+              await __gaiaDebug.cycleSpreadGap();
+              const spreadGapAfter = __gaiaDebug.getSpreadGap();
+              const activeSpreadGap = __gaiaDebug.getActiveSpreadGap();
+              const spreadGapLocationAfter = __gaiaDebug.getLoc();
+              const spreadGapApplied = spreadGapBefore !== spreadGapAfter && activeSpreadGap === spreadGapAfter;
+              const spreadGapLocationKept = spreadGapLocationBefore === spreadGapLocationAfter;
               const epSizeAfterSpread = __gaiaDebug.getRenditionSize();
               __gaiaDebug.setMode('spread');
               __gaiaDebug.openSettings();
@@ -619,6 +627,8 @@ function createWindow() {
               const bgmSettingsOpeningFromOriginal = !!settingsOpeningFrames && settingsOpeningFrames.length >= 2 && settingsOpeningFrames[0].transform.startsWith('translate(');
               await new Promise((r) => setTimeout(r, 350));
               const drawerOpen = __gaiaDebug.isSettingsOpen();
+              const spreadGapButton = document.getElementById('btn-spread-gap');
+              const spreadGapControlReady = !!spreadGapButton && !spreadGapButton.disabled && document.getElementById('spread-gap-value').textContent === spreadGapAfter + 'px';
               const searchEngineSelect = document.getElementById('search-engine');
               const searchEngineOptionsReady = ['google', 'bing', 'baidu', 'custom'].every((value) => !!searchEngineSelect.querySelector('option[value="' + value + '"]'));
               searchEngineSelect.value = 'bing';
@@ -695,7 +705,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, aiUiReady, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -730,6 +740,9 @@ function createWindow() {
               parsed.epH > 0 &&
               parsed.spreadBefore === false &&
               parsed.spreadAfter === true &&
+              parsed.spreadGapControlReady === true &&
+              parsed.spreadGapApplied === true &&
+              parsed.spreadGapLocationKept === true &&
               parsed.epW2 > 0 &&
               parsed.fxOnHome === true &&
               parsed.particleCount > 0 &&

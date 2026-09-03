@@ -21,6 +21,11 @@ const {
   shouldScrollPdfPage,
 } = window.GaiaReaderInput;
 const {
+  DEFAULT_GAP: DEFAULT_SPREAD_GAP,
+  normalizeGap: normalizeSpreadGap,
+  nextGap: nextSpreadGap,
+} = window.GaiaSpreadGap;
+const {
   MODES: TOC_MODES,
   toggleManual: toggleTocManualMode,
   enterEdge: enterTocEdgeMode,
@@ -120,6 +125,8 @@ const els = {
   marginValue: $('margin-value'),
   drawerSpread: $('drawer-spread'),
   spreadValue: $('spread-value'),
+  spreadGapRow: $('drawer-spread-gap'),
+  spreadGapValue: $('spread-gap-value'),
   themeValue: $('theme-value'),
   progressFill: $('progress-fill'),
   fontSelect: $('font-select'),
@@ -180,7 +187,7 @@ const state = {
   lineHeight: 1.8,
   txtFont: 16,
   readMode: 'single',
-  prefs: { theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null },
+  prefs: { theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null },
   homeReady: null,
   resolveHome: null,
   statsReturnView: 'library',
@@ -289,7 +296,7 @@ function migrateHabitsFromLastBook() {
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const last = entries[0] && entries[0].settings;
   if (!last) return;
-  for (const k of ['theme', 'fontName', 'fontSize', 'txtFont', 'lineHeight', 'marginPct', 'readMode']) {
+  for (const k of ['theme', 'fontName', 'fontSize', 'txtFont', 'lineHeight', 'marginPct', 'readMode', 'spreadGap']) {
     if (state.prefs[k] == null && last[k] != null) state.prefs[k] = last[k];
   }
 }
@@ -313,7 +320,8 @@ async function init() {
   state.aiProfiles = aiProfiles && Array.isArray(aiProfiles.items) ? aiProfiles : { activeId: '', items: [] };
   state.aiConfig = state.aiProfiles.items.find((item) => item.id === state.aiProfiles.activeId) || state.aiProfiles.items[0] || null;
   state.aiEditingProfileId = state.aiConfig && state.aiConfig.id;
-  state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
+  state.prefs = Object.assign({ theme: 'light', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
+  state.prefs.spreadGap = normalizeSpreadGap(state.prefs.spreadGap);
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
   migrateHabitsFromLastBook();
   state.fontSize = state.prefs.fontSize != null ? state.prefs.fontSize : 100;
@@ -651,6 +659,9 @@ function updateSettingsValues() {
   els.lineHeightValue.textContent = state.lineHeight.toFixed(1);
   els.marginValue.textContent = (state.prefs.marginPct != null ? state.prefs.marginPct : 8) + '%';
   els.spreadValue.textContent = state.readMode === 'spread' ? '双页' : '单页';
+  els.spreadGapValue.textContent = currentSpreadGap() + 'px';
+  els.spreadGapRow.hidden = !!c && c.format === 'pdf';
+  $('btn-spread-gap').disabled = state.readMode !== 'spread';
 }
 
 function closeReaderContent() {
@@ -731,7 +742,7 @@ async function openEpub(book) {
   const buf = toArrayBuffer(toUint8Array(res.data));
   const epub = window.ePub(buf);
   state.current.epub = epub;
-  const rendition = epub.renderTo('reader-content', { width: '100%', height: '100%', flow: 'paginated', spread: 'none' });
+  const rendition = epub.renderTo('reader-content', { width: '100%', height: '100%', flow: 'paginated', spread: 'none', gap: currentSpreadGap() });
   state.current.rendition = rendition;
   rendition.hooks.content.register((contents) => {
     applyReaderStyles(contents);
@@ -877,6 +888,38 @@ async function openPdf(book) {
   const saved = state.progress[book.path];
   if (saved && saved.page >= 1 && saved.page <= pdf.numPages) state.current.page = saved.page;
   await renderPdfPage();
+}
+
+function currentSpreadGap() {
+  return normalizeSpreadGap(state.prefs.spreadGap);
+}
+
+async function applyEpubSpreadGap(c, gap) {
+  if (!c || c.format !== 'epub' || !c.rendition || !c.rendition.manager) return;
+  let cfi = null;
+  try {
+    const location = c.rendition.currentLocation();
+    cfi = location && location.start && location.start.cfi;
+  } catch (error) {}
+  c.rendition.manager.settings.gap = gap;
+  if (typeof c.rendition.manager.updateLayout === 'function') c.rendition.manager.updateLayout();
+  if (cfi) await c.rendition.display(cfi);
+}
+
+async function cycleSpreadGap() {
+  const c = state.current;
+  if (!c || c.format === 'pdf' || state.readMode !== 'spread') return;
+  state.prefs.spreadGap = nextSpreadGap(currentSpreadGap());
+  const gap = currentSpreadGap();
+  if (c.format === 'epub') {
+    try { await applyEpubSpreadGap(c, gap); } catch (error) { console.error('EPUB_SPREAD_GAP_FAILED', error); }
+  } else if (c.paginator) {
+    c.paginator.setGap(gap);
+    updateMobiProgress(true);
+  }
+  els.readerStatus.textContent = '双页间隙 ' + gap + 'px';
+  if (isSettingsOpen()) updateSettingsValues();
+  rememberSettings();
 }
 
 function updatePdfZoomUi() {
@@ -1053,7 +1096,7 @@ async function openMobi(book) {
     totalChapters: Math.max(1, (res.chapters || []).length),
     chapterWeights: (res.chapters || []).map((chapter) => chapter.weight),
   });
-  state.current.paginator = new window.GaiaPaginator(els.readerContent, { pageWidth: 640, gap: 48 });
+  state.current.paginator = new window.GaiaPaginator(els.readerContent, { pageWidth: 640, gap: currentSpreadGap() });
   state.current.paginator.onChange = () => {
     if (state.current && state.current.flow && state.current.paginator) {
       state.current.flow.page = state.current.paginator.currentPage;
@@ -1199,7 +1242,7 @@ function renderMobiToc() {
 async function openTxt(book) {
   const res = await window.api.readBook(book.path);
   state.current.flow = new window.GaiaFlow({ totalChapters: 1 });
-  state.current.paginator = new window.GaiaPaginator(els.readerContent, { pageWidth: 640, gap: 48 });
+  state.current.paginator = new window.GaiaPaginator(els.readerContent, { pageWidth: 640, gap: currentSpreadGap() });
   state.current.paginator.onChange = () => {
     if (state.current && state.current.flow && state.current.paginator) {
       state.current.flow.page = state.current.paginator.currentPage;
@@ -2855,6 +2898,7 @@ function applyGlobalHabits() {
   if (p.fontSize != null) state.fontSize = p.fontSize;
   if (p.txtFont != null) state.txtFont = p.txtFont;
   if (p.lineHeight != null) state.lineHeight = p.lineHeight;
+  state.prefs.spreadGap = normalizeSpreadGap(p.spreadGap);
   state.readMode = p.readMode === 'spread' ? 'spread' : 'single';
 }
 
@@ -2867,6 +2911,7 @@ function rememberSettings() {
     lineHeight: state.lineHeight,
     marginPct: state.prefs.marginPct,
     readMode: state.readMode,
+    spreadGap: currentSpreadGap(),
   });
   window.api.stateSet('prefs', state.prefs);
   const c = state.current;
@@ -3901,6 +3946,7 @@ function bindEvents() {
   $('btn-line-height').addEventListener('click', cycleLineHeight);
   $('btn-margin').addEventListener('click', cycleMargin);
   $('btn-spread').addEventListener('click', toggleSpread);
+  $('btn-spread-gap').addEventListener('click', cycleSpreadGap);
   $('btn-theme').addEventListener('click', cycleTheme);
   $('btn-pet-toggle').addEventListener('click', togglePet);
   $('btn-pet-console').addEventListener('click', openPetConsole);
@@ -4129,6 +4175,13 @@ window.__gaiaDebug = {
     return n;
   },
   getSpreadMode: () => state.readMode === 'spread',
+  getSpreadGap: currentSpreadGap,
+  getActiveSpreadGap: () => {
+    const c = state.current;
+    if (c && c.format === 'epub' && c.rendition && c.rendition.manager && c.rendition.manager.layout) return c.rendition.manager.layout.gap;
+    return c && c.paginator ? c.paginator.gap : null;
+  },
+  cycleSpreadGap,
   getReadMode: () => state.readMode,
   setMode: (mode) => {
     if (mode === 'single' || mode === 'spread') {

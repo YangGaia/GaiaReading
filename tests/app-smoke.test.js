@@ -37,6 +37,7 @@ test('项目关键文件齐全', () => {
     'src/shared/library.js',
     'src/shared/pet.js',
     'src/shared/toc-panel.js',
+    'src/shared/spread-gap.js',
     'src/renderer/index.html',
     'src/renderer/app.js',
     'src/renderer/pet.js',
@@ -326,6 +327,19 @@ test('可调节页边距功能接入', () => {
   assert.ok(app.includes("'body > * { margin-left: ' + marginPct + '% !important;"), 'EPUB 应注入可调边距');
   assert.ok(pag.includes('setMargin(pct)'), '分页器应支持 setMargin');
   assert.ok(pag.includes('this.marginPct'), '分页器应保存边距档位');
+});
+
+test('EPUB、TXT、MOBI 与 AZW3 共用可调双页间隙且不改变 PDF', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
+  assert.ok(html.includes('id="btn-spread-gap"') && html.includes('id="spread-gap-value"'), '设置页缺少双页间隙控件');
+  assert.ok(html.includes('../shared/spread-gap.js'), '渲染层未加载双页间隙档位模块');
+  assert.ok(app.includes("gap: currentSpreadGap()"), 'EPUB 初始化时应使用用户设置的间隙');
+  assert.strictEqual((app.match(/new window\.GaiaPaginator\(els\.readerContent, \{ pageWidth: 640, gap: currentSpreadGap\(\) \}\)/g) || []).length, 2, 'TXT 与 MOBI/AZW3 应使用同一间隙');
+  assert.ok(app.includes("c.format === 'pdf' || state.readMode !== 'spread'"), 'PDF 和单页模式不得应用双页间隙调节');
+  assert.ok(app.includes('spreadGap: currentSpreadGap()'), '双页间隙应写入全局阅读习惯');
+  assert.ok(pag.includes('setGap(px)') && pag.includes('this.gap = opts.gap || 16'), '分页器应支持实时更新间隙并使用紧凑默认值');
 });
 
 test('内置 BGM 功能接入', () => {
