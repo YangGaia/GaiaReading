@@ -512,6 +512,8 @@ function createWindow() {
               const importSucceeded = importResult.added === 1 && importResult.failures.length === 0 && !!importedBook;
               await __gaiaDebug.openBook(importedBook || { path: fixture, format: 'epub', title: 'fixture' });
               await __gaiaDebug.waitLocations();
+              __gaiaDebug.setMode('spread');
+              await new Promise((r) => setTimeout(r, 400));
               const epubLayoutBeforeSearch = __gaiaDebug.getReaderLayoutState();
               document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, cancelable: true }));
               await new Promise((r) => setTimeout(r, 50));
@@ -523,15 +525,28 @@ function createWindow() {
                 __gaiaDebug.getPanels().tocMode === 'closed' && __gaiaDebug.getPanels().tocHidden === true;
               const bookSearchRunState = await __gaiaDebug.runBookSearch('测试内容');
               const bookSearchActivatedState = await __gaiaDebug.activateBookSearchResult(0);
+              const epubLayoutAfterSearchJump = __gaiaDebug.getReaderLayoutState();
               __gaiaDebug.closeBookSearch();
               await __gaiaDebug.waitForReaderLayoutRefresh();
               const epubLayoutAfterSearch = __gaiaDebug.getReaderLayoutState();
+              const epubManagerRemainder = epubLayoutAfterSearchJump.epubDelta > 0
+                ? Math.abs(epubLayoutAfterSearchJump.epubManagerScrollLeft) % epubLayoutAfterSearchJump.epubDelta
+                : 0;
+              const epubSearchSpreadAligned = epubLayoutBeforeSearch.epubDivisor === 2 &&
+                epubLayoutWithSearch.epubDivisor === 2 && epubLayoutAfterSearchJump.epubDivisor === 2 &&
+                (epubManagerRemainder < 1 || epubLayoutAfterSearchJump.epubDelta - epubManagerRemainder < 1) &&
+                epubLayoutAfterSearchJump.readerScrollLeft === 0 &&
+                epubLayoutAfterSearchJump.epubContentScroll.every((scroll) =>
+                  Math.abs(scroll.html) < 1 && Math.abs(scroll.body) < 1 && Math.abs(scroll.window) < 1);
               const bookSearchRuntimeReady = bookSearchShortcutState.open === true && bookSearchShortcutState.focused === true &&
                 bookSearchRunState.results > 0 && bookSearchActivatedState.activeIndex === 0 && bookSearchActivatedState.highlightCount > 0 &&
                 searchSurvivedEdgeToc === true &&
+                epubSearchSpreadAligned === true &&
                 epubLayoutWithSearch.edgeTocDisabled === true && epubLayoutWithSearch.readerWidth < epubLayoutBeforeSearch.readerWidth &&
                 epubLayoutWithSearch.frameWidth <= epubLayoutWithSearch.readerWidth + 1 &&
                 epubLayoutAfterSearch.readerWidth === epubLayoutBeforeSearch.readerWidth && epubLayoutAfterSearch.edgeTocDisabled === false;
+              __gaiaDebug.setMode('single');
+              await new Promise((r) => setTimeout(r, 400));
               await GaiaPet.whenReady();
               const readingCareBefore = GaiaPet.getReadingCareState();
               GaiaPet.openConsole();
@@ -831,7 +846,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterSearchJump, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';

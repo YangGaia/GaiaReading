@@ -21,6 +21,7 @@ test('项目关键文件齐全', () => {
   assert.ok(main.includes('parsed.importSucceeded === true'), 'EPUB 烟雾测试应验证导入成功');
   assert.ok(main.includes("await __gaiaDebug.runBookSearch('测试内容')"), 'EPUB 烟雾测试应执行真实全文搜索');
   assert.ok(main.includes('parsed.bookSearchRuntimeReady === true'), 'EPUB 烟雾测试应验证搜索跳转与正文高亮');
+  assert.ok(main.includes("__gaiaDebug.setMode('spread')") && main.includes('epubSearchSpreadAligned'), 'EPUB 搜索烟雾测试必须在双页模式验证整页对齐');
   assert.ok(main.includes('parsed.sidePanelLayoutOk === true') && main.includes('parsed.sidePanelAnchorOk === true') && main.includes('parsed.fullBookSearchLayoutOk === true'), 'MOBI/AZW3 烟雾测试应验证侧栏重排、搜索跳转与阅读锚点');
   assert.ok(main.includes('parsed.aiUiReady === true'), 'EPUB 烟雾测试应验证 AI 界面与章节提取');
   for (const frame of ['pet_tilt_early.png', 'pet_tilt_peak.png', 'pet_tilt_return.png']) {
@@ -107,6 +108,8 @@ test('侧栏尺寸变化统一刷新全部阅读格式并保留阅读锚点', ()
   assert.ok(app.includes("c.format === 'pdf' && c.pdf") && app.includes('renderPdfPage({ anchor: pdfAnchor })'), 'PDF 必须随阅读区尺寸重新渲染并保持相对视口锚点');
   assert.ok(app.includes('c.paginator.reflow()') && app.includes('c.paginator.locate(textOffset)'), 'TXT、MOBI、AZW3 必须重排并恢复正文偏移');
   assert.ok(app.includes('await waitForReaderLayoutRefresh()'), '搜索结果跳转必须等待侧栏布局稳定');
+  assert.ok(!app.includes("firstMark.scrollIntoView({ block: 'center', inline: 'center' })"), '分页搜索高亮不得再次横向滚动到半页位置');
+  assert.ok(app.includes("firstMark && c && c.format === 'pdf'"), '仅 PDF 搜索高亮可以在页内滚动到命中文字');
 });
 
 test('版本号为 1.0.1 且界面同步', () => {

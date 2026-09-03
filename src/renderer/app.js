@@ -2130,8 +2130,11 @@ function applyBookSearchHighlight(root, match) {
     if (after) fragment.appendChild(node.ownerDocument.createTextNode(after));
     node.replaceWith(fragment);
   }
-  if (firstMark) {
-    try { firstMark.scrollIntoView({ block: 'center', inline: 'center' }); } catch (error) {}
+  // 可重排格式在高亮前已经由分页器定位；再次横向滚动会让 iframe 脱离整页边界。
+  // PDF 没有横向分栏，仍需把放大页面中的命中文字带入视口。
+  const c = state.current;
+  if (firstMark && c && c.format === 'pdf') {
+    try { firstMark.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (error) {}
   }
   return !!firstMark;
 }
@@ -4764,13 +4767,32 @@ window.__gaiaDebug = {
     const size = readerViewportSize();
     const frame = c && c.paginator ? c.paginator.frame : els.readerContent.querySelector('iframe');
     const pdfPage = els.readerContent.querySelector('.pdf-page');
+    const epubManager = c && c.format === 'epub' && c.rendition ? c.rendition.manager : null;
+    const epubLayout = epubManager && epubManager.layout;
+    let epubContentScroll = [];
+    if (c && c.format === 'epub' && c.rendition) {
+      try {
+        epubContentScroll = c.rendition.getContents().map((contents) => ({
+          html: contents.document && contents.document.documentElement ? contents.document.documentElement.scrollLeft : 0,
+          body: contents.document && contents.document.body ? contents.document.body.scrollLeft : 0,
+          window: contents.window ? contents.window.scrollX : 0,
+        }));
+      } catch (error) {}
+    }
     return {
       format: c && c.format,
       readerWidth: size.width,
       readerHeight: size.height,
+      readerScrollLeft: els.readerContent.scrollLeft,
       frameWidth: frame ? frame.clientWidth : 0,
       frameHeight: frame ? frame.clientHeight : 0,
       pdfPageWidth: pdfPage ? pdfPage.clientWidth : 0,
+      epubDivisor: epubLayout ? epubLayout.divisor : 0,
+      epubColumnWidth: epubLayout ? epubLayout.columnWidth : 0,
+      epubSpreadWidth: epubLayout ? epubLayout.spreadWidth : 0,
+      epubDelta: epubLayout ? epubLayout.delta : 0,
+      epubManagerScrollLeft: epubManager && epubManager.container ? epubManager.container.scrollLeft : 0,
+      epubContentScroll,
       paginatorMode: c && c.paginator ? c.paginator.mode : '',
       paginatorPage: c && c.paginator ? c.paginator.currentPage : -1,
       paginatorAnchor: c && c.paginator ? c.paginator.anchor() : null,
