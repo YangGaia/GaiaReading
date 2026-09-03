@@ -332,7 +332,7 @@ test('分页器保留左右页边距（版心）', () => {
   assert.ok(p.includes("margin-top: 0 !important; margin-bottom: 0.8em !important"), '段落应只设上下边距，保留版心左右留白');
 });
 
-test('高对比白即时应用于所有可重排格式并保持 PDF 原样', () => {
+test('全主题高对比文字即时应用于所有可重排格式并保持 PDF 原样', () => {
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
@@ -342,7 +342,8 @@ test('高对比白即时应用于所有可重排格式并保持 PDF 原样', () 
   assert.ok(app.includes("els.textContrastRow.hidden = !!c && c.format === 'pdf'"), 'PDF 设置中不得显示文字对比度控制');
   assert.ok(app.includes('-webkit-text-fill-color: '), 'EPUB 应强制覆盖特殊文字填充色');
   assert.ok(app.includes('c.paginator.setTextContrast(state.prefs.readerTextContrast)'), 'TXT/MOBI/AZW3 应同步文字对比度');
-  assert.ok(pag.includes('setTextContrast(value)') && pag.includes('darkReaderTextColor(this.textContrast)'), '分页器应支持高对比纯白');
+  assert.ok(pag.includes('setTextContrast(value)') && pag.includes('readerTextColor(this.theme, contrast)'), '分页器应按当前主题应用高对比颜色');
+  assert.ok(app.includes("theme !== 'light' || highContrast"), '日间模式高对比档应强制覆盖正文颜色');
   assert.ok(pag.includes('opacity: 1 !important'), '高对比模式应清除正文元素异常透明度');
 });
 

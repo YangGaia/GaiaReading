@@ -176,17 +176,23 @@ class Paginator {
     if (!this.doc) return;
     const s = this.doc.getElementById('paginator-theme');
     if (!s) return;
+    const contrast = window.GaiaReaderContrast.normalizeReaderTextContrast(this.textContrast);
+    const highContrast = contrast === window.GaiaReaderContrast.HIGH;
+    const textSelectors = 'body, main, article, section, p, div, span, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, em, strong, small';
     let css = '';
     if (this.theme === 'dark') {
-      const textColor = window.GaiaReaderContrast.darkReaderTextColor(this.textContrast);
-      const textSelectors = 'body, main, article, section, p, div, span, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, em, strong, small';
-      css = 'html, body { background: #000 !important; } ' + textSelectors + ' { color: ' + textColor + ' !important; -webkit-text-fill-color: ' + textColor + ' !important; } a, a * { color: #58a6ff !important; -webkit-text-fill-color: #58a6ff !important; }';
-      if (this.textContrast === window.GaiaReaderContrast.HIGH) css += textSelectors + ' { opacity: 1 !important; }';
+      css = 'html, body { background: #000 !important; }';
     } else if (this.theme === 'eye') {
-      css = 'html, body { background: #f5ecd9 !important; } body { color: #4a3826 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #4a3826 !important; } a { color: #8a6d3b !important; }';
+      css = 'html, body { background: #f5ecd9 !important; }';
     } else {
       css = 'html { background: ' + this.pageBg + ' !important; } body { background: ' + this.pageBg + ' !important; }';
     }
+    if (this.theme !== 'light' || highContrast) {
+      const textColor = window.GaiaReaderContrast.readerTextColor(this.theme, contrast);
+      const linkColor = window.GaiaReaderContrast.readerLinkColor(this.theme);
+      css += textSelectors + ' { color: ' + textColor + ' !important; -webkit-text-fill-color: ' + textColor + ' !important; } a, a * { color: ' + linkColor + ' !important; -webkit-text-fill-color: ' + linkColor + ' !important; }';
+    }
+    if (highContrast) css += textSelectors + ' { opacity: 1 !important; }';
     s.textContent = css;
   }
 

@@ -2578,7 +2578,7 @@ function cycleReaderTextContrast() {
   }
   if (c && c.paginator) applyMobiTheme();
   updateSettingsValues();
-  els.readerStatus.textContent = '夜间文字：' + window.GaiaReaderContrast.readerTextContrastLabel(state.prefs.readerTextContrast);
+  els.readerStatus.textContent = '文字对比度：' + window.GaiaReaderContrast.readerTextContrastLabel(state.prefs.readerTextContrast);
   rememberSettings();
 }
 
@@ -2587,14 +2587,22 @@ function applyReaderStyles(contents) {
   let style = doc.getElementById('gaia-reader-style');
   const theme = state.prefs.theme;
   const font = FONTS[state.fontName] || '';
+  const contrast = window.GaiaReaderContrast.normalizeReaderTextContrast(state.prefs.readerTextContrast);
+  const highContrast = contrast === window.GaiaReaderContrast.HIGH;
+  const textSelectors = 'body, main, article, section, p, div, span, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, em, strong, small';
   let css = '';
   if (theme === 'dark') {
-    const textColor = window.GaiaReaderContrast.darkReaderTextColor(state.prefs.readerTextContrast);
-    const textSelectors = 'body, main, article, section, p, div, span, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, em, strong, small';
-    css += 'html, body { background: #000 !important; } ' + textSelectors + ' { color: ' + textColor + ' !important; -webkit-text-fill-color: ' + textColor + ' !important; } a, a * { color: #58a6ff !important; -webkit-text-fill-color: #58a6ff !important; }';
-    if (state.prefs.readerTextContrast === window.GaiaReaderContrast.HIGH) css += textSelectors + ' { opacity: 1 !important; }';
+    css += 'html, body { background: #000 !important; }';
   } else if (theme === 'eye') {
-    css += 'html, body { background: #f5ecd9 !important; } body { color: #4a3826 !important; } p, div, span, li, h1, h2, h3, h4, td, blockquote { color: #4a3826 !important; } a { color: #8a6d3b !important; }';
+    css += 'html, body { background: #f5ecd9 !important; }';
+  }
+  if (theme !== 'light' || highContrast) {
+    const textColor = window.GaiaReaderContrast.readerTextColor(theme, contrast);
+    const linkColor = window.GaiaReaderContrast.readerLinkColor(theme);
+    css += textSelectors + ' { color: ' + textColor + ' !important; -webkit-text-fill-color: ' + textColor + ' !important; } a, a * { color: ' + linkColor + ' !important; -webkit-text-fill-color: ' + linkColor + ' !important; }';
+  }
+  if (highContrast) {
+    css += textSelectors + ' { opacity: 1 !important; }';
   }
   css += 'p { text-indent: 2em !important; margin: 0 0 0.8em !important; line-height: ' + state.lineHeight + ' !important; } h1, h2, h3, h4 { line-height: 1.4 !important; margin: 1.2em 0 0.6em !important; }';
   css += 'body { box-sizing: border-box !important; padding-top: 28px !important; padding-bottom: 28px !important; }';
