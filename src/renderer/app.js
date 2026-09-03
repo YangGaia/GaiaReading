@@ -73,6 +73,8 @@ let bookSearchTimer = 0;
 let epubWindowResizeTimer = 0;
 let readerLayoutSyncVersion = 0;
 let readerLayoutSyncPromise = Promise.resolve(false);
+let bookImportFromHome = false;
+let bookImportReturnFocus = null;
 
 const FONTS = {
   default: '',
@@ -115,6 +117,9 @@ const els = {
   aiChatSend: $('btn-ai-chat-send'),
   selectionToolbar: $('selection-toolbar'),
   importStatus: $('import-status'),
+  bookImportOverlay: $('book-import-overlay'),
+  bookImportFolder: $('btn-import-folder'),
+  bookImportFiles: $('btn-import-file-picker'),
   noteEditorOverlay: $('note-editor-overlay'),
   noteEditorQuote: $('note-editor-quote'),
   noteEditorInput: $('note-editor-input'),
@@ -469,9 +474,13 @@ async function importPaths(paths) {
   const existing = new Set(state.library.map((b) => b.path));
   let added = 0;
   let recovered = 0;
+  let skipped = 0;
   const failures = [];
   for (const p of paths) {
-    if (existing.has(p)) continue;
+    if (existing.has(p)) {
+      skipped += 1;
+      continue;
+    }
     try {
       const meta = await window.api.metadata(p);
       if (!meta || !meta.path || !meta.format) throw new Error('无法读取图书信息');
@@ -493,11 +502,52 @@ async function importPaths(paths) {
     const parts = [];
     if (added) parts.push('已导入 ' + added + ' 本');
     if (recovered) parts.push('自动恢复 ' + recovered + ' 本损坏的 EPUB');
+    if (skipped) parts.push('已跳过 ' + skipped + ' 本重复图书');
     if (failures.length) parts.push(failures.length + ' 本失败：' + failures.map((item) => item.path.split(/[\\/]/).pop()).join('、'));
-    if (!parts.length) parts.push('没有需要重复导入的图书');
+    if (!parts.length) parts.push('没有可导入的图书');
     els.importStatus.textContent = parts.join(' · ');
   }
-  return { added, recovered, failures };
+  return { added, recovered, skipped, failures };
+}
+
+function openBookImportChooser(fromHome) {
+  bookImportFromHome = !!fromHome;
+  bookImportReturnFocus = document.activeElement;
+  els.bookImportOverlay.hidden = false;
+  window.requestAnimationFrame(() => els.bookImportFolder.focus());
+}
+
+function closeBookImportChooser(options) {
+  if (!els.bookImportOverlay || els.bookImportOverlay.hidden) return;
+  const restoreFocus = !options || options.restoreFocus !== false;
+  const target = bookImportReturnFocus;
+  els.bookImportOverlay.hidden = true;
+  bookImportFromHome = false;
+  bookImportReturnFocus = null;
+  if (restoreFocus && target && target.isConnected && typeof target.focus === 'function') target.focus();
+}
+
+async function chooseBookImportSource(source) {
+  const fromHome = bookImportFromHome;
+  const returnFocus = bookImportReturnFocus;
+  closeBookImportChooser({ restoreFocus: false });
+  let paths;
+  try {
+    paths = source === 'folder' ? await window.api.openFolder() : await window.api.openFiles();
+  } catch (error) {
+    if (fromHome) showView('library');
+    els.importStatus.classList.add('error');
+    els.importStatus.textContent = '无法打开文件选择器：' + (error && error.message ? error.message : '未知错误');
+    return { added: 0, recovered: 0, skipped: 0, failures: [] };
+  }
+  if (!paths.length) {
+    if (returnFocus && returnFocus.isConnected && typeof returnFocus.focus === 'function') returnFocus.focus();
+    return null;
+  }
+  if (fromHome) showView('library');
+  els.importStatus.classList.remove('error');
+  els.importStatus.textContent = '正在导入 ' + paths.length + ' 个文件…';
+  return importPaths(paths);
 }
 
 function removeAiChatsForPaths(paths) {
@@ -4614,13 +4664,7 @@ function observeAiChapter() {
 
 function bindEvents() {
   $('btn-home-shelf').addEventListener('click', () => showView('library'));
-  $('btn-home-folder').addEventListener('click', async () => {
-    const paths = await window.api.openFolder();
-    if (paths.length) {
-      await importPaths(paths);
-      showView('library');
-    }
-  });
+  $('btn-home-add-books').addEventListener('click', () => openBookImportChooser(true));
   $('btn-home-ai').addEventListener('click', () => openAiCenter('home'));
   $('btn-ai-back').addEventListener('click', closeAiCenter);
   $('btn-home-settings').addEventListener('click', openSettings);
@@ -4724,9 +4768,18 @@ function bindEvents() {
   $('btn-select-all').addEventListener('click', selectAll);
   $('btn-remove-selected').addEventListener('click', () => batchRemoveSelected());
   $('btn-exit-manage').addEventListener('click', exitManageMode);
-  $('btn-import-files').addEventListener('click', async () => {
-    const paths = await window.api.openFiles();
-    if (paths.length) await importPaths(paths);
+  $('btn-add-books').addEventListener('click', () => openBookImportChooser(false));
+  $('btn-book-import-close').addEventListener('click', () => closeBookImportChooser());
+  els.bookImportFolder.addEventListener('click', () => chooseBookImportSource('folder'));
+  els.bookImportFiles.addEventListener('click', () => chooseBookImportSource('files'));
+  els.bookImportOverlay.addEventListener('click', (event) => {
+    if (event.target === els.bookImportOverlay) closeBookImportChooser();
+  });
+  els.bookImportOverlay.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeBookImportChooser();
+    }
   });
 
   $('btn-back').addEventListener('click', backToLibrary);
@@ -5045,6 +5098,10 @@ window.__gaiaDebug = {
     quote: els.noteEditorQuote.textContent,
     value: els.noteEditorInput.value,
   }),
+  openBookImportChooser,
+  closeBookImportChooser,
+  chooseBookImportSource,
+  getBookImportChooserState: () => ({ open: !els.bookImportOverlay.hidden, fromHome: bookImportFromHome }),
   setNoteEditorText: (value) => { els.noteEditorInput.value = String(value || ''); },
   commitNoteEditor,
   addBookmark,

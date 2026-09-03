@@ -19,7 +19,7 @@
       <h1 class="home-title">Gaia Reading</h1>
       <p class="home-subtitle">欢迎回来，选择要做什么</p>
       <button class="home-item d1" id="btn-home-shelf"><span class="home-ico">📚</span>进入书架</button>
-      <button class="home-item d2" id="btn-home-folder"><span class="home-ico">📂</span>加载文件夹</button>
+      <button class="home-item d2" id="btn-home-add-books"><span class="home-ico">＋</span>添加图书</button>
       <button class="home-item d3" id="btn-home-ai"><span class="home-ico">✦</span>AI 章节助手</button>
       <button class="home-item d4" id="btn-home-settings"><span class="home-ico">⚙</span>设置</button>
     </div>
@@ -114,7 +114,7 @@
       </div>
     </header>
     <div class="shelf-toolbar">
-      <button id="btn-import-files" class="btn primary">导入文件</button>
+      <button id="btn-add-books" class="btn primary">添加图书</button>
       <button id="btn-manage" class="btn">批量管理</button>
       <button id="btn-reading-stats" class="btn">阅读目标</button>
       <span id="import-status" class="import-status" role="status" aria-live="polite"></span>
@@ -125,7 +125,7 @@
       <button id="btn-remove-selected" class="btn danger">移除选中</button>
       <button id="btn-exit-manage" class="btn">完成</button>
     </div>
-    <p id="library-hint" class="hint">书架为空，点击"加载文件夹"或"导入文件"添加电子书（EPUB / PDF / TXT / MOBI / AZW3）</p>
+    <p id="library-hint" class="hint">书架为空，点击“添加图书”选择文件夹、单个文件或多个文件（EPUB / PDF / TXT / MOBI / AZW3）</p>
     <div id="bookshelf" class="bookshelf"></div>
   </div>
 
@@ -294,6 +294,29 @@
     <button data-selection-action="note">笔记</button>
     <button data-selection-action="copy">复制</button>
     <button data-selection-action="delete" class="selection-delete" hidden>删除</button>
+  </div>
+
+  <div id="book-import-overlay" class="book-import-overlay" hidden>
+    <section class="book-import-dialog" role="dialog" aria-modal="true" aria-labelledby="book-import-title" aria-describedby="book-import-description">
+      <header class="book-import-head">
+        <div>
+          <h2 id="book-import-title">添加图书</h2>
+          <p id="book-import-description">从电脑中选择一种导入方式</p>
+        </div>
+        <button id="btn-book-import-close" class="book-import-close" type="button" aria-label="关闭添加图书窗口">×</button>
+      </header>
+      <div class="book-import-options">
+        <button id="btn-import-folder" class="book-import-option" type="button">
+          <span class="book-import-icon" aria-hidden="true">📂</span>
+          <span><strong>选择文件夹</strong><small>自动扫描文件夹及其子文件夹中的电子书</small></span>
+        </button>
+        <button id="btn-import-file-picker" class="book-import-option" type="button">
+          <span class="book-import-icon" aria-hidden="true">📄</span>
+          <span><strong>选择文件</strong><small>可以选择单个文件，也可以一次选择多个文件</small></span>
+        </button>
+      </div>
+      <footer class="book-import-formats">支持 EPUB、PDF、TXT、MOBI、AZW3</footer>
+    </section>
   </div>
 
   <div id="note-editor-overlay" class="note-editor-overlay" hidden>

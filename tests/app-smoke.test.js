@@ -20,6 +20,7 @@ test('项目关键文件齐全', () => {
   assert.ok(main.includes("capture('pet_console.png')"), '截图验收应包含有珠控制台界面');
   assert.ok(main.includes('const importResult = await __gaiaDebug.importPaths([fixture])'), 'EPUB 烟雾测试应走真实导入流程');
   assert.ok(main.includes('parsed.importSucceeded === true'), 'EPUB 烟雾测试应验证导入成功');
+  assert.ok(main.includes('parsed.importChooserReady === true') && main.includes('parsed.importChooserClosed === true'), 'EPUB 烟雾测试应验证添加图书窗口的打开、聚焦与关闭');
   assert.ok(main.includes("await __gaiaDebug.runBookSearch('测试内容')"), 'EPUB 烟雾测试应执行真实全文搜索');
   assert.ok(main.includes('parsed.bookSearchRuntimeReady === true'), 'EPUB 烟雾测试应验证搜索跳转与正文高亮');
   assert.ok(main.includes('parsed.singleFits === true') && main.includes('parsed.pairingWorks === true') && main.includes('parsed.zoomModesWork === true'), 'PDF 烟雾测试应验证整页适配、双页配对和缩放模式');
