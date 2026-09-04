@@ -3546,8 +3546,9 @@ function applyReaderStyles(contents) {
   // EPUB 的 body 默认随内容增高，只加 padding 会让正文整体下移而不会收紧底部。
   // 将正文高度明确减去两侧 padding，才能让上下边缘同时向中间收缩。
   const epubContentHeight = 'calc(100vh - ' + (verticalMargin * 2) + 'px)';
-  css += 'html { height: 100vh !important; max-height: 100vh !important; overflow: hidden !important; }';
-  css += 'body { height: ' + epubContentHeight + ' !important; min-height: ' + epubContentHeight + ' !important; max-height: ' + epubContentHeight + ' !important; margin-top: 0 !important; margin-bottom: 0 !important; overflow: hidden !important; box-sizing: content-box !important; padding-top: ' + verticalMargin + 'px !important; padding-bottom: ' + verticalMargin + 'px !important; }';
+  // 横向溢出承载着 epub.js 的后续分栏，不能用 overflow: hidden 裁掉。
+  css += 'html { height: 100vh !important; max-height: 100vh !important; }';
+  css += 'body { height: ' + epubContentHeight + ' !important; min-height: ' + epubContentHeight + ' !important; max-height: ' + epubContentHeight + ' !important; margin-top: 0 !important; margin-bottom: 0 !important; box-sizing: content-box !important; padding-top: ' + verticalMargin + 'px !important; padding-bottom: ' + verticalMargin + 'px !important; }';
   const marginPct = normalizeHorizontalMargin(state.prefs.marginPct);
   css += 'body > * { margin-left: ' + marginPct + '% !important; margin-right: ' + marginPct + '% !important; max-width: calc(100% - ' + (marginPct * 2) + '%) !important; box-sizing: border-box !important; }';
   // epub.js 按整列宽度限制图片；再给一级元素加页边距后，图片总占宽会越过列边界。
@@ -5698,6 +5699,35 @@ window.__gaiaDebug = {
     } catch (error) {
       return null;
     }
+  },
+  hasVisibleEpubText: () => {
+    const c = state.current;
+    if (!c || c.format !== 'epub' || !c.rendition) return false;
+    const readerRect = els.readerContent.getBoundingClientRect();
+    const frames = Array.from(els.readerContent.querySelectorAll('iframe'));
+    for (const frame of frames) {
+      const frameRect = frame.getBoundingClientRect();
+      if (frameRect.right <= readerRect.left || frameRect.left >= readerRect.right || frameRect.bottom <= readerRect.top || frameRect.top >= readerRect.bottom) continue;
+      const doc = frame.contentDocument;
+      if (!doc || !doc.body || !doc.defaultView) continue;
+      const walker = doc.createTreeWalker(doc.body, doc.defaultView.NodeFilter.SHOW_TEXT);
+      let node = null;
+      let inspected = 0;
+      while ((node = walker.nextNode()) && inspected < 3000) {
+        inspected += 1;
+        if (!node.textContent || !node.textContent.trim()) continue;
+        const range = doc.createRange();
+        range.selectNodeContents(node);
+        for (const rect of range.getClientRects()) {
+          const left = frameRect.left + rect.left;
+          const right = frameRect.left + rect.right;
+          const top = frameRect.top + rect.top;
+          const bottom = frameRect.top + rect.bottom;
+          if (right > readerRect.left && left < readerRect.right && bottom > readerRect.top && top < readerRect.bottom) return true;
+        }
+      }
+    }
+    return false;
   },
   getEpubLocationIndex: () => {
     const c = state.current;

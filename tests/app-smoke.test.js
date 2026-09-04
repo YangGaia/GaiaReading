@@ -435,6 +435,7 @@ test('全主题高对比文字即时应用于所有可重排格式并保持 PDF 
 
 test('左右与上下边距统一接入并保持版心约束', () => {
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
   const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
   assert.ok(html.includes('btn-horizontal-margin') && html.includes('horizontal-margin-value'), '缺少左右边距控制');
@@ -448,6 +449,8 @@ test('左右与上下边距统一接入并保持版心约束', () => {
   assert.ok(app.includes("padding-top: ' + verticalMargin + 'px !important; padding-bottom: ' + verticalMargin + 'px !important;"), 'EPUB 应注入可调上下留白');
   assert.ok(app.includes("const epubContentHeight = 'calc(100vh - ' + (verticalMargin * 2) + 'px)'"), 'EPUB 内容高度应同时扣除上下边距');
   assert.ok(app.includes("box-sizing: content-box !important; padding-top: ' + verticalMargin"), 'EPUB 上下边距应包围压缩后的固定内容区');
+  assert.ok(!app.includes("max-height: 100vh !important; overflow: hidden !important; }'"), 'EPUB 不得裁掉承载后续页面的横向分栏');
+  assert.ok(app.includes('hasVisibleEpubText: () =>') && main.includes('parsed.epubNextPageHasVisibleText === true'), '烟雾测试必须验证 EPUB 翻页后存在可见正文');
   assert.ok(app.includes("scrollViewport.className = 'pdf-viewport'") && app.includes("scrollViewport.style.inset = verticalPadding + 'px ' + horizontalPadding + 'px'"), 'PDF 应使用四边同时内缩的独立滚动视口');
   assert.ok(app.includes('const viewportHeight = Math.max(1, scrollViewport.clientHeight);'), 'PDF 缩放应使用上下内缩后的实际视口高度');
   assert.ok(pag.includes('setMargin(pct)'), '分页器应支持 setMargin');
