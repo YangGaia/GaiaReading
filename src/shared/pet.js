@@ -256,6 +256,14 @@
     return (Number(buttons) & 1) === 1;
   }
 
+  /** 根据用户透明度、阅读页淡化和临时显现状态计算最终透明度。 */
+  function petOpacityForState(opacity, dimmed, revealed) {
+    const numeric = Number(opacity);
+    const configured = Number.isFinite(numeric) ? Math.max(0, Math.min(1, numeric)) : 1;
+    const resting = configured * (dimmed ? 0.55 : 1);
+    return revealed && resting < 1 ? 1 : resting;
+  }
+
   /** 事件驱动迁移：返回 { state, expression, ... }，无迁移返回 null。 */
   function decideState(brain, event, now) {
     const t = now == null ? Date.now() : now;
@@ -360,6 +368,7 @@
     pokeLineKey,
     formatReadingDuration,
     hasPrimaryPointerButton,
+    petOpacityForState,
     decideState,
     timeoutState,
     lineFor,

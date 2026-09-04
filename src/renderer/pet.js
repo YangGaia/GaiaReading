@@ -35,6 +35,7 @@
     shouldDream,
     formatReadingDuration,
     hasPrimaryPointerButton,
+    petOpacityForState,
   } = shared;
 
   const FACE_IMG = 'images/pet/faces/';
@@ -139,8 +140,9 @@
     const hiddenInReader = currentView === 'reader' && saved.readerMode === 'hidden';
     const embeddedInStats = currentView === 'stats';
     ui.root.hidden = !saved.on || hiddenInReader || embeddedInStats;
-    ui.root.classList.toggle('reader-dim', currentView === 'reader' && saved.readerMode === 'dim');
-    ui.root.style.opacity = String(saved.opacity * (ui.root.classList.contains('reader-dim') ? 0.55 : 1));
+    const dimmed = currentView === 'reader' && saved.readerMode === 'dim';
+    ui.root.classList.toggle('reader-dim', dimmed);
+    ui.root.style.opacity = String(petOpacityForState(saved.opacity, dimmed, pointerInside || dragging));
     syncFpsMeter();
   }
 
@@ -703,8 +705,11 @@
   }
 
   function onHover() {
+    const wasTranslucent = Number(ui.root && ui.root.style.opacity) < 1;
     pointerInside = true;
+    updateVisibility();
     const now = Date.now();
+    if (wasTranslucent && wakeUp(now)) return;
     if (lockedEmotion) return;
     if (brain.state === PET_STATES.SLEEPING || manualHeld) return;
     if (wakeUp(now)) return;
@@ -717,6 +722,7 @@
 
   function onLeave() {
     pointerInside = false;
+    updateVisibility();
     if (dragging || consoleOpen || lockedEmotion || manualHeld) return;
     returnToIdle(Date.now());
   }
@@ -969,6 +975,7 @@
         closeConsole(false);
         ui.root.classList.add('dragging');
         ui.body.classList.add('no-breathe');
+        updateVisibility();
       }
       const bw = ui.root.offsetWidth;
       const bh = ui.root.offsetHeight;
@@ -992,6 +999,7 @@
       if (!dragging) return;
       dragging = false;
       ui.root.classList.remove('dragging');
+      updateVisibility();
       returnToIdle(Date.now());
       if (!cancelled) triggerAction('drop');
       updatePositionRatios();

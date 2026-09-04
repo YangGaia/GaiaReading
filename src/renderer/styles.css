@@ -769,6 +769,7 @@ body.dark #stats-view {
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
   pointer-events: none;
   padding-bottom: 18px;
+  transition: opacity 0.18s ease;
 }
 .gaia-pet.fps-hidden { padding-bottom: 0; }
 .gaia-pet.dragging { cursor: grabbing; }

@@ -26,6 +26,7 @@ const {
   pokeLineKey,
   formatReadingDuration,
   hasPrimaryPointerButton,
+  petOpacityForState,
 } = pet;
 
 test('初始大脑为待机状态', () => {
@@ -94,6 +95,14 @@ test('拖拽仅在主按钮仍按下时继续', () => {
   assert.strictEqual(hasPrimaryPointerButton(0), false);
   assert.strictEqual(hasPrimaryPointerButton(2), false);
   assert.strictEqual(hasPrimaryPointerButton(undefined), false);
+});
+
+test('透明桌宠悬停时完全显现，离开后恢复设置值', () => {
+  assert.strictEqual(petOpacityForState(0.4, false, false), 0.4);
+  assert.strictEqual(petOpacityForState(0.4, false, true), 1);
+  assert.strictEqual(petOpacityForState(1, true, false), 0.55);
+  assert.strictEqual(petOpacityForState(1, true, true), 1);
+  assert.strictEqual(petOpacityForState(1, false, true), 1);
 });
 
 test('默认自动时间轴为 15 秒无聊、25 秒困倦、35 秒睡觉', () => {
@@ -257,6 +266,8 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes('target.setPointerCapture(ev.pointerId)'), '桌宠拖拽应捕获当前指针，避免窗口边缘丢失释放事件');
   assert.ok(renderer.includes('!hasPrimaryPointerButton(ev.buttons)'), '移动时发现主按钮已松开应立即结束拖拽');
   assert.ok(renderer.includes('cancelActiveDrag();'), '应用失焦或隐藏时应清理残留拖拽状态');
+  assert.ok(renderer.includes('petOpacityForState(saved.opacity, dimmed, pointerInside || dragging)'), '透明桌宠悬停或拖动时应完全显现');
+  assert.ok(renderer.includes('wasTranslucent && wakeUp(now)'), '碰到透明且休眠的桌宠时应复用既有唤醒流程');
   assert.ok(!css.includes('.gaia-pet-gaze-frame'), '桌宠不应保留鼠标跟随图层');
   assert.ok(renderer.includes('gaia-pet-blink-face'), '眨眼应使用闭眼脸部贴片');
   assert.ok(!renderer.includes("lid.className = 'gaia-pet-lid'"), '不应继续使用会产生黑线的矩形眼皮');
@@ -339,6 +350,8 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes("petRoot.style.pointerEvents = 'none'"), '桌宠冒烟测试应隔离真实鼠标输入');
   assert.ok(main.includes('petStatus.yawnStarted === true'), '冒烟测试应验证打哈欠动画已启动');
   assert.ok(main.includes('petStatus.hoverKeepsSleeping === true'), '冒烟测试应验证鼠标移入不会唤醒睡眠');
+  assert.ok(main.includes('petStatus.translucentHoverWakes === true'), '冒烟测试应验证透明状态下鼠标移入会唤醒并完全显现');
+  assert.ok(main.includes('petStatus.translucentLeaveRestores === true'), '冒烟测试应验证鼠标离开后恢复用户透明度且不会重新睡眠');
   assert.ok(main.includes('petStatus.actionStateRestored === true'), '冒烟测试应验证单独动作恢复原状态');
   assert.ok(main.includes('petStatus.autoRestWhileConsoleOpen === true'), '冒烟测试应验证控制台打开时仍会自动休息');
   assert.ok(main.includes('petStatus.autoSleepWhileConsoleOpen === true'), '冒烟测试应验证控制台打开时仍会自动入睡');

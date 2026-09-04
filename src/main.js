@@ -1116,6 +1116,19 @@ function createWindow() {
             const zzzVisible = !document.querySelector('.gaia-pet-zzz').hidden;
             petTarget.dispatchEvent(new PointerEvent('pointerenter', { clientX: 0, clientY: 0 }));
             const hoverKeepsSleeping = GaiaPet.getBrain().state === 'sleeping';
+            petTarget.dispatchEvent(new PointerEvent('pointerleave', { clientX: 0, clientY: 0 }));
+            const opacitySelect = Array.from(panel.querySelectorAll('.gaia-pet-console-select-row'))
+              .find((row) => row.firstElementChild && row.firstElementChild.textContent === '透明度').querySelector('select');
+            opacitySelect.value = '0.4';
+            opacitySelect.dispatchEvent(new Event('change', { bubbles: true }));
+            const translucentBeforeHover = Number(petRoot.style.opacity) === 0.4;
+            petTarget.dispatchEvent(new PointerEvent('pointerenter', { clientX: 0, clientY: 0 }));
+            const translucentHoverWakes = GaiaPet.getBrain().state === 'wake' && Number(petRoot.style.opacity) === 1 && document.querySelector('.gaia-pet-zzz').hidden;
+            petTarget.dispatchEvent(new PointerEvent('pointerleave', { clientX: 0, clientY: 0 }));
+            const translucentLeaveRestores = Number(petRoot.style.opacity) === 0.4 && GaiaPet.getBrain().state !== 'sleeping';
+            opacitySelect.value = '1';
+            opacitySelect.dispatchEvent(new Event('change', { bubbles: true }));
+            GaiaPet.runEmotion('sleeping');
             petTarget.dispatchEvent(new MouseEvent('click', { clientX: 0, clientY: 0 }));
             const firstClickOnlyWakes = GaiaPet.getBrain().state === 'wake';
             GaiaPet.runEmotion('wake');
@@ -1223,7 +1236,7 @@ function createWindow() {
             __gaiaDebug.closeReadingStats();
             await new Promise((resolve) => setTimeout(resolve, 80));
             const statsPetRestored = !petRoot.hidden;
-            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsTargetMatchesDisplay, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned, statsViewVisible, statsUsesWholeImage, statsAliceVisible, statsAliceSizeStable, statsLayoutOverlap, statsPetHidden, statsBreathing, statsHoverInteractive, statsDragDisabled, statsBlinkStarted, statsYawnStarted, statsYawnExpression, statsSleepStarted, statsWakeStarted, statsHasNoDialogue, statsPetRestored };
+            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsTargetMatchesDisplay, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, translucentBeforeHover, translucentHoverWakes, translucentLeaveRestores, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned, statsViewVisible, statsUsesWholeImage, statsAliceVisible, statsAliceSizeStable, statsLayoutOverlap, statsPetHidden, statsBreathing, statsHoverInteractive, statsDragDisabled, statsBlinkStarted, statsYawnStarted, statsYawnExpression, statsSleepStarted, statsWakeStarted, statsHasNoDialogue, statsPetRestored };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -1255,6 +1268,9 @@ function createWindow() {
             petStatus.sleepHeadPose === true &&
             petStatus.zzzVisible === true &&
             petStatus.hoverKeepsSleeping === true &&
+            petStatus.translucentBeforeHover === true &&
+            petStatus.translucentHoverWakes === true &&
+            petStatus.translucentLeaveRestores === true &&
             petStatus.firstClickOnlyWakes === true &&
             petStatus.awake === true &&
             petStatus.wakePerformance === true &&
