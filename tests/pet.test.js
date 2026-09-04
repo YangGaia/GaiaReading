@@ -25,6 +25,7 @@ const {
   pickIdleExpression,
   pokeLineKey,
   formatReadingDuration,
+  hasPrimaryPointerButton,
 } = pet;
 
 test('初始大脑为待机状态', () => {
@@ -85,6 +86,14 @@ test('阅读计时格式可用于控制台实时验收', () => {
   assert.strictEqual(formatReadingDuration(61_999), '01:01');
   assert.strictEqual(formatReadingDuration(45 * 60 * 1000), '45:00');
   assert.strictEqual(TIMERS.READER_CARE_AFTER, 45 * 60 * 1000);
+});
+
+test('拖拽仅在主按钮仍按下时继续', () => {
+  assert.strictEqual(hasPrimaryPointerButton(1), true);
+  assert.strictEqual(hasPrimaryPointerButton(3), true);
+  assert.strictEqual(hasPrimaryPointerButton(0), false);
+  assert.strictEqual(hasPrimaryPointerButton(2), false);
+  assert.strictEqual(hasPrimaryPointerButton(undefined), false);
 });
 
 test('默认自动时间轴为 15 秒无聊、25 秒困倦、35 秒睡觉', () => {
@@ -245,6 +254,9 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("PART_IMG + 'head.png'"), '桌宠应加载独立头部素材');
   assert.ok(!renderer.includes('GAZE_IMG'), '桌宠不应再加载鼠标跟随方向帧');
   assert.ok(!renderer.includes('requestAnimationFrame(animateGaze)'), '桌宠不应再运行鼠标跟随动画');
+  assert.ok(renderer.includes('target.setPointerCapture(ev.pointerId)'), '桌宠拖拽应捕获当前指针，避免窗口边缘丢失释放事件');
+  assert.ok(renderer.includes('!hasPrimaryPointerButton(ev.buttons)'), '移动时发现主按钮已松开应立即结束拖拽');
+  assert.ok(renderer.includes('cancelActiveDrag();'), '应用失焦或隐藏时应清理残留拖拽状态');
   assert.ok(!css.includes('.gaia-pet-gaze-frame'), '桌宠不应保留鼠标跟随图层');
   assert.ok(renderer.includes('gaia-pet-blink-face'), '眨眼应使用闭眼脸部贴片');
   assert.ok(!renderer.includes("lid.className = 'gaia-pet-lid'"), '不应继续使用会产生黑线的矩形眼皮');

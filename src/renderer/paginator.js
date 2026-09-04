@@ -165,7 +165,6 @@ class Paginator {
     css += 'h1, h2, h3, h4 { line-height: 1.4 !important; margin-top: 1.2em !important; margin-bottom: 0.6em !important; text-indent: 0 !important; }';
     css += 'blockquote { margin-top: 0.8em !important; margin-bottom: 0.8em !important; padding-left: 1em !important; border-left: 3px solid rgba(127,127,127,.35) !important; }';
     css += 'li { line-height: ' + this.typo.lineHeight + ' !important; margin-top: 0.2em !important; margin-bottom: 0.2em !important; }';
-    css += 'img { max-width: 100% !important; height: auto !important; }';
     if (this.typo.fontFamily) {
       css += 'html, body, p, div, span, li, a, h1, h2, h3, h4 { font-family: ' + this.typo.fontFamily + ' !important; }';
     }
@@ -225,8 +224,10 @@ class Paginator {
       'height: ' + hostH + 'px; padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box; overflow: hidden; }';
     // 页面内容左右内边距（列内容不贴边，像真实书籍版心）
     base.textContent +=
-      'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; }' +
-      'img { max-width: ' + (this.pageWidth - pagePad * 2) + 'px !important; height: auto; }' +
+      'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; max-width: ' + (this.pageWidth - pagePad * 2) + 'px !important; box-sizing: border-box !important; }' +
+      'img, svg { max-width: 100% !important; height: auto !important; box-sizing: border-box !important; object-fit: contain; }' +
+      'body > img, body > svg { max-width: ' + (this.pageWidth - pagePad * 2) + 'px !important; }' +
+      'body > a:has(> img), body > a:has(> svg) { display: block !important; }' +
       'table { max-width: ' + (this.pageWidth - pagePad * 2) + 'px; }';
     // 双页模式中间书缝：列间细线模拟书脊
     if (spread) {

@@ -34,6 +34,7 @@
     nextDreamDelay,
     shouldDream,
     formatReadingDuration,
+    hasPrimaryPointerButton,
   } = shared;
 
   const FACE_IMG = 'images/pet/faces/';
@@ -109,6 +110,7 @@
   let displayFrequency = null;
   let downPos = { x: 0, y: 0 };
   let dragOffset = { x: 0, y: 0 };
+  let cancelActiveDrag = () => {};
 
   function save() {
     saved.lockedMood = lockedEmotion;
@@ -503,7 +505,10 @@
   function handleAppWindowFocus(focused) {
     appWindowFocused = !!focused;
     if (appWindowFocused) startReadingSession(Date.now());
-    else resetReadingSession();
+    else {
+      resetReadingSession();
+      cancelActiveDrag();
+    }
     resetFpsSampling(true);
   }
 
@@ -878,6 +883,7 @@
 
   function bind() {
     const target = ui.hitbox;
+    let activePointerId = null;
     target.addEventListener('pointerenter', onHover);
     target.addEventListener('pointerleave', onLeave);
     target.addEventListener('click', onClick);
@@ -910,13 +916,17 @@
     });
     target.addEventListener('pointerdown', (ev) => {
       if (ev.button !== 0) return;
+      if (activePointerId != null) endDrag(null, true);
       const r = ui.root.getBoundingClientRect();
+      activePointerId = ev.pointerId;
       downPos = { x: ev.clientX, y: ev.clientY };
       dragOffset = { x: ev.clientX - r.left, y: ev.clientY - r.top };
+      try { target.setPointerCapture(ev.pointerId); } catch (error) {}
       window.addEventListener('pointermove', onDragMove);
       window.addEventListener('pointerup', endDrag);
       window.addEventListener('pointercancel', endDrag);
     });
+    target.addEventListener('lostpointercapture', (ev) => endDrag(ev, true));
 
     document.addEventListener('pointerdown', (ev) => {
       if (!consoleOpen || ui.console.contains(ev.target) || ui.root.contains(ev.target)) return;
@@ -931,6 +941,7 @@
     window.api.onWindowFocusChanged(handleAppWindowFocus);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
+        cancelActiveDrag();
         resetReadingSession();
         resetFpsSampling(true);
       } else {
@@ -946,6 +957,11 @@
     });
 
     function onDragMove(ev) {
+      if (activePointerId == null || ev.pointerId !== activePointerId) return;
+      if (!hasPrimaryPointerButton(ev.buttons)) {
+        endDrag(ev, true);
+        return;
+      }
       if (Math.abs(ev.clientX - downPos.x) <= 4 && Math.abs(ev.clientY - downPos.y) <= 4) return;
       if (!dragging) {
         dragging = true;
@@ -963,18 +979,25 @@
       updateBubbleSide();
     }
 
-    function endDrag() {
+    function endDrag(ev, cancelled) {
+      if (ev && activePointerId != null && ev.pointerId !== activePointerId) return;
+      const pointerId = activePointerId;
+      activePointerId = null;
       window.removeEventListener('pointermove', onDragMove);
       window.removeEventListener('pointerup', endDrag);
       window.removeEventListener('pointercancel', endDrag);
+      try {
+        if (pointerId != null && target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+      } catch (error) {}
       if (!dragging) return;
       dragging = false;
       ui.root.classList.remove('dragging');
       returnToIdle(Date.now());
-      triggerAction('drop');
+      if (!cancelled) triggerAction('drop');
       updatePositionRatios();
       save();
     }
+    cancelActiveDrag = () => endDrag(null, true);
   }
 
   function makeButton(label, className) {

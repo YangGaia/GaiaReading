@@ -3400,7 +3400,12 @@ function applyReaderStyles(contents) {
   css += 'p { text-indent: 2em !important; margin: 0 0 0.8em !important; line-height: ' + state.lineHeight + ' !important; } h1, h2, h3, h4 { line-height: 1.4 !important; margin: 1.2em 0 0.6em !important; }';
   css += 'body { box-sizing: border-box !important; padding-top: 28px !important; padding-bottom: 28px !important; }';
   const marginPct = state.prefs.marginPct != null ? state.prefs.marginPct : 8;
-  css += 'body > * { margin-left: ' + marginPct + '% !important; margin-right: ' + marginPct + '% !important; }';
+  css += 'body > * { margin-left: ' + marginPct + '% !important; margin-right: ' + marginPct + '% !important; max-width: calc(100% - ' + (marginPct * 2) + '%) !important; box-sizing: border-box !important; }';
+  // epub.js 按整列宽度限制图片；再给一级元素加页边距后，图片总占宽会越过列边界。
+  // 先让所有媒体服从所在容器，再单独扣除直接位于 body 下方媒体的两侧页边距。
+  css += 'img, svg { max-width: 100% !important; height: auto !important; box-sizing: border-box !important; object-fit: contain; }';
+  css += 'body > img, body > svg { max-width: calc(100% - ' + (marginPct * 2) + '%) !important; }';
+  css += 'body > a:has(> img), body > a:has(> svg) { display: block !important; }';
   if (state.readMode === 'spread') css += 'body { column-rule: 1px solid rgba(127,127,127,.28) !important; }';
   if (font) css += 'body, p, div, span, li { font-family: ' + font + ' !important; }';
   if (style) style.remove();

@@ -251,6 +251,11 @@
     return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
   }
 
+  /** PointerEvent.buttons 中是否仍包含主按钮，避免丢失 pointerup 后拖拽粘住。 */
+  function hasPrimaryPointerButton(buttons) {
+    return (Number(buttons) & 1) === 1;
+  }
+
   /** 事件驱动迁移：返回 { state, expression, ... }，无迁移返回 null。 */
   function decideState(brain, event, now) {
     const t = now == null ? Date.now() : now;
@@ -354,6 +359,7 @@
     pick,
     pokeLineKey,
     formatReadingDuration,
+    hasPrimaryPointerButton,
     decideState,
     timeoutState,
     lineFor,

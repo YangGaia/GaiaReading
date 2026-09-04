@@ -381,7 +381,7 @@ test('书签支持内容锚点、重命名与 TXT 章节识别', () => {
 
 test('分页器保留左右页边距（版心）', () => {
   const p = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
-  assert.ok(p.includes("'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; }'"), '页面应注入左右页边距');
+  assert.ok(p.includes("'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; max-width: '"), '页面应注入左右页边距并限制一级内容宽度');
   assert.ok(p.includes('this.verticalPadding = 28;'), '分页正文应保留舒适的上下留白');
   assert.ok(p.includes("padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box"), '上下留白应计入分页高度，不能挤出可视区域');
   assert.ok(!p.includes("'p { text-indent: 2em !important; margin: 0 0 0.8em !important;"), '段落排版不应再重置左右边距');
@@ -424,6 +424,19 @@ test('可调节页边距功能接入', () => {
   assert.ok(app.includes('padding-top: 28px !important; padding-bottom: 28px !important;'), 'EPUB 正文应保留上下留白');
   assert.ok(pag.includes('setMargin(pct)'), '分页器应支持 setMargin');
   assert.ok(pag.includes('this.marginPct'), '分页器应保存边距档位');
+});
+
+test('分页图片总宽度不会越过右侧列边界', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
+  assert.ok(app.includes('img, svg { max-width: 100% !important; height: auto !important; box-sizing: border-box !important;'), 'EPUB 媒体应服从容器宽度并计入边框和内边距');
+  assert.ok(app.includes("max-width: calc(100% - ' + (marginPct * 2) + '%) !important; box-sizing: border-box"), 'EPUB 一级内容应扣除左右页边距');
+  assert.ok(app.includes("body > img, body > svg { max-width: calc(100% - ' + (marginPct * 2) + '%) !important;"), 'EPUB 一级图片应限制在版心内');
+  assert.ok(pag.includes("'img, svg { max-width: 100% !important; height: auto !important; box-sizing: border-box !important;"), 'MOBI/AZW3 媒体应服从容器宽度');
+  assert.ok(pag.includes("'body > img, body > svg { max-width: ' + (this.pageWidth - pagePad * 2) + 'px !important;"), 'MOBI/AZW3 一级图片应限制在版心内');
+  const typographyStart = pag.indexOf('  applyTypography() {');
+  const themeStart = pag.indexOf('  applyTheme() {', typographyStart);
+  assert.ok(!pag.slice(typographyStart, themeStart).includes('img { max-width: 100% !important'), '排版样式不能再次覆盖分页器计算出的图片宽度');
 });
 
 test('EPUB、PDF、TXT、MOBI 与 AZW3 共用可调双页间隙', () => {
