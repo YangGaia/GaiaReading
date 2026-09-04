@@ -51,6 +51,7 @@ test('五种格式共用的划线工具栏、笔记侧栏和定位入口均已�
   assert.ok(app.includes('bindSelectionDismissal(contents.document)'), 'EPUB iframe 应监听取消选择事件');
   assert.ok(app.includes("origin: 'selection'"), '新选区工具栏应标记为普通文字选择');
   assert.ok(app.includes("origin: 'annotation'"), '已有划线工具栏应使用独立来源标记');
+  assert.ok(app.includes('const annotationId = await persistSelectionAnnotation(context, color') && app.includes('if (annotationId) openAnnotationsPanelAt(annotationId)'), '点击高光保存后应打开并定位划线与笔记侧栏');
   assert.ok(app.includes("c.format === 'mobi' || c.format === 'azw3'"), 'MOBI 与 AZW3 应共用章节恢复逻辑');
   assert.ok(css.includes('.gaia-highlight-yellow') && css.includes('.gaia-highlight-green') && css.includes('.gaia-highlight-pink'), '缺少三种高亮色');
 });
@@ -73,4 +74,5 @@ test('笔记按钮使用应用内编辑器并在保存后定位侧栏条目', ()
   const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8');
   assert.ok(main.includes("document.querySelector('[data-selection-action=\"note\"]')"), '烟雾测试应真实点击笔记按钮');
   assert.ok(main.includes("item.note === '烟雾测试笔记'"), '烟雾测试应验证笔记成功保存');
+  assert.ok(main.includes('parsed.highlightPanelOpen === true') && main.includes('parsed.highlightCardLocated === true'), '烟雾测试应验证高光后打开并定位侧栏');
 });

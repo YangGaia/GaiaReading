@@ -811,7 +811,7 @@ async function openBook(book) {
   els.bookSearchPanel.hidden = true;
   els.aiSummaryPanel.hidden = true;
   $('btn-ai-reader').classList.remove('open');
-  els.tocPanel.textContent = '（本书没有目录）';
+  setTocMessage('（目录加载中…）');
   els.readerStatus.textContent = '加载中…';
   els.pageNav.hidden = false;
   state.current = { path: book.path, format: book.format, title: book.title || book.path, cover: book.cover || '', percent: 0 };
@@ -826,13 +826,25 @@ async function openBook(book) {
   renderAnnotationsPanel();
   try {
     if (book.format === 'epub') await openEpub(book);
-    else if (book.format === 'pdf') await openPdf(book);
+    else if (book.format === 'pdf') {
+      await openPdf(book);
+      setTocMessage('（本书没有目录）');
+    }
     else if (book.format === 'mobi' || book.format === 'azw3') await openMobi(book);
-    else await openTxt(book);
+    else {
+      await openTxt(book);
+      setTocMessage('（本书没有目录）');
+    }
   } catch (err) {
     console.error(err);
     els.readerStatus.textContent = '打开失败：' + err.message;
+    setTocMessage('（目录加载失败）');
   }
+}
+
+function setTocMessage(message) {
+  els.tocPanel.replaceChildren();
+  els.tocPanel.textContent = message;
 }
 
 async function openEpub(book) {
@@ -905,7 +917,9 @@ async function openEpub(book) {
   ]);
 
   const nav = await epub.loaded.navigation;
+  if (!state.current || state.current.epub !== epub || state.current.rendition !== rendition) return;
   state.current.epubToc = nav.toc || [];
+  els.tocPanel.replaceChildren();
   const renderToc = (items, depth) => {
     for (const item of items) {
       if (!item.href) continue;
@@ -1566,7 +1580,7 @@ function updateMobiProgress(force) {
 }
 function renderMobiToc() {
   const c = state.current;
-  els.tocPanel.innerHTML = '';
+  els.tocPanel.replaceChildren();
   if (!c || !c.mobi || !c.mobi.toc.length) {
     els.tocPanel.textContent = '（本书没有目录）';
     return;
@@ -2910,10 +2924,10 @@ async function saveSelectionAnnotation(color, requestNote) {
     return;
   }
   const existing = context.existingId ? currentAnnotations().find((item) => item.id === context.existingId) : null;
-  await persistSelectionAnnotation(context, color, existing ? existing.note || '' : '');
+  const annotationId = await persistSelectionAnnotation(context, color, existing ? existing.note || '' : '');
   hideSelectionToolbar();
   restoreCurrentAnnotations();
-  renderAnnotationsPanel();
+  if (annotationId) openAnnotationsPanelAt(annotationId);
   els.readerStatus.textContent = '划线已保存';
 }
 

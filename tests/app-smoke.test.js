@@ -88,6 +88,7 @@ test('阅读目录支持左下角按钮与可关闭的左缘悬停展开', () =>
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
   for (const id of ['btn-reader-toc', 'toc-panel', 'toc-backdrop', 'toc-edge-trigger', 'btn-edge-toc', 'edge-toc-value']) {
     assert.ok(html.includes(`id="${id}"`), `阅读目录缺少 ${id}`);
   }
@@ -100,6 +101,8 @@ test('阅读目录支持左下角按钮与可关闭的左缘悬停展开', () =>
   assert.ok(app.includes("els.edgeTocButton.addEventListener('click', toggleEdgeToc)"), '左缘目录开关未绑定');
   assert.ok(css.includes('.toc-edge-trigger.disabled'), '其他阅读工具开启时必须禁用左缘感应区');
   assert.ok(app.includes('activateTocItemMode(tocMode)'), '目录跳转后应根据打开来源决定是否关闭');
+  assert.ok(app.includes("setTocMessage('（目录加载中…）')") && app.includes('els.tocPanel.replaceChildren()'), '目录应先清除加载占位后再渲染真实条目');
+  assert.ok(main.includes('parsed.tocWithEntriesHasNoEmptyMessage === true'), 'EPUB 烟雾测试应验证有目录时不显示空目录提示');
   assert.ok(app.includes("els.tocEdgeTrigger.addEventListener('pointerenter'"), '左缘缺少鼠标进入监听');
   assert.ok(app.includes("els.tocPanel.addEventListener('pointerleave'"), '目录缺少鼠标离开监听');
   assert.ok(css.includes('transform: translateX(-102%)') && css.includes('.toc-panel.toc-panel-open'), '目录缺少从左向右滑出的动画');
