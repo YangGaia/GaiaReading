@@ -2,9 +2,9 @@
 
 Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB、PDF、TXT、MOBI 和 AZW3。它把多格式阅读、章节级 AI 对话、划线笔记、阅读统计和桌面角色「久远寺有珠」放在同一个应用中。
 
-当前稳定版本：**1.0.2**
+当前稳定版本：**1.0.3**
 
-[下载 1.0.2](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.2) · [查看本版说明](RELEASE_NOTES_1.0.2.md) · [版本记录](CHANGELOG.md)
+[下载 1.0.3](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.3) · [查看本版说明](RELEASE_NOTES_1.0.3.md) · [版本记录](CHANGELOG.md)
 
 ## 界面截图
 
@@ -40,8 +40,8 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 
 - 支持 EPUB、PDF、TXT、MOBI、AZW3，保留书架、目录、进度和断点续读。
 - 首页与书架均可通过“添加图书”选择文件夹、单个文件或一次多选文件；重复图书会自动跳过。
-- EPUB、MOBI、AZW3 支持目录跳转；TXT 可识别常见中英文章节标题。
-- 阅读页左下角可随时打开目录；鼠标触碰阅读区最左侧时，目录会自动滑出并在离开后收回。
+- EPUB、MOBI、AZW3 支持目录跳转；MOBI/AZW3 尾注可在应用内往返定位，TXT 可识别常见中英文章节标题。
+- 阅读页左下角可随时打开目录；鼠标触碰阅读区最左侧时，目录会自动滑出并在离开后收回，也可在设置中单独关闭触边展开。
 - 支持单页、双页、日间、护眼和夜间模式，并可调整字体、字号、行距与页边距。
 - 日间、护眼和夜间主题均可切换高对比文字，分别使用纯黑、深棕黑和纯白增强可读性。
 - EPUB、PDF、TXT、MOBI、AZW3 的双页间隙可在阅读设置中按 0、24、56、96px 四档即时调节。
@@ -57,7 +57,7 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 - AI 只接收当前逻辑章节作为上下文；正文没有提供的信息会明确说明，不主动补写剧情或剧透后文。
 - 提供“总结本章”“人物关系”“伏笔”三个输入快捷键，点击后仅填入问题，由用户确认发送。
 - 生成期间可以停止；输入新问题后可以中止旧请求并立即发送。
-- “有珠概括”和“有珠吐槽”生成一句简短台词，通过桌宠气泡显示，不进入普通对话记录。
+- “有珠概括”和“有珠吐槽”模仿《魔法使之夜》中久远寺有珠冷静、简短而略带讽刺的说话风格，通过桌宠气泡显示，不进入普通对话记录。
 
 ### 划词工具
 
@@ -68,14 +68,14 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 ### 阅读记录与有珠
 
 - 记录每日和每周阅读时长、目标完成度、连续阅读天数与年度读完书籍。
-- 有珠支持点击、拖动、表情、哈欠、困倦、睡眠、梦话和阅读关怀提醒。
+- 有珠支持点击、拖动、表情、哈欠、困倦、睡眠、梦话和阅读关怀提醒；透明或阅读页淡化时，鼠标碰到她会完全显现并唤醒。
 - 控制台可调整有珠的尺寸、透明度、阅读页显示方式和自主行为。
 - 内置 BGM 胶囊，支持播放、切歌、音量与状态记忆。
 
 ## 下载与运行
 
-1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.2)。
-2. 下载 `Gaia.Reading.1.0.2.exe`。
+1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.3)。
+2. 下载 `Gaia.Reading.1.0.3.exe`。
 3. 双击运行，无需安装 Node.js，也无需执行安装程序。
 
 系统要求：Windows 10/11 x64。当前发行文件未购买商业代码签名证书，Windows 首次运行时可能显示 SmartScreen 提示；请确认下载来源并核对 Release 中公布的 SHA-256。
@@ -144,4 +144,4 @@ tests/               自动化测试和测试用电子书
 assets/bgm/          内置音乐资源
 ```
 
-本次更新详情请阅读 [RELEASE_NOTES_1.0.2.md](RELEASE_NOTES_1.0.2.md)；上一版本说明可查看 [RELEASE_NOTES_1.0.1.md](RELEASE_NOTES_1.0.1.md)。
+本次更新详情请阅读 [RELEASE_NOTES_1.0.3.md](RELEASE_NOTES_1.0.3.md)；上一版本说明可查看 [RELEASE_NOTES_1.0.2.md](RELEASE_NOTES_1.0.2.md)。
