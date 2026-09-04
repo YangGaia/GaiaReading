@@ -10,7 +10,7 @@ const { parseEpub } = require('./shared/epub-meta');
 const { decodeTxt, titleFromFilename } = require('./shared/txt-utils');
 const { JsonStore } = require('./shared/store');
 const { prepareDataFile } = require('./shared/data-upgrade');
-const { openMobi, loadChapter, cleanupMobi } = require('./shared/mobi');
+const { openMobi, loadChapter, cleanupMobi, resolveMobiHref } = require('./shared/mobi');
 const { repairEpubBuffer } = require('./shared/epub-repair');
 const GaiaAi = require('./shared/ai');
 const Lookup = require('./shared/lookup');
@@ -483,6 +483,8 @@ function createWindow() {
                 parsed.aiContentLen > 100 &&
                 typeof parsed.aiChapterTitle === 'string' && parsed.aiChapterTitle.length > 0 &&
                 parsed.chapters > 0 &&
+                parsed.footnoteJumpOk === true &&
+                parsed.footnoteBackOk === true &&
                 parsed.sidePanelLayoutOk === true &&
                 parsed.sidePanelAnchorOk === true &&
                 parsed.fullBookSearchLayoutOk === true &&
@@ -1569,6 +1571,12 @@ ipcMain.handle('mobi:chapter', async (event, { sessionId, index }) => {
   if (!session) throw new Error('MOBI 会话已失效，请重新打开');
   const ch = await loadChapter(session.opened, index, session.resourceSaveDir);
   return ch;
+});
+
+ipcMain.handle('mobi:resolve-href', (event, { sessionId, href }) => {
+  const session = mobiSessions.get(sessionId);
+  if (!session) throw new Error('MOBI 会话已失效，请重新打开');
+  return resolveMobiHref(session.opened, href);
 });
 
 ipcMain.handle('mobi:close', (event, sessionId) => {

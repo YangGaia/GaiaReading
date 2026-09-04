@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { detectKind, openMobi, loadChapter, cleanupMobi, planChapterMerge, chapterContentWeight, parseKindlePosition } = require('../src/shared/mobi');
+const { detectKind, openMobi, loadChapter, cleanupMobi, planChapterMerge, chapterContentWeight, parseKindlePosition, resolveMobiHref } = require('../src/shared/mobi');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -113,6 +113,48 @@ test('Kindle position 的 FID 和 OFF 按 32 进制解析', () => {
   assert.deepStrictEqual(parseKindlePosition('kindle:pos:fid:0025:off:000000000A'), { fid: 69, off: 10 });
   assert.deepStrictEqual(parseKindlePosition('kindle:pos:fid:008G:off:0000000010'), { fid: 272, off: 32 });
   assert.strictEqual(parseKindlePosition('filepos:123'), null);
+});
+
+test('史蒂夫·乔布斯传 MOBI/AZW3 的书内脚注能解析到章节和具体位置', async (t) => {
+  const files = sampleFiles().filter((file) => /乔布斯|Jobs/i.test(path.basename(file)));
+  if (!files.length) {
+    t.skip('目录下没有《史蒂夫·乔布斯传》MOBI/AZW3 样书');
+    return;
+  }
+  for (const file of files) {
+    const resDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gaia-mobi-footnote-'));
+    const opened = await openMobi(file, resDir);
+    let checked = null;
+    try {
+      for (let index = 0; index < opened.chapters.length && !checked; index += 1) {
+        const chapter = await loadChapter(opened, index, resDir);
+        const links = chapter.html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>\s*(?:<[^>]+>\s*)*\[\d+\]/gi);
+        for (const match of links) {
+          const target = resolveMobiHref(opened, match[1]);
+          if (Number.isInteger(target.index) && (target.selector || target.textHint)) {
+            checked = { href: match[1], target };
+            break;
+          }
+        }
+      }
+      assert.ok(checked, `${path.basename(file)} 应至少解析出一条带精确位置的脚注链接`);
+      const targetChapter = await loadChapter(opened, checked.target.index, resDir);
+      if (checked.target.selector) {
+        const attr = checked.target.selector.match(/^\[(id|name|aid)="([^"]+)"\]$/);
+        assert.ok(attr, `脚注 selector 应可安全查询，实际为 ${checked.target.selector}`);
+        assert.ok(
+          targetChapter.html.includes(attr[1] + '="' + attr[2] + '"') || targetChapter.html.includes(attr[1] + "='" + attr[2] + "'"),
+          `${path.basename(file)} 的目标章节应包含脚注定位属性 ${checked.target.selector}`
+        );
+      } else {
+        const text = targetChapter.html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+        assert.ok(text.includes(checked.target.textHint), `${path.basename(file)} 的目标章节应包含脚注定位文本`);
+      }
+    } finally {
+      cleanupMobi(opened);
+      fs.rmSync(resDir, { recursive: true, force: true });
+    }
+  }
 });
 
 test('planChapterMerge：mobi7 标题页并入下一章正文', () => {

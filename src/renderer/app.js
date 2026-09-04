@@ -1499,6 +1499,7 @@ async function loadMobiChapter(chapterIndex, opts) {
       if (c.flow) c.flow.gotoChapter(clamped);
       await c.paginator.render(html, ch.cssText || '');
       bindReaderInputs(c.paginator.doc);
+      bindMobiDocumentLinks(c.paginator.doc);
       bindTextAnnotationInputs(c.paginator.doc, c.paginator.doc.body);
       const total = c.paginator.totalPages || 1;
       if (c.flow) c.flow.setPages(clamped, total);
@@ -1786,6 +1787,76 @@ function bindReaderInputs(target) {
   if (!target) return;
   bindReaderKeyboard(target);
   bindReaderWheel(target);
+}
+
+function isMobiInternalHref(href) {
+  return /^(?:filepos:|kindle:pos:)/i.test(String(href || '').trim());
+}
+
+async function jumpToMobiDocumentHref(href) {
+  const c = state.current;
+  if (!c || (c.format !== 'mobi' && c.format !== 'azw3') || !c.mobiSession) return false;
+  try {
+    const target = await window.api.mobiResolveHref(c.mobiSession, href);
+    if (state.current !== c) return false;
+    if (!target || !Number.isInteger(target.index) || target.index < 0) {
+      els.readerStatus.textContent = '无法定位这条书内注释';
+      return false;
+    }
+    await loadMobiChapter(target.index, { page: 0, selector: target.selector || '' });
+    if (state.current !== c) return false;
+    let located = !target.selector && !target.textHint;
+    if (target.selector) {
+      let node = null;
+      try { node = c.paginator.doc.body.querySelector(target.selector); } catch (error) {}
+      if (!node) {
+        els.readerStatus.textContent = '已打开注释所在章节，但未找到具体位置';
+        return false;
+      }
+      located = true;
+    } else if (target.textHint) {
+      const source = c.paginator.doc.body.textContent || '';
+      let offset = source.indexOf(target.textHint);
+      if (offset < 0) {
+        const shortHint = target.textHint.slice(0, 24);
+        offset = shortHint ? source.indexOf(shortHint) : -1;
+      }
+      if (offset >= 0) {
+        const page = c.paginator.locate(offset);
+        if (page >= 0) {
+          c.paginator.showPage(page);
+          if (c.flow) c.flow.page = c.paginator.currentPage;
+          updateMobiProgress(true);
+          located = true;
+        }
+      }
+    }
+    if (!located) {
+      els.readerStatus.textContent = '已打开注释所在章节，但未找到具体位置';
+      return false;
+    }
+    noteReadingActivity();
+    return true;
+  } catch (error) {
+    console.error('MOBI_DOCUMENT_LINK_FAILED', href, error);
+    els.readerStatus.textContent = '书内注释跳转失败：' + String(error && error.message || error);
+    return false;
+  }
+}
+
+function bindMobiDocumentLinks(target) {
+  if (!target || target.__gaiaMobiLinksBound) return;
+  target.addEventListener('click', (event) => {
+    const origin = event.target && event.target.nodeType === 3 ? event.target.parentElement : event.target;
+    const link = origin && origin.closest ? origin.closest('a[href]') : null;
+    if (!link) return;
+    const href = link.getAttribute('href') || '';
+    if (!isMobiInternalHref(href)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void jumpToMobiDocumentHref(href);
+  });
+  target.__gaiaMobiLinksBound = true;
 }
 
 function adjustFont(delta) {
@@ -5301,6 +5372,55 @@ window.__gaiaDebug = {
   getBookmarks: () => (state.current ? state.bookmarks[state.current.path] || [] : []),
   jumpToBookmark: (bm) => jumpToBookmark(bm),
   jumpToAnnotation: (annotation) => jumpToAnnotation(annotation),
+  getFirstMobiFootnoteHref: () => {
+    const c = state.current;
+    const root = c && c.paginator && c.paginator.doc && c.paginator.doc.body;
+    if (!root) return '';
+    const links = Array.from(root.querySelectorAll('a[href]'));
+    const link = links.find((item) => isMobiInternalHref(item.getAttribute('href')) && /^\[\d+\]$/.test((item.textContent || '').trim()));
+    return link ? link.getAttribute('href') || '' : '';
+  },
+  getVisibleMobiFootnoteHref: () => {
+    const c = state.current;
+    const root = c && c.paginator && c.paginator.doc && c.paginator.doc.body;
+    if (!root) return '';
+    const links = Array.from(root.querySelectorAll('a[href]'));
+    const link = links.find((item) => {
+      if (!isMobiInternalHref(item.getAttribute('href')) || !/^\[\d+\]$/.test((item.textContent || '').trim())) return false;
+      return c.paginator.anchorInView(textOffsetBeforeNode(root, item));
+    });
+    return link ? link.getAttribute('href') || '' : '';
+  },
+  resolveMobiHref: (href) => {
+    const c = state.current;
+    return c && c.mobiSession ? window.api.mobiResolveHref(c.mobiSession, href) : Promise.resolve(null);
+  },
+  clickMobiHref: (href) => {
+    const c = state.current;
+    const root = c && c.paginator && c.paginator.doc && c.paginator.doc.body;
+    if (!root) return false;
+    const link = Array.from(root.querySelectorAll('a[href]')).find((item) => item.getAttribute('href') === href);
+    if (!link) return false;
+    link.dispatchEvent(new c.paginator.doc.defaultView.MouseEvent('click', { bubbles: true, cancelable: true }));
+    return true;
+  },
+  isMobiSelectorInView: (selector) => {
+    const c = state.current;
+    const root = c && c.paginator && c.paginator.doc && c.paginator.doc.body;
+    if (!root || !selector) return false;
+    let node = null;
+    try { node = root.querySelector(selector); } catch (error) {}
+    return !!node && c.paginator.anchorInView(textOffsetBeforeNode(root, node));
+  },
+  isMobiTextInView: (text) => {
+    const c = state.current;
+    const root = c && c.paginator && c.paginator.doc && c.paginator.doc.body;
+    if (!root || !text) return false;
+    const source = root.textContent || '';
+    let offset = source.indexOf(text);
+    if (offset < 0) offset = source.indexOf(String(text).slice(0, 24));
+    return offset >= 0 && c.paginator.anchorInView(offset);
+  },
   getPaginatorScroll: () => {
     const c = state.current;
     if (!c || !c.paginator || !c.paginator.doc) return null;

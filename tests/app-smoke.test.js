@@ -387,6 +387,16 @@ test('书签支持内容锚点、重命名与 TXT 章节识别', () => {
   assert.ok(app.indexOf("if (els.bookmarksPanel.hidden) togglePanel('bookmarks')") < app.indexOf('return await pendingBookmark'), '添加书签应先打开侧栏，再等待保存完成');
 });
 
+test('MOBI/AZW3 书内脚注链接由阅读器解析并跳转', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  const preload = fs.readFileSync(path.join(root, 'src', 'preload.js'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
+  assert.ok(app.includes('bindMobiDocumentLinks(c.paginator.doc)'), '加载章节后必须绑定书内链接');
+  assert.ok(app.includes('event.preventDefault()') && app.includes('jumpToMobiDocumentHref(href)'), '点击脚注必须阻止浏览器默认跳转并交给阅读器');
+  assert.ok(preload.includes("ipcRenderer.invoke('mobi:resolve-href'"), '预加载层必须暴露书内链接解析接口');
+  assert.ok(main.includes("ipcMain.handle('mobi:resolve-href'"), '主进程必须按当前 MOBI 会话解析链接');
+});
+
 test('分页器保留左右页边距（版心）', () => {
   const p = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   assert.ok(p.includes("'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; max-width: '"), '页面应注入左右页边距并限制一级内容宽度');

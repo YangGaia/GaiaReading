@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   metadata: (filePath) => ipcRenderer.invoke('book:metadata', filePath),
   mobiOpen: (filePath) => ipcRenderer.invoke('mobi:open', filePath),
   mobiChapter: (sessionId, index) => ipcRenderer.invoke('mobi:chapter', { sessionId, index }),
+  mobiResolveHref: (sessionId, href) => ipcRenderer.invoke('mobi:resolve-href', { sessionId, href }),
   mobiClose: (sessionId) => ipcRenderer.invoke('mobi:close', sessionId),
   stateGet: (key) => ipcRenderer.invoke('state:get', key),
   stateSet: (key, value) => ipcRenderer.invoke('state:set', { key, value }),

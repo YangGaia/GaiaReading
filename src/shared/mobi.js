@@ -193,6 +193,86 @@ function parseKindlePosition(href) {
   return Number.isFinite(fid) && Number.isFinite(off) ? { fid, off } : null;
 }
 
+function selectorFromAttribute(name, value) {
+  const safeName = /^(?:id|name|aid)$/i.test(String(name || '')) ? String(name).toLowerCase() : '';
+  if (!safeName) return '';
+  const safeValue = String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return safeValue ? '[' + safeName + '="' + safeValue + '"]' : '';
+}
+
+/**
+ * KF8 的 position 有时落在脚注正文文本中，而不是带 aid/id 的标签起点。
+ * 上游解析器此时能找到章节但会返回空 selector；从原始 fragment 中取距离
+ * position 最近的前置定位属性，才能把脚注带入当前可视页。
+ */
+function nearestKf8Selector(book, fid, off) {
+  if (!book || !Array.isArray(book.chapters) || typeof book.loadRaw !== 'function' || !book.mobiFile) return '';
+  const chapter = book.chapters.find((item) => Array.isArray(item.frags) && item.frags.some((frag) => frag.index === fid));
+  if (!chapter || !chapter.skel) return '';
+  const frag = chapter.frags.find((item) => item.index === fid);
+  if (!frag) return '';
+  try {
+    const start = chapter.skel.offset + chapter.skel.length + frag.offset;
+    const raw = book.loadRaw(start, start + frag.length);
+    const source = book.mobiFile.decode(raw.buffer);
+    const target = Math.max(0, Math.min(source.length, Number(off) || 0));
+    const attrPattern = /<[^>]*\s(id|name|aid)\s*=\s*["']([^"']+)["'][^>]*>/gi;
+    let match;
+    let before = null;
+    let after = null;
+    while ((match = attrPattern.exec(source))) {
+      const candidate = { index: match.index, selector: selectorFromAttribute(match[1], match[2]) };
+      if (!candidate.selector) continue;
+      if (match.index <= target) before = candidate;
+      else {
+        after = candidate;
+        break;
+      }
+    }
+    if (before && target - before.index <= 1024) return before.selector;
+    if (after && after.index - target <= 256) return after.selector;
+  } catch (error) {}
+  return '';
+}
+
+function charIndexAtUtf8ByteOffset(source, byteOffset) {
+  const text = String(source || '');
+  const wanted = Math.max(0, Number(byteOffset) || 0);
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (Buffer.byteLength(text.slice(0, middle), 'utf8') <= wanted) low = middle;
+    else high = middle - 1;
+  }
+  return low;
+}
+
+function mobi7TextHint(book, rawIndex, filepos) {
+  const chapter = book && Array.isArray(book.chapters) ? book.chapters[rawIndex] : null;
+  if (!chapter || typeof chapter.text !== 'string') return '';
+  const relative = Number(filepos) - Number(chapter.start || 0);
+  let offset = charIndexAtUtf8ByteOffset(chapter.text, relative);
+  const tagStart = chapter.text.lastIndexOf('<', offset);
+  const tagEndBefore = chapter.text.lastIndexOf('>', offset);
+  if (tagStart > tagEndBefore) {
+    const tagEnd = chapter.text.indexOf('>', offset);
+    if (tagEnd >= 0) offset = tagEnd + 1;
+  }
+  return chapter.text.slice(offset, offset + 800)
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 64);
+}
+
 /**
  * 规划 MOBI7 章节合并。
  * MOBI7 的章节按 <mbp:pagebreak/> 切分，部分书籍（尤其中文 MOBI 转档）会把
@@ -291,27 +371,7 @@ async function openMobi(filePath, resourceSaveDir) {
     }
   }
   function tocTargetFromHref(href) {
-    let raw = null;
-    let resolved = null;
-    if (!href) return { index: null, selector: '' };
-    const position = parseKindlePosition(href);
-    if (position && fidToIndex.has(position.fid)) raw = fidToIndex.get(position.fid);
-    if (typeof book.resolveHref === 'function') {
-      try {
-        resolved = book.resolveHref(href);
-        if (raw == null && resolved && resolved.id != null && rawIndexById.has(String(resolved.id))) {
-          raw = rawIndexById.get(String(resolved.id));
-        }
-      } catch {
-        resolved = null;
-      }
-    }
-    if (raw == null) return { index: null, selector: '' };
-    const target = mergeTarget[raw] >= 0 ? mergeTarget[raw] : raw;
-    return {
-      index: newIndexOf[target] != null ? newIndexOf[target] : null,
-      selector: resolved && typeof resolved.selector === 'string' ? resolved.selector : '',
-    };
+    return resolveMobiHref({ book, rawIndexById, fidToIndex, mergeTarget, newIndexOf }, href);
   }
   const mapToc = (items) => (items || []).map((item) => {
     const target = tocTargetFromHref(item.href);
@@ -337,9 +397,36 @@ async function openMobi(filePath, resourceSaveDir) {
     toc: tocWithIndex,
     mergedKept,
     mergePred,
+    mergeTarget,
+    newIndexOf,
+    rawIndexById,
+    fidToIndex,
     book,
     spine,
   };
+}
+
+/** 把书内 filepos:/kindle:pos: 链接解析为合并后的章节序号和章节内选择器。 */
+function resolveMobiHref(opened, href) {
+  const book = opened && opened.book;
+  if (!book || !href) return { index: null, selector: '' };
+  const position = parseKindlePosition(href);
+  let raw = position && opened.fidToIndex instanceof Map ? opened.fidToIndex.get(position.fid) : null;
+  let resolved = null;
+  if (typeof book.resolveHref === 'function') {
+    try { resolved = book.resolveHref(String(href)); } catch (error) {}
+  }
+  if (raw == null && resolved && resolved.id != null && opened.rawIndexById instanceof Map) {
+    raw = opened.rawIndexById.get(String(resolved.id));
+  }
+  if (raw == null) return { index: null, selector: '' };
+  const target = Array.isArray(opened.mergeTarget) && opened.mergeTarget[raw] >= 0 ? opened.mergeTarget[raw] : raw;
+  const mapped = Array.isArray(opened.newIndexOf) ? opened.newIndexOf[target] : target;
+  let selector = position && resolved && typeof resolved.selector === 'string' ? resolved.selector : '';
+  if (!selector && position) selector = nearestKf8Selector(book, position.fid, position.off);
+  const fileposMatch = String(href).match(/^filepos:(\d+)/i);
+  const textHint = fileposMatch ? mobi7TextHint(book, raw, Number(fileposMatch[1])) : '';
+  return { index: Number.isInteger(mapped) && mapped >= 0 ? mapped : null, selector, textHint };
 }
 
 /**
@@ -388,4 +475,5 @@ module.exports = {
   planChapterMerge,
   chapterContentWeight,
   parseKindlePosition,
+  resolveMobiHref,
 };
