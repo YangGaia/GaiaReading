@@ -3152,10 +3152,29 @@ function renderAnnotationsPanel() {
   }
 }
 
+async function prepareAnnotationJumpLayout() {
+  const c = state.current;
+  if (!c) return false;
+  readerLayoutSyncVersion += 1;
+  if (els.annotationsPanel.hidden) return true;
+  const anchor = captureReaderLayoutAnchor();
+  els.annotationsPanel.hidden = true;
+  updateTocEdgeAvailability();
+  await new Promise((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)));
+  if (state.current !== c) return false;
+  if (c.format === 'epub' && c.rendition && anchor) {
+    await refreshReaderLayout(anchor, { force: true });
+  } else if (c.paginator) {
+    c.paginator.reflow();
+  }
+  return state.current === c;
+}
+
 async function jumpToAnnotation(annotation) {
   const c = state.current;
   if (!c || !annotation || !annotation.anchor) return;
   hideSelectionToolbar();
+  if (!(await prepareAnnotationJumpLayout())) return false;
   const anchor = annotation.anchor;
   if (anchor.kind === 'epub-cfi' && c.rendition) {
     await c.rendition.display(anchor.cfi);
@@ -3168,11 +3187,15 @@ async function jumpToAnnotation(annotation) {
     const resolved = resolveTextAnchor(c.paginator.doc.body.textContent || '', anchor);
     if (resolved) {
       const page = c.paginator.locate(resolved.start);
-      if (page >= 0) c.paginator.showPage(page);
+      if (page >= 0) {
+        c.paginator.showPage(page);
+        if (c.flow) c.flow.page = c.paginator.currentPage;
+      }
     }
     updateMobiProgress(true);
   }
   noteReadingActivity();
+  return true;
 }
 
 async function jumpToBookmark(bm) {
@@ -5132,6 +5155,21 @@ window.__gaiaDebug = {
     showSelectionToolbar({ kind: c.format === 'epub' ? 'epub' : 'text', text: String(text || '测试摘录'), anchor, chapter: currentTextChapterLabel(), rect: { left: 220, right: 320, top: 180, bottom: 210 } });
     return true;
   },
+  prepareCurrentPageAnnotationForTest: () => {
+    const c = state.current;
+    const root = c && c.paginator && c.paginator.doc && c.paginator.doc.body;
+    const probe = c && c.paginator && c.paginator.anchor();
+    if (!c || !root || !probe || !Number.isFinite(probe.off)) return null;
+    const source = root.textContent || '';
+    const start = Math.max(0, Math.min(source.length - 1, probe.off));
+    const end = Math.min(source.length, start + 32);
+    if (end <= start) return null;
+    const anchor = createTextAnchor(source, start, end);
+    anchor.kind = 'chapter-text';
+    anchor.chapter = c.flow ? c.flow.chapter : 0;
+    showSelectionToolbar({ kind: 'text', text: anchor.quote, anchor, chapter: currentTextChapterLabel(), rect: { left: 220, right: 320, top: 180, bottom: 210 } });
+    return { chapter: anchor.chapter, start: anchor.start, end: anchor.end, quote: anchor.quote };
+  },
   verifySelectionDismissal: async () => {
     const c = state.current;
     if (!c) return false;
@@ -5262,6 +5300,7 @@ window.__gaiaDebug = {
   },
   getBookmarks: () => (state.current ? state.bookmarks[state.current.path] || [] : []),
   jumpToBookmark: (bm) => jumpToBookmark(bm),
+  jumpToAnnotation: (annotation) => jumpToAnnotation(annotation),
   getPaginatorScroll: () => {
     const c = state.current;
     if (!c || !c.paginator || !c.paginator.doc) return null;

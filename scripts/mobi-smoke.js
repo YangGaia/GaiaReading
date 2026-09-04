@@ -76,6 +76,28 @@
       prevScroll = curScroll;
     }
     const wheelsAfterNav = __gaiaDebug.countBoundWheels();
+    // 批注锚点：侧栏刚打开、重排尚未完成时立即跳转，也应回到原章节和原文。
+    const annotationTarget = __gaiaDebug.prepareCurrentPageAnnotationForTest();
+    const annotationCountBefore = __gaiaDebug.getAnnotations().length;
+    document.querySelector('[data-highlight-color="yellow"]').click();
+    await new Promise((r) => setTimeout(r, 400));
+    const annotationList = __gaiaDebug.getAnnotations();
+    const jumpAnnotation = annotationList[annotationList.length - 1];
+    const annotationSaved = !!annotationTarget && annotationList.length === annotationCountBefore + 1 && !!jumpAnnotation;
+    await __gaiaDebug.jumpToMobiChapter(0);
+    await new Promise((r) => setTimeout(r, 400));
+    if (!document.getElementById('annotations-panel').hidden) {
+      __gaiaDebug.togglePanel('annotations');
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    __gaiaDebug.togglePanel('annotations');
+    const annotationCard = jumpAnnotation && document.querySelector('[data-annotation-id="' + jumpAnnotation.id + '"]');
+    const annotationJumpButton = annotationCard && Array.from(annotationCard.querySelectorAll('button')).find((button) => button.textContent === '跳转');
+    if (annotationJumpButton) annotationJumpButton.click();
+    await new Promise((r) => setTimeout(r, 1200));
+    const annotationJumpOk = annotationSaved && !!annotationJumpButton &&
+      __gaiaDebug.getMobiIndex() === annotationTarget.chapter && __gaiaDebug.getAnchorInView(annotationTarget.start) &&
+      document.getElementById('annotations-panel').hidden;
     // 书签内容锚点：长章节加书签 → 改行距重排 → 回章首再跳回，应回到同一段
     await __gaiaDebug.addBookmark();
     await new Promise((r) => setTimeout(r, 400));
@@ -135,7 +157,7 @@
       fullSearchLayoutOpen.frameWidth <= fullSearchLayoutOpen.readerWidth &&
       fullSearchLayoutClosed.readerWidth === fullSearchLayoutBefore.readerWidth &&
       fullSearchLayoutClosed.frameWidth <= fullSearchLayoutClosed.readerWidth;
-    return JSON.stringify({ status, contentLen, initialAiContentLen, initialAiChapterTitle, aiContentLen, aiChapterTitle, aiContentLenAfterPaging, aiChapterTitleAfterPaging, chapters, tocCount, sidePanelLayoutOk, sidePanelAnchorOk, fullBookSearchLayoutOk, fullSearchQuery, fullSearchRun, fullSearchActivated, fullSearchLayoutBefore, fullSearchLayoutOpen, fullSearchLayoutClosed, layoutBeforeSearch, layoutWithSearch, layoutAfterSearch, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
+    return JSON.stringify({ status, contentLen, initialAiContentLen, initialAiChapterTitle, aiContentLen, aiChapterTitle, aiContentLenAfterPaging, aiChapterTitleAfterPaging, chapters, tocCount, sidePanelLayoutOk, sidePanelAnchorOk, fullBookSearchLayoutOk, fullSearchQuery, fullSearchRun, fullSearchActivated, fullSearchLayoutBefore, fullSearchLayoutOpen, fullSearchLayoutClosed, layoutBeforeSearch, layoutWithSearch, layoutAfterSearch, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, annotationSaved, annotationTarget, annotationJumpOk, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
   } catch (e) {
     console.error('MOBI_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';

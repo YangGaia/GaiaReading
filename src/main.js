@@ -492,6 +492,8 @@ function createWindow() {
                 Math.abs(parsed.endPercent - 100) < 0.001 &&
                 parsed.moved > 0 &&
                 parsed.pctMoved === true && parsed.wheelsAfterNav >= 1 &&
+                parsed.annotationSaved === true &&
+                parsed.annotationJumpOk === true &&
                 parsed.eyeOk === true &&
                 parsed.habitOk === true &&
                 parsed.anchorOk === true;
