@@ -419,6 +419,10 @@ test('有珠只生成受控的一句话短评并限制输出长度', async () =>
   };
   const source = { bookTitle: '书', chapterTitle: '章', content: '人物做出了错误判断。' };
   const messages = aliceCommentMessages(source, 'comment');
+  assert.match(messages[0].content, /模仿《魔法使之夜》中久远寺有珠的说话风格/);
+  assert.match(messages[0].content, /寡言、冷静、疏离、克制/);
+  assert.match(messages[0].content, /不要使用网络流行语/);
+  assert.match(messages[0].content, /不要描写动作或心理活动/);
   assert.match(messages[0].content, /20～50/);
   assert.match(messages[0].content, /不能输出标题、列表/);
   const result = await aliceComment(fakeFetch, { provider: 'custom', baseUrl: 'https://relay.example/v1', model: 'demo' }, 'key', source, 'comment');
