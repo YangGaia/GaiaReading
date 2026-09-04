@@ -29,6 +29,7 @@ test('项目关键文件齐全', () => {
   assert.ok(main.includes("__gaiaDebug.setMode('spread')") && main.includes('epubSearchSpreadAligned'), 'EPUB 搜索烟雾测试必须在双页模式验证整页对齐');
   assert.ok(main.includes('window.resizeTo(smokeWindowWidth + 220') && main.includes('epubSearchWindowResizeReady'), 'EPUB 搜索烟雾测试必须覆盖搜索框开启时的窗口放大重排');
   assert.ok(main.includes('parsed.sidePanelLayoutOk === true') && main.includes('parsed.sidePanelAnchorOk === true') && main.includes('parsed.fullBookSearchLayoutOk === true'), 'MOBI/AZW3 烟雾测试应验证侧栏重排、搜索跳转与阅读锚点');
+  assert.ok(main.includes('parsed.longChapterStayedForEightTurns === true'), 'MOBI/AZW3 烟雾测试应阻止长章节在两个双页后提前跨章');
   assert.ok(main.includes('parsed.aiUiReady === true'), 'EPUB 烟雾测试应验证 AI 界面与章节提取');
   for (const frame of ['pet_tilt_early.png', 'pet_tilt_peak.png', 'pet_tilt_return.png']) {
     assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少歪头动作帧 ${frame}`);
@@ -404,7 +405,7 @@ test('分页器保留左右页边距并从上下同时压缩版心', () => {
   const p = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   assert.ok(p.includes("'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; max-width: '"), '页面应注入左右页边距并限制一级内容宽度');
   assert.ok(p.includes('this.verticalPadding = 28;'), '分页正文应保留舒适的上下留白');
-  assert.ok(p.includes("height: ' + hostH + 'px; min-height: ' + hostH + 'px; max-height: ' + hostH + 'px;"), '分页外框高度应锁定为阅读区高度');
+  assert.ok(p.includes("this.frame.style.height = hostH + 'px'") && p.includes("'height: ' + hostH + 'px; '"), '分页外框和正文高度应跟随阅读区高度');
   assert.ok(p.includes("padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box"), '固定外框应通过 border-box 从上下同时扣除内容高度');
   assert.ok(!p.includes("'p { text-indent: 2em !important; margin: 0 0 0.8em !important;"), '段落排版不应再重置左右边距');
   assert.ok(p.includes("margin-top: 0 !important; margin-bottom: 0.8em !important"), '段落应只设上下边距，保留版心左右留白');
@@ -451,6 +452,9 @@ test('左右与上下边距统一接入并保持版心约束', () => {
   assert.ok(app.includes("box-sizing: content-box !important; padding-top: ' + verticalMargin"), 'EPUB 上下边距应包围压缩后的固定内容区');
   assert.ok(!app.includes("max-height: 100vh !important; overflow: hidden !important; }'"), 'EPUB 不得裁掉承载后续页面的横向分栏');
   assert.ok(app.includes('hasVisibleEpubText: () =>') && main.includes('parsed.epubNextPageHasVisibleText === true'), '烟雾测试必须验证 EPUB 翻页后存在可见正文');
+  assert.ok(!pag.includes("'html { height: ' + hostH + 'px; overflow: hidden; }'"), 'TXT/MOBI/AZW3 不得在分页根元素裁掉后续横向分栏');
+  assert.ok(!pag.includes("min-height: ' + hostH + 'px; max-height: ' + hostH + 'px"), '分页正文不得用固定最大高度截断多栏布局');
+  assert.ok(app.includes('testLongPaginatorContinuity: async () =>') && main.includes('longPaginatorContinuity.total > 4'), '烟雾测试必须验证长章节可连续翻过两个双页');
   assert.ok(app.includes("scrollViewport.className = 'pdf-viewport'") && app.includes("scrollViewport.style.inset = verticalPadding + 'px ' + horizontalPadding + 'px'"), 'PDF 应使用四边同时内缩的独立滚动视口');
   assert.ok(app.includes('const viewportHeight = Math.max(1, scrollViewport.clientHeight);'), 'PDF 缩放应使用上下内缩后的实际视口高度');
   assert.ok(pag.includes('setMargin(pct)'), '分页器应支持 setMargin');

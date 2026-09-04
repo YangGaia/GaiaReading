@@ -5138,6 +5138,29 @@ function bindEvents() {
 }
 
 window.__gaiaDebug = {
+  testLongPaginatorContinuity: async () => {
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-10000px;top:0;width:900px;height:600px;overflow:hidden;';
+    document.body.appendChild(host);
+    const paginator = new window.GaiaPaginator(host, { pageWidth: 640, gap: 24 });
+    try {
+      const html = Array.from({ length: 180 }, (_, index) =>
+        '<p>分页连续性测试第' + index + '段。上下边距调整后，长章节仍应保留全部横向分栏，不能只剩当前双页。</p>'
+      ).join('');
+      await paginator.render(html, '');
+      paginator.setVerticalMargin(40);
+      paginator.setMode('spread');
+      const total = paginator.totalPages;
+      const firstMoved = paginator.next(2);
+      const firstPage = paginator.currentPage;
+      const secondMoved = paginator.next(2);
+      const secondPage = paginator.currentPage;
+      return { total, firstMoved, firstPage, secondMoved, secondPage };
+    } finally {
+      paginator.destroy();
+      host.remove();
+    }
+  },
   importPaths,
   openBook,
   backToLibrary,

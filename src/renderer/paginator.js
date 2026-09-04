@@ -227,9 +227,8 @@ class Paginator {
     const pagePad = Math.max(12, Math.round(this.pageWidth * this.marginPct / 100)); // 页边距按百分比随版心缩放
     base.textContent =
       'html, body { margin: 0; padding: 0; }' +
-      'html { height: ' + hostH + 'px; overflow: hidden; }' +
       'body { column-width: ' + this.pageWidth + 'px; column-gap: ' + gap + 'px; ' +
-      'height: ' + hostH + 'px; min-height: ' + hostH + 'px; max-height: ' + hostH + 'px; ' +
+      'height: ' + hostH + 'px; ' +
       'padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box; overflow: hidden; }';
     // 页面内容左右内边距（列内容不贴边，像真实书籍版心）
     base.textContent +=

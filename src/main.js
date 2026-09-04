@@ -494,6 +494,7 @@ function createWindow() {
                 parsed.pct != null &&
                 Math.abs(parsed.endPercent - 100) < 0.001 &&
                 parsed.moved > 0 &&
+                parsed.longChapterStayedForEightTurns === true &&
                 parsed.pctMoved === true && parsed.wheelsAfterNav >= 1 &&
                 parsed.annotationSaved === true &&
                 parsed.annotationJumpOk === true &&
@@ -824,7 +825,12 @@ function createWindow() {
               __gaiaDebug.togglePanel('toc');
               await __gaiaDebug.nextPage();
               await new Promise((r) => setTimeout(r, 600));
-              const epubNextPageHasVisibleText = __gaiaDebug.hasVisibleEpubText();
+              const epubPageHasVisibleText = __gaiaDebug.hasVisibleEpubText();
+              const longPaginatorContinuity = await __gaiaDebug.testLongPaginatorContinuity();
+              const epubNextPageHasVisibleText = epubPageHasVisibleText &&
+                longPaginatorContinuity.total > 4 &&
+                longPaginatorContinuity.firstMoved === true && longPaginatorContinuity.firstPage === 2 &&
+                longPaginatorContinuity.secondMoved === true && longPaginatorContinuity.secondPage === 4;
               __gaiaDebug.togglePanel('toc');
               await new Promise((r) => setTimeout(r, 400));
               const epSize = __gaiaDebug.getRenditionSize();

@@ -67,14 +67,18 @@
     const aiSource = await __gaiaDebug.resolveAiChapterSource();
     const aiContentLen = aiSource && aiSource.content ? aiSource.content.length : 0;
     const aiChapterTitle = aiSource && aiSource.chapterTitle;
+    const longChapterStartIndex = __gaiaDebug.getMobiIndex();
     const longScrolls = [];
+    const longChapterIndexes = [];
     const progressTrace = [];
     for (let k = 0; k < 8; k++) {
       await __gaiaDebug.nextPage();
       await new Promise((r) => setTimeout(r, 200));
       longScrolls.push(__gaiaDebug.getReaderScrollTop());
+      longChapterIndexes.push(__gaiaDebug.getMobiIndex());
       progressTrace.push(__gaiaDebug.getStatus());
     }
+    const longChapterStayedForEightTurns = longChapterIndexes.every((index) => index === longChapterStartIndex);
     const aiSourceAfterPaging = __gaiaDebug.getAiChapterSource();
     const aiContentLenAfterPaging = aiSourceAfterPaging && aiSourceAfterPaging.content ? aiSourceAfterPaging.content.length : 0;
     const aiChapterTitleAfterPaging = aiSourceAfterPaging && aiSourceAfterPaging.chapterTitle;
@@ -187,7 +191,7 @@
       fullSearchLayoutOpen.frameWidth <= fullSearchLayoutOpen.readerWidth &&
       fullSearchLayoutClosed.readerWidth === fullSearchLayoutBefore.readerWidth &&
       fullSearchLayoutClosed.frameWidth <= fullSearchLayoutClosed.readerWidth;
-    return JSON.stringify({ status, contentLen, paginatorVerticalMarginInward, verticalMarginBefore, verticalMarginAfter, verticalLayoutBefore, verticalLayoutAfter, initialAiContentLen, initialAiChapterTitle, aiContentLen, aiChapterTitle, aiContentLenAfterPaging, aiChapterTitleAfterPaging, chapters, tocCount, footnoteHref, footnoteTarget, footnoteClicked, footnoteJumpIndex, footnoteJumpPage, footnoteTargetVisible, footnoteJumpOk, footnoteBackHref, footnoteBackTarget, footnoteBackClicked, footnoteBackOk, sidePanelLayoutOk, sidePanelAnchorOk, fullBookSearchLayoutOk, fullSearchQuery, fullSearchRun, fullSearchActivated, fullSearchLayoutBefore, fullSearchLayoutOpen, fullSearchLayoutClosed, layoutBeforeSearch, layoutWithSearch, layoutAfterSearch, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, annotationSaved, annotationTarget, annotationJumpOk, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
+    return JSON.stringify({ status, contentLen, paginatorVerticalMarginInward, verticalMarginBefore, verticalMarginAfter, verticalLayoutBefore, verticalLayoutAfter, initialAiContentLen, initialAiChapterTitle, aiContentLen, aiChapterTitle, aiContentLenAfterPaging, aiChapterTitleAfterPaging, chapters, tocCount, footnoteHref, footnoteTarget, footnoteClicked, footnoteJumpIndex, footnoteJumpPage, footnoteTargetVisible, footnoteJumpOk, footnoteBackHref, footnoteBackTarget, footnoteBackClicked, footnoteBackOk, sidePanelLayoutOk, sidePanelAnchorOk, fullBookSearchLayoutOk, fullSearchQuery, fullSearchRun, fullSearchActivated, fullSearchLayoutBefore, fullSearchLayoutOpen, fullSearchLayoutClosed, layoutBeforeSearch, layoutWithSearch, layoutAfterSearch, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, annotationSaved, annotationTarget, annotationJumpOk, longIdx, longScrolls, longChapterIndexes, longChapterStayedForEightTurns, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
   } catch (e) {
     console.error('MOBI_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';
