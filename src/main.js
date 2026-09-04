@@ -585,6 +585,7 @@ function createWindow() {
               __gaiaDebug.setMode('single');
               await new Promise((r) => setTimeout(r, 400));
               await GaiaPet.whenReady();
+              GaiaPet.setWindowFocusedForTest(true);
               const readingCareBefore = GaiaPet.getReadingCareState();
               GaiaPet.openConsole();
               const petHitbox = document.querySelector('.gaia-pet-hitbox');
@@ -786,6 +787,21 @@ function createWindow() {
               __gaiaDebug.leaveTocHover();
               await new Promise((r) => setTimeout(r, 300));
               const tocHoverClosed = __gaiaDebug.getPanels().tocMode === 'closed' && __gaiaDebug.getPanels().tocHidden;
+              __gaiaDebug.openSettings('reading');
+              const edgeTocButton = document.getElementById('btn-edge-toc');
+              const edgeTocValue = document.getElementById('edge-toc-value');
+              edgeTocButton.click();
+              const edgeTocDisabledSetting = edgeTocValue.textContent === '关闭' && edgeTocButton.getAttribute('aria-pressed') === 'false';
+              __gaiaDebug.closeSettings();
+              __gaiaDebug.openTocFromEdge();
+              const edgeTocDisabledBlocksHover = __gaiaDebug.getPanels().tocMode === 'closed' && __gaiaDebug.getPanels().tocHidden;
+              __gaiaDebug.togglePanel('toc');
+              const edgeTocDisabledKeepsManual = __gaiaDebug.getPanels().tocMode === 'manual' && !__gaiaDebug.getPanels().tocHidden;
+              __gaiaDebug.togglePanel('toc');
+              __gaiaDebug.openSettings('reading');
+              edgeTocButton.click();
+              const edgeTocReenabled = edgeTocValue.textContent === '开启' && edgeTocButton.getAttribute('aria-pressed') === 'true';
+              __gaiaDebug.closeSettings();
               __gaiaDebug.togglePanel('toc');
               await __gaiaDebug.nextPage();
               await new Promise((r) => setTimeout(r, 600));
@@ -893,7 +909,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, settingsOpenBeforeBookmark, bookmarkActionClosedImmediately, bookmarkActionOpenedImmediately, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, settingsOpenBeforeBookmark, bookmarkActionClosedImmediately, bookmarkActionOpenedImmediately, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, edgeTocDisabledSetting, edgeTocDisabledBlocksHover, edgeTocDisabledKeepsManual, edgeTocReenabled, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -984,6 +1000,10 @@ function createWindow() {
               parsed.tocHoverOpened === true &&
               parsed.tocHoverStayed === true &&
               parsed.tocHoverClosed === true &&
+              parsed.edgeTocDisabledSetting === true &&
+              parsed.edgeTocDisabledBlocksHover === true &&
+              parsed.edgeTocDisabledKeepsManual === true &&
+              parsed.edgeTocReenabled === true &&
               parsed.epubTocJumpWorked === true &&
               parsed.libAfterAdd === 1 &&
               parsed.libAfterRemove === 0 &&

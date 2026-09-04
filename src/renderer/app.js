@@ -40,6 +40,7 @@ const {
   toggleManual: toggleTocManualMode,
   enterEdge: enterTocEdgeMode,
   leaveHover: leaveTocHoverMode,
+  disableEdge: disableTocEdgeMode,
   activateItem: activateTocItemMode,
   dismissManual: dismissTocManualMode,
 } = window.GaiaTocPanel;
@@ -156,6 +157,8 @@ const els = {
   spreadValue: $('spread-value'),
   spreadGapRow: $('drawer-spread-gap'),
   spreadGapValue: $('spread-gap-value'),
+  edgeTocButton: $('btn-edge-toc'),
+  edgeTocValue: $('edge-toc-value'),
   themeValue: $('theme-value'),
   progressFill: $('progress-fill'),
   fontSelect: $('font-select'),
@@ -217,7 +220,7 @@ const state = {
   lineHeight: 1.8,
   txtFont: 16,
   readMode: 'single',
-  prefs: { theme: 'light', readerTextContrast: 'standard', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null },
+  prefs: { theme: 'light', readerTextContrast: 'standard', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, edgeTocEnabled: true, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null },
   homeReady: null,
   resolveHome: null,
   statsReturnView: 'library',
@@ -351,9 +354,10 @@ async function init() {
   state.aiProfiles = aiProfiles && Array.isArray(aiProfiles.items) ? aiProfiles : { activeId: '', items: [] };
   state.aiConfig = state.aiProfiles.items.find((item) => item.id === state.aiProfiles.activeId) || state.aiProfiles.items[0] || null;
   state.aiEditingProfileId = state.aiConfig && state.aiConfig.id;
-  state.prefs = Object.assign({ theme: 'light', readerTextContrast: 'standard', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
+  state.prefs = Object.assign({ theme: 'light', readerTextContrast: 'standard', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, edgeTocEnabled: true, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
   state.prefs.readerTextContrast = window.GaiaReaderContrast.normalizeReaderTextContrast(state.prefs.readerTextContrast);
   state.prefs.spreadGap = normalizeSpreadGap(state.prefs.spreadGap);
+  state.prefs.edgeTocEnabled = state.prefs.edgeTocEnabled !== false;
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
   migrateHabitsFromLastBook();
   state.fontSize = state.prefs.fontSize != null ? state.prefs.fontSize : 100;
@@ -742,6 +746,9 @@ function updateSettingsValues() {
   els.textContrastValue.textContent = window.GaiaReaderContrast.readerTextContrastLabel(state.prefs.readerTextContrast);
   els.spreadValue.textContent = state.readMode === 'spread' ? '双页' : '单页';
   els.spreadGapValue.textContent = spreadGapLabel(currentSpreadGap());
+  const edgeEnabled = edgeTocEnabled();
+  els.edgeTocValue.textContent = edgeEnabled ? '开启' : '关闭';
+  els.edgeTocButton.setAttribute('aria-pressed', String(edgeEnabled));
   els.spreadGapRow.hidden = false;
   els.textContrastRow.hidden = !!c && c.format === 'pdf';
   $('btn-spread-gap').disabled = state.readMode !== 'spread';
@@ -1414,9 +1421,13 @@ function readerInteractionBlocksEdgeToc() {
     (els.noteEditorOverlay && !els.noteEditorOverlay.hidden);
 }
 
+function edgeTocEnabled() {
+  return state.prefs.edgeTocEnabled !== false;
+}
+
 function updateTocEdgeAvailability() {
   if (!els.tocEdgeTrigger) return;
-  els.tocEdgeTrigger.classList.toggle('disabled', readerInteractionBlocksEdgeToc());
+  els.tocEdgeTrigger.classList.toggle('disabled', !edgeTocEnabled() || readerInteractionBlocksEdgeToc());
 }
 
 async function openMobi(book) {
@@ -1855,10 +1866,19 @@ function toggleReaderToc() {
 }
 
 function openTocFromEdge() {
+  if (!edgeTocEnabled()) return;
   if (!state.current || !views.reader || views.reader.hidden) return;
   const nextMode = enterTocEdgeMode(tocMode, readerInteractionBlocksEdgeToc());
   if (nextMode === tocMode) return;
   setTocMode(nextMode);
+}
+
+function toggleEdgeToc() {
+  state.prefs.edgeTocEnabled = !edgeTocEnabled();
+  if (!state.prefs.edgeTocEnabled) setTocMode(disableTocEdgeMode(tocMode));
+  updateSettingsValues();
+  updateTocEdgeAvailability();
+  window.api.stateSet('prefs', state.prefs);
 }
 
 function scheduleTocHoverClose() {
@@ -4819,6 +4839,7 @@ function bindEvents() {
   $('btn-text-contrast').addEventListener('click', cycleReaderTextContrast);
   $('btn-spread').addEventListener('click', toggleSpread);
   $('btn-spread-gap').addEventListener('click', cycleSpreadGap);
+  els.edgeTocButton.addEventListener('click', toggleEdgeToc);
   $('btn-theme').addEventListener('click', cycleTheme);
   $('btn-pet-toggle').addEventListener('click', togglePet);
   $('btn-pet-console').addEventListener('click', openPetConsole);

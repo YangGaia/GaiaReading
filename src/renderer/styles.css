@@ -368,7 +368,7 @@ body.dark {
 .drawer-title { font-size: 16px; font-weight: 700; }
 #settings-drawer h3 { font-size: 12px; color: var(--text-soft); margin: 18px 0 8px; letter-spacing: 1px; }
 .drawer-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-#font-value, #line-height-value, #spread-value, #spread-gap-value, #text-contrast-value, #night-value { min-width: 44px; font-size: 13px; color: var(--text-soft); text-align: center; }
+#font-value, #line-height-value, #spread-value, #spread-gap-value, #text-contrast-value, #edge-toc-value, #night-value { min-width: 44px; font-size: 13px; color: var(--text-soft); text-align: center; }
 #text-contrast-value { min-width: 78px; }
 #spread-gap-value { min-width: 74px; }
 #drawer-spread-gap[hidden] { display: none; }

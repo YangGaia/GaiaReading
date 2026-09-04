@@ -34,6 +34,10 @@
     return normalize(mode) === MODES.HOVER ? MODES.CLOSED : normalize(mode);
   }
 
+  function disableEdge(mode) {
+    return leaveHover(mode);
+  }
+
   function activateItem(mode) {
     return normalize(mode) === MODES.MANUAL ? MODES.CLOSED : normalize(mode);
   }
@@ -42,5 +46,5 @@
     return normalize(mode) === MODES.MANUAL ? MODES.CLOSED : normalize(mode);
   }
 
-  return { MODES, normalize, toggleManual, enterEdge, leaveHover, activateItem, dismissManual };
+  return { MODES, normalize, toggleManual, enterEdge, leaveHover, disableEdge, activateItem, dismissManual };
 });

@@ -24,6 +24,7 @@ test('项目关键文件齐全', () => {
   assert.ok(main.includes("const addBookmarkButton = document.getElementById('btn-add-bookmark')") && main.includes('parsed.bookmarkActionOpenedImmediately === true'), 'EPUB 烟雾测试应验证点击添加书签后立即打开侧栏');
   assert.ok(main.includes("await __gaiaDebug.runBookSearch('测试内容')"), 'EPUB 烟雾测试应执行真实全文搜索');
   assert.ok(main.includes('parsed.bookSearchRuntimeReady === true'), 'EPUB 烟雾测试应验证搜索跳转与正文高亮');
+  assert.ok(main.includes('parsed.edgeTocDisabledBlocksHover === true') && main.includes('parsed.edgeTocDisabledKeepsManual === true'), 'EPUB 烟雾测试应验证左缘开关不影响手动目录');
   assert.ok(main.includes('parsed.singleFits === true') && main.includes('parsed.pairingWorks === true') && main.includes('parsed.zoomModesWork === true'), 'PDF 烟雾测试应验证整页适配、双页配对和缩放模式');
   assert.ok(main.includes("__gaiaDebug.setMode('spread')") && main.includes('epubSearchSpreadAligned'), 'EPUB 搜索烟雾测试必须在双页模式验证整页对齐');
   assert.ok(main.includes('window.resizeTo(smokeWindowWidth + 220') && main.includes('epubSearchWindowResizeReady'), 'EPUB 搜索烟雾测试必须覆盖搜索框开启时的窗口放大重排');
@@ -83,16 +84,20 @@ test('桌宠素材与映射表完整', () => {
   assert.ok(fs.statSync(yawnFace).size > 10000, '打哈欠专用表情贴片异常');
 });
 
-test('阅读目录支持左下角按钮与左缘悬停两种展开方式', () => {
+test('阅读目录支持左下角按钮与可关闭的左缘悬停展开', () => {
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
-  for (const id of ['btn-reader-toc', 'toc-panel', 'toc-backdrop', 'toc-edge-trigger']) {
+  for (const id of ['btn-reader-toc', 'toc-panel', 'toc-backdrop', 'toc-edge-trigger', 'btn-edge-toc', 'edge-toc-value']) {
     assert.ok(html.includes(`id="${id}"`), `阅读目录缺少 ${id}`);
   }
   assert.ok(html.includes('../shared/toc-panel.js'), '渲染层未加载目录状态机');
   assert.ok(app.includes('toggleTocManualMode(tocMode)'), '目录按钮必须进入手动模式');
   assert.ok(app.includes('enterTocEdgeMode(tocMode, readerInteractionBlocksEdgeToc())'), '阅读区左缘必须在空闲时进入悬停模式');
+  assert.ok(app.includes('edgeTocEnabled: true') && app.includes('state.prefs.edgeTocEnabled !== false'), '左缘悬停目录必须默认开启并兼容旧偏好');
+  assert.ok(app.includes("if (!edgeTocEnabled()) return") && app.includes("window.api.stateSet('prefs', state.prefs)"), '关闭后必须阻止左缘展开并持久化');
+  assert.ok(app.includes('setTocMode(disableTocEdgeMode(tocMode))'), '关闭左缘功能时必须收回悬停目录');
+  assert.ok(app.includes("els.edgeTocButton.addEventListener('click', toggleEdgeToc)"), '左缘目录开关未绑定');
   assert.ok(css.includes('.toc-edge-trigger.disabled'), '其他阅读工具开启时必须禁用左缘感应区');
   assert.ok(app.includes('activateTocItemMode(tocMode)'), '目录跳转后应根据打开来源决定是否关闭');
   assert.ok(app.includes("els.tocEdgeTrigger.addEventListener('pointerenter'"), '左缘缺少鼠标进入监听');

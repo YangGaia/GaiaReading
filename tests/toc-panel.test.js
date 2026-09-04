@@ -8,6 +8,7 @@ const {
   toggleManual,
   enterEdge,
   leaveHover,
+  disableEdge,
   activateItem,
   dismissManual,
 } = require('../src/shared/toc-panel');
@@ -28,6 +29,12 @@ test('阅读区左缘只在关闭状态开启悬停模式', () => {
 test('鼠标离开只关闭触边展开的目录', () => {
   assert.strictEqual(leaveHover(MODES.HOVER), MODES.CLOSED);
   assert.strictEqual(leaveHover(MODES.MANUAL), MODES.MANUAL);
+});
+
+test('关闭左缘功能只收回触边目录，不影响手动目录', () => {
+  assert.strictEqual(disableEdge(MODES.HOVER), MODES.CLOSED);
+  assert.strictEqual(disableEdge(MODES.MANUAL), MODES.MANUAL);
+  assert.strictEqual(disableEdge(MODES.CLOSED), MODES.CLOSED);
 });
 
 test('点击章节只关闭按钮打开的目录', () => {
