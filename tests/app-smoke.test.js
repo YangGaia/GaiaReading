@@ -202,6 +202,8 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   const readerHeaderStart = html.indexOf('<header class="topbar reader-topbar">');
   const readerHeader = html.slice(readerHeaderStart, html.indexOf('</header>', readerHeaderStart));
   assert.ok(readerHeader.indexOf('id="btn-ai-reader"') < readerHeader.indexOf('id="btn-book-search"'), '阅读顶栏中 AI 对话按钮应位于全文搜索按钮左侧');
+  assert.ok(readerHeader.includes('title="全文搜索当前书籍（Ctrl+F）"') && readerHeader.includes('>⌕ 全文搜索</button>'), '书内检索按钮必须明确标为全文搜索');
+  assert.ok(html.includes('data-selection-action="search" title="使用 Google 搜索">搜索</button>'), '互联网搜索按钮应保持原有名称与功能');
   const aiPanelStart = html.indexOf('id="ai-summary-panel"');
   const aiPanel = html.slice(aiPanelStart, html.indexOf('</aside>', aiPanelStart));
   assert.ok(readerHeader.includes('data-ai-alice="summary"') && readerHeader.includes('data-ai-alice="comment"'), '有珠总结与吐槽应位于阅读顶栏');
