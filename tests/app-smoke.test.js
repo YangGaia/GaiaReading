@@ -29,7 +29,6 @@ test('项目关键文件齐全', () => {
   assert.ok(main.includes("__gaiaDebug.setMode('spread')") && main.includes('epubSearchSpreadAligned'), 'EPUB 搜索烟雾测试必须在双页模式验证整页对齐');
   assert.ok(main.includes('window.resizeTo(smokeWindowWidth + 220') && main.includes('epubSearchWindowResizeReady'), 'EPUB 搜索烟雾测试必须覆盖搜索框开启时的窗口放大重排');
   assert.ok(main.includes('parsed.sidePanelLayoutOk === true') && main.includes('parsed.sidePanelAnchorOk === true') && main.includes('parsed.fullBookSearchLayoutOk === true'), 'MOBI/AZW3 烟雾测试应验证侧栏重排、搜索跳转与阅读锚点');
-  assert.ok(main.includes('parsed.longChapterStayedForEightTurns === true'), 'MOBI/AZW3 烟雾测试应阻止长章节在两个双页后提前跨章');
   assert.ok(main.includes('parsed.aiUiReady === true'), 'EPUB 烟雾测试应验证 AI 界面与章节提取');
   for (const frame of ['pet_tilt_early.png', 'pet_tilt_peak.png', 'pet_tilt_return.png']) {
     assert.ok(main.includes(`capture('${frame}')`), `截图验收缺少歪头动作帧 ${frame}`);
@@ -49,7 +48,7 @@ test('项目关键文件齐全', () => {
     'src/shared/pet.js',
     'src/shared/pdf-layout.js',
     'src/shared/toc-panel.js',
-    'src/shared/reader-margins.js',
+    'src/shared/spread-gap.js',
     'src/renderer/index.html',
     'src/renderer/app.js',
     'src/renderer/pet.js',
@@ -310,7 +309,7 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
     assert.ok(html.includes(`id="${id}"`), `PDF 阅读器缺少手动缩放控件 ${id}`);
   }
   assert.ok(app.includes("c.format === 'pdf' && (ev.ctrlKey || ev.metaKey)") && app.includes('queuePdfWheelZoom(d, ev)'), 'PDF 应支持 Ctrl+滚轮缩放');
-  assert.ok(app.includes('shouldScrollPdfPage(pdfScrollViewport(), d)'), 'PDF 普通滚轮应优先滚动内缩后的当前页视口');
+  assert.ok(app.includes('shouldScrollPdfPage(els.readerContent, d)'), 'PDF 普通滚轮应优先滚动当前页');
   assert.ok(app.includes('restorePdfZoomAnchor(stage, renderOptions.anchor)'), 'PDF 缩放后应保持鼠标所指阅读位置');
   assert.ok(html.includes('../shared/pdf-layout.js') && app.includes('pdfLayoutForPage(c.page, c.pages, spread, c.pdfPairing)'), 'PDF 阅读器应接入单页/双页布局模块');
   assert.ok(app.includes('PDF_ZOOM_MODES.FIT_PAGE') && app.includes('PDF_ZOOM_MODES.FIT_WIDTH') && app.includes('PDF_ZOOM_MODES.MANUAL'), 'PDF 应支持适合页面、适合宽度和手动缩放');
@@ -396,17 +395,15 @@ test('MOBI/AZW3 书内脚注链接由阅读器解析并跳转', () => {
   const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
   assert.ok(app.includes('bindMobiDocumentLinks(c.paginator.doc)'), '加载章节后必须绑定书内链接');
   assert.ok(app.includes('event.preventDefault()') && app.includes('jumpToMobiDocumentHref(href)'), '点击脚注必须阻止浏览器默认跳转并交给阅读器');
-  assert.ok(app.includes('c.paginator.locateNode(targetNode)') && app.includes('c.paginator.nodeInView(node)'), '空尾注锚点必须按 DOM 位置定位，不能退回前一段文字');
   assert.ok(preload.includes("ipcRenderer.invoke('mobi:resolve-href'"), '预加载层必须暴露书内链接解析接口');
   assert.ok(main.includes("ipcMain.handle('mobi:resolve-href'"), '主进程必须按当前 MOBI 会话解析链接');
 });
 
-test('分页器保留左右页边距并从上下同时压缩版心', () => {
+test('分页器保留左右页边距（版心）', () => {
   const p = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   assert.ok(p.includes("'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; max-width: '"), '页面应注入左右页边距并限制一级内容宽度');
   assert.ok(p.includes('this.verticalPadding = 28;'), '分页正文应保留舒适的上下留白');
-  assert.ok(p.includes("this.frame.style.height = hostH + 'px'") && p.includes("'height: ' + hostH + 'px; '"), '分页外框和正文高度应跟随阅读区高度');
-  assert.ok(p.includes("padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box"), '固定外框应通过 border-box 从上下同时扣除内容高度');
+  assert.ok(p.includes("padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box"), '上下留白应计入分页高度，不能挤出可视区域');
   assert.ok(!p.includes("'p { text-indent: 2em !important; margin: 0 0 0.8em !important;"), '段落排版不应再重置左右边距');
   assert.ok(p.includes("margin-top: 0 !important; margin-bottom: 0.8em !important"), '段落应只设上下边距，保留版心左右留白');
 });
@@ -434,34 +431,19 @@ test('全主题高对比文字即时应用于所有可重排格式并保持 PDF 
   assert.ok(pag.includes('opacity: 1 !important'), '高对比模式应清除正文元素异常透明度');
 });
 
-test('左右与上下边距统一接入并保持版心约束', () => {
+test('可调节页边距功能接入', () => {
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
-  const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
   const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.ok(html.includes('btn-horizontal-margin') && html.includes('horizontal-margin-value'), '缺少左右边距控制');
-  assert.ok(html.includes('btn-vertical-margin') && html.includes('vertical-margin-value'), '缺少上下边距控制');
-  assert.ok(html.includes('../shared/reader-margins.js'), '页面应加载统一边距档位模块');
-  assert.ok(app.includes('function cycleHorizontalMargin()'), '缺少左右边距循环函数');
-  assert.ok(app.includes('function cycleVerticalMargin()'), '缺少上下边距循环函数');
+  assert.ok(html.includes('btn-margin'), '缺少页边距按钮');
+  assert.ok(html.includes('margin-value'), '缺少页边距数值显示');
+  assert.ok(app.includes('const MARGIN_OPTIONS = [4, 8, 12, 16];'), '应提供边距档位');
+  assert.ok(app.includes('function cycleMargin()'), '缺少边距循环函数');
   assert.ok(app.includes('paginator.setMargin('), '应调用分页器边距');
-  assert.ok(app.includes('paginator.setVerticalMargin('), '应调用分页器上下边距');
   assert.ok(app.includes("'body > * { margin-left: ' + marginPct + '% !important;"), 'EPUB 应注入可调边距');
-  assert.ok(app.includes("padding-top: ' + verticalMargin + 'px !important; padding-bottom: ' + verticalMargin + 'px !important;"), 'EPUB 应注入可调上下留白');
-  assert.ok(app.includes("const epubContentHeight = 'calc(100vh - ' + (verticalMargin * 2) + 'px)'"), 'EPUB 内容高度应同时扣除上下边距');
-  assert.ok(app.includes("box-sizing: content-box !important; padding-top: ' + verticalMargin"), 'EPUB 上下边距应包围压缩后的固定内容区');
-  assert.ok(!app.includes("max-height: 100vh !important; overflow: hidden !important; }'"), 'EPUB 不得裁掉承载后续页面的横向分栏');
-  assert.ok(app.includes('hasVisibleEpubText: () =>') && main.includes('parsed.epubNextPageHasVisibleText === true'), '烟雾测试必须验证 EPUB 翻页后存在可见正文');
-  assert.ok(!pag.includes("'html { height: ' + hostH + 'px; overflow: hidden; }'"), 'TXT/MOBI/AZW3 不得在分页根元素裁掉后续横向分栏');
-  assert.ok(!pag.includes("min-height: ' + hostH + 'px; max-height: ' + hostH + 'px"), '分页正文不得用固定最大高度截断多栏布局');
-  assert.ok(app.includes('testLongPaginatorContinuity: async () =>') && main.includes('longPaginatorContinuity.total > 4'), '烟雾测试必须验证长章节可连续翻过两个双页');
-  assert.ok(app.includes("scrollViewport.className = 'pdf-viewport'") && app.includes("scrollViewport.style.inset = verticalPadding + 'px ' + horizontalPadding + 'px'"), 'PDF 应使用四边同时内缩的独立滚动视口');
-  assert.ok(app.includes('const viewportHeight = Math.max(1, scrollViewport.clientHeight);'), 'PDF 缩放应使用上下内缩后的实际视口高度');
+  assert.ok(app.includes('padding-top: 28px !important; padding-bottom: 28px !important;'), 'EPUB 正文应保留上下留白');
   assert.ok(pag.includes('setMargin(pct)'), '分页器应支持 setMargin');
-  assert.ok(pag.includes('setVerticalMargin(px)'), '分页器应支持 setVerticalMargin');
   assert.ok(pag.includes('this.marginPct'), '分页器应保存边距档位');
-  assert.ok(pag.includes('this.verticalPadding'), '分页器应保存上下边距档位');
-  assert.ok(app.includes('await refreshReaderLayout(anchor, { force: true })'), '边距重排后应恢复原阅读锚点');
 });
 
 test('分页图片总宽度不会越过右侧列边界', () => {
@@ -477,17 +459,16 @@ test('分页图片总宽度不会越过右侧列边界', () => {
   assert.ok(!pag.slice(typographyStart, themeStart).includes('img { max-width: 100% !important'), '排版样式不能再次覆盖分页器计算出的图片宽度');
 });
 
-test('左右边距同时控制 EPUB、PDF、TXT、MOBI 与 AZW3 的双页中缝', () => {
+test('EPUB、PDF、TXT、MOBI 与 AZW3 共用可调双页间隙', () => {
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.ok(!html.includes('id="btn-spread-gap"') && !html.includes('id="spread-gap-value"'), '不应保留独立双页间隙控件');
-  assert.ok(app.includes('return horizontalProfile(state.prefs.marginPct).gap'), '双页中缝应由左右边距档位派生');
+  assert.ok(html.includes('id="btn-spread-gap"') && html.includes('id="spread-gap-value"'), '设置页缺少双页间隙控件');
+  assert.ok(html.includes('../shared/spread-gap.js'), '渲染层未加载双页间隙档位模块');
   assert.ok(app.includes("gap: currentSpreadGap()"), 'EPUB 初始化时应使用用户设置的间隙');
   assert.strictEqual((app.match(/new window\.GaiaPaginator\(els\.readerContent, \{ pageWidth: 640, gap: currentSpreadGap\(\) \}\)/g) || []).length, 2, 'TXT 与 MOBI/AZW3 应使用同一间隙');
-  assert.ok(app.includes('const gap = spread ? currentSpreadGap() : 0'), 'PDF 应仅在双页模式应用派生中缝');
-  assert.ok(app.includes('c.paginator.setGap(currentSpreadGap())'), '分页器左右边距变化时应同步派生中缝');
-  assert.ok(app.includes('spreadGap: currentSpreadGap()'), '应保留派生中缝兼容字段用于旧设置迁移');
+  assert.ok(app.includes("if (!c || state.readMode !== 'spread') return") && app.includes('const gap = spread ? currentSpreadGap() : 0'), 'PDF 应仅在双页模式应用共用页面间隙');
+  assert.ok(app.includes('spreadGap: currentSpreadGap()'), '双页间隙应写入全局阅读习惯');
   assert.ok(pag.includes('setGap(px)') && pag.includes('initialGap') && pag.includes('initialGap : 0'), '分页器应支持0px间隙和实时更新');
   assert.ok(app.includes("column-rule: 1px solid rgba(127,127,127,.28)"), '无额外间隙时仍应显示细书脊线区分左右页');
 });

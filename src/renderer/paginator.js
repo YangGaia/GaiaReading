@@ -136,13 +136,6 @@ class Paginator {
     if (this.doc) this.applyLayout();
   }
 
-  /** 设置页面上下边距（px），立即重新排版。 */
-  setVerticalMargin(px) {
-    const padding = Number(px);
-    this.verticalPadding = Number.isFinite(padding) && padding >= 0 ? padding : 28;
-    if (this.doc) this.applyLayout();
-  }
-
   /** 设置双页之间的列间距，并保持当前页索引。 */
   setGap(px) {
     const gap = Number(px);
@@ -228,8 +221,7 @@ class Paginator {
     base.textContent =
       'html, body { margin: 0; padding: 0; }' +
       'body { column-width: ' + this.pageWidth + 'px; column-gap: ' + gap + 'px; ' +
-      'height: ' + hostH + 'px; ' +
-      'padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box; overflow: hidden; }';
+      'height: ' + hostH + 'px; padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box; overflow: hidden; }';
     // 页面内容左右内边距（列内容不贴边，像真实书籍版心）
     base.textContent +=
       'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; max-width: ' + (this.pageWidth - pagePad * 2) + 'px !important; box-sizing: border-box !important; }' +
@@ -379,42 +371,6 @@ class Paginator {
     if (!rect) return -1;
     const page = Math.floor(rect.left / this.colStep);
     return Math.max(0, Math.min(this.totalPages - 1, page));
-  }
-
-  /** DOM 锚点 → 所在页；空锚点会使用其后的首个文字位置。 */
-  locateNode(node) {
-    if (!this.doc || !node || !this.doc.body.contains(node)) return -1;
-    const savedPage = this.currentPage;
-    this._scrollTo(0);
-    let rect = null;
-    try {
-      const ownRects = node.getClientRects();
-      if (ownRects && ownRects.length && (ownRects[0].width || ownRects[0].height)) rect = ownRects[0];
-    } catch (error) {}
-    if (!rect) {
-      try {
-        const following = this.doc.defaultView.Node.DOCUMENT_POSITION_FOLLOWING;
-        const walker = this.doc.createTreeWalker(this.doc.body, NodeFilter.SHOW_TEXT);
-        let textNode = null;
-        while ((textNode = walker.nextNode())) {
-          if (!textNode.textContent || !textNode.textContent.length) continue;
-          if (!node.contains(textNode) && !(node.compareDocumentPosition(textNode) & following)) continue;
-          const range = this.doc.createRange();
-          range.setStart(textNode, 0);
-          range.setEnd(textNode, Math.min(1, textNode.textContent.length));
-          const rects = range.getClientRects();
-          if (rects && rects.length) rect = rects[0];
-          if (rect) break;
-        }
-      } catch (error) {}
-    }
-    const page = rect ? Math.max(0, Math.min(this.totalPages - 1, Math.floor(rect.left / this.colStep))) : -1;
-    this._scrollTo(savedPage * this.colStep);
-    return page;
-  }
-
-  nodeInView(node) {
-    return this.locateNode(node) === this.currentPage;
   }
 
   /** 校验全局偏移处文字是否落在当前可视页内。 */

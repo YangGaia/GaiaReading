@@ -21,17 +21,11 @@ const {
   shouldScrollPdfPage,
 } = window.GaiaReaderInput;
 const {
-  DEFAULT_HORIZONTAL_MARGIN,
-  DEFAULT_VERTICAL_MARGIN,
-  horizontalProfile,
-  normalizeHorizontalMargin,
-  nextHorizontalMargin,
-  horizontalMarginLabel,
-  normalizeVerticalMargin,
-  nextVerticalMargin,
-  verticalMarginLabel,
-  horizontalMarginFromLegacyGap,
-} = window.GaiaReaderMargins;
+  DEFAULT_GAP: DEFAULT_SPREAD_GAP,
+  normalizeGap: normalizeSpreadGap,
+  nextGap: nextSpreadGap,
+  gapLabel: spreadGapLabel,
+} = window.GaiaSpreadGap;
 const {
   PAIRINGS: PDF_PAIRINGS,
   ZOOM_MODES: PDF_ZOOM_MODES,
@@ -156,12 +150,13 @@ const els = {
   drawerFuncs: $('drawer-funcs'),
   fontValue: $('font-value'),
   lineHeightValue: $('line-height-value'),
-  horizontalMarginValue: $('horizontal-margin-value'),
-  verticalMarginValue: $('vertical-margin-value'),
+  marginValue: $('margin-value'),
   textContrastRow: $('drawer-text-contrast'),
   textContrastValue: $('text-contrast-value'),
   drawerSpread: $('drawer-spread'),
   spreadValue: $('spread-value'),
+  spreadGapRow: $('drawer-spread-gap'),
+  spreadGapValue: $('spread-gap-value'),
   edgeTocButton: $('btn-edge-toc'),
   edgeTocValue: $('edge-toc-value'),
   themeValue: $('theme-value'),
@@ -225,7 +220,7 @@ const state = {
   lineHeight: 1.8,
   txtFont: 16,
   readMode: 'single',
-  prefs: { theme: 'light', readerTextContrast: 'standard', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: DEFAULT_HORIZONTAL_MARGIN, verticalMargin: DEFAULT_VERTICAL_MARGIN, readMode: 'single', edgeTocEnabled: true, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null },
+  prefs: { theme: 'light', readerTextContrast: 'standard', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, edgeTocEnabled: true, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null },
   homeReady: null,
   resolveHome: null,
   statsReturnView: 'library',
@@ -335,7 +330,7 @@ function migrateHabitsFromLastBook() {
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const last = entries[0] && entries[0].settings;
   if (!last) return;
-  for (const k of ['theme', 'readerTextContrast', 'fontName', 'fontSize', 'txtFont', 'lineHeight', 'marginPct', 'verticalMargin', 'readMode', 'spreadGap']) {
+  for (const k of ['theme', 'readerTextContrast', 'fontName', 'fontSize', 'txtFont', 'lineHeight', 'marginPct', 'readMode', 'spreadGap']) {
     if (state.prefs[k] == null && last[k] != null) state.prefs[k] = last[k];
   }
 }
@@ -359,14 +354,9 @@ async function init() {
   state.aiProfiles = aiProfiles && Array.isArray(aiProfiles.items) ? aiProfiles : { activeId: '', items: [] };
   state.aiConfig = state.aiProfiles.items.find((item) => item.id === state.aiProfiles.activeId) || state.aiProfiles.items[0] || null;
   state.aiEditingProfileId = state.aiConfig && state.aiConfig.id;
-  state.prefs = Object.assign({ theme: 'light', readerTextContrast: 'standard', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: DEFAULT_HORIZONTAL_MARGIN, verticalMargin: DEFAULT_VERTICAL_MARGIN, readMode: 'single', edgeTocEnabled: true, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
+  state.prefs = Object.assign({ theme: 'light', readerTextContrast: 'standard', fontName: 'default', fontSize: 100, txtFont: 16, lineHeight: 1.8, marginPct: 8, readMode: 'single', spreadGap: DEFAULT_SPREAD_GAP, edgeTocEnabled: true, searchEngine: 'google', customSearchTemplate: '', aiTypography: { fontName: 'default', fontSize: 15, lineHeight: 1.7 }, aiWindow: null }, prefs || {});
   state.prefs.readerTextContrast = window.GaiaReaderContrast.normalizeReaderTextContrast(state.prefs.readerTextContrast);
-  const savedHorizontalMargin = prefs && prefs.marginPct != null
-    ? prefs.marginPct
-    : (prefs && prefs.spreadGap != null ? horizontalMarginFromLegacyGap(prefs.spreadGap) : DEFAULT_HORIZONTAL_MARGIN);
-  state.prefs.marginPct = normalizeHorizontalMargin(savedHorizontalMargin);
-  state.prefs.verticalMargin = normalizeVerticalMargin(state.prefs.verticalMargin);
-  state.prefs.spreadGap = horizontalProfile(state.prefs.marginPct).gap;
+  state.prefs.spreadGap = normalizeSpreadGap(state.prefs.spreadGap);
   state.prefs.edgeTocEnabled = state.prefs.edgeTocEnabled !== false;
   if (prefs && prefs.dark === true && !state.prefs.theme) state.prefs.theme = 'dark';
   migrateHabitsFromLastBook();
@@ -752,14 +742,16 @@ function updateSettingsValues() {
   const c = state.current;
   els.fontValue.textContent = c && c.format === 'pdf' ? pdfZoomLabel(c) : (c && c.paginator ? state.fontSize + '%' : state.fontSize + '%');
   els.lineHeightValue.textContent = state.lineHeight.toFixed(1);
-  els.horizontalMarginValue.textContent = horizontalMarginLabel(state.prefs.marginPct);
-  els.verticalMarginValue.textContent = verticalMarginLabel(state.prefs.verticalMargin);
+  els.marginValue.textContent = (state.prefs.marginPct != null ? state.prefs.marginPct : 8) + '%';
   els.textContrastValue.textContent = window.GaiaReaderContrast.readerTextContrastLabel(state.prefs.readerTextContrast);
   els.spreadValue.textContent = state.readMode === 'spread' ? '双页' : '单页';
+  els.spreadGapValue.textContent = spreadGapLabel(currentSpreadGap());
   const edgeEnabled = edgeTocEnabled();
   els.edgeTocValue.textContent = edgeEnabled ? '开启' : '关闭';
   els.edgeTocButton.setAttribute('aria-pressed', String(edgeEnabled));
+  els.spreadGapRow.hidden = false;
   els.textContrastRow.hidden = !!c && c.format === 'pdf';
+  $('btn-spread-gap').disabled = state.readMode !== 'spread';
 }
 
 function closeReaderContent() {
@@ -1023,14 +1015,38 @@ async function openPdf(book) {
 }
 
 function currentSpreadGap() {
-  return horizontalProfile(state.prefs.marginPct).gap;
+  return normalizeSpreadGap(state.prefs.spreadGap);
 }
 
-function applyEpubMargins(c) {
+async function applyEpubSpreadGap(c, gap) {
   if (!c || c.format !== 'epub' || !c.rendition || !c.rendition.manager) return;
-  c.rendition.manager.settings.gap = currentSpreadGap();
+  let cfi = null;
+  try {
+    const location = c.rendition.currentLocation();
+    cfi = location && location.start && location.start.cfi;
+  } catch (error) {}
+  c.rendition.manager.settings.gap = gap;
   if (typeof c.rendition.manager.updateLayout === 'function') c.rendition.manager.updateLayout();
-  try { c.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (error) {}
+  if (cfi) await c.rendition.display(cfi);
+}
+
+async function cycleSpreadGap() {
+  const c = state.current;
+  if (!c || state.readMode !== 'spread') return;
+  state.prefs.spreadGap = nextSpreadGap(currentSpreadGap());
+  const gap = currentSpreadGap();
+  if (c.format === 'pdf') {
+    cancelPendingPdfZoomRender();
+    await renderPdfPage();
+  } else if (c.format === 'epub') {
+    try { await applyEpubSpreadGap(c, gap); } catch (error) { console.error('EPUB_SPREAD_GAP_FAILED', error); }
+  } else if (c.paginator) {
+    c.paginator.setGap(gap);
+    updateMobiProgress(true);
+  }
+  els.readerStatus.textContent = '双页间隙 ' + gap + 'px';
+  if (isSettingsOpen()) updateSettingsValues();
+  rememberSettings();
 }
 
 function updatePdfZoomUi() {
@@ -1073,7 +1089,7 @@ function pdfZoomAnchorAt(clientX, clientY) {
   }
   if (!page) return null;
   const pageRect = page.getBoundingClientRect();
-  const readerRect = pdfScrollViewport().getBoundingClientRect();
+  const readerRect = els.readerContent.getBoundingClientRect();
   if (!pageRect.width || !pageRect.height) return null;
   const x = Math.min(1, Math.max(0, (clientX - pageRect.left) / pageRect.width));
   const y = Math.min(1, Math.max(0, (clientY - pageRect.top) / pageRect.height));
@@ -1081,25 +1097,20 @@ function pdfZoomAnchorAt(clientX, clientY) {
 }
 
 function centeredPdfZoomAnchor() {
-  const rect = pdfScrollViewport().getBoundingClientRect();
+  const rect = els.readerContent.getBoundingClientRect();
   return pdfZoomAnchorAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
-}
-
-function pdfScrollViewport() {
-  return els.readerContent.querySelector('.pdf-viewport') || els.readerContent;
 }
 
 function restorePdfZoomAnchor(stage, anchor) {
   if (!stage || !anchor) return;
   const page = stage.querySelector('.pdf-page[data-pdf-page="' + Number(anchor.page) + '"]') || stage.querySelector('.pdf-page[data-pdf-page]');
   if (!page) return;
-  const scrollViewport = pdfScrollViewport();
-  const readerRect = scrollViewport.getBoundingClientRect();
+  const readerRect = els.readerContent.getBoundingClientRect();
   const pageRect = page.getBoundingClientRect();
   const desiredX = readerRect.left + anchor.viewportX;
   const desiredY = readerRect.top + anchor.viewportY;
-  scrollViewport.scrollLeft += pageRect.left + pageRect.width * anchor.x - desiredX;
-  scrollViewport.scrollTop += pageRect.top + pageRect.height * anchor.y - desiredY;
+  els.readerContent.scrollLeft += pageRect.left + pageRect.width * anchor.x - desiredX;
+  els.readerContent.scrollTop += pageRect.top + pageRect.height * anchor.y - desiredY;
 }
 
 function cancelPendingPdfZoomRender() {
@@ -1213,22 +1224,12 @@ async function renderPdfPage(options) {
   const fallbackSize = baseSizes.values().next().value || { width: 612, height: 792 };
   const slotSizes = layout.slots.map((pageNumber) => baseSizes.get(pageNumber) || fallbackSize);
   const gap = spread ? currentSpreadGap() : 0;
-  const horizontalPadding = els.readerContent.clientWidth * normalizeHorizontalMargin(state.prefs.marginPct) / 100;
-  const verticalPadding = normalizeVerticalMargin(state.prefs.verticalMargin);
-  els.readerContent.innerHTML = '';
-  els.readerContent.classList.toggle('pdf-dark', state.prefs.theme === 'dark');
-  const scrollViewport = document.createElement('div');
-  scrollViewport.className = 'pdf-viewport';
-  scrollViewport.style.inset = verticalPadding + 'px ' + horizontalPadding + 'px';
-  scrollViewport.style.scrollbarGutter = 'stable';
-  els.readerContent.appendChild(scrollViewport);
-  const viewportWidth = Math.max(1, scrollViewport.clientWidth);
-  const viewportHeight = Math.max(1, scrollViewport.clientHeight);
   const scaleInfo = calculatePdfScale({
-    viewportWidth,
-    viewportHeight,
+    viewportWidth: els.readerContent.clientWidth,
+    viewportHeight: els.readerContent.clientHeight,
     pageSizes: slotSizes,
     gap,
+    padding: 16,
     mode: c.pdfZoomMode,
     zoom: c.zoom,
   });
@@ -1239,10 +1240,11 @@ async function renderPdfPage(options) {
   const stage = document.createElement('div');
   stage.className = 'pdf-spread' + (spread ? ' is-spread' : ' is-single');
   stage.style.gap = gap + 'px';
-  stage.style.margin = '0 auto';
   stage.style.width = Math.ceil(slotSizes.reduce((sum, size) => sum + size.width * scale, 0) + gap * Math.max(0, slotSizes.length - 1)) + 'px';
   stage.style.height = Math.ceil(Math.max(...slotSizes.map((size) => size.height * scale))) + 'px';
-  scrollViewport.appendChild(stage);
+  els.readerContent.innerHTML = '';
+  els.readerContent.classList.toggle('pdf-dark', state.prefs.theme === 'dark');
+  els.readerContent.appendChild(stage);
 
   const pageWraps = new Map();
   for (let index = 0; index < layout.slots.length; index += 1) {
@@ -1274,12 +1276,12 @@ async function renderPdfPage(options) {
     pageWraps.set(pageNumber, { page, viewport, wrap, canvas });
   }
 
-  if (renderOptions.scrollTarget === 'top') scrollViewport.scrollTop = 0;
-  else if (renderOptions.scrollTarget === 'bottom') scrollViewport.scrollTop = Math.max(0, scrollViewport.scrollHeight - scrollViewport.clientHeight);
+  if (renderOptions.scrollTarget === 'top') els.readerContent.scrollTop = 0;
+  else if (renderOptions.scrollTarget === 'bottom') els.readerContent.scrollTop = Math.max(0, els.readerContent.scrollHeight - els.readerContent.clientHeight);
   else if (c.pdfZoomMode === PDF_ZOOM_MODES.MANUAL) restorePdfZoomAnchor(stage, renderOptions.anchor);
   else {
-    scrollViewport.scrollLeft = 0;
-    scrollViewport.scrollTop = 0;
+    els.readerContent.scrollLeft = 0;
+    els.readerContent.scrollTop = 0;
   }
 
   const textRoots = new Map();
@@ -1466,8 +1468,7 @@ async function openMobi(book) {
   };
   state.current.paginator.setTheme(state.prefs.theme);
   state.current.paginator.setTextContrast(state.prefs.readerTextContrast);
-  state.current.paginator.setMargin(normalizeHorizontalMargin(state.prefs.marginPct));
-  state.current.paginator.setVerticalMargin(normalizeVerticalMargin(state.prefs.verticalMargin));
+  state.current.paginator.setMargin(state.prefs.marginPct != null ? state.prefs.marginPct : 8);
   const saved = state.progress[book.path];
   let startChapter = 0;
   let startPage = 0;
@@ -1508,7 +1509,7 @@ async function loadMobiChapter(chapterIndex, opts) {
         try {
           const targetNode = c.paginator.doc.body.querySelector(opts.selector);
           if (targetNode) {
-            const targetPage = c.paginator.locateNode(targetNode);
+            const targetPage = c.paginator.locate(textOffsetBeforeNode(c.paginator.doc.body, targetNode));
             if (targetPage >= 0) p = targetPage;
           }
         } catch (error) {}
@@ -1619,8 +1620,7 @@ async function openTxt(book) {
   };
   state.current.paginator.setTheme(state.prefs.theme);
   state.current.paginator.setTextContrast(state.prefs.readerTextContrast);
-  state.current.paginator.setMargin(normalizeHorizontalMargin(state.prefs.marginPct));
-  state.current.paginator.setVerticalMargin(normalizeVerticalMargin(state.prefs.verticalMargin));
+  state.current.paginator.setMargin(state.prefs.marginPct != null ? state.prefs.marginPct : 8);
   const paragraphs = splitTxtParagraphs(res.text);
   state.current.txtParagraphs = paragraphs;
   state.current.txtChapters = detectTxtChapters(paragraphs);
@@ -1754,7 +1754,7 @@ function onReaderWheel(ev) {
     queuePdfWheelZoom(d, ev);
     return;
   }
-  if (c && c.format === 'pdf' && shouldScrollPdfPage(pdfScrollViewport(), d)) {
+  if (c && c.format === 'pdf' && shouldScrollPdfPage(els.readerContent, d)) {
     readerWheelGate.reset();
     return;
   }
@@ -1891,35 +1891,19 @@ function cycleLineHeight() {
   els.readerStatus.textContent = '行距 ' + state.lineHeight.toFixed(1);
   rememberSettings();
 }
-async function cycleHorizontalMargin() {
-  const anchor = captureReaderLayoutAnchor();
-  state.prefs.marginPct = nextHorizontalMargin(state.prefs.marginPct);
-  state.prefs.spreadGap = currentSpreadGap();
+const MARGIN_OPTIONS = [4, 8, 12, 16];
+function cycleMargin() {
+  const opts = MARGIN_OPTIONS;
+  const cur = state.prefs.marginPct != null ? state.prefs.marginPct : 8;
+  const idx = opts.indexOf(cur);
+  state.prefs.marginPct = opts[(idx + 1) % opts.length];
   const c = state.current;
-  if (c && c.format === 'epub') {
-    applyEpubMargins(c);
-  } else if (c && c.paginator) {
-    c.paginator.setMargin(state.prefs.marginPct);
-    c.paginator.setGap(currentSpreadGap());
+  if (c && c.format === 'epub' && c.rendition) {
+    try { c.rendition.getContents().forEach((contents) => applyReaderStyles(contents)); } catch (e) {}
   }
-  if (anchor) await refreshReaderLayout(anchor, { force: true });
+  if (c && c.paginator) c.paginator.setMargin(state.prefs.marginPct);
   if (isSettingsOpen()) updateSettingsValues();
-  els.readerStatus.textContent = '左右边距 ' + horizontalMarginLabel(state.prefs.marginPct);
-  rememberSettings();
-}
-
-async function cycleVerticalMargin() {
-  const anchor = captureReaderLayoutAnchor();
-  state.prefs.verticalMargin = nextVerticalMargin(state.prefs.verticalMargin);
-  const c = state.current;
-  if (c && c.format === 'epub') {
-    applyEpubMargins(c);
-  } else if (c && c.paginator) {
-    c.paginator.setVerticalMargin(state.prefs.verticalMargin);
-  }
-  if (anchor) await refreshReaderLayout(anchor, { force: true });
-  if (isSettingsOpen()) updateSettingsValues();
-  els.readerStatus.textContent = '上下边距 ' + verticalMarginLabel(state.prefs.verticalMargin);
+  els.readerStatus.textContent = '页边距 ' + state.prefs.marginPct + '%';
   rememberSettings();
 }
 
@@ -3542,14 +3526,8 @@ function applyReaderStyles(contents) {
     css += textSelectors + ' { opacity: 1 !important; }';
   }
   css += 'p { text-indent: 2em !important; margin: 0 0 0.8em !important; line-height: ' + state.lineHeight + ' !important; } h1, h2, h3, h4 { line-height: 1.4 !important; margin: 1.2em 0 0.6em !important; }';
-  const verticalMargin = normalizeVerticalMargin(state.prefs.verticalMargin);
-  // EPUB 的 body 默认随内容增高，只加 padding 会让正文整体下移而不会收紧底部。
-  // 将正文高度明确减去两侧 padding，才能让上下边缘同时向中间收缩。
-  const epubContentHeight = 'calc(100vh - ' + (verticalMargin * 2) + 'px)';
-  // 横向溢出承载着 epub.js 的后续分栏，不能用 overflow: hidden 裁掉。
-  css += 'html { height: 100vh !important; max-height: 100vh !important; }';
-  css += 'body { height: ' + epubContentHeight + ' !important; min-height: ' + epubContentHeight + ' !important; max-height: ' + epubContentHeight + ' !important; margin-top: 0 !important; margin-bottom: 0 !important; box-sizing: content-box !important; padding-top: ' + verticalMargin + 'px !important; padding-bottom: ' + verticalMargin + 'px !important; }';
-  const marginPct = normalizeHorizontalMargin(state.prefs.marginPct);
+  css += 'body { box-sizing: border-box !important; padding-top: 28px !important; padding-bottom: 28px !important; }';
+  const marginPct = state.prefs.marginPct != null ? state.prefs.marginPct : 8;
   css += 'body > * { margin-left: ' + marginPct + '% !important; margin-right: ' + marginPct + '% !important; max-width: calc(100% - ' + (marginPct * 2) + '%) !important; box-sizing: border-box !important; }';
   // epub.js 按整列宽度限制图片；再给一级元素加页边距后，图片总占宽会越过列边界。
   // 先让所有媒体服从所在容器，再单独扣除直接位于 body 下方媒体的两侧页边距。
@@ -3891,9 +3869,7 @@ function applyGlobalHabits() {
   if (p.fontSize != null) state.fontSize = p.fontSize;
   if (p.txtFont != null) state.txtFont = p.txtFont;
   if (p.lineHeight != null) state.lineHeight = p.lineHeight;
-  state.prefs.marginPct = normalizeHorizontalMargin(p.marginPct);
-  state.prefs.verticalMargin = normalizeVerticalMargin(p.verticalMargin);
-  state.prefs.spreadGap = currentSpreadGap();
+  state.prefs.spreadGap = normalizeSpreadGap(p.spreadGap);
   state.readMode = p.readMode === 'spread' ? 'spread' : 'single';
 }
 
@@ -3906,7 +3882,6 @@ function rememberSettings() {
     txtFont: state.txtFont,
     lineHeight: state.lineHeight,
     marginPct: state.prefs.marginPct,
-    verticalMargin: state.prefs.verticalMargin,
     readMode: state.readMode,
     spreadGap: currentSpreadGap(),
   });
@@ -4968,10 +4943,10 @@ function bindEvents() {
   $('btn-pdf-zoom-in').addEventListener('click', () => adjustPdfZoom(0.1));
   els.pdfPairing.addEventListener('click', togglePdfPairing);
   $('btn-line-height').addEventListener('click', cycleLineHeight);
-  $('btn-horizontal-margin').addEventListener('click', cycleHorizontalMargin);
-  $('btn-vertical-margin').addEventListener('click', cycleVerticalMargin);
+  $('btn-margin').addEventListener('click', cycleMargin);
   $('btn-text-contrast').addEventListener('click', cycleReaderTextContrast);
   $('btn-spread').addEventListener('click', toggleSpread);
+  $('btn-spread-gap').addEventListener('click', cycleSpreadGap);
   els.edgeTocButton.addEventListener('click', toggleEdgeToc);
   $('btn-theme').addEventListener('click', cycleTheme);
   $('btn-pet-toggle').addEventListener('click', togglePet);
@@ -5138,29 +5113,6 @@ function bindEvents() {
 }
 
 window.__gaiaDebug = {
-  testLongPaginatorContinuity: async () => {
-    const host = document.createElement('div');
-    host.style.cssText = 'position:fixed;left:-10000px;top:0;width:900px;height:600px;overflow:hidden;';
-    document.body.appendChild(host);
-    const paginator = new window.GaiaPaginator(host, { pageWidth: 640, gap: 24 });
-    try {
-      const html = Array.from({ length: 180 }, (_, index) =>
-        '<p>分页连续性测试第' + index + '段。上下边距调整后，长章节仍应保留全部横向分栏，不能只剩当前双页。</p>'
-      ).join('');
-      await paginator.render(html, '');
-      paginator.setVerticalMargin(40);
-      paginator.setMode('spread');
-      const total = paginator.totalPages;
-      const firstMoved = paginator.next(2);
-      const firstPage = paginator.currentPage;
-      const secondMoved = paginator.next(2);
-      const secondPage = paginator.currentPage;
-      return { total, firstMoved, firstPage, secondMoved, secondPage };
-    } finally {
-      paginator.destroy();
-      host.remove();
-    }
-  },
   importPaths,
   openBook,
   backToLibrary,
@@ -5210,7 +5162,6 @@ window.__gaiaDebug = {
     const frame = c && c.paginator ? c.paginator.frame : els.readerContent.querySelector('iframe');
     const pdfPage = els.readerContent.querySelector('.pdf-page');
     const pdfStage = els.readerContent.querySelector('.pdf-spread');
-    const pdfViewport = els.readerContent.querySelector('.pdf-viewport');
     const epubManager = c && c.format === 'epub' && c.rendition ? c.rendition.manager : null;
     const epubLayout = epubManager && epubManager.layout;
     let epubContentScroll = [];
@@ -5227,16 +5178,12 @@ window.__gaiaDebug = {
       format: c && c.format,
       readerWidth: size.width,
       readerHeight: size.height,
-      readerScrollLeft: c && c.format === 'pdf' ? pdfScrollViewport().scrollLeft : els.readerContent.scrollLeft,
+      readerScrollLeft: els.readerContent.scrollLeft,
       frameWidth: frame ? frame.clientWidth : 0,
       frameHeight: frame ? frame.clientHeight : 0,
       pdfPageWidth: pdfPage ? pdfPage.clientWidth : 0,
       pdfStageWidth: pdfStage ? pdfStage.clientWidth : 0,
       pdfStageHeight: pdfStage ? pdfStage.clientHeight : 0,
-      pdfViewportWidth: pdfViewport ? pdfViewport.clientWidth : 0,
-      pdfViewportHeight: pdfViewport ? pdfViewport.clientHeight : 0,
-      pdfInsetTop: pdfViewport ? pdfViewport.getBoundingClientRect().top - els.readerContent.getBoundingClientRect().top : 0,
-      pdfInsetBottom: pdfViewport ? els.readerContent.getBoundingClientRect().bottom - pdfViewport.getBoundingClientRect().bottom : 0,
       pdfVisiblePages: c && c.format === 'pdf' ? (c.pdfVisiblePages || []).slice() : [],
       pdfZoomMode: c && c.format === 'pdf' ? c.pdfZoomMode : '',
       pdfPairing: c && c.format === 'pdf' ? c.pdfPairing : '',
@@ -5346,10 +5293,7 @@ window.__gaiaDebug = {
     if (c && c.format === 'epub' && c.rendition && c.rendition.manager && c.rendition.manager.layout) return c.rendition.manager.layout.gap;
     return c && c.paginator ? c.paginator.gap : null;
   },
-  getHorizontalMargin: () => normalizeHorizontalMargin(state.prefs.marginPct),
-  getVerticalMargin: () => normalizeVerticalMargin(state.prefs.verticalMargin),
-  cycleHorizontalMargin,
-  cycleVerticalMargin,
+  cycleSpreadGap,
   getReadMode: () => state.readMode,
   setMode: (mode) => {
     if (mode === 'single' || mode === 'spread') {
@@ -5414,7 +5358,6 @@ window.__gaiaDebug = {
   getReaderScrollTop: () => {
     const c = state.current;
     if (c && c.paginator) return c.paginator.currentPage;
-    if (c && c.format === 'pdf') return pdfScrollViewport().scrollTop;
     return els.readerContent.scrollTop;
   },
   jumpToMobiChapter: (idx) => loadMobiChapter(idx, { page: 0 }),
@@ -5467,7 +5410,7 @@ window.__gaiaDebug = {
     if (!root || !selector) return false;
     let node = null;
     try { node = root.querySelector(selector); } catch (error) {}
-    return !!node && c.paginator.nodeInView(node);
+    return !!node && c.paginator.anchorInView(textOffsetBeforeNode(root, node));
   },
   isMobiTextInView: (text) => {
     const c = state.current;
@@ -5532,9 +5475,6 @@ window.__gaiaDebug = {
     const body = d.body;
     const first = body.firstElementChild;
     const cs = getComputedStyle(body);
-    const bodyRect = body.getBoundingClientRect();
-    const verticalPaddingTop = parseFloat(cs.paddingTop) || 0;
-    const verticalPaddingBottom = parseFloat(cs.paddingBottom) || 0;
     const colStart = p.currentPage * p.colStep;
     let textBox = null;
     const walker = d.createTreeWalker(body, NodeFilter.SHOW_TEXT);
@@ -5562,11 +5502,6 @@ window.__gaiaDebug = {
       mode: p.mode,
       page: p.currentPage,
       total: p.totalPages,
-      verticalMargin: p.verticalPadding,
-      bodyHeight: bodyRect.height,
-      contentHeight: bodyRect.height - verticalPaddingTop - verticalPaddingBottom,
-      paddingTop: verticalPaddingTop,
-      paddingBottom: verticalPaddingBottom,
       bodyMarginL: cs.marginLeft,
       bodyMarginR: cs.marginRight,
       bodyPaddingL: cs.paddingLeft,
@@ -5599,7 +5534,6 @@ window.__gaiaDebug = {
     txtFont: state.txtFont,
     lineHeight: state.lineHeight,
     marginPct: state.prefs.marginPct,
-    verticalMargin: state.prefs.verticalMargin,
     readMode: state.readMode,
     spread: state.readMode === 'spread',
   }),
@@ -5699,58 +5633,6 @@ window.__gaiaDebug = {
     } catch (e) {
       return { w: 0, h: 0 };
     }
-  },
-  getEpubVerticalLayout: () => {
-    const c = state.current;
-    if (!c || c.format !== 'epub' || !c.rendition) return null;
-    try {
-      const contents = c.rendition.getContents();
-      const doc = contents && contents[0] && contents[0].document;
-      if (!doc || !doc.body || !doc.defaultView) return null;
-      const style = doc.defaultView.getComputedStyle(doc.body);
-      const paddingTop = parseFloat(style.paddingTop) || 0;
-      const paddingBottom = parseFloat(style.paddingBottom) || 0;
-      const bodyHeight = doc.body.getBoundingClientRect().height;
-      return {
-        viewportHeight: doc.defaultView.innerHeight,
-        bodyHeight,
-        contentHeight: bodyHeight - paddingTop - paddingBottom,
-        paddingTop,
-        paddingBottom,
-        boxSizing: style.boxSizing,
-      };
-    } catch (error) {
-      return null;
-    }
-  },
-  hasVisibleEpubText: () => {
-    const c = state.current;
-    if (!c || c.format !== 'epub' || !c.rendition) return false;
-    const readerRect = els.readerContent.getBoundingClientRect();
-    const frames = Array.from(els.readerContent.querySelectorAll('iframe'));
-    for (const frame of frames) {
-      const frameRect = frame.getBoundingClientRect();
-      if (frameRect.right <= readerRect.left || frameRect.left >= readerRect.right || frameRect.bottom <= readerRect.top || frameRect.top >= readerRect.bottom) continue;
-      const doc = frame.contentDocument;
-      if (!doc || !doc.body || !doc.defaultView) continue;
-      const walker = doc.createTreeWalker(doc.body, doc.defaultView.NodeFilter.SHOW_TEXT);
-      let node = null;
-      let inspected = 0;
-      while ((node = walker.nextNode()) && inspected < 3000) {
-        inspected += 1;
-        if (!node.textContent || !node.textContent.trim()) continue;
-        const range = doc.createRange();
-        range.selectNodeContents(node);
-        for (const rect of range.getClientRects()) {
-          const left = frameRect.left + rect.left;
-          const right = frameRect.left + rect.right;
-          const top = frameRect.top + rect.top;
-          const bottom = frameRect.top + rect.bottom;
-          if (right > readerRect.left && left < readerRect.right && bottom > readerRect.top && top < readerRect.bottom) return true;
-        }
-      }
-    }
-    return false;
   },
   getEpubLocationIndex: () => {
     const c = state.current;

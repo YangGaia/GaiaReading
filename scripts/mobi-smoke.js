@@ -11,16 +11,6 @@
     const contentLen = __gaiaDebug.getMobiContentLength();
     const chapters = __gaiaDebug.getMobiChapters();
     const tocCount = __gaiaDebug.getMobiTocCount();
-    const verticalMarginBefore = __gaiaDebug.getVerticalMargin();
-    const verticalLayoutBefore = __gaiaDebug.getPaginatorLayout();
-    await __gaiaDebug.cycleVerticalMargin();
-    const verticalMarginAfter = __gaiaDebug.getVerticalMargin();
-    const verticalLayoutAfter = __gaiaDebug.getPaginatorLayout();
-    const paginatorVerticalMarginInward = verticalMarginBefore !== verticalMarginAfter &&
-      Math.abs(verticalLayoutAfter.paddingTop - verticalMarginAfter) < 1 &&
-      Math.abs(verticalLayoutAfter.paddingBottom - verticalMarginAfter) < 1 &&
-      Math.abs(verticalLayoutAfter.bodyHeight - verticalLayoutBefore.bodyHeight) < 1 &&
-      Math.abs((verticalLayoutBefore.contentHeight - verticalLayoutAfter.contentHeight) - 2 * (verticalMarginAfter - verticalMarginBefore)) < 1;
     const initialAiSource = __gaiaDebug.getAiChapterSource();
     const initialAiContentLen = initialAiSource && initialAiSource.content ? initialAiSource.content.length : 0;
     const initialAiChapterTitle = initialAiSource && initialAiSource.chapterTitle;
@@ -31,12 +21,10 @@
     const footnoteTarget = footnoteHref ? await __gaiaDebug.resolveMobiHref(footnoteHref) : null;
     const footnoteClicked = footnoteHref ? __gaiaDebug.clickMobiHref(footnoteHref) : false;
     await new Promise((r) => setTimeout(r, 800));
-    const footnoteJumpIndex = __gaiaDebug.getMobiIndex();
-    const footnoteJumpPage = __gaiaDebug.getPaginatorPage();
-    const footnoteTargetVisible = footnoteTarget && (footnoteTarget.selector ? __gaiaDebug.isMobiSelectorInView(footnoteTarget.selector) :
-      __gaiaDebug.isMobiTextInView(footnoteTarget.textHint));
     const footnoteJumpOk = !footnoteHref || (footnoteClicked && footnoteTarget &&
-      footnoteJumpIndex === footnoteTarget.index && footnoteTargetVisible);
+      __gaiaDebug.getMobiIndex() === footnoteTarget.index &&
+      (footnoteTarget.selector ? __gaiaDebug.isMobiSelectorInView(footnoteTarget.selector) :
+        __gaiaDebug.isMobiTextInView(footnoteTarget.textHint)));
     const footnoteBackHref = footnoteHref ? __gaiaDebug.getVisibleMobiFootnoteHref() : '';
     const footnoteBackTarget = footnoteBackHref ? await __gaiaDebug.resolveMobiHref(footnoteBackHref) : null;
     const footnoteBackClicked = footnoteBackHref ? __gaiaDebug.clickMobiHref(footnoteBackHref) : false;
@@ -67,18 +55,14 @@
     const aiSource = await __gaiaDebug.resolveAiChapterSource();
     const aiContentLen = aiSource && aiSource.content ? aiSource.content.length : 0;
     const aiChapterTitle = aiSource && aiSource.chapterTitle;
-    const longChapterStartIndex = __gaiaDebug.getMobiIndex();
     const longScrolls = [];
-    const longChapterIndexes = [];
     const progressTrace = [];
     for (let k = 0; k < 8; k++) {
       await __gaiaDebug.nextPage();
       await new Promise((r) => setTimeout(r, 200));
       longScrolls.push(__gaiaDebug.getReaderScrollTop());
-      longChapterIndexes.push(__gaiaDebug.getMobiIndex());
       progressTrace.push(__gaiaDebug.getStatus());
     }
-    const longChapterStayedForEightTurns = longChapterIndexes.every((index) => index === longChapterStartIndex);
     const aiSourceAfterPaging = __gaiaDebug.getAiChapterSource();
     const aiContentLenAfterPaging = aiSourceAfterPaging && aiSourceAfterPaging.content ? aiSourceAfterPaging.content.length : 0;
     const aiChapterTitleAfterPaging = aiSourceAfterPaging && aiSourceAfterPaging.chapterTitle;
@@ -191,7 +175,7 @@
       fullSearchLayoutOpen.frameWidth <= fullSearchLayoutOpen.readerWidth &&
       fullSearchLayoutClosed.readerWidth === fullSearchLayoutBefore.readerWidth &&
       fullSearchLayoutClosed.frameWidth <= fullSearchLayoutClosed.readerWidth;
-    return JSON.stringify({ status, contentLen, paginatorVerticalMarginInward, verticalMarginBefore, verticalMarginAfter, verticalLayoutBefore, verticalLayoutAfter, initialAiContentLen, initialAiChapterTitle, aiContentLen, aiChapterTitle, aiContentLenAfterPaging, aiChapterTitleAfterPaging, chapters, tocCount, footnoteHref, footnoteTarget, footnoteClicked, footnoteJumpIndex, footnoteJumpPage, footnoteTargetVisible, footnoteJumpOk, footnoteBackHref, footnoteBackTarget, footnoteBackClicked, footnoteBackOk, sidePanelLayoutOk, sidePanelAnchorOk, fullBookSearchLayoutOk, fullSearchQuery, fullSearchRun, fullSearchActivated, fullSearchLayoutBefore, fullSearchLayoutOpen, fullSearchLayoutClosed, layoutBeforeSearch, layoutWithSearch, layoutAfterSearch, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, annotationSaved, annotationTarget, annotationJumpOk, longIdx, longScrolls, longChapterIndexes, longChapterStayedForEightTurns, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
+    return JSON.stringify({ status, contentLen, initialAiContentLen, initialAiChapterTitle, aiContentLen, aiChapterTitle, aiContentLenAfterPaging, aiChapterTitleAfterPaging, chapters, tocCount, footnoteHref, footnoteTarget, footnoteClicked, footnoteJumpOk, footnoteBackHref, footnoteBackTarget, footnoteBackClicked, footnoteBackOk, sidePanelLayoutOk, sidePanelAnchorOk, fullBookSearchLayoutOk, fullSearchQuery, fullSearchRun, fullSearchActivated, fullSearchLayoutBefore, fullSearchLayoutOpen, fullSearchLayoutClosed, layoutBeforeSearch, layoutWithSearch, layoutAfterSearch, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, annotationSaved, annotationTarget, annotationJumpOk, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
   } catch (e) {
     console.error('MOBI_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';

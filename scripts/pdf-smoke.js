@@ -5,22 +5,13 @@
     await new Promise((resolve) => setTimeout(resolve, 500));
     const single = __gaiaDebug.getReaderLayoutState();
     const singleFits = single.pdfVisiblePages.join(',') === '1' && single.pdfZoomMode === 'fit-page' &&
-      single.pdfStageWidth <= single.pdfViewportWidth && single.pdfStageHeight <= single.pdfViewportHeight;
-    const verticalMarginBefore = __gaiaDebug.getVerticalMargin();
-    await __gaiaDebug.cycleVerticalMargin();
-    const verticalMarginAfter = __gaiaDebug.getVerticalMargin();
-    const marginAdjusted = __gaiaDebug.getReaderLayoutState();
-    const pdfVerticalMarginInward = verticalMarginBefore !== verticalMarginAfter &&
-      Math.abs(marginAdjusted.pdfInsetTop - verticalMarginAfter) < 1 &&
-      Math.abs(marginAdjusted.pdfInsetBottom - verticalMarginAfter) < 1 &&
-      Math.abs((single.pdfViewportHeight - marginAdjusted.pdfViewportHeight) - 2 * (verticalMarginAfter - verticalMarginBefore)) < 1 &&
-      marginAdjusted.pdfStageHeight <= marginAdjusted.pdfViewportHeight;
+      single.pdfStageWidth <= single.readerWidth && single.pdfStageHeight <= single.readerHeight;
 
     __gaiaDebug.setMode('spread');
     await new Promise((resolve) => setTimeout(resolve, 500));
     const oddSpread = __gaiaDebug.getReaderLayoutState();
     const oddSpreadFits = oddSpread.pdfVisiblePages.join(',') === '1,2' && oddSpread.pdfPairing === 'odd-first' &&
-      oddSpread.pdfStageWidth <= oddSpread.pdfViewportWidth && oddSpread.pdfStageHeight <= oddSpread.pdfViewportHeight;
+      oddSpread.pdfStageWidth <= oddSpread.readerWidth && oddSpread.pdfStageHeight <= oddSpread.readerHeight;
 
     await __gaiaDebug.nextPage();
     await new Promise((resolve) => setTimeout(resolve, 400));
@@ -47,7 +38,7 @@
     const searchActivated = await __gaiaDebug.activateBookSearchResult(0);
     const searchLayout = __gaiaDebug.getReaderLayoutState();
     const searchWorks = searchRun.results > 0 && searchActivated.highlightCount > 0 && searchLayout.pdfVisiblePages.includes(3);
-    return JSON.stringify({ singleFits, pdfVerticalMarginInward, verticalMarginBefore, verticalMarginAfter, marginAdjusted, oddSpreadFits, pairingWorks, zoomModesWork, searchWorks, single, oddSpread, nextSpread, evenSpread, fitWidth, manual, searchRun, searchActivated, searchLayout });
+    return JSON.stringify({ singleFits, oddSpreadFits, pairingWorks, zoomModesWork, searchWorks, single, oddSpread, nextSpread, evenSpread, fitWidth, manual, searchRun, searchActivated, searchLayout });
   } catch (error) {
     console.error('PDF_SMOKE_ERROR', error && (error.stack || error.message || String(error)));
     return 'ERROR';

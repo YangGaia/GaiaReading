@@ -450,7 +450,7 @@ function createWindow() {
             console.log('DEBUG_TXT:', txtStatus);
             try {
               const parsed = JSON.parse(txtStatus);
-              debugOk = parsed.contentLen > 0 && parsed.paginatorVerticalMarginInward === true && parsed.totalPages > 1 && parsed.pageAfter > parsed.pageBefore && parsed.pctMoved === true && parsed.wheelsAfterNav >= 1 && parsed.pCount >= 1 && parsed.anchorOk === true;
+              debugOk = parsed.contentLen > 0 && parsed.totalPages > 1 && parsed.pageAfter > parsed.pageBefore && parsed.pctMoved === true && parsed.wheelsAfterNav >= 1 && parsed.pCount >= 1 && parsed.anchorOk === true;
               if (!debugOk) console.error('DEBUG_TXT_CHECKS_FAILED:', JSON.stringify(parsed));
             } catch (parseErr) {
               debugOk = false;
@@ -463,7 +463,7 @@ function createWindow() {
             console.log('DEBUG_PDF:', pdfStatus);
             try {
               const parsed = JSON.parse(pdfStatus);
-              debugOk = parsed.singleFits === true && parsed.pdfVerticalMarginInward === true && parsed.oddSpreadFits === true && parsed.pairingWorks === true &&
+              debugOk = parsed.singleFits === true && parsed.oddSpreadFits === true && parsed.pairingWorks === true &&
                 parsed.zoomModesWork === true && parsed.searchWorks === true;
               if (!debugOk) console.error('DEBUG_PDF_CHECKS_FAILED:', JSON.stringify(parsed));
             } catch (parseErr) {
@@ -479,7 +479,6 @@ function createWindow() {
               const parsed = JSON.parse(mobiStatus);
               debugOk =
                 parsed.contentLen > 0 &&
-                parsed.paginatorVerticalMarginInward === true &&
                 typeof parsed.initialAiChapterTitle === 'string' && parsed.initialAiChapterTitle.length > 0 &&
                 parsed.aiContentLen > 100 &&
                 typeof parsed.aiChapterTitle === 'string' && parsed.aiChapterTitle.length > 0 &&
@@ -494,7 +493,6 @@ function createWindow() {
                 parsed.pct != null &&
                 Math.abs(parsed.endPercent - 100) < 0.001 &&
                 parsed.moved > 0 &&
-                parsed.longChapterStayedForEightTurns === true &&
                 parsed.pctMoved === true && parsed.wheelsAfterNav >= 1 &&
                 parsed.annotationSaved === true &&
                 parsed.annotationJumpOk === true &&
@@ -825,12 +823,6 @@ function createWindow() {
               __gaiaDebug.togglePanel('toc');
               await __gaiaDebug.nextPage();
               await new Promise((r) => setTimeout(r, 600));
-              const epubPageHasVisibleText = __gaiaDebug.hasVisibleEpubText();
-              const longPaginatorContinuity = await __gaiaDebug.testLongPaginatorContinuity();
-              const epubNextPageHasVisibleText = epubPageHasVisibleText &&
-                longPaginatorContinuity.total > 4 &&
-                longPaginatorContinuity.firstMoved === true && longPaginatorContinuity.firstPage === 2 &&
-                longPaginatorContinuity.secondMoved === true && longPaginatorContinuity.secondPage === 4;
               __gaiaDebug.togglePanel('toc');
               await new Promise((r) => setTimeout(r, 400));
               const epSize = __gaiaDebug.getRenditionSize();
@@ -838,27 +830,14 @@ function createWindow() {
               __gaiaDebug.setMode('spread');
               await new Promise((r) => setTimeout(r, 600));
               const spreadAfter = __gaiaDebug.getSpreadMode();
-              const horizontalMarginBefore = __gaiaDebug.getHorizontalMargin();
-              const horizontalMarginLocationBefore = __gaiaDebug.getLoc();
-              await __gaiaDebug.cycleHorizontalMargin();
-              const horizontalMarginAfter = __gaiaDebug.getHorizontalMargin();
-              const derivedGapAfter = __gaiaDebug.getSpreadGap();
+              const spreadGapBefore = __gaiaDebug.getSpreadGap();
+              const spreadGapLocationBefore = __gaiaDebug.getLoc();
+              await __gaiaDebug.cycleSpreadGap();
+              const spreadGapAfter = __gaiaDebug.getSpreadGap();
               const activeSpreadGap = __gaiaDebug.getActiveSpreadGap();
-              const horizontalMarginLocationAfter = __gaiaDebug.getLoc();
-              const horizontalMarginApplied = horizontalMarginBefore !== horizontalMarginAfter && activeSpreadGap === derivedGapAfter;
-              const horizontalMarginLocationKept = horizontalMarginLocationBefore === horizontalMarginLocationAfter;
-              const verticalMarginBefore = __gaiaDebug.getVerticalMargin();
-              const epubVerticalBefore = __gaiaDebug.getEpubVerticalLayout();
-              await __gaiaDebug.cycleVerticalMargin();
-              const verticalMarginAfter = __gaiaDebug.getVerticalMargin();
-              const epubVerticalAfter = __gaiaDebug.getEpubVerticalLayout();
-              const verticalMarginLocationKept = horizontalMarginLocationAfter === __gaiaDebug.getLoc();
-              const epubVerticalMarginInward = !!epubVerticalBefore && !!epubVerticalAfter &&
-                Math.abs(epubVerticalAfter.paddingTop - verticalMarginAfter) < 1 &&
-                Math.abs(epubVerticalAfter.paddingBottom - verticalMarginAfter) < 1 &&
-                Math.abs(epubVerticalAfter.bodyHeight - epubVerticalAfter.viewportHeight) < 1 &&
-                Math.abs(epubVerticalAfter.bodyHeight - epubVerticalBefore.bodyHeight) < 1 &&
-                Math.abs((epubVerticalBefore.contentHeight - epubVerticalAfter.contentHeight) - 2 * (verticalMarginAfter - verticalMarginBefore)) < 1;
+              const spreadGapLocationAfter = __gaiaDebug.getLoc();
+              const spreadGapApplied = spreadGapBefore !== spreadGapAfter && activeSpreadGap === spreadGapAfter;
+              const spreadGapLocationKept = spreadGapLocationBefore === spreadGapLocationAfter;
               const epSizeAfterSpread = __gaiaDebug.getRenditionSize();
               __gaiaDebug.setMode('spread');
               __gaiaDebug.openSettings();
@@ -869,13 +848,8 @@ function createWindow() {
               const bgmSettingsOpeningFromOriginal = !!settingsOpeningFrames && settingsOpeningFrames.length >= 2 && settingsOpeningFrames[0].transform.startsWith('translate(');
               await new Promise((r) => setTimeout(r, 350));
               const drawerOpen = __gaiaDebug.isSettingsOpen();
-              const horizontalMarginButton = document.getElementById('btn-horizontal-margin');
-              const verticalMarginButton = document.getElementById('btn-vertical-margin');
-              const marginControlsReady = !!horizontalMarginButton && !!verticalMarginButton &&
-                document.getElementById('horizontal-margin-value').textContent.includes(horizontalMarginAfter + '%') &&
-                document.getElementById('horizontal-margin-value').textContent.includes(derivedGapAfter + 'px') &&
-                document.getElementById('vertical-margin-value').textContent.includes(verticalMarginAfter + 'px') &&
-                !document.getElementById('btn-spread-gap');
+              const spreadGapButton = document.getElementById('btn-spread-gap');
+              const spreadGapControlReady = !!spreadGapButton && !spreadGapButton.disabled && document.getElementById('spread-gap-value').textContent.endsWith(spreadGapAfter + 'px');
               const searchEngineSelect = document.getElementById('search-engine');
               const searchEngineOptionsReady = ['google', 'bing', 'baidu', 'custom'].every((value) => !!searchEngineSelect.querySelector('option[value="' + value + '"]'));
               searchEngineSelect.value = 'bing';
@@ -953,7 +927,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, epubNextPageHasVisibleText, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, highlightSaved, highlightPanelOpen, highlightCardLocated, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, marginControlsReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, horizontalMarginBefore, horizontalMarginAfter, derivedGapAfter, activeSpreadGap, horizontalMarginApplied, horizontalMarginLocationKept, verticalMarginBefore, verticalMarginAfter, verticalMarginLocationKept, epubVerticalMarginInward, epubVerticalBefore, epubVerticalAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, settingsOpenBeforeBookmark, bookmarkActionClosedImmediately, bookmarkActionOpenedImmediately, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocWithEntriesHasNoEmptyMessage, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, edgeTocDisabledSetting, edgeTocDisabledBlocksHover, edgeTocDisabledKeepsManual, edgeTocReenabled, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, highlightSaved, highlightPanelOpen, highlightCardLocated, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, settingsOpenBeforeBookmark, bookmarkActionClosedImmediately, bookmarkActionOpenedImmediately, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocWithEntriesHasNoEmptyMessage, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, edgeTocDisabledSetting, edgeTocDisabledBlocksHover, edgeTocDisabledKeepsManual, edgeTocReenabled, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -996,13 +970,9 @@ function createWindow() {
               parsed.epH > 0 &&
               parsed.spreadBefore === false &&
               parsed.spreadAfter === true &&
-              parsed.marginControlsReady === true &&
-              parsed.horizontalMarginApplied === true &&
-              parsed.horizontalMarginLocationKept === true &&
-              parsed.verticalMarginBefore !== parsed.verticalMarginAfter &&
-              parsed.verticalMarginLocationKept === true &&
-              parsed.epubVerticalMarginInward === true &&
-              parsed.epubNextPageHasVisibleText === true &&
+              parsed.spreadGapControlReady === true &&
+              parsed.spreadGapApplied === true &&
+              parsed.spreadGapLocationKept === true &&
               parsed.epW2 > 0 &&
               parsed.fxOnHome === true &&
               parsed.particleCount > 0 &&

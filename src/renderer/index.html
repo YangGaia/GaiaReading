@@ -358,12 +358,8 @@
           <span id="line-height-value">1.8</span>
         </div>
         <div class="drawer-row">
-          <button id="btn-horizontal-margin" class="btn">左右边距</button>
-          <span id="horizontal-margin-value">标准 · 8% / 12px</span>
-        </div>
-        <div class="drawer-row">
-          <button id="btn-vertical-margin" class="btn">上下边距</button>
-          <span id="vertical-margin-value">标准 · 28px</span>
+          <button id="btn-margin" class="btn">边距</button>
+          <span id="margin-value">8%</span>
         </div>
         <div class="drawer-row">
           <span class="drawer-label">字体</span>
@@ -382,6 +378,10 @@
         <div class="drawer-row" id="drawer-spread">
           <button id="btn-spread" class="btn">单页 / 双页</button>
           <span id="spread-value">单页</span>
+        </div>
+        <div class="drawer-row" id="drawer-spread-gap">
+          <button id="btn-spread-gap" class="btn" type="button">页面间隙</button>
+          <span id="spread-gap-value">无 · 0px</span>
         </div>
         <div class="drawer-row" id="drawer-edge-toc">
           <button id="btn-edge-toc" class="btn" type="button" aria-pressed="true">左缘悬停目录</button>
@@ -462,7 +462,7 @@
   <script src="../shared/reader-input.js"></script>
   <script src="../shared/pdf-layout.js"></script>
   <script src="../shared/toc-panel.js"></script>
-  <script src="../shared/reader-margins.js"></script>
+  <script src="../shared/spread-gap.js"></script>
   <script src="../shared/reading-stats.js"></script>
   <script src="../shared/annotations.js"></script>
   <script src="../shared/book-search.js"></script>
