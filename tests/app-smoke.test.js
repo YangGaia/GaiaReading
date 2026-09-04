@@ -309,7 +309,7 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
     assert.ok(html.includes(`id="${id}"`), `PDF 阅读器缺少手动缩放控件 ${id}`);
   }
   assert.ok(app.includes("c.format === 'pdf' && (ev.ctrlKey || ev.metaKey)") && app.includes('queuePdfWheelZoom(d, ev)'), 'PDF 应支持 Ctrl+滚轮缩放');
-  assert.ok(app.includes('shouldScrollPdfPage(els.readerContent, d)'), 'PDF 普通滚轮应优先滚动当前页');
+  assert.ok(app.includes('shouldScrollPdfPage(pdfScrollViewport(), d)'), 'PDF 普通滚轮应优先滚动内缩后的当前页视口');
   assert.ok(app.includes('restorePdfZoomAnchor(stage, renderOptions.anchor)'), 'PDF 缩放后应保持鼠标所指阅读位置');
   assert.ok(html.includes('../shared/pdf-layout.js') && app.includes('pdfLayoutForPage(c.page, c.pages, spread, c.pdfPairing)'), 'PDF 阅读器应接入单页/双页布局模块');
   assert.ok(app.includes('PDF_ZOOM_MODES.FIT_PAGE') && app.includes('PDF_ZOOM_MODES.FIT_WIDTH') && app.includes('PDF_ZOOM_MODES.MANUAL'), 'PDF 应支持适合页面、适合宽度和手动缩放');
@@ -395,15 +395,17 @@ test('MOBI/AZW3 书内脚注链接由阅读器解析并跳转', () => {
   const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
   assert.ok(app.includes('bindMobiDocumentLinks(c.paginator.doc)'), '加载章节后必须绑定书内链接');
   assert.ok(app.includes('event.preventDefault()') && app.includes('jumpToMobiDocumentHref(href)'), '点击脚注必须阻止浏览器默认跳转并交给阅读器');
+  assert.ok(app.includes('c.paginator.locateNode(targetNode)') && app.includes('c.paginator.nodeInView(node)'), '空尾注锚点必须按 DOM 位置定位，不能退回前一段文字');
   assert.ok(preload.includes("ipcRenderer.invoke('mobi:resolve-href'"), '预加载层必须暴露书内链接解析接口');
   assert.ok(main.includes("ipcMain.handle('mobi:resolve-href'"), '主进程必须按当前 MOBI 会话解析链接');
 });
 
-test('分页器保留左右页边距（版心）', () => {
+test('分页器保留左右页边距并从上下同时压缩版心', () => {
   const p = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   assert.ok(p.includes("'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; max-width: '"), '页面应注入左右页边距并限制一级内容宽度');
   assert.ok(p.includes('this.verticalPadding = 28;'), '分页正文应保留舒适的上下留白');
-  assert.ok(p.includes("padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box"), '上下留白应计入分页高度，不能挤出可视区域');
+  assert.ok(p.includes("height: ' + hostH + 'px; min-height: ' + hostH + 'px; max-height: ' + hostH + 'px;"), '分页外框高度应锁定为阅读区高度');
+  assert.ok(p.includes("padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box"), '固定外框应通过 border-box 从上下同时扣除内容高度');
   assert.ok(!p.includes("'p { text-indent: 2em !important; margin: 0 0 0.8em !important;"), '段落排版不应再重置左右边距');
   assert.ok(p.includes("margin-top: 0 !important; margin-bottom: 0.8em !important"), '段落应只设上下边距，保留版心左右留白');
 });
@@ -444,6 +446,10 @@ test('左右与上下边距统一接入并保持版心约束', () => {
   assert.ok(app.includes('paginator.setVerticalMargin('), '应调用分页器上下边距');
   assert.ok(app.includes("'body > * { margin-left: ' + marginPct + '% !important;"), 'EPUB 应注入可调边距');
   assert.ok(app.includes("padding-top: ' + verticalMargin + 'px !important; padding-bottom: ' + verticalMargin + 'px !important;"), 'EPUB 应注入可调上下留白');
+  assert.ok(app.includes("const epubContentHeight = 'calc(100vh - ' + (verticalMargin * 2) + 'px)'"), 'EPUB 内容高度应同时扣除上下边距');
+  assert.ok(app.includes("box-sizing: content-box !important; padding-top: ' + verticalMargin"), 'EPUB 上下边距应包围压缩后的固定内容区');
+  assert.ok(app.includes("scrollViewport.className = 'pdf-viewport'") && app.includes("scrollViewport.style.inset = verticalPadding + 'px ' + horizontalPadding + 'px'"), 'PDF 应使用四边同时内缩的独立滚动视口');
+  assert.ok(app.includes('const viewportHeight = Math.max(1, scrollViewport.clientHeight);'), 'PDF 缩放应使用上下内缩后的实际视口高度');
   assert.ok(pag.includes('setMargin(pct)'), '分页器应支持 setMargin');
   assert.ok(pag.includes('setVerticalMargin(px)'), '分页器应支持 setVerticalMargin');
   assert.ok(pag.includes('this.marginPct'), '分页器应保存边距档位');

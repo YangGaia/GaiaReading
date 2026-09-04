@@ -237,7 +237,8 @@ body.dark {
 #btn-pdf-zoom-reset { min-width: 72px; font-size: 12px; font-variant-numeric: tabular-nums; }
 #btn-pdf-pairing { min-width: 48px; font-size: 12px; font-variant-numeric: tabular-nums; }
 #btn-pdf-pairing[hidden] { display: none; }
-.pdf-spread { display: flex; align-items: flex-start; justify-content: center; box-sizing: content-box; margin: 16px auto; }
+.pdf-viewport { position: absolute; overflow: auto; }
+.pdf-spread { display: flex; align-items: flex-start; justify-content: center; box-sizing: content-box; margin: 0 auto; }
 .pdf-page { position: relative; flex: 0 0 auto; margin: 0; display: block; }
 .pdf-page-placeholder { flex: 0 0 auto; visibility: hidden; }
 .pdf-page canvas { position: absolute; left: 0; top: 0; }

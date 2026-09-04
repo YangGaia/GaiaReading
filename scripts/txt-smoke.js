@@ -9,6 +9,16 @@
     await new Promise((r) => setTimeout(r, 1200));
     const status = __gaiaDebug.getStatus();
     const contentLen = __gaiaDebug.getMobiContentLength();
+    const verticalMarginBefore = __gaiaDebug.getVerticalMargin();
+    const verticalLayoutBefore = __gaiaDebug.getPaginatorLayout();
+    await __gaiaDebug.cycleVerticalMargin();
+    const verticalMarginAfter = __gaiaDebug.getVerticalMargin();
+    const verticalLayoutAfter = __gaiaDebug.getPaginatorLayout();
+    const paginatorVerticalMarginInward = verticalMarginBefore !== verticalMarginAfter &&
+      Math.abs(verticalLayoutAfter.paddingTop - verticalMarginAfter) < 1 &&
+      Math.abs(verticalLayoutAfter.paddingBottom - verticalMarginAfter) < 1 &&
+      Math.abs(verticalLayoutAfter.bodyHeight - verticalLayoutBefore.bodyHeight) < 1 &&
+      Math.abs((verticalLayoutBefore.contentHeight - verticalLayoutAfter.contentHeight) - 2 * (verticalMarginAfter - verticalMarginBefore)) < 1;
     const totalPages = __gaiaDebug.getPaginatorTotal();
     const pageBefore = __gaiaDebug.getPaginatorPage();
     const pctBefore = __gaiaDebug.getProgressWidth();
@@ -35,7 +45,7 @@
     const snippetAfterJump = __gaiaDebug.getAnchorSnippet();
     const anchorOk = !!(bm && bm.anchor && typeof bm.anchor.off === 'number') && __gaiaDebug.getAnchorInView(bm.anchor.off) && pageAfterJump >= 0;
     const wheelsAfterNav = __gaiaDebug.countBoundWheels();
-    return JSON.stringify({ status, contentLen, totalPages, pageBefore, pageAfter, pctMoved, pCount, lineBreaks, pageAtBookmark, pageAfterReflow, pageAfterJump, snippetAfterJump, anchorOk, wheelsAfterNav, layout: __gaiaDebug.getPaginatorLayout() });
+    return JSON.stringify({ status, contentLen, paginatorVerticalMarginInward, verticalMarginBefore, verticalMarginAfter, verticalLayoutBefore, verticalLayoutAfter, totalPages, pageBefore, pageAfter, pctMoved, pCount, lineBreaks, pageAtBookmark, pageAfterReflow, pageAfterJump, snippetAfterJump, anchorOk, wheelsAfterNav, layout: __gaiaDebug.getPaginatorLayout() });
   } catch (e) {
     console.error('TXT_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';

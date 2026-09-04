@@ -450,7 +450,7 @@ function createWindow() {
             console.log('DEBUG_TXT:', txtStatus);
             try {
               const parsed = JSON.parse(txtStatus);
-              debugOk = parsed.contentLen > 0 && parsed.totalPages > 1 && parsed.pageAfter > parsed.pageBefore && parsed.pctMoved === true && parsed.wheelsAfterNav >= 1 && parsed.pCount >= 1 && parsed.anchorOk === true;
+              debugOk = parsed.contentLen > 0 && parsed.paginatorVerticalMarginInward === true && parsed.totalPages > 1 && parsed.pageAfter > parsed.pageBefore && parsed.pctMoved === true && parsed.wheelsAfterNav >= 1 && parsed.pCount >= 1 && parsed.anchorOk === true;
               if (!debugOk) console.error('DEBUG_TXT_CHECKS_FAILED:', JSON.stringify(parsed));
             } catch (parseErr) {
               debugOk = false;
@@ -463,7 +463,7 @@ function createWindow() {
             console.log('DEBUG_PDF:', pdfStatus);
             try {
               const parsed = JSON.parse(pdfStatus);
-              debugOk = parsed.singleFits === true && parsed.oddSpreadFits === true && parsed.pairingWorks === true &&
+              debugOk = parsed.singleFits === true && parsed.pdfVerticalMarginInward === true && parsed.oddSpreadFits === true && parsed.pairingWorks === true &&
                 parsed.zoomModesWork === true && parsed.searchWorks === true;
               if (!debugOk) console.error('DEBUG_PDF_CHECKS_FAILED:', JSON.stringify(parsed));
             } catch (parseErr) {
@@ -479,6 +479,7 @@ function createWindow() {
               const parsed = JSON.parse(mobiStatus);
               debugOk =
                 parsed.contentLen > 0 &&
+                parsed.paginatorVerticalMarginInward === true &&
                 typeof parsed.initialAiChapterTitle === 'string' && parsed.initialAiChapterTitle.length > 0 &&
                 parsed.aiContentLen > 100 &&
                 typeof parsed.aiChapterTitle === 'string' && parsed.aiChapterTitle.length > 0 &&
@@ -840,9 +841,17 @@ function createWindow() {
               const horizontalMarginApplied = horizontalMarginBefore !== horizontalMarginAfter && activeSpreadGap === derivedGapAfter;
               const horizontalMarginLocationKept = horizontalMarginLocationBefore === horizontalMarginLocationAfter;
               const verticalMarginBefore = __gaiaDebug.getVerticalMargin();
+              const epubVerticalBefore = __gaiaDebug.getEpubVerticalLayout();
               await __gaiaDebug.cycleVerticalMargin();
               const verticalMarginAfter = __gaiaDebug.getVerticalMargin();
+              const epubVerticalAfter = __gaiaDebug.getEpubVerticalLayout();
               const verticalMarginLocationKept = horizontalMarginLocationAfter === __gaiaDebug.getLoc();
+              const epubVerticalMarginInward = !!epubVerticalBefore && !!epubVerticalAfter &&
+                Math.abs(epubVerticalAfter.paddingTop - verticalMarginAfter) < 1 &&
+                Math.abs(epubVerticalAfter.paddingBottom - verticalMarginAfter) < 1 &&
+                Math.abs(epubVerticalAfter.bodyHeight - epubVerticalAfter.viewportHeight) < 1 &&
+                Math.abs(epubVerticalAfter.bodyHeight - epubVerticalBefore.bodyHeight) < 1 &&
+                Math.abs((epubVerticalBefore.contentHeight - epubVerticalAfter.contentHeight) - 2 * (verticalMarginAfter - verticalMarginBefore)) < 1;
               const epSizeAfterSpread = __gaiaDebug.getRenditionSize();
               __gaiaDebug.setMode('spread');
               __gaiaDebug.openSettings();
@@ -937,7 +946,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, highlightSaved, highlightPanelOpen, highlightCardLocated, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, marginControlsReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, horizontalMarginBefore, horizontalMarginAfter, derivedGapAfter, activeSpreadGap, horizontalMarginApplied, horizontalMarginLocationKept, verticalMarginBefore, verticalMarginAfter, verticalMarginLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, settingsOpenBeforeBookmark, bookmarkActionClosedImmediately, bookmarkActionOpenedImmediately, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocWithEntriesHasNoEmptyMessage, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, edgeTocDisabledSetting, edgeTocDisabledBlocksHover, edgeTocDisabledKeepsManual, edgeTocReenabled, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, highlightSaved, highlightPanelOpen, highlightCardLocated, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, marginControlsReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, horizontalMarginBefore, horizontalMarginAfter, derivedGapAfter, activeSpreadGap, horizontalMarginApplied, horizontalMarginLocationKept, verticalMarginBefore, verticalMarginAfter, verticalMarginLocationKept, epubVerticalMarginInward, epubVerticalBefore, epubVerticalAfter, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, settingsOpenBeforeBookmark, bookmarkActionClosedImmediately, bookmarkActionOpenedImmediately, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocWithEntriesHasNoEmptyMessage, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, edgeTocDisabledSetting, edgeTocDisabledBlocksHover, edgeTocDisabledKeepsManual, edgeTocReenabled, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -985,6 +994,7 @@ function createWindow() {
               parsed.horizontalMarginLocationKept === true &&
               parsed.verticalMarginBefore !== parsed.verticalMarginAfter &&
               parsed.verticalMarginLocationKept === true &&
+              parsed.epubVerticalMarginInward === true &&
               parsed.epW2 > 0 &&
               parsed.fxOnHome === true &&
               parsed.particleCount > 0 &&

@@ -11,6 +11,16 @@
     const contentLen = __gaiaDebug.getMobiContentLength();
     const chapters = __gaiaDebug.getMobiChapters();
     const tocCount = __gaiaDebug.getMobiTocCount();
+    const verticalMarginBefore = __gaiaDebug.getVerticalMargin();
+    const verticalLayoutBefore = __gaiaDebug.getPaginatorLayout();
+    await __gaiaDebug.cycleVerticalMargin();
+    const verticalMarginAfter = __gaiaDebug.getVerticalMargin();
+    const verticalLayoutAfter = __gaiaDebug.getPaginatorLayout();
+    const paginatorVerticalMarginInward = verticalMarginBefore !== verticalMarginAfter &&
+      Math.abs(verticalLayoutAfter.paddingTop - verticalMarginAfter) < 1 &&
+      Math.abs(verticalLayoutAfter.paddingBottom - verticalMarginAfter) < 1 &&
+      Math.abs(verticalLayoutAfter.bodyHeight - verticalLayoutBefore.bodyHeight) < 1 &&
+      Math.abs((verticalLayoutBefore.contentHeight - verticalLayoutAfter.contentHeight) - 2 * (verticalMarginAfter - verticalMarginBefore)) < 1;
     const initialAiSource = __gaiaDebug.getAiChapterSource();
     const initialAiContentLen = initialAiSource && initialAiSource.content ? initialAiSource.content.length : 0;
     const initialAiChapterTitle = initialAiSource && initialAiSource.chapterTitle;
@@ -21,10 +31,12 @@
     const footnoteTarget = footnoteHref ? await __gaiaDebug.resolveMobiHref(footnoteHref) : null;
     const footnoteClicked = footnoteHref ? __gaiaDebug.clickMobiHref(footnoteHref) : false;
     await new Promise((r) => setTimeout(r, 800));
+    const footnoteJumpIndex = __gaiaDebug.getMobiIndex();
+    const footnoteJumpPage = __gaiaDebug.getPaginatorPage();
+    const footnoteTargetVisible = footnoteTarget && (footnoteTarget.selector ? __gaiaDebug.isMobiSelectorInView(footnoteTarget.selector) :
+      __gaiaDebug.isMobiTextInView(footnoteTarget.textHint));
     const footnoteJumpOk = !footnoteHref || (footnoteClicked && footnoteTarget &&
-      __gaiaDebug.getMobiIndex() === footnoteTarget.index &&
-      (footnoteTarget.selector ? __gaiaDebug.isMobiSelectorInView(footnoteTarget.selector) :
-        __gaiaDebug.isMobiTextInView(footnoteTarget.textHint)));
+      footnoteJumpIndex === footnoteTarget.index && footnoteTargetVisible);
     const footnoteBackHref = footnoteHref ? __gaiaDebug.getVisibleMobiFootnoteHref() : '';
     const footnoteBackTarget = footnoteBackHref ? await __gaiaDebug.resolveMobiHref(footnoteBackHref) : null;
     const footnoteBackClicked = footnoteBackHref ? __gaiaDebug.clickMobiHref(footnoteBackHref) : false;
@@ -175,7 +187,7 @@
       fullSearchLayoutOpen.frameWidth <= fullSearchLayoutOpen.readerWidth &&
       fullSearchLayoutClosed.readerWidth === fullSearchLayoutBefore.readerWidth &&
       fullSearchLayoutClosed.frameWidth <= fullSearchLayoutClosed.readerWidth;
-    return JSON.stringify({ status, contentLen, initialAiContentLen, initialAiChapterTitle, aiContentLen, aiChapterTitle, aiContentLenAfterPaging, aiChapterTitleAfterPaging, chapters, tocCount, footnoteHref, footnoteTarget, footnoteClicked, footnoteJumpOk, footnoteBackHref, footnoteBackTarget, footnoteBackClicked, footnoteBackOk, sidePanelLayoutOk, sidePanelAnchorOk, fullBookSearchLayoutOk, fullSearchQuery, fullSearchRun, fullSearchActivated, fullSearchLayoutBefore, fullSearchLayoutOpen, fullSearchLayoutClosed, layoutBeforeSearch, layoutWithSearch, layoutAfterSearch, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, annotationSaved, annotationTarget, annotationJumpOk, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
+    return JSON.stringify({ status, contentLen, paginatorVerticalMarginInward, verticalMarginBefore, verticalMarginAfter, verticalLayoutBefore, verticalLayoutAfter, initialAiContentLen, initialAiChapterTitle, aiContentLen, aiChapterTitle, aiContentLenAfterPaging, aiChapterTitleAfterPaging, chapters, tocCount, footnoteHref, footnoteTarget, footnoteClicked, footnoteJumpIndex, footnoteJumpPage, footnoteTargetVisible, footnoteJumpOk, footnoteBackHref, footnoteBackTarget, footnoteBackClicked, footnoteBackOk, sidePanelLayoutOk, sidePanelAnchorOk, fullBookSearchLayoutOk, fullSearchQuery, fullSearchRun, fullSearchActivated, fullSearchLayoutBefore, fullSearchLayoutOpen, fullSearchLayoutClosed, layoutBeforeSearch, layoutWithSearch, layoutAfterSearch, idxBefore, idxAfter, scrollBefore, scrollAfter, pct, endPercent, moved, crossed, wheelsAfterNav, annotationSaved, annotationTarget, annotationJumpOk, longIdx, longScrolls, pctMoved, eyeBg, eyeOk, habitOk, idxAtBookmark, pageAtBookmark, pageAfterJump, snippetAfterJump, anchorOk, bmAnchorOff, bmAnchorSnippet, scrollAtBookmark, scrollAfterJump, probeAtBookmark, marqueeAtReader, layout: __gaiaDebug.getPaginatorLayout() });
   } catch (e) {
     console.error('MOBI_OPEN_ERROR', e && (e.stack || e.message || String(e)));
     return 'ERROR';
