@@ -48,7 +48,7 @@ test('项目关键文件齐全', () => {
     'src/shared/pet.js',
     'src/shared/pdf-layout.js',
     'src/shared/toc-panel.js',
-    'src/shared/spread-gap.js',
+    'src/shared/reader-margins.js',
     'src/renderer/index.html',
     'src/renderer/app.js',
     'src/renderer/pet.js',
@@ -431,19 +431,24 @@ test('全主题高对比文字即时应用于所有可重排格式并保持 PDF 
   assert.ok(pag.includes('opacity: 1 !important'), '高对比模式应清除正文元素异常透明度');
 });
 
-test('可调节页边距功能接入', () => {
+test('左右与上下边距统一接入并保持版心约束', () => {
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.ok(html.includes('btn-margin'), '缺少页边距按钮');
-  assert.ok(html.includes('margin-value'), '缺少页边距数值显示');
-  assert.ok(app.includes('const MARGIN_OPTIONS = [4, 8, 12, 16];'), '应提供边距档位');
-  assert.ok(app.includes('function cycleMargin()'), '缺少边距循环函数');
+  assert.ok(html.includes('btn-horizontal-margin') && html.includes('horizontal-margin-value'), '缺少左右边距控制');
+  assert.ok(html.includes('btn-vertical-margin') && html.includes('vertical-margin-value'), '缺少上下边距控制');
+  assert.ok(html.includes('../shared/reader-margins.js'), '页面应加载统一边距档位模块');
+  assert.ok(app.includes('function cycleHorizontalMargin()'), '缺少左右边距循环函数');
+  assert.ok(app.includes('function cycleVerticalMargin()'), '缺少上下边距循环函数');
   assert.ok(app.includes('paginator.setMargin('), '应调用分页器边距');
+  assert.ok(app.includes('paginator.setVerticalMargin('), '应调用分页器上下边距');
   assert.ok(app.includes("'body > * { margin-left: ' + marginPct + '% !important;"), 'EPUB 应注入可调边距');
-  assert.ok(app.includes('padding-top: 28px !important; padding-bottom: 28px !important;'), 'EPUB 正文应保留上下留白');
+  assert.ok(app.includes("padding-top: ' + verticalMargin + 'px !important; padding-bottom: ' + verticalMargin + 'px !important;"), 'EPUB 应注入可调上下留白');
   assert.ok(pag.includes('setMargin(pct)'), '分页器应支持 setMargin');
+  assert.ok(pag.includes('setVerticalMargin(px)'), '分页器应支持 setVerticalMargin');
   assert.ok(pag.includes('this.marginPct'), '分页器应保存边距档位');
+  assert.ok(pag.includes('this.verticalPadding'), '分页器应保存上下边距档位');
+  assert.ok(app.includes('await refreshReaderLayout(anchor, { force: true })'), '边距重排后应恢复原阅读锚点');
 });
 
 test('分页图片总宽度不会越过右侧列边界', () => {
@@ -459,16 +464,17 @@ test('分页图片总宽度不会越过右侧列边界', () => {
   assert.ok(!pag.slice(typographyStart, themeStart).includes('img { max-width: 100% !important'), '排版样式不能再次覆盖分页器计算出的图片宽度');
 });
 
-test('EPUB、PDF、TXT、MOBI 与 AZW3 共用可调双页间隙', () => {
+test('左右边距同时控制 EPUB、PDF、TXT、MOBI 与 AZW3 的双页中缝', () => {
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.ok(html.includes('id="btn-spread-gap"') && html.includes('id="spread-gap-value"'), '设置页缺少双页间隙控件');
-  assert.ok(html.includes('../shared/spread-gap.js'), '渲染层未加载双页间隙档位模块');
+  assert.ok(!html.includes('id="btn-spread-gap"') && !html.includes('id="spread-gap-value"'), '不应保留独立双页间隙控件');
+  assert.ok(app.includes('return horizontalProfile(state.prefs.marginPct).gap'), '双页中缝应由左右边距档位派生');
   assert.ok(app.includes("gap: currentSpreadGap()"), 'EPUB 初始化时应使用用户设置的间隙');
   assert.strictEqual((app.match(/new window\.GaiaPaginator\(els\.readerContent, \{ pageWidth: 640, gap: currentSpreadGap\(\) \}\)/g) || []).length, 2, 'TXT 与 MOBI/AZW3 应使用同一间隙');
-  assert.ok(app.includes("if (!c || state.readMode !== 'spread') return") && app.includes('const gap = spread ? currentSpreadGap() : 0'), 'PDF 应仅在双页模式应用共用页面间隙');
-  assert.ok(app.includes('spreadGap: currentSpreadGap()'), '双页间隙应写入全局阅读习惯');
+  assert.ok(app.includes('const gap = spread ? currentSpreadGap() : 0'), 'PDF 应仅在双页模式应用派生中缝');
+  assert.ok(app.includes('c.paginator.setGap(currentSpreadGap())'), '分页器左右边距变化时应同步派生中缝');
+  assert.ok(app.includes('spreadGap: currentSpreadGap()'), '应保留派生中缝兼容字段用于旧设置迁移');
   assert.ok(pag.includes('setGap(px)') && pag.includes('initialGap') && pag.includes('initialGap : 0'), '分页器应支持0px间隙和实时更新');
   assert.ok(app.includes("column-rule: 1px solid rgba(127,127,127,.28)"), '无额外间隙时仍应显示细书脊线区分左右页');
 });

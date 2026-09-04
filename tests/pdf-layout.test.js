@@ -57,6 +57,20 @@ test('双页适合宽度计入两页宽度和中缝', () => {
   assert.strictEqual(result.scale, 1);
 });
 
+test('PDF 缩放可分别扣除左右与上下边距', () => {
+  const result = calculatePdfScale({
+    viewportWidth: 1000,
+    viewportHeight: 800,
+    pageSizes: [{ width: 500, height: 1000 }],
+    horizontalPadding: 100,
+    verticalPadding: 50,
+    mode: ZOOM_MODES.FIT_PAGE,
+  });
+  assert.strictEqual(result.fitWidthScale, 1.6);
+  assert.strictEqual(result.fitPageScale, 0.7);
+  assert.strictEqual(result.scale, 0.7);
+});
+
 test('PDF 手动缩放支持 10% 到 400%', () => {
   assert.strictEqual(calculatePdfScale({ pageSizes: [{ width: 1, height: 1 }], mode: ZOOM_MODES.MANUAL, zoom: 0.01 }).scale, 0.1);
   assert.strictEqual(calculatePdfScale({ pageSizes: [{ width: 1, height: 1 }], mode: ZOOM_MODES.MANUAL, zoom: 8 }).scale, 4);

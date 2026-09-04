@@ -39,13 +39,19 @@
       ? opts.pageSizes
       : [{ width: 1, height: 1 }];
     const gap = Math.max(0, Number(opts.gap) || 0);
-    const padding = Math.max(0, Number(opts.padding) || 0);
+    const legacyPadding = Math.max(0, Number(opts.padding) || 0);
+    const horizontalPadding = opts.horizontalPadding == null
+      ? legacyPadding
+      : Math.max(0, Number(opts.horizontalPadding) || 0);
+    const verticalPadding = opts.verticalPadding == null
+      ? legacyPadding
+      : Math.max(0, Number(opts.verticalPadding) || 0);
     const pagesWidth = sizes.reduce((sum, size) => sum + Math.max(1, Number(size.width) || 1), 0);
     const gapsWidth = gap * Math.max(0, sizes.length - 1);
     const contentWidth = pagesWidth + gapsWidth;
     const contentHeight = sizes.reduce((max, size) => Math.max(max, Math.max(1, Number(size.height) || 1)), 1);
-    const availableWidth = Math.max(1, (Number(opts.viewportWidth) || 1) - padding * 2);
-    const availableHeight = Math.max(1, (Number(opts.viewportHeight) || 1) - padding * 2);
+    const availableWidth = Math.max(1, (Number(opts.viewportWidth) || 1) - horizontalPadding * 2);
+    const availableHeight = Math.max(1, (Number(opts.viewportHeight) || 1) - verticalPadding * 2);
     const fitWidthScale = Math.max(1, availableWidth - gapsWidth) / pagesWidth;
     const fitPageScale = Math.min(fitWidthScale, availableHeight / contentHeight);
     const mode = normalizeZoomMode(opts.mode);

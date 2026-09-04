@@ -136,6 +136,13 @@ class Paginator {
     if (this.doc) this.applyLayout();
   }
 
+  /** 设置页面上下边距（px），立即重新排版。 */
+  setVerticalMargin(px) {
+    const padding = Number(px);
+    this.verticalPadding = Number.isFinite(padding) && padding >= 0 ? padding : 28;
+    if (this.doc) this.applyLayout();
+  }
+
   /** 设置双页之间的列间距，并保持当前页索引。 */
   setGap(px) {
     const gap = Number(px);
