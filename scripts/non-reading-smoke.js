@@ -224,8 +224,8 @@ async function run(win) {
         return { view, contrastSamples: nodes.length, minimumBaseContrast: Number(lowestRatio.toFixed(2)) };
       },
       assertStyleIsolation(view) {
-        const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home)\.css$/.test(sheet.href || ''));
-        requireTrue(sheets.length === 3, 'All UI stylesheets must be loaded');
+        const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home|library)\.css$/.test(sheet.href || ''));
+        requireTrue(sheets.length === 4, 'All UI stylesheets must be loaded');
         const root = document.getElementById(view + '-view');
         const nodes = [root, ...root.querySelectorAll('*')];
         const snapshot = () => nodes.map((el) => {
@@ -251,8 +251,8 @@ async function run(win) {
     return;
   }
   check('browser parses only scoped UI rules', await evaluate(() => {
-    const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home)\.css$/.test(sheet.href || ''));
-    if (sheets.length !== 3) return false;
+    const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home|library)\.css$/.test(sheet.href || ''));
+    if (sheets.length !== 4) return false;
     let count = 0;
     function walk(rules) {
       for (const rule of rules) {
@@ -268,7 +268,7 @@ async function run(win) {
     return sheets.every((sheet) => walk(sheet.cssRules)) && count > 20;
   }));
   await evaluate(async () => { await __uiSmoke.wait(500); });
-  await require('./home-runtime-checks')({ win, report, check, capture });
+  if (process.env.GAIA_UI_LIBRARY_ONLY !== '1') await require('./home-runtime-checks')({ win, report, check, capture });
   check('no renderer exceptions during live homepage checks', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
   if (process.env.GAIA_UI_HOME_ONLY === '1') return;
   await capture(win, 'home-light-1100x760');
@@ -307,6 +307,8 @@ async function run(win) {
   await capture(win, 'library-manage-1100x760');
   await evaluate(async () => { await __uiSmoke.click('#btn-exit-manage'); });
   check('leaving bulk mode clears selection', await evaluate(() => __gaiaDebug.getSelectedCount() === 0 && document.getElementById('manage-bar').hidden));
+  await require('./library-runtime-checks')({ win, report, check, capture, books });
+  if (process.env.GAIA_UI_LIBRARY_ONLY === '1') return;
 
   for (const theme of ['light', 'dark', 'eye']) {
     await evaluate(async (name) => { await __gaiaDebug.setTheme(name); await __uiSmoke.wait(300); }, theme);

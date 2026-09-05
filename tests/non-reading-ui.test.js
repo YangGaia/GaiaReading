@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const renderer = path.join(__dirname, '..', 'src', 'renderer');
 const html = fs.readFileSync(path.join(renderer, 'index.html'), 'utf8');
-const sheets = ['non-reading.css', 'library-stats.css', 'home.css'];
+const sheets = ['non-reading.css', 'library-stats.css', 'home.css', 'library.css'];
 const viewControls = {
   home: ['btn-home-shelf', 'btn-home-add-books', 'btn-home-ai', 'btn-home-settings', 'home-img'],
   library: ['btn-back-home', 'btn-settings', 'btn-add-books', 'btn-manage', 'btn-reading-stats', 'import-status', 'manage-bar', 'manage-count', 'btn-select-all', 'btn-remove-selected', 'btn-exit-manage', 'library-hint', 'bookshelf'],
@@ -15,7 +15,7 @@ const viewControls = {
 };
 
 test('软件和首页预览不包含第三方推广署名、样式或专用外链处理', () => {
-  const files = ['src/renderer/index.html', 'src/renderer/home.css', 'src/renderer/non-reading.css', 'src/main.js', 'docs/design/home/index.html', 'docs/design/home/home.css'];
+  const files = ['src/renderer/index.html', 'src/renderer/home.css', 'src/renderer/non-reading.css', 'src/renderer/library.css', 'src/renderer/music.css', 'src/main.js', 'docs/design/home/index.html', 'docs/design/home/home.css'];
   for (const file of files) {
     const source = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
     assert.doesNotMatch(source, /deerflow|design-credit/i, file);
@@ -81,6 +81,18 @@ test('非阅读页面的新样式加载在原样式之后，避免替换阅读�
   }
 });
 
+test('书架装饰使用离线透明素材，共享音乐样式只作用于播放器', () => {
+  const art = fs.readFileSync(path.join(renderer, 'images/library/robin.png'));
+  assert.equal(art.subarray(1, 4).toString('ascii'), 'PNG');
+  assert.equal(art[25], 6, 'bird image must carry alpha instead of the photo background');
+  assert.match(html, /class="library-ornament library-ornament-left" aria-hidden="true"/);
+  assert.match(html, /class="library-ornament library-ornament-right" aria-hidden="true"/);
+  assert.match(html, /href="music\.css"/);
+  const music = fs.readFileSync(path.join(renderer, 'music.css'), 'utf8');
+  for (const selector of styleSelectors(music)) assert.match(selector, /^#bgm-capsule(?=$|[\s.#:[>])/, selector);
+  assert.doesNotMatch(music, /@import|url\(["']?https?:/);
+});
+
 test('包括响应式与主题规则在内的新 CSS 全部限定在授权的三个页面内', () => {
   for (const sheet of sheets) {
     const css = fs.readFileSync(path.join(renderer, sheet), 'utf8');
@@ -116,7 +128,7 @@ test('首页按实际尺寸绘制等比例构图，不放大已合成的页面�
     assert.doesNotMatch(rule, /transform:|zoom:|filter:/);
   }
   assert.match(css, /font-size:\s*calc\(46 \* var\(--home-unit\)\)/);
-  assert.match(css, /backdrop-filter:\s*none/);
+  assert.match(fs.readFileSync(path.join(renderer, 'music.css'), 'utf8'), /backdrop-filter:\s*none/);
   assert.doesNotMatch(css, /\b\d*(?:vw|vh|svh|dvh)\b|@media[^\{]*(?:width|height)|--home-pet-space/);
   assert.match(html, /class="home-stage"/);
 });

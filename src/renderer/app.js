@@ -281,8 +281,7 @@ function showView(name) {
   fxCanvas.hidden = !(name === 'home' || name === 'library');
   if (name !== 'home' && name !== 'library') clearFx();
   if (name === 'stats') renderReadingStats();
-  const companionView = name === 'stats' ? 'library' : name;
-  if (window.GaiaBgm && window.GaiaBgm.positionBgm) window.GaiaBgm.positionBgm(companionView);
+  if (window.GaiaBgm && window.GaiaBgm.positionBgm) window.GaiaBgm.positionBgm(name);
   updateTocEdgeAvailability();
   window.GaiaPet.init().then(() => {
     window.GaiaPet.setView(name);
@@ -405,18 +404,27 @@ function renderLibrary() {
     card.className = 'book-card' + (state.selected.has(book.path) ? ' selected' : '');
     card.dataset.path = book.path;
     card.title = book.path;
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', book.title || '(未命名)');
+    if (state.manageMode) card.setAttribute('aria-pressed', String(state.selected.has(book.path)));
 
     const check = document.createElement('div');
     check.className = 'book-check';
     check.textContent = '\u2713';
+    check.setAttribute('aria-hidden', 'true');
     card.appendChild(check);
+
+    const jacket = document.createElement('div');
+    jacket.className = 'book-jacket';
+    card.appendChild(jacket);
 
     if (book.cover) {
       const img = document.createElement('img');
       img.className = 'book-cover';
       img.src = book.cover;
       img.alt = book.title;
-      card.appendChild(img);
+      jacket.appendChild(img);
     } else {
       const div = document.createElement('div');
       div.className = 'book-cover book-cover-placeholder';
@@ -427,8 +435,14 @@ function renderLibrary() {
       coverType.className = 'book-cover-type';
       coverType.textContent = book.format.toUpperCase();
       div.append(coverName, coverType);
-      card.appendChild(div);
+      jacket.appendChild(div);
     }
+
+    const openMark = document.createElement('span');
+    openMark.className = 'book-open-mark';
+    openMark.setAttribute('aria-hidden', 'true');
+    openMark.textContent = '↗';
+    jacket.appendChild(openMark);
 
     const title = document.createElement('div');
     title.className = 'book-title';
@@ -467,6 +481,11 @@ function renderLibrary() {
     card.addEventListener('click', () => {
       if (state.manageMode) toggleSelect(book.path);
       else openBook(book);
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      if (!event.repeat) card.click();
     });
     els.bookshelf.appendChild(card);
   }
@@ -622,6 +641,8 @@ function updateManageUI() {
   els.manageCount.textContent = String(state.selected.size);
   for (const card of els.bookshelf.querySelectorAll('.book-card')) {
     card.classList.toggle('selected', state.selected.has(card.dataset.path));
+    if (state.manageMode) card.setAttribute('aria-pressed', String(state.selected.has(card.dataset.path)));
+    else card.removeAttribute('aria-pressed');
   }
 }
 

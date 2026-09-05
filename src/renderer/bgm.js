@@ -140,7 +140,7 @@
     }
     const topbarSelector = currentView === 'home' ? '#home-bgm-slot' : currentView === 'reader'
       ? '#reader-bgm-slot'
-      : (currentView === 'library' ? '#library-view .topbar' : (currentView === 'ai' ? '#ai-view .topbar' : null));
+      : (currentView === 'library' ? '#library-view .topbar' : (currentView === 'ai' ? '#ai-view .topbar' : (currentView === 'stats' ? '#stats-view .topbar' : null)));
     const topbar = topbarSelector ? document.querySelector(topbarSelector) : null;
     if (topbar) {
       ui.root.classList.add('in-topbar');

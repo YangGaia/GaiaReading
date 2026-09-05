@@ -43,7 +43,7 @@ test('阅读配色保持 EPUB、PDF、分页器的应用与偏好保存通路', 
 });
 
 test('非阅读样式没有日间夜间护眼覆盖，设置样式只影响侧栏及避让的播放器', () => {
-  for (const name of ['styles.css', 'non-reading.css', 'library-stats.css', 'home.css', 'settings.css']) {
+  for (const name of ['styles.css', 'non-reading.css', 'library-stats.css', 'home.css', 'settings.css', 'library.css', 'music.css']) {
     assert.doesNotMatch(read(name), /body\.(?:dark|eye)/, name);
   }
   const css = read('settings.css');

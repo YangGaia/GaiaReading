@@ -482,12 +482,9 @@ button { font-family: inherit; }
 @media (max-width: 1040px) {
   .alice-action-prefix { display: none; }
   .alice-reader-action { padding-inline: 8px; }
-  .reader-bgm-slot .bgm-title-wrap { max-width: 110px; }
 }
 @media (max-width: 900px) {
   .reader-actions { gap: 5px; }
-  .reader-bgm-slot .bgm-title-wrap { max-width: 72px; }
-  .reader-bgm-slot .bgm-volume { display: none; }
 }
 
 /* ===== 粒子画布（仅首页） ===== */
@@ -639,105 +636,7 @@ button { font-family: inherit; }
 }
 
 /* ===== 内置 BGM 悬浮胶囊（久遠寺有珠黑紫色） ===== */
-.bgm-capsule {
-  position: fixed;
-  z-index: 150;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 42px;
-  padding: 0 12px 0 4px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, rgba(30, 13, 52, .94), rgba(14, 6, 30, .94));
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(139, 92, 246, .55);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(167, 139, 250, .18);
-  color: #e9e2ff;
-  opacity: .92;
-  transition: top .3s ease, left .3s ease, right .3s ease, bottom .3s ease, opacity .25s ease, box-shadow .25s ease;
-  user-select: none;
-}
-.bgm-capsule[hidden] { display: none !important; }
-.bgm-capsule:hover { opacity: 1; box-shadow: 0 8px 26px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(167, 139, 250, .22); }
-.bgm-capsule[data-view="home"] { top: 18px; right: 28px; bottom: auto; left: auto; }
-.bgm-capsule[data-view="reader"] { opacity: .6; }
-.bgm-capsule.in-topbar {
-  position: static;
-  margin: 0 0 0 auto;
-  height: 36px;
-  opacity: .95;
-  gap: 4px;
-  padding: 0 10px 0 4px;
-}
-.bgm-capsule.in-topbar:hover { opacity: 1; }
-.bgm-capsule.in-topbar .bgm-cover { width: 28px; height: 28px; }
-.bgm-capsule.in-topbar .bgm-title-wrap { max-width: 190px; }
-.bgm-capsule.in-topbar .bgm-volume { width: 48px; }
-.reader-bgm-slot .bgm-capsule.in-topbar { min-width: 0; margin-left: 0; }
-.bgm-capsule[data-settings-open="1"] {
-  position: fixed;
-  top: 16px;
-  right: calc(var(--settings-drawer-width) + 24px);
-  bottom: auto;
-  left: auto;
-  opacity: .96;
-}
-@media (max-width: 760px) {
-  .bgm-capsule[data-settings-open="1"] {
-    visibility: hidden;
-    opacity: 0;
-    pointer-events: none;
-  }
-}
-
-.bgm-capsule[data-view="reader"]:hover { opacity: 1; }
-.bgm-capsule button {
-  border: 0;
-  background: transparent;
-  color: #c9bdf0;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 1;
-}
-.bgm-capsule button:hover { color: #fff; background: rgba(139, 92, 246, .2); }
-.bgm-cover {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid rgba(167, 139, 250, .6);
-  cursor: pointer;
-  flex: none;
-  padding: 0;
-}
-.bgm-cover.playing { animation: bgmPulse 2.6s ease-in-out infinite; }
-@keyframes bgmPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, .55); }
-  50% { box-shadow: 0 0 0 7px rgba(139, 92, 246, 0); }
-}
-.bgm-title-wrap { max-width: 190px; overflow: hidden; }
-.bgm-title {
-  display: inline-block;
-  font-size: 12px;
-  color: #efe9ff;
-  white-space: nowrap;
-  padding-left: 2px;
-}
-.bgm-capsule[data-playing="1"] .bgm-char { display: inline-block; animation: bgmWave 2.4s ease-in-out infinite; animation-delay: calc(var(--i, 0) * 90ms); }
-@keyframes bgmWave {
-  0%, 100% { transform: translateY(0); }
-  25% { transform: translateY(-2.5px); }
-  75% { transform: translateY(2px); }
-}
-.bgm-volume {
-  width: 64px;
-  height: 4px;
-  accent-color: #a78bfa;
-  cursor: pointer;
-}
+/* The shared capsule appearance and positioning live in music.css. */
 
 /* ===== 赛博桌宠 ===== */
 .gaia-pet {

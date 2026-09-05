@@ -1,0 +1,81 @@
+/* One music surface, shared by every view and the settings drawer. */
+#bgm-capsule {
+  position: fixed;
+  z-index: 150;
+  top: 18px; right: 28px; bottom: auto; left: auto;
+  --music-unit: 1px;
+  --secondary: #adb5c3;
+  --text: #eceff4;
+  color-scheme: dark;
+  font-family: "Gaia Home Noto", "Noto Sans SC", sans-serif;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: calc(7 * var(--music-unit));
+  width: calc(336 * var(--music-unit));
+  height: auto;
+  min-height: calc(52 * var(--music-unit));
+  margin: 0;
+  padding: calc(8 * var(--music-unit)) calc(12 * var(--music-unit)) calc(8 * var(--music-unit)) calc(9 * var(--music-unit));
+  border: calc(1 * var(--music-unit)) solid #ffffff12;
+  border-radius: calc(15 * var(--music-unit));
+  color: var(--secondary);
+  background: linear-gradient(145deg, #ffffff04, #ffffff00), #1c222bf0;
+  box-shadow: inset 0 calc(1 * var(--music-unit)) 0 #ffffff07, 0 calc(6 * var(--music-unit)) calc(18 * var(--music-unit)) #00000014;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  opacity: 1;
+  transition: box-shadow .18s ease;
+}
+#bgm-capsule:hover { opacity: 1; box-shadow: inset 0 calc(1 * var(--music-unit)) 0 #ffffff0b, 0 calc(6 * var(--music-unit)) calc(18 * var(--music-unit)) #00000014; }
+#bgm-capsule .bgm-cover { flex: 0 0 calc(32 * var(--music-unit)); width: calc(32 * var(--music-unit)); height: calc(32 * var(--music-unit)); border: 0; border-radius: calc(8 * var(--music-unit)); object-fit: cover; animation: none; cursor: pointer; }
+#bgm-capsule .bgm-title-wrap { flex: 1; min-width: calc(72 * var(--music-unit)); max-width: calc(138 * var(--music-unit)); margin-inline: calc(4 * var(--music-unit)); }
+#bgm-capsule .bgm-title { display: block; padding: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); font: 500 calc(12 * var(--music-unit))/1.5 "Gaia Home Noto", "Noto Sans SC", sans-serif; }
+#bgm-capsule .bgm-title-wrap::after { display: block; content: "魔法使之夜"; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--secondary); font-size: calc(10 * var(--music-unit)); line-height: 1.5; }
+#bgm-capsule .bgm-char { animation: none; }
+#bgm-capsule .bgm-btn {
+  display: grid; place-items: center; flex: 0 0 calc(28 * var(--music-unit)); width: calc(28 * var(--music-unit)); height: calc(28 * var(--music-unit));
+  padding: calc(5 * var(--music-unit)); border: 0; border-radius: calc(7 * var(--music-unit)); background: transparent;
+  color: var(--secondary); font-size: 0; line-height: 1;
+  transition: color .16s ease, background .16s ease, transform .12s ease;
+}
+#bgm-capsule .bgm-btn::before { content: ""; display: block; width: calc(17 * var(--music-unit)); height: calc(17 * var(--music-unit)); background: currentColor; mask-size: contain; mask-repeat: no-repeat; }
+#bgm-capsule .bgm-btn[data-action="prev"]::before { mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%204h1.5v12H4zM15%204.5v11L6.5%2010%2015%204.5Z%22%2F%3E%3C%2Fsvg%3E"); }
+#bgm-capsule .bgm-btn[data-action="next"]::before { mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M14.5%204H16v12h-1.5zM5%204.5l8.5%205.5L5%2015.5v-11Z%22%2F%3E%3C%2Fsvg%3E"); }
+#bgm-capsule .bgm-btn[data-action="play"] { color: var(--text); }
+#bgm-capsule .bgm-btn[data-action="play"]::before { mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M6.5%204.5%2015%2010l-8.5%205.5v-11Z%22%2F%3E%3C%2Fsvg%3E"); }
+#bgm-capsule[data-playing="1"] .bgm-btn[data-action="play"]::before { mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M5.5%204h3v12h-3zM11.5%204h3v12h-3z%22%2F%3E%3C%2Fsvg%3E"); }
+#bgm-capsule .bgm-btn[data-action="mute"]::before { mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M8.5%206%205%208H2.5v4H5l3.5%202V6ZM12%207c1.5%201.6%201.5%204.4%200%206M14%204.5c3%203%203%208%200%2011%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.2%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
+#bgm-capsule[data-muted="1"] .bgm-btn[data-action="mute"]::before { mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M8.5%206%205%208H2.5v4H5l3.5%202V6ZM12%207l5%206m0-6-5%206%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.2%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
+#bgm-capsule .bgm-btn:hover { color: #fff; background: #ffffff10; }
+#bgm-capsule .bgm-btn:active { transform: scale(.93); background: #ffffff18; }
+#bgm-capsule .bgm-volume { appearance: none; flex: 0 0 calc(46 * var(--music-unit)); width: calc(46 * var(--music-unit)); height: calc(28 * var(--music-unit)); margin: 0; border: 0; border-radius: calc(5 * var(--music-unit)); background: transparent; cursor: pointer; }
+#bgm-capsule .bgm-volume::-webkit-slider-runnable-track { height: calc(2 * var(--music-unit)); border-radius: calc(2 * var(--music-unit)); background: #606c7c; }
+#bgm-capsule .bgm-volume::-webkit-slider-thumb { appearance: none; width: calc(7 * var(--music-unit)); height: calc(7 * var(--music-unit)); margin-top: calc(-2.5 * var(--music-unit)); border: 0; border-radius: 50%; background: #c4cddc; }
+
+#bgm-capsule, #bgm-capsule * { box-sizing: border-box; }
+#bgm-capsule[hidden] { display: none !important; }
+#bgm-capsule.in-topbar { position: static; flex: 0 0 auto; margin-left: auto; }
+#bgm-capsule[data-view="home"][data-settings-open="0"] { --music-unit: var(--home-unit, 1px); width: 100%; margin: 0; }
+#bgm-capsule .bgm-title { white-space: nowrap; }
+#bgm-capsule .bgm-title-wrap { overflow: hidden; min-width: 0; }
+#bgm-capsule .bgm-btn { cursor: pointer; }
+#bgm-capsule .bgm-volume { display: block; }
+#bgm-capsule button:focus-visible, #bgm-capsule input:focus-visible { outline: calc(2 * var(--music-unit)) solid #b6c8f0; outline-offset: calc(3 * var(--music-unit)); }
+#bgm-capsule[data-view="reader"][data-settings-open="0"] { width: clamp(270px, 28vw, 336px); margin-left: 0; }
+#bgm-capsule[data-settings-open="1"] { position: fixed; z-index: 9201; top: 16px; right: calc(var(--settings-drawer-width) + 24px); bottom: auto; left: auto; margin: 0; width: min(382px, calc(100vw - var(--settings-drawer-width) - 48px)); }
+@media (max-width: 1040px) {
+  #bgm-capsule[data-view="reader"][data-settings-open="0"] .bgm-cover { display: none; }
+}
+@media (max-width: 760px) {
+  #bgm-capsule[data-settings-open="1"] { visibility: hidden; opacity: 0; pointer-events: none; }
+}
+@media (max-width: 640px) {
+  #bgm-capsule[data-view="library"][data-settings-open="0"] { width: 100%; margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #bgm-capsule, #bgm-capsule .bgm-btn { transition: none; }
+  #bgm-capsule .bgm-btn:active { transform: none; }
+}

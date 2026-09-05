@@ -10,6 +10,8 @@
 <link rel="stylesheet" href="library-stats.css">
 <link rel="stylesheet" href="home.css">
 <link rel="stylesheet" href="settings.css">
+<link rel="stylesheet" href="music.css">
+<link rel="stylesheet" href="library.css">
 </head>
 <body>
   <canvas id="fx-canvas" hidden></canvas>
@@ -146,20 +148,28 @@
   <div id="library-view" hidden>
     <header class="topbar">
       <button id="btn-back-home" class="btn">← 首页</button>
-      <span class="page-title"><span class="page-bookmark" aria-hidden="true"></span>书架</span>
+      <span class="page-title">Gaia Reading</span>
+      <span class="library-header-rule" aria-hidden="true"></span>
       <div class="actions">
         <button id="btn-settings" class="btn">设置</button>
       </div>
     </header>
+    <div class="library-body">
+      <aside class="library-ornament library-ornament-left" aria-hidden="true">
+        <span class="library-side-rule"></span>
+        <img class="library-robin" src="images/library/robin.png" alt="" draggable="false">
+        <svg class="library-flight-line" viewBox="0 0 100 260" fill="none"><path d="M66 8C14 66 97 131 46 211L25 248"/><path d="M19 240l6 8 9-4"/></svg>
+      </aside>
+    <div class="library-content">
     <div class="library-heading">
-      <h1>我的藏书<span class="heading-dot" aria-hidden="true">.</span></h1>
+      <h1>我的藏书</h1>
       <div class="shelf-toolbar">
-        <button id="btn-add-books" class="btn primary">添加图书</button>
+        <button id="btn-add-books" class="btn primary"><span aria-hidden="true">＋</span> 添加图书</button>
         <button id="btn-manage" class="btn">批量管理</button>
         <button id="btn-reading-stats" class="btn">阅读目标 <span aria-hidden="true">↗</span></button>
       </div>
     </div>
-    <div class="library-status"><span>书页之间，自有天地。</span><span id="import-status" class="import-status" role="status" aria-live="polite"></span></div>
+    <div class="library-status"><span class="library-title-rule" aria-hidden="true"></span><span id="import-status" class="import-status" role="status" aria-live="polite"></span></div>
     <div id="manage-bar" class="manage-bar" hidden>
       <span>已选 <b id="manage-count">0</b> 本</span>
       <button id="btn-select-all" class="btn">全选</button>
@@ -168,7 +178,14 @@
     </div>
     <p id="library-hint" class="hint"><span class="empty-book" aria-hidden="true">Ⅰ</span><strong>第一本书，从这里开始。</strong><span>点击“添加图书”，选择文件夹或书籍文件。</span><small>EPUB / PDF / TXT / MOBI / AZW3</small></p>
     <div id="bookshelf" class="bookshelf"></div>
-    <footer class="library-footer"><span>Gaia Reading</span></footer>
+    </div>
+      <aside class="library-ornament library-ornament-right" aria-hidden="true">
+        <svg class="library-moon" viewBox="0 0 100 120" fill="none"><path d="M72 12C42 17 31 47 43 70c8 15 23 24 40 24-14 16-39 18-56 3C4 77 7 43 28 24 41 12 57 8 72 12Z" fill="currentColor"/><path d="M66 37v12m-6-6h12M84 60v6m-3-3h6" stroke="currentColor" stroke-linecap="round"/></svg>
+        <span class="library-side-rule"></span>
+        <span class="library-orbit"></span>
+      </aside>
+    </div>
+    <footer class="library-footer"><span>Gaia Reading</span><span class="library-footer-rule" aria-hidden="true"></span></footer>
   </div>
 
   <div id="stats-view" hidden>
