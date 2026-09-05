@@ -405,17 +405,6 @@ function createWindow() {
     },
   });
 
-  // The design credit is an external page, not a reader window with our preload.
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url === 'https://deerflow.tech/' || url === 'https://deerflow.tech') {
-      shell.openExternal('https://deerflow.tech/').catch((error) => {
-        console.warn('Could not open design credit:', error.message);
-      });
-      return { action: 'deny' };
-    }
-    return { action: 'allow' };
-  });
-
   mainWindow.once('ready-to-show', () => mainWindow.show());
   let displayUpdateTimer = null;
   const sendDisplayFrequency = () => {

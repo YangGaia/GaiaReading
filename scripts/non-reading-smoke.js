@@ -191,9 +191,9 @@ async function run(win) {
           return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
         }).reduce((total, channel, i) => total + channel * [.2126, .7152, .0722][i], 0);
         const selector = {
-          home: '#home-title, .design-credit, button',
-          library: '.page-title, .library-heading h1, .library-status > span, button, .book-title, .book-author, .book-format, .book-progress-label, .hint > strong, .hint > span:not([aria-hidden]), .hint > small, .library-footer > span, .design-credit',
-          stats: '.page-title, .stats-page-heading, button, .stats-eyebrow, .stats-today, .stats-secondary, .stats-companion-copy > span, .stats-alice-line, .stats-ring-center strong, .stats-section-head h2, .stats-section-head > strong, .stats-section-head > span, .stats-streak strong, .stats-streak small, .stats-day-label, .stats-day-minutes, .stats-finished-title, .stats-empty, .stats-footer > span, .design-credit',
+          home: '#home-title, button',
+          library: '.page-title, .library-heading h1, .library-status > span, button, .book-title, .book-author, .book-format, .book-progress-label, .hint > strong, .hint > span:not([aria-hidden]), .hint > small, .library-footer > span',
+          stats: '.page-title, .stats-page-heading, button, .stats-eyebrow, .stats-today, .stats-secondary, .stats-companion-copy > span, .stats-alice-line, .stats-ring-center strong, .stats-section-head h2, .stats-section-head > strong, .stats-section-head > span, .stats-streak strong, .stats-streak small, .stats-day-label, .stats-day-minutes, .stats-finished-title, .stats-empty, .stats-footer > span',
         }[view];
         // Shared music controls are outside the palette redesign; they retain baseline layout checks.
         const nodes = [...root.querySelectorAll(selector)].filter((el) => visible(el) && el.textContent.trim() && !el.closest('.bgm-capsule'));
@@ -273,11 +273,10 @@ async function run(win) {
   if (process.env.GAIA_UI_HOME_ONLY === '1') return;
   await capture(win, 'home-light-1100x760');
   check('initial home', await evaluate(() => __gaiaDebug.getView() === 'home'));
-  const windowsBeforeCredit = windowsCreated;
-  await evaluate(async () => { await __uiSmoke.click('#home-view .design-credit'); });
-  check('home design credit requests only its official HTTPS URL in the system browser', externalRequests.length === 1 && /^https:\/\/deerflow\.tech\/?$/.test(externalRequests[0]));
-  check('home design credit creates no Electron child window', windowsCreated === windowsBeforeCredit && BrowserWindow.getAllWindows().length === 1);
-  check('home design credit preserves the current page', await evaluate(() => __gaiaDebug.getView() === 'home'));
+  check('no third-party promotional branding or links on any application page', await evaluate(() =>
+    !/deerflow/i.test(document.body.innerHTML) && !document.querySelector('.design-credit')
+  ));
+  check('homepage has not requested an external website or child window', externalRequests.length === 0 && windowsCreated === 1);
   await evaluate(async () => { await __uiSmoke.click('#btn-home-add-books'); });
   check('home import dialog opens', await evaluate(() => !document.getElementById('book-import-overlay').hidden));
   await evaluate(async () => { await __uiSmoke.click('#btn-book-import-close'); await __uiSmoke.click('#btn-home-settings'); });

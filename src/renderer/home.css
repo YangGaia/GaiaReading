@@ -163,8 +163,6 @@
 #home-view .settings-button .action-icon { width: calc(15 * var(--home-unit)); height: calc(15 * var(--home-unit)); flex-basis: calc(15 * var(--home-unit)); }
 #home-view .settings-button:hover, #home-view .settings-button:focus-visible { color: var(--text); background: #ffffff08; border-color: #465266; box-shadow: inset 0 calc(1 * var(--home-unit)) 0 #ffffff09, 0 calc(3 * var(--home-unit)) calc(8 * var(--home-unit)) #00000024; }
 #home-view .settings-button:active { background: #ffffff12; box-shadow: inset 0 calc(1 * var(--home-unit)) calc(3 * var(--home-unit)) #00000033; }
-#home-view .design-credit { display: inline-flex; flex: 0 0 auto; align-items: center; min-height: calc(28 * var(--home-unit)); color: var(--muted); font-size: calc(10 * var(--home-unit)); font-weight: 400; line-height: 1.5; text-decoration: none; text-underline-offset: calc(4 * var(--home-unit)); }
-#home-view .design-credit:hover { color: var(--text); text-decoration: underline; }
 #home-view .companion-space { flex: 0 0 calc(174 * var(--home-unit)); height: var(--pet-height); }
 
 #home-view button:focus-visible, #home-view input:focus-visible, #home-view a:focus-visible { outline: calc(2 * var(--home-unit)) solid var(--focus); outline-offset: calc(4 * var(--home-unit)); }

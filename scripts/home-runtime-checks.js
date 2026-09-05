@@ -144,7 +144,7 @@ module.exports = async ({ win, report, check, capture }) => {
             fail(style.transform === 'none' && style.zoom === '1' && style.filter === 'none' && style.backdropFilter === 'none', `${selector} is raster-scaled or filtered by ${node.id || node.className}`);
           }
         }
-        const selectors = ['#home-title', '.app-mark', '.header-rule', '.copy-rule', '#btn-home-shelf', '#btn-home-add-books', '#btn-home-ai', '.study-divider', '.portrait-lines', '#home-img', '#home-bgm-slot', '.bgm-cover', '.bgm-volume', '#btn-home-settings', '.footer-rule', '.design-credit'];
+        const selectors = ['#home-title', '.app-mark', '.header-rule', '.copy-rule', '#btn-home-shelf', '#btn-home-add-books', '#btn-home-ai', '.study-divider', '.portrait-lines', '#home-img', '#home-bgm-slot', '.bgm-cover', '.bgm-volume', '#btn-home-settings', '.footer-rule'];
         const normalized = selectors.map((selector) => {
           const r = document.querySelector(selector).getBoundingClientRect();
           return [(r.left - canvas.left) / scale, (r.top - canvas.top) / scale, r.width / scale, r.height / scale];
@@ -153,7 +153,7 @@ module.exports = async ({ win, report, check, capture }) => {
         // Chromium snaps CSS borders to device pixels when page zoom changes.
         normalized.forEach((rect, i) => rect.forEach((value, axis) => fail(Math.abs(value - reference[i][axis]) < 1.5, `${selectors[i]} changes composition at ${innerWidth}×${innerHeight}: ${rect} vs ${reference[i]}`)));
         const controls = [...home.querySelectorAll('button, input, a')];
-        fail(controls.length === 10, 'All original entries, live music buttons and volume must remain present');
+        fail(controls.length === 9, 'All original entries, live music buttons and volume must remain present');
         for (const el of controls) {
           const r = el.getBoundingClientRect();
           const name = el.id || el.getAttribute('aria-label') || el.textContent.trim();

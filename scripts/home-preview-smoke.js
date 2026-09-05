@@ -110,7 +110,11 @@ async function verifyKeyboard(name) {
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab', modifiers: ['shift'] });
   win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab', modifiers: ['shift'] });
   await pause(20);
-  check(`forward and reverse keyboard navigation ${name}`, await evaluate(() => document.activeElement.id === 'preview-settings'));
+  const previousLabel = await evaluate(() => {
+    const el = document.activeElement;
+    return el.id || el.getAttribute('aria-label') || el.textContent.trim();
+  });
+  check(`forward and reverse keyboard navigation ${name}`, previousLabel === expected[expected.length - 2]);
   report.checks.push({ name: `all controls have visible keyboard focus ${name}`, controls: seen });
   await evaluate(() => { document.activeElement.blur(); scrollTo(0, 0); });
 }
@@ -173,10 +177,9 @@ app.whenReady().then(async () => {
   check('artwork frame keeps a constant stroke width while the illustration scales', await evaluate(() =>
     getComputedStyle(document.querySelector('.portrait-lines path')).vectorEffect === 'non-scaling-stroke'
   ));
-  check('design credit has its own safe browser target', await evaluate(() => {
-    const link = document.querySelector('.design-credit');
-    return link.href === 'https://deerflow.tech/' && link.target === '_blank' && link.relList.contains('noopener') && link.relList.contains('noreferrer');
-  }));
+  check('preview has no third-party promotional branding or links', await evaluate(() =>
+    !/deerflow/i.test(document.body.innerHTML) && !document.querySelector('.design-credit')
+  ));
 
   await evaluate(() => {
     const fail = (condition, message) => { if (!condition) throw new Error(message); };
@@ -219,7 +222,7 @@ app.whenReady().then(async () => {
         fail(art.left >= 0 && art.right <= root.clientWidth && art.top >= 0 && art.bottom <= root.scrollHeight, 'Portrait must fit in the document');
         fail(getComputedStyle(document.querySelector('.home-preview')).overflowY !== 'hidden', 'Short layouts must allow scrolling');
         const all = [...document.querySelectorAll('button, input, a')].filter(visible);
-        fail(all.length === 9, 'All four entries, music controls, volume and credit must remain available');
+        fail(all.length === 8, 'All four entries, music controls and volume must remain available');
         for (const el of all) {
           el.scrollIntoView({ block: 'center', inline: 'nearest' });
           const r = el.getBoundingClientRect();
@@ -233,7 +236,7 @@ app.whenReady().then(async () => {
           }
           fail(el.tagName === 'INPUT' || !!(el.textContent.trim() || el.getAttribute('aria-label')), 'Control needs an accessible name');
         }
-        const measured = [...document.querySelectorAll('h1, button > span, .track-copy span, .design-credit')].filter(visible);
+        const measured = [...document.querySelectorAll('h1, button > span, .track-copy span')].filter(visible);
         for (const el of measured) {
           const range = document.createRange();
           range.selectNodeContents(el);
@@ -248,7 +251,7 @@ app.whenReady().then(async () => {
         return { width: innerWidth, height: innerHeight, documentHeight: root.scrollHeight, devicePixelRatio, targets: all.length, copy, portrait, companion };
       },
       contrast() {
-        const samples = [...document.querySelectorAll('h1, button > span, .track-copy span, .design-credit')].filter(visible);
+        const samples = [...document.querySelectorAll('h1, button > span, .track-copy span')].filter(visible);
         const ratios = [];
         for (const el of samples) {
           let background = [17, 20, 25];

@@ -102,22 +102,6 @@
   outline: 2px solid var(--accent);
   outline-offset: 4px;
 }
-#library-view .design-credit,
-#stats-view .design-credit {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  color: var(--text-soft);
-  font: 10px/1.5 var(--paper-font);
-  letter-spacing: .025em;
-  text-decoration: none;
-  text-underline-offset: 4px;
-}
-#library-view .design-credit:hover,
-#stats-view .design-credit:hover {
-  color: var(--accent);
-  text-decoration: underline;
-}
 #library-view .heading-dot,
 #stats-view .heading-dot {
   margin-left: 4px;

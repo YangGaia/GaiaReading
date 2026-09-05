@@ -14,6 +14,15 @@ const viewControls = {
   stats: ['btn-stats-back', 'stats-today', 'stats-goal-copy', 'stats-alice-line', 'stats-alice', 'stats-alice-zzz', 'stats-ring', 'stats-ring-percent', 'stats-week-total', 'stats-week-chart', 'stats-current-streak', 'stats-longest-streak', 'stats-goal-options', 'stats-finished-count', 'stats-finished-books'],
 };
 
+test('软件和首页预览不包含第三方推广署名、样式或专用外链处理', () => {
+  const files = ['src/renderer/index.html', 'src/renderer/home.css', 'src/renderer/non-reading.css', 'src/main.js', 'docs/design/home/index.html', 'docs/design/home/home.css'];
+  for (const file of files) {
+    const source = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    assert.doesNotMatch(source, /deerflow|design-credit/i, file);
+  }
+  assert.match(html, /<title>Gaia Reading<\/title>/);
+});
+
 // Walk nested blocks without treating braces inside CSS strings as structure.
 function styleSelectors(source) {
   const css = source.replace(/\/\*[\s\S]*?\*\//g, '');
