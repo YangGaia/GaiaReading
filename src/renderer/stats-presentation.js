@@ -16,7 +16,7 @@
     return {
       text: [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':'),
       label: hours + '小时' + minutes + '分钟' + seconds + '秒',
-      hourAngle: (totalSeconds % 43200) / 120,
+      // A 60-minute stopwatch dial; full hours remain in the numeric readout.
       minuteAngle: (totalSeconds % 3600) / 10,
       secondAngle: seconds * 6,
       progress,
@@ -30,7 +30,7 @@
     const get = (id) => root.querySelector('#' + id);
     const el = Object.fromEntries([
       'stats-today', 'stats-date', 'stats-goal-copy', 'stats-goal-status', 'stats-ring',
-      'stats-ring-percent', 'stats-clock-progress', 'stats-clock-hour', 'stats-clock-minute',
+      'stats-ring-percent', 'stats-clock-progress', 'stats-clock-minute',
       'stats-clock-second', 'stats-clock-ticks', 'stats-alice-line', 'stats-current-streak',
       'stats-longest-streak', 'stats-week-total', 'stats-week-chart', 'stats-goal-options',
       'stats-finished-count', 'stats-finished-books',
@@ -143,8 +143,7 @@
       const clock = clockReading(summary.todayMs, summary.goalMs);
       text('stats-today', clock.text);
       el['stats-today'].setAttribute('aria-label', '今日已读 ' + clock.label);
-      el['stats-ring'].setAttribute('aria-label', '今日累计阅读 ' + clock.label + '，每日目标已完成 ' + clock.percent + '%');
-      el['stats-clock-hour'].setAttribute('transform', 'rotate(' + clock.hourAngle + ' 180 180)');
+      el['stats-ring'].setAttribute('aria-label', '累计阅读计时器，主针每圈60分钟，细针每圈60秒。今日累计阅读 ' + clock.label + '，每日目标已完成 ' + clock.percent + '%');
       el['stats-clock-minute'].setAttribute('transform', 'rotate(' + clock.minuteAngle + ' 180 180)');
       el['stats-clock-second'].setAttribute('transform', 'rotate(' + clock.secondAngle + ' 180 180)');
       el['stats-clock-progress'].setAttribute('stroke-dasharray', (clock.progress * 100).toFixed(3) + ' 100');

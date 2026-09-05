@@ -31,6 +31,17 @@ module.exports = async ({ win, report, check, capture }) => {
       return faces.length > 0 && display.length > 0 && faces.every((face) => face.status === 'loaded') &&
         document.querySelectorAll('#stats-clock-ticks line').length === 60 && document.querySelectorAll('#stats-clock-ticks .major').length === 12;
     }));
+    check('timer labels use a 60-minute scale and the dial has only minute and second hands', await evaluate(() => {
+      const labels = [...document.querySelectorAll('.stats-clock-numerals text')];
+      return labels.length === 12 && labels.every((label, index) => {
+        const minute = index * 5;
+        const angle = minute * Math.PI / 30;
+        return label.textContent === String(minute) && Number(label.dataset.minute) === minute &&
+          Math.abs(Number(label.getAttribute('x')) - (180 + 119 * Math.sin(angle))) < .02 &&
+          Math.abs(Number(label.getAttribute('y')) - (180 - 119 * Math.cos(angle))) < .02;
+      }) && document.querySelectorAll('.stats-clock-hand').length === 2 &&
+        !document.getElementById('stats-clock-hour') && document.querySelector('.stats-dial-caption').textContent === '分钟';
+    }));
     for (const [width, height, zoom] of [[800, 600, 1], [1100, 760, 1], [1600, 1000, 1], [1920, 1080, 1], [2560, 1080, 1], [1440, 600, 1], [800, 1000, 1], [560, 760, 1], [420, 700, 1], [800, 600, 1.25]]) {
       await resize(width, height, zoom);
       report.checks.push(await evaluate(() => __uiSmoke.layout('stats')));
@@ -164,20 +175,26 @@ module.exports = async ({ win, report, check, capture }) => {
       return asleep && document.getElementById('stats-alice-zzz').hidden;
     }));
 
-    for (const [name, ms, expected] of [['empty', 0, '00:00:00'], ['under-goal', 7 * 60000 + 23000, '00:07:23'], ['complete', 30 * 60000, '00:30:00'], ['over-hour', 5912000, '01:38:32']]) {
+    for (const [name, ms, expected, minuteAngle, secondAngle, percent] of [
+      ['empty', 0, '00:00:00', 0, 0, 0],
+      ['under-goal', 443000, '00:07:23', 44.3, 138, 24],
+      ['complete', 1800000, '00:30:00', 180, 0, 100],
+      ['38-minutes', 2280000, '00:38:00', 228, 0, 100],
+      ['hour-rollover', 3600000, '01:00:00', 0, 0, 100],
+      ['over-hour', 4320000, '01:12:00', 72, 0, 100],
+    ]) {
       await evaluate((ms, empty) => {
         const today = window.GaiaReadingStats.dateKey(Date.now());
         state.readingStats = { ...window.__statsSaved, goalMinutes: 30, days: { [today]: { ms, byBook: {} } }, completedBooks: empty ? {} : window.__statsSaved.completedBooks };
         __gaiaDebug.renderReadingStats();
       }, ms, name === 'empty');
       await settle();
-      check(`clock state ${name} renders actual duration`, await evaluate((expected, ms) => {
-        const clock = window.GaiaStatsPresentation.clockReading(ms, 1800000);
+      check(`timer state ${name} renders actual duration`, await evaluate((expected, minuteAngle, secondAngle, percent) => {
         return document.getElementById('stats-today').textContent === expected &&
-          document.getElementById('stats-clock-hour').getAttribute('transform') === `rotate(${clock.hourAngle} 180 180)` &&
-          document.getElementById('stats-clock-minute').getAttribute('transform') === `rotate(${clock.minuteAngle} 180 180)` &&
-          document.getElementById('stats-ring-percent').textContent === clock.percent + '%';
-      }, expected, ms));
+          document.getElementById('stats-clock-minute').getAttribute('transform') === `rotate(${minuteAngle} 180 180)` &&
+          document.getElementById('stats-clock-second').getAttribute('transform') === `rotate(${secondAngle} 180 180)` &&
+          document.getElementById('stats-ring-percent').textContent === percent + '%';
+      }, expected, minuteAngle, secondAngle, percent));
       await capture(win, 'stats-state-' + name);
     }
 

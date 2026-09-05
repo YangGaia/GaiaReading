@@ -54,11 +54,11 @@
 #stats-view .stats-clock-ticks { stroke: #8b98ac; stroke-width: 1; }
 #stats-view .stats-clock-ticks .major { stroke: #c6cdd9; stroke-width: 1.6; }
 #stats-view .stats-clock-numerals { fill: #c5ccd7; font: 500 27px "Gaia Wordmark", serif; }
+#stats-view .stats-clock-numerals .stats-minute-label { font-size: 20px; }
 #stats-view .stats-dial-brand { fill: #b7c2d3; font: 500 23px "Gaia Wordmark", serif; letter-spacing: .06em; }
-#stats-view .stats-dial-caption { fill: #a4b0c1; font: 400 7px var(--paper-font); letter-spacing: .2em; }
+#stats-view .stats-dial-caption { fill: #a4b0c1; font: 400 12px var(--paper-font); letter-spacing: .2em; }
 #stats-view .stats-clock-track { fill: none; stroke: #5b6b8045; stroke-width: 1; }
 #stats-view .stats-clock-progress { fill: none; stroke: #b6c8e5; stroke-width: 1.8; transition: stroke-dasharray .6s ease; }
-#stats-view .stats-clock-hour,
 #stats-view .stats-clock-minute { fill: url(#stats-hand-metal); stroke: #d8e2f030; stroke-width: .4; }
 #stats-view .stats-clock-second { fill: #232b36; stroke: #a9c2ee; stroke-width: 1.1; }
 #stats-view .stats-clock-footnote { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: calc(21 * var(--stats-unit)); color: var(--text-soft); font-size: max(10px, calc(10 * var(--stats-unit))); letter-spacing: .14em; }

@@ -202,7 +202,7 @@
         <span id="stats-date" class="stats-date"></span>
       </div>
       <div class="stats-overview">
-        <section class="stats-clock-panel" aria-label="今日累计阅读时钟">
+        <section class="stats-clock-panel" aria-label="今日累计阅读计时器">
           <div id="stats-ring" class="stats-clock" role="img" aria-label="今日累计阅读 0小时0分钟0秒">
             <svg class="stats-clock-svg" viewBox="0 0 360 360" aria-hidden="true">
               <defs>
@@ -223,15 +223,24 @@
               <circle cx="180" cy="180" r="159" fill="url(#stats-face)" stroke="#525f7040"/>
               <g id="stats-clock-ticks" class="stats-clock-ticks"></g>
               <g class="stats-clock-numerals" text-anchor="middle" dominant-baseline="central">
-                <text x="180" y="61">12</text><text x="299" y="180">3</text>
-                <text x="180" y="299">6</text><text x="61" y="180">9</text>
+                <text data-minute="0" x="180" y="61">0</text>
+                <text data-minute="5" class="stats-minute-label" x="239.5" y="76.94">5</text>
+                <text data-minute="10" class="stats-minute-label" x="283.06" y="120.5">10</text>
+                <text data-minute="15" x="299" y="180">15</text>
+                <text data-minute="20" class="stats-minute-label" x="283.06" y="239.5">20</text>
+                <text data-minute="25" class="stats-minute-label" x="239.5" y="283.06">25</text>
+                <text data-minute="30" x="180" y="299">30</text>
+                <text data-minute="35" class="stats-minute-label" x="120.5" y="283.06">35</text>
+                <text data-minute="40" class="stats-minute-label" x="76.94" y="239.5">40</text>
+                <text data-minute="45" x="61" y="180">45</text>
+                <text data-minute="50" class="stats-minute-label" x="76.94" y="120.5">50</text>
+                <text data-minute="55" class="stats-minute-label" x="120.5" y="76.94">55</text>
               </g>
               <text class="stats-dial-brand" x="180" y="108" text-anchor="middle">Gaia</text>
-              <text class="stats-dial-caption" x="180" y="244" text-anchor="middle">READING TIME</text>
+              <text class="stats-dial-caption" x="180" y="244" text-anchor="middle">分钟</text>
               <circle class="stats-clock-track" cx="180" cy="180" r="174" pathLength="100"/>
               <circle id="stats-clock-progress" class="stats-clock-progress" cx="180" cy="180" r="174" pathLength="100" transform="rotate(-90 180 180)" stroke-dasharray="0 100"/>
               <g class="stats-clock-hands">
-                <path id="stats-clock-hour" class="stats-clock-hand stats-clock-hour" d="M177 191 176.8 129 180 104 183.2 129 183 191Z"/>
                 <path id="stats-clock-minute" class="stats-clock-hand stats-clock-minute" d="M178 195 177.8 83 180 63 182.2 83 182 195Z"/>
                 <g id="stats-clock-second" class="stats-clock-hand stats-clock-second">
                   <path d="M180 55V208"/><circle cx="180" cy="214" r="4.5"/>
