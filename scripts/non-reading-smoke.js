@@ -351,13 +351,13 @@ async function run(win) {
   check('no renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
 }
 
-async function capture(win, name) {
+async function capture(win, name, clip) {
   await win.webContents.executeJavaScript(`(async () => {
     const scroller = document.querySelector('#stats-view:not([hidden]) .stats-scroll');
     if (scroller) scroller.scrollTop = 0;
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   })()`);
-  const image = await win.webContents.capturePage();
+  const image = await win.webContents.capturePage(clip);
   const target = path.join(outputDir, name + '.png');
   fs.writeFileSync(target, image.toPNG());
   if (!report.screenshots.includes(target)) report.screenshots.push(target);

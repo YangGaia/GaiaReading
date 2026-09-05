@@ -1,6 +1,6 @@
 'use strict';
 
-// Fit the entire approved composition; no element uses a separate breakpoint.
+// Scale layout lengths so text and vectors are painted at their final size.
 (() => {
   const home = document.getElementById('home-view');
   const surface = home?.querySelector('.home-surface');
@@ -10,12 +10,17 @@
     if (home.hidden || !home.clientWidth || !home.clientHeight) return;
     // Keep fractional CSS pixels under Electron zoom / display scaling.
     const viewport = home.getBoundingClientRect();
-    const scale = Math.min(viewport.width / surface.offsetWidth, viewport.height / surface.offsetHeight);
-    const value = String(scale);
-    if (home.style.getPropertyValue('--home-scale') === value) return;
-    home.style.setProperty('--home-scale', value);
-    // The live pet is a body-level overlay and uses this same coordinate frame.
-    window.dispatchEvent(new Event('gaia:home-layout'));
+    const scale = Math.min(viewport.width / 1100, viewport.height / 760);
+    const pixelRatio = window.devicePixelRatio || 1;
+    const pixelAligned = (value) => Math.round(value * pixelRatio) / pixelRatio;
+    const values = {
+      '--home-unit': `${scale}px`,
+      '--home-left': `${pixelAligned((viewport.width - 1100 * scale) / 2)}px`,
+      '--home-top': `${pixelAligned((viewport.height - 760 * scale) / 2)}px`,
+    };
+    for (const [name, value] of Object.entries(values)) {
+      if (home.style.getPropertyValue(name) !== value) home.style.setProperty(name, value);
+    }
   }
 
   new ResizeObserver(sync).observe(home);

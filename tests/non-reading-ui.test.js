@@ -97,11 +97,28 @@ test('正式首页包含线条构图、原首页素材和可打包的轮廓蒙�
   assert.match(html, /<script src="home-layout\.js"><\/script>/);
 });
 
-test('首页以固定构图整体缩放，不再使用窗口断点重排或独立缩放人物', () => {
+test('首页按实际尺寸绘制等比例构图，不放大已合成的页面图层', () => {
   const css = fs.readFileSync(path.join(renderer, 'home.css'), 'utf8');
-  assert.match(css, /\.home-surface\s*\{[^}]*width:\s*1100px;[^}]*height:\s*760px;[^}]*transform:\s*scale\(var\(--home-scale\)\)/);
+  assert.match(css, /\.home-surface\s*\{[^}]*width:\s*calc\(1100 \* var\(--home-unit\)\);[^}]*height:\s*calc\(760 \* var\(--home-unit\)\)/);
+  for (const selector of ['home-stage', 'home-surface']) {
+    const rule = css.match(new RegExp(`\\.${selector}\\s*\\{([^}]+)\\}`))[1];
+    assert.doesNotMatch(rule, /transform:|zoom:|filter:/);
+  }
+  assert.match(css, /font-size:\s*calc\(36 \* var\(--home-unit\)\)/);
+  assert.match(css, /backdrop-filter:\s*none/);
   assert.doesNotMatch(css, /\b\d*(?:vw|vh|svh|dvh)\b|@media[^\{]*(?:width|height)|--home-pet-space/);
   assert.match(html, /class="home-stage"/);
+});
+
+test('桌宠不依赖首页画布大小和坐标系，只使用原有窗口位置与用户尺寸设置', () => {
+  const pet = fs.readFileSync(path.join(renderer, 'pet.js'), 'utf8');
+  assert.doesNotMatch(pet, /home-surface|home-layout|positionFrame|frame\.scale/);
+  assert.match(pet, /Math\.round\(150 \* saved\.scale\)/);
+  assert.match(pet, /window\.innerWidth - bw/);
+  assert.match(pet, /window\.innerHeight - bh/);
+  const css = fs.readFileSync(path.join(renderer, 'styles.css'), 'utf8');
+  assert.match(css, /\.gaia-pet-bubble\[hidden\]\s*\{\s*display:\s*none/);
+  assert.match(css, /\.gaia-pet-bubble\s*\{[^}]*pointer-events:\s*none/);
 });
 
 test('首页、书架与目标页保留既有操作控件及动态内容挂载点', () => {

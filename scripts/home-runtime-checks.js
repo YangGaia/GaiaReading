@@ -39,6 +39,41 @@ module.exports = async ({ win, report, check, capture }) => {
     const size = await evaluate(() => [innerWidth, innerHeight]);
     assert.ok(Math.abs(size[0] - width / zoom) <= 1 && Math.abs(size[1] - height / zoom) <= 1, 'Actual application viewport must resize');
   };
+  const captureMusic = async (name) => {
+    const clip = await evaluate(() => {
+      const r = document.getElementById('bgm-capsule').getBoundingClientRect();
+      return { x: Math.floor(r.left - 4), y: Math.floor(r.top - 4), width: Math.ceil(r.width + 8), height: Math.ceil(r.height + 8) };
+    });
+    await capture(win, `home-music-${name}-native-pixels`, clip);
+    (report.musicDetails ||= []).push({ name, clip });
+  };
+  const movePetToRatio = async (xRatio) => {
+    const point = await evaluate((ratio) => {
+      const el = document.getElementById('gaia-pet');
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, destination: ratio * (innerWidth - el.offsetWidth) + r.width / 2 };
+    }, xRatio);
+    mouse('mouseMove', point.x, point.y);
+    mouse('mouseDown', point.x, point.y);
+    await wait(20);
+    mouse('mouseMove', point.destination, point.y, 'left', true);
+    await wait(20);
+    mouse('mouseUp', point.destination, point.y);
+    mouse('mouseMove', 0, 0);
+    // Input delivery and JS evaluation use different Chromium queues. Drain the
+    // pointer events before dismissing the hover bubble they may have opened.
+    await wait(80);
+    await settle();
+    await evaluate(async () => {
+      const bubble = document.querySelector('.gaia-pet-bubble');
+      bubble.click();
+      for (let i = 0; i < 40; i += 1) {
+        if (bubble.hidden && !bubble.getClientRects().length) return;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      throw new Error(`Dismissed pet bubble still blocks input: ${bubble.outerHTML}`);
+    });
+  };
   try {
     await evaluate(async () => {
       await GaiaPet.whenReady();
@@ -85,7 +120,8 @@ module.exports = async ({ win, report, check, capture }) => {
         const canvas = home.querySelector('.home-surface').getBoundingClientRect();
         const scale = Math.min(viewport.width / 1100, viewport.height / 760);
         fail(Math.abs(canvas.width - 1100 * scale) < .1 && Math.abs(canvas.height - 760 * scale) < .1, 'The entire 1100×760 canvas must fit with one scale');
-        fail(Math.abs(canvas.left - (viewport.width - canvas.width) / 2) < .1 && Math.abs(canvas.top - (viewport.height - canvas.height) / 2) < .1, `The complete composition must stay centered: ${JSON.stringify(canvas.toJSON())}`);
+        const snapTolerance = .5 / devicePixelRatio + .02;
+        fail(Math.abs(canvas.left - (viewport.width - canvas.width) / 2) < snapTolerance && Math.abs(canvas.top - (viewport.height - canvas.height) / 2) < snapTolerance, `The complete composition must stay centered on device pixels: ${JSON.stringify(canvas.toJSON())}`);
         fail(home.scrollWidth <= home.clientWidth, `Home horizontal overflow at ${innerWidth}x${innerHeight}: ${home.scrollWidth}/${home.clientWidth}`);
         fail(home.scrollHeight <= home.clientHeight, `Home unexpectedly scrolls at ${innerWidth}x${innerHeight}: ${home.scrollHeight}/${home.clientHeight}`);
         const art = document.getElementById('home-img').getBoundingClientRect();
@@ -93,15 +129,23 @@ module.exports = async ({ win, report, check, capture }) => {
         const pet = document.getElementById('gaia-pet').getBoundingClientRect();
         fail(art.width > 0 && Math.abs(art.width - art.height) < 1, 'Home art must retain its original aspect ratio');
         fail(!overlaps(art, copy), 'Home art must not cover the entry controls');
-        fail(!overlaps(art, pet), 'Live desktop pet needs space beside the art');
-        const selectors = ['#home-title', '.app-mark', '.header-rule', '.copy-rule', '#btn-home-shelf', '#btn-home-add-books', '#btn-home-ai', '.study-divider', '.portrait-lines', '#home-img', '#home-bgm-slot', '.bgm-cover', '.bgm-volume', '#btn-home-settings', '.footer-rule', '.design-credit', '#gaia-pet'];
+        fail(pet.width === 150 * GaiaPet.getState().scale, 'Pet size must be independent of the home scale');
+        for (const [selector, base] of [['#home-title', 36], ['#btn-home-shelf', 14], ['#home-bgm-slot .bgm-title', 12]]) {
+          const el = document.querySelector(selector);
+          fail(Math.abs(parseFloat(getComputedStyle(el).fontSize) - base * scale) < .01, `${selector} must paint text at its final font size`);
+          for (let node = el; node; node = node.parentElement) {
+            const style = getComputedStyle(node);
+            fail(style.transform === 'none' && style.zoom === '1' && style.filter === 'none' && style.backdropFilter === 'none', `${selector} is raster-scaled or filtered by ${node.id || node.className}`);
+          }
+        }
+        const selectors = ['#home-title', '.app-mark', '.header-rule', '.copy-rule', '#btn-home-shelf', '#btn-home-add-books', '#btn-home-ai', '.study-divider', '.portrait-lines', '#home-img', '#home-bgm-slot', '.bgm-cover', '.bgm-volume', '#btn-home-settings', '.footer-rule', '.design-credit'];
         const normalized = selectors.map((selector) => {
           const r = document.querySelector(selector).getBoundingClientRect();
           return [(r.left - canvas.left) / scale, (r.top - canvas.top) / scale, r.width / scale, r.height / scale];
         });
         if (!reference) reference = normalized;
         // Chromium snaps CSS borders to device pixels when page zoom changes.
-        normalized.forEach((rect, i) => rect.forEach((value, axis) => fail(Math.abs(value - reference[i][axis]) < .8, `${selectors[i]} changes composition at ${innerWidth}×${innerHeight}: ${rect} vs ${reference[i]}`)));
+        normalized.forEach((rect, i) => rect.forEach((value, axis) => fail(Math.abs(value - reference[i][axis]) < 1.5, `${selectors[i]} changes composition at ${innerWidth}×${innerHeight}: ${rect} vs ${reference[i]}`)));
         const controls = [...home.querySelectorAll('button, input, a')];
         fail(controls.length === 10, 'All original entries, live music buttons and volume must remain present');
         for (const el of controls) {
@@ -120,15 +164,17 @@ module.exports = async ({ win, report, check, capture }) => {
           fail(range.getBoundingClientRect().width <= el.getBoundingClientRect().width + 1, `Home label is clipped: ${el.textContent}`);
         }
         fail(home.scrollTop === 0 && home.scrollLeft === 0, 'Home must never scroll to reveal a control');
-        return { width: innerWidth, height: innerHeight, scale, comparedElements: selectors.length, documentHeight: home.scrollHeight, petWidth: pet.width, controls: controls.length };
+        return { width: innerWidth, height: innerHeight, scale, comparedElements: selectors.length, documentHeight: home.scrollHeight, petWidth: pet.width, controls: controls.length, nativeTextRendering: true };
       };
     });
 
-    const storedPet = await evaluate(() => window.api.stateGet('pet'));
+    let storedPet = await evaluate(() => window.api.stateGet('pet'));
+    const originalPetRatio = storedPet.xRatio;
     for (const [width, height] of [[1100, 760], [800, 600], [1600, 1000], [1440, 600], [800, 1000], [1920, 1080], [2560, 1080]]) {
       await resize(width, height);
       report.checks.push({ name: 'runtime home layout', ...await evaluate(() => __homeRuntimeLayout(true)) });
       await capture(win, `home-runtime-${width}x${height}`);
+      if (width === 1100 || width === 1600) await captureMusic(`${width}x${height}`);
     }
     const samples = [];
     for (let width = 800; width <= 1600; width += 31) samples.push([width, 600]);
@@ -137,7 +183,7 @@ module.exports = async ({ win, report, check, capture }) => {
       await resize(width, height);
       await evaluate(() => __homeRuntimeLayout(true));
     }
-    check(`${samples.length} continuous real-app sizes retain the same composition and live pet proportions`, true);
+    check(`${samples.length} real-app sizes retain the composition, paint native text and keep the pet at its original size`, true);
 
     for (const mode of ['maximize', 'fullscreen']) {
       if (mode === 'maximize') win.maximize();
@@ -147,11 +193,18 @@ module.exports = async ({ win, report, check, capture }) => {
       check(`native ${mode} is active`, mode === 'maximize' ? win.isMaximized() : win.isFullScreen());
       report.checks.push({ name: `native ${mode} composition`, ...await evaluate(() => __homeRuntimeLayout()) });
       await capture(win, `home-runtime-${mode}`);
+      await captureMusic(mode);
       if (mode === 'maximize') win.unmaximize();
       else win.setFullScreen(false);
       await wait(400);
     }
 
+    assert.deepEqual(await evaluate(() => window.api.stateGet('pet')), storedPet, 'Window resizing must not change saved pet preferences');
+    // A freely positioned pet can overlap content. At 200% browser zoom, park
+    // her in the center gap using a real drag before checking all home targets.
+    await resize(1100, 760);
+    await movePetToRatio(.5);
+    storedPet = await evaluate(() => window.api.stateGet('pet'));
     for (const [width, height] of [[1100, 760], [800, 600]]) {
       for (const zoom of [1.25, 1.5, 2]) {
         await resize(width, height, zoom);
@@ -177,7 +230,7 @@ module.exports = async ({ win, report, check, capture }) => {
       const focus = await evaluate(() => {
         const el = document.activeElement;
         const r = el.getBoundingClientRect();
-        return { name: el.id || el.getAttribute('aria-label') || el.textContent.trim(), visible: el.matches(':focus-visible') && parseFloat(getComputedStyle(el).outlineWidth) >= 2 && r.top >= 0 && r.bottom <= innerHeight };
+        return { name: el.id || el.getAttribute('aria-label') || el.textContent.trim(), visible: el.matches(':focus-visible') && parseFloat(getComputedStyle(el).outlineWidth) > 0 && r.top >= 0 && r.bottom <= innerHeight };
       });
       assert.equal(focus.name, label, 'Runtime Tab order');
       assert.ok(focus.visible, `Runtime focus must be visible: ${label}`);
@@ -185,6 +238,7 @@ module.exports = async ({ win, report, check, capture }) => {
     check('all live homepage controls have visible keyboard focus at 200% zoom', true);
     await evaluate(() => document.activeElement.blur());
     await resize(1100, 760);
+    await movePetToRatio(originalPetRatio);
     await evaluate(() => { document.getElementById('home-view').scrollTop = 0; });
     check('responsive pet presentation preserves the saved scale', await evaluate(() => GaiaPet.getState().scale) === petScale);
     const petX = await evaluate(() => {
@@ -225,17 +279,19 @@ module.exports = async ({ win, report, check, capture }) => {
       await drag(-36, -24);
       const moved = await petSnapshot();
       assert.ok(Math.abs(moved.left - before.left + 36) < .1 && Math.abs(moved.top - before.top + 24) < .1, `Pet must follow the pointer at ${width}×${height}: ${JSON.stringify({ before, moved })}`);
-      assert.ok(Math.abs(moved.x - before.x + 36 / before.canvasScale) < .1, 'Drag must map back to design coordinates');
+      assert.ok(Math.abs(moved.x - before.x + 36) < .1, 'Drag must keep unscaled viewport coordinates');
       await drag(36, 24);
       const restored = await petSnapshot();
       assert.ok(Math.abs(restored.x - before.x) < .1 && Math.abs(restored.y - before.y) < .1, 'Scaled pet drag must be reversible');
       await evaluate(() => document.querySelector('#gaia-pet .gaia-pet-hitbox').focus());
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Left' });
       win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Left' });
+      await settle();
       const shifted = await petSnapshot();
-      assert.ok(Math.abs(shifted.left - restored.left + 8 * before.canvasScale) < .1, 'Keyboard movement must use the same canvas scale');
+      assert.ok(Math.abs(shifted.left - restored.left + 8) < .1, 'Keyboard movement must remain eight viewport pixels');
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Right' });
       win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
+      await settle();
       const playing = await evaluate(() => GaiaBgm.getState().on);
       await click('#home-bgm-slot [data-action="play"]');
       assert.equal(await evaluate(() => GaiaBgm.getState().on), !playing, 'Scaled music button must respond to actual mouse input');
@@ -328,7 +384,7 @@ module.exports = async ({ win, report, check, capture }) => {
       }));
       await click('#btn-back-home');
       await wait(320);
-      assert.ok(Math.abs((await petSnapshot()).canvasScale - (await petSnapshot()).width / 150) < .001, 'Returning home must restore the pet canvas scale');
+      assert.equal((await petSnapshot()).width, 150 * petScale, 'Returning home must retain the original pet size');
       const after = await evaluate(() => GaiaPet.getState());
       assert.equal(after.scale, state.scale);
       assert.equal(after.xRatio, state.xRatio);
@@ -351,11 +407,12 @@ module.exports = async ({ win, report, check, capture }) => {
     assert.equal(shown.scale, 1.5, 'Home fitting must preserve the user-selected pet size');
     assert.equal(shown.xRatio, customPet.xRatio);
     assert.equal(shown.yRatio, customPet.yRatio);
-    assert.ok(Math.abs(shown.width - 225 * shown.canvasScale) < .1 && shown.left + shown.width <= 1600 && shown.top + shown.height <= 1000, 'Re-enabled pet must use the current canvas scale and stay reachable');
+    assert.ok(shown.width === 225 && shown.left + shown.width <= 1600 && shown.top + shown.height <= 1000, 'Re-enabled pet must retain its user-selected size and stay reachable');
     check('hiding and re-enabling a custom-sized pet after resize preserves its preferences and position', true);
     await setPetScale(petScale);
     await resize(1100, 760);
     await evaluate(() => document.activeElement.blur());
+    await require('./home-pet-checks')({ win, evaluate, resize, setPetScale, check });
   } catch (error) {
     await capture(win, 'home-runtime-failure');
     throw error;

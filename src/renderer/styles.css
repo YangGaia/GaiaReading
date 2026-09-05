@@ -866,11 +866,12 @@ body.dark #stats-view {
   -webkit-line-clamp: 3;
   overflow: hidden;
   opacity: 0;
-  pointer-events: auto;
+  pointer-events: none;
   cursor: pointer;
   transition: opacity 0.18s ease, transform 0.18s ease;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
+.gaia-pet-bubble[hidden] { display: none; }
 .gaia-pet-bubble::after {
   content: '';
   position: absolute;
@@ -897,6 +898,7 @@ body.dark #stats-view {
 .gaia-pet-bubble.show,
 .gaia-pet-bubble.flip.show {
   opacity: 1;
+  pointer-events: auto;
   transform: translateY(-50%) translateX(0) scale(1);
 }
 
