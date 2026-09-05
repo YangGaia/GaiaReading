@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const renderer = path.join(__dirname, '..', 'src', 'renderer');
 const html = fs.readFileSync(path.join(renderer, 'index.html'), 'utf8');
-const sheets = ['non-reading.css', 'library-stats.css', 'home.css', 'library.css'];
+const sheets = ['non-reading.css', 'library-stats.css', 'home.css', 'library.css', 'stats.css'];
 const viewControls = {
   home: ['btn-home-shelf', 'btn-home-add-books', 'btn-home-ai', 'btn-home-settings', 'home-img'],
   library: ['btn-back-home', 'btn-settings', 'btn-add-books', 'btn-manage', 'btn-reading-stats', 'import-status', 'manage-bar', 'manage-count', 'btn-select-all', 'btn-remove-selected', 'btn-exit-manage', 'library-hint', 'bookshelf'],
@@ -15,7 +15,7 @@ const viewControls = {
 };
 
 test('软件和首页预览不包含第三方推广署名、样式或专用外链处理', () => {
-  const files = ['src/renderer/index.html', 'src/renderer/home.css', 'src/renderer/non-reading.css', 'src/renderer/library.css', 'src/renderer/music.css', 'src/main.js', 'docs/design/home/index.html', 'docs/design/home/home.css'];
+  const files = ['src/renderer/index.html', 'src/renderer/home.css', 'src/renderer/non-reading.css', 'src/renderer/library.css', 'src/renderer/stats.css', 'src/renderer/stats-presentation.js', 'src/renderer/music.css', 'src/main.js', 'docs/design/home/index.html', 'docs/design/home/home.css'];
   for (const file of files) {
     const source = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
     assert.doesNotMatch(source, /deerflow|design-credit/i, file);
@@ -101,6 +101,7 @@ test('包括响应式与主题规则在内的新 CSS 全部限定在授权的三
     for (const selector of selectors) {
       assert.match(selector, /^(?:body(?:\.[\w-]+)*\s+)?#(?:home-view|library-view|stats-view)(?=$|[\s.#:[>])/, `${sheet}: unscoped selector ${selector}`);
       if (sheet === 'home.css') assert.match(selector, /^#home-view(?=$|[\s.#:[>])/, 'the new home stylesheet must not restyle other pages');
+      if (sheet === 'stats.css') assert.match(selector, /^#stats-view(?=$|[\s.#:[>])/, 'the journal stylesheet must not restyle other pages');
       assert.doesNotMatch(selector, /#(?:home-view|library-view|stats-view)(?:\[[^\]]*\]|::?[\w-]+(?:\([^)]*\))?|[.#][\w-]+)*\s*[+~]/, `${sheet}: selector escapes its page ${selector}`);
       assert.doesNotMatch(selector, /#(?:reader-view|ai-view|settings-overlay|fx-canvas)\b/, `${sheet}: unrelated surface ${selector}`);
     }

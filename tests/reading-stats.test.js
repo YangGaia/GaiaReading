@@ -61,18 +61,19 @@ test('阅读仪表盘保留有珠素材且不跟随阅读配色', () => {
   const html = fs.readFileSync(path.join(root, 'src/renderer/index.html'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src/renderer/styles.css'), 'utf8');
   const app = fs.readFileSync(path.join(root, 'src/renderer/app.js'), 'utf8');
+  const presentation = fs.readFileSync(path.join(root, 'src/renderer/stats-presentation.js'), 'utf8');
   assert.ok(html.includes('有珠的阅读记录'), '仪表盘标题应体现有珠主题');
   assert.ok(html.includes('id="stats-alice"') && html.includes('images/pet/stats/idle.png'), '仪表盘应使用不拆分头身的完整尺寸预合成立绘');
   assert.ok(html.includes('draggable="false"'), '仪表盘有珠不应允许拖动');
   assert.ok(html.includes('id="stats-alice-zzz"'), '统计页睡觉动作应显示 Zzz 状态');
   assert.ok(html.includes('id="stats-alice-line"'), '缺少有珠动态阅读台词');
   assert.doesNotMatch(css, /body\.(eye|dark)\s+#stats-view/, '阅读配色不能接管目标页');
-  assert.ok(css.includes('@keyframes statsOrbit'), '目标仪式盘应具有低干扰轨道动画');
+  assert.ok(html.includes('stats-clock-hour') && html.includes('stats-clock-minute') && html.includes('stats-clock-second'), '阅读时钟必须包含三根真实累计时长指针');
   assert.ok(css.includes('@keyframes statsAliceBreathe') && css.includes('@keyframes statsAliceYawn') && css.includes('@keyframes statsAliceSleep'), '完整有珠立绘应支持呼吸、打哈欠和睡觉动作');
   assert.ok(app.includes('interactWithStatsAlice') && app.includes("stats-alice-perk"), '仪表盘有珠应支持无对话的移入和点击互动');
   assert.ok(app.includes("idle: 'idle.png'") && app.includes("blink: 'blink.png'") && app.includes("yawn: 'yawn.png'"), '统计页动作必须切换等尺寸完整立绘，不能拆分头身');
   assert.ok(app.includes("const actions = ['blink', 'yawn', 'sleep']") && app.includes('scheduleStatsAliceBlink'), '点击应依次提供眨眼、哈欠、睡觉，并保留自然眨眼');
-  assert.ok(app.includes('readingCompanionLine(summary)'), '仪表盘应按阅读状态刷新有珠台词');
+  assert.ok(presentation.includes('readingCompanionLine(summary)'), '仪表盘应按阅读状态刷新有珠台词');
   const statsAssetDir = path.join(root, 'src/renderer/images/pet/stats');
   const assets = ['idle.png', 'blink.png', 'drowsy.png', 'yawn.png'].map((name) => fs.readFileSync(path.join(statsAssetDir, name)));
   for (const asset of assets) {

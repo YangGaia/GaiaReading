@@ -126,20 +126,9 @@ const els = {
   noteEditorInput: $('note-editor-input'),
   noteEditorError: $('note-editor-error'),
   noteEditorSave: $('btn-note-editor-save'),
-  statsToday: $('stats-today'),
-  statsGoalCopy: $('stats-goal-copy'),
-  statsAliceLine: $('stats-alice-line'),
   statsAlice: $('stats-alice'),
   statsAliceZzz: $('stats-alice-zzz'),
-  statsRing: $('stats-ring'),
-  statsRingPercent: $('stats-ring-percent'),
-  statsWeekTotal: $('stats-week-total'),
-  statsWeekChart: $('stats-week-chart'),
-  statsCurrentStreak: $('stats-current-streak'),
-  statsLongestStreak: $('stats-longest-streak'),
   statsGoalOptions: $('stats-goal-options'),
-  statsFinishedCount: $('stats-finished-count'),
-  statsFinishedBooks: $('stats-finished-books'),
   pageNav: $('page-nav'),
   manageBar: $('manage-bar'),
   manageCount: $('manage-count'),
@@ -3927,70 +3916,13 @@ function interactWithStatsAlice() {
   statsAliceClickAction += 1;
 }
 
+let statsPresentation;
 function renderReadingStats() {
+  if (!statsPresentation) {
+    statsPresentation = window.GaiaStatsPresentation.createRenderer(views.stats, { formatDuration, readingCompanionLine });
+  }
   const summary = buildReadingSummary(state.readingStats, Date.now());
-  const progress = summary.goalMs ? Math.min(1, summary.todayMs / summary.goalMs) : 0;
-  els.statsToday.textContent = formatDuration(summary.todayMs);
-  els.statsGoalCopy.textContent = '每日目标 ' + summary.goalMinutes + ' 分钟';
-  els.statsAliceLine.textContent = readingCompanionLine(summary);
-  els.statsRing.style.setProperty('--goal-progress', Math.round(progress * 360) + 'deg');
-  els.statsRingPercent.textContent = Math.round(progress * 100) + '%';
-  els.statsCurrentStreak.textContent = summary.currentStreak + ' 天';
-  els.statsLongestStreak.textContent = summary.longestStreak + ' 天';
-  const weekTotal = summary.week.reduce((sum, day) => sum + day.ms, 0);
-  els.statsWeekTotal.textContent = formatDuration(weekTotal);
-  const chartMax = Math.max(summary.goalMs, ...summary.week.map((day) => day.ms), 1);
-  els.statsWeekChart.innerHTML = '';
-  for (const day of summary.week) {
-    const column = document.createElement('div');
-    column.className = 'stats-day' + (day.isToday ? ' today' : '');
-    const slot = document.createElement('div');
-    slot.className = 'stats-day-bar-slot';
-    const bar = document.createElement('div');
-    bar.className = 'stats-day-bar';
-    bar.style.height = Math.max(4, Math.round((day.ms / chartMax) * 128)) + 'px';
-    slot.appendChild(bar);
-    const minutes = document.createElement('span');
-    minutes.className = 'stats-day-minutes';
-    minutes.textContent = day.ms ? Math.floor(day.ms / 60000) + '分' : '';
-    const label = document.createElement('span');
-    label.className = 'stats-day-label';
-    label.textContent = day.label;
-    column.append(slot, minutes, label);
-    els.statsWeekChart.appendChild(column);
-  }
-  for (const button of els.statsGoalOptions.querySelectorAll('[data-goal-minutes]')) {
-    button.classList.toggle('active', Number(button.dataset.goalMinutes) === summary.goalMinutes);
-  }
-  els.statsFinishedCount.textContent = summary.completedThisYear + ' 本';
-  els.statsFinishedBooks.innerHTML = '';
-  if (!summary.completedBooks.length) {
-    const empty = document.createElement('p');
-    empty.className = 'stats-empty';
-    empty.textContent = '读完一本书后，它会出现在这里。';
-    els.statsFinishedBooks.appendChild(empty);
-  } else {
-    for (const book of summary.completedBooks) {
-      const item = document.createElement('div');
-      item.className = 'stats-finished-book';
-      let cover;
-      if (book.cover) {
-        cover = document.createElement('img');
-        cover.src = book.cover;
-        cover.alt = book.title;
-      } else {
-        cover = document.createElement('div');
-        cover.textContent = '已读';
-      }
-      cover.className = 'stats-finished-cover';
-      const title = document.createElement('p');
-      title.className = 'stats-finished-title';
-      title.textContent = book.title;
-      title.title = book.title;
-      item.append(cover, title);
-      els.statsFinishedBooks.appendChild(item);
-    }
-  }
+  statsPresentation.render(summary);
 }
 
 function updateProgress(percent, text) {

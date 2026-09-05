@@ -193,7 +193,7 @@ async function run(win) {
         const selector = {
           home: '#home-title, button',
           library: '.page-title, .library-heading h1, .library-status > span, button, .book-title, .book-author, .book-format, .book-progress-label, .hint > strong, .hint > span:not([aria-hidden]), .hint > small, .library-footer > span',
-          stats: '.page-title, .stats-page-heading, button, .stats-eyebrow, .stats-today, .stats-secondary, .stats-companion-copy > span, .stats-alice-line, .stats-ring-center strong, .stats-section-head h2, .stats-section-head > strong, .stats-section-head > span, .stats-streak strong, .stats-streak small, .stats-day-label, .stats-day-minutes, .stats-finished-title, .stats-empty, .stats-footer > span',
+          stats: '.page-title, .stats-page-heading, button, .stats-eyebrow, .stats-today, .stats-secondary, .stats-time-unit, .stats-date, .stats-clock-footnote, .stats-goal-status, #stats-ring-percent, .stats-companion-copy > span, .stats-alice-line, .stats-section-head h2, .stats-section-head > strong, .stats-streak strong, .stats-streak small, .stats-day-label, .stats-day-minutes, .stats-day-detail, .stats-finished-title, .stats-finished-date, .stats-empty, .stats-footer > span',
         }[view];
         // Shared music controls are outside the palette redesign; they retain baseline layout checks.
         const nodes = [...root.querySelectorAll(selector)].filter((el) => visible(el) && el.textContent.trim() && !el.closest('.bgm-capsule'));
@@ -224,8 +224,8 @@ async function run(win) {
         return { view, contrastSamples: nodes.length, minimumBaseContrast: Number(lowestRatio.toFixed(2)) };
       },
       assertStyleIsolation(view) {
-        const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home|library)\.css$/.test(sheet.href || ''));
-        requireTrue(sheets.length === 4, 'All UI stylesheets must be loaded');
+        const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home|library|stats)\.css$/.test(sheet.href || ''));
+        requireTrue(sheets.length === 5, 'All UI stylesheets must be loaded');
         const root = document.getElementById(view + '-view');
         const nodes = [root, ...root.querySelectorAll('*')];
         const snapshot = () => nodes.map((el) => {
@@ -245,14 +245,19 @@ async function run(win) {
     };
   });
 
+  if (process.env.GAIA_UI_STATS_ONLY === '1') {
+    await require('./stats-runtime-checks')({ win, report, check, capture });
+    check('no renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
+    return;
+  }
   if (process.env.GAIA_UI_SETTINGS_ONLY === '1') {
     await require('./settings-runtime-checks')({ win, report, check, capture, book: books[0] });
     check('no renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
     return;
   }
   check('browser parses only scoped UI rules', await evaluate(() => {
-    const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home|library)\.css$/.test(sheet.href || ''));
-    if (sheets.length !== 4) return false;
+    const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home|library|stats)\.css$/.test(sheet.href || ''));
+    if (sheets.length !== 5) return false;
     let count = 0;
     function walk(rules) {
       for (const rule of rules) {
@@ -309,6 +314,7 @@ async function run(win) {
   check('leaving bulk mode clears selection', await evaluate(() => __gaiaDebug.getSelectedCount() === 0 && document.getElementById('manage-bar').hidden));
   await require('./library-runtime-checks')({ win, report, check, capture, books });
   if (process.env.GAIA_UI_LIBRARY_ONLY === '1') return;
+  await require('./stats-runtime-checks')({ win, report, check, capture });
 
   for (const theme of ['light', 'dark', 'eye']) {
     await evaluate(async (name) => { await __gaiaDebug.setTheme(name); await __uiSmoke.wait(300); }, theme);
@@ -358,10 +364,10 @@ async function run(win) {
   check('no renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
 }
 
-async function capture(win, name, clip) {
+async function capture(win, name, clip, resetStatsScroll = true) {
   await win.webContents.executeJavaScript(`(async () => {
     const scroller = document.querySelector('#stats-view:not([hidden]) .stats-scroll');
-    if (scroller) scroller.scrollTop = 0;
+    if (scroller && ${resetStatsScroll}) scroller.scrollTop = 0;
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   })()`);
   const image = await win.webContents.capturePage(clip);
