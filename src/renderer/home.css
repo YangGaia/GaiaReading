@@ -15,12 +15,12 @@
   --border: #353d49;
   --line: #3c4654;
   --focus: #b6c8f0;
-  --gutter: clamp(28px, 5.2vw, 84px);
-  --edge-space: clamp(18px, 3.4svh, 32px);
-  --main-space: clamp(24px, 4svh, 48px);
-  --pet-height: clamp(72px, 12svh, 112px);
-  /* Subtract the header, footer and padding before sizing the square artwork. */
-  --art-height: calc(100svh - 54px - 3 * var(--edge-space) - 2 * var(--main-space) - var(--pet-height));
+  /* All measurements belong to the approved 1100 × 760 composition. */
+  --home-scale: 1;
+  --gutter: 57.2px;
+  --edge-space: 25.84px;
+  --main-space: 30.4px;
+  --pet-height: 91.2px;
   font-family: "Gaia Home Noto", "Noto Sans SC", sans-serif;
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
@@ -30,14 +30,25 @@
 #home-view button { color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 #home-view svg { display: block; }
 #home-view button svg { pointer-events: none; }
+#home-view .home-stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(1100px * var(--home-scale));
+  height: calc(760px * var(--home-scale));
+  transform: translate(-50%, -50%);
+  overflow: clip;
+}
 #home-view .home-surface {
+  width: 1100px;
+  height: 760px;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  min-height: 100%;
   padding-inline: var(--gutter);
-  background: radial-gradient(ellipse at 74% 42%, #242b35 0, #1a2029 34%, var(--canvas) 80%);
+  transform: scale(var(--home-scale));
+  transform-origin: top left;
 }
-#home-view .page-header, #home-view .study-layout, #home-view .page-footer { width: 100%; max-width: 1280px; margin-inline: auto; }
+#home-view .page-header, #home-view .study-layout, #home-view .page-footer { width: 100%; margin-inline: auto; }
 #home-view .page-header { display: flex; align-items: center; gap: 26px; padding-block: var(--edge-space); }
 #home-view .app-mark { flex: 0 0 auto; color: #a7b4cd; }
 #home-view .app-mark svg { width: 28px; height: 28px; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
@@ -49,8 +60,9 @@
   display: grid;
   grid-template-columns: minmax(248px, .83fr) 1px minmax(0, 1.17fr);
   align-items: center;
-  column-gap: clamp(28px, 4.4vw, 72px);
+  column-gap: 48.4px;
   padding-block: var(--main-space);
+  padding-right: 116.8px;
 }
 #home-view .home-copy { width: 100%; max-width: 336px; min-width: 0; }
 #home-view h1 { margin: 0; font-size: 36px; font-weight: 500; line-height: 1.35; letter-spacing: -.035em; }
@@ -94,7 +106,7 @@
 #home-view .study-divider { position: relative; height: 76%; min-height: 200px; background: var(--line); }
 #home-view .study-divider span { position: absolute; inset: auto 0 0; height: 32px; background: #8192ab; }
 #home-view .portrait { display: grid; place-items: center; min-width: 0; margin: 0; pointer-events: none; }
-#home-view .portrait-mount { position: relative; width: min(100%, max(260px, var(--art-height)), 660px); aspect-ratio: 1; }
+#home-view .portrait-mount { position: relative; width: 100%; aspect-ratio: 1; }
 #home-view .portrait-lines { position: absolute; inset: 0; width: 100%; height: 100%; stroke: #758598; stroke-width: 1; }
 #home-view .portrait-lines path { vector-effect: non-scaling-stroke; }
 #home-view #home-img {
@@ -108,7 +120,7 @@
   mask-size: 100% 100%;
   mask-repeat: no-repeat;
 }
-#home-view .page-footer { display: flex; align-items: center; gap: clamp(20px, 3vw, 44px); padding-bottom: var(--edge-space); }
+#home-view .page-footer { display: flex; align-items: center; gap: 33px; padding-bottom: var(--edge-space); }
 #home-view .settings-button {
   display: flex;
   flex: 0 0 auto;
@@ -130,51 +142,15 @@
 #home-view .settings-button:active { background: #ffffff12; }
 #home-view .design-credit { display: inline-flex; flex: 0 0 auto; align-items: center; min-height: 28px; color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.5; text-decoration: none; text-underline-offset: 4px; }
 #home-view .design-credit:hover { color: var(--text); text-decoration: underline; }
-#home-view .companion-space { display: flex; flex: 0 0 auto; align-items: flex-end; justify-content: flex-end; height: var(--pet-height); width: calc(var(--pet-height) * .64); }
+#home-view .companion-space { flex: 0 0 174px; height: var(--pet-height); }
 
 #home-view button:focus-visible, #home-view input:focus-visible, #home-view a:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
-
-@media (max-height: 650px) and (min-width: 741px) {
-#home-view .copy-rule { margin-block: 20px 24px; }
-}
-
-/* Reflow when the available CSS space shrinks, including browser/app zoom. */
-@media (max-width: 740px) {
-#home-view { --gutter: clamp(20px, 5vw, 36px); }
-#home-view .page-header { gap: 18px; }
-#home-view .study-layout { grid-template-columns: minmax(0, 1fr); row-gap: 32px; padding-block: 30px 36px; }
-#home-view .home-copy { justify-self: center; max-width: 380px; }
-#home-view .secondary-actions { border-bottom: 0; padding-bottom: 0; }
-#home-view .study-divider { justify-self: center; width: min(100%, 480px); height: 1px; min-height: 0; }
-#home-view .study-divider span { inset: 0 auto 0 0; height: 1px; width: 32px; }
-#home-view .portrait-mount { width: min(100%, 480px); }
-#home-view .page-footer { gap: 18px; }
-}
-
-@media (max-width: 540px) {
-#home-view .page-header { flex-wrap: wrap; }
-#home-view .header-rule { flex-basis: calc(100% - 46px); }
-
-#home-view .page-footer { flex-wrap: wrap; gap: 12px 20px; }
-#home-view .page-footer .footer-rule { flex-basis: calc(100% - 110px); }
-#home-view .design-credit { margin-right: auto; }
-#home-view .companion-space { height: 72px; width: 46px; }
-#home-view h1 { font-size: clamp(30px, 7.5vw, 36px); }
-}
-
-@media (max-width: 350px) {
-#home-view .page-header { gap: 12px; }
-#home-view .app-mark svg { width: 24px; height: 24px; }
-#home-view .header-rule { flex-basis: calc(100% - 36px); }
-
-#home-view .secondary-actions { gap: 8px; }
-}
 
 @media (prefers-reduced-motion: reduce) {
 #home-view *, #home-view *::before, #home-view *::after { transition: none !important; }
 }
 
-/* Runtime page: scroll inside the home view, leaving the reader shell intact. */
+/* The background fills any aspect ratio; the complete composition stays centered. */
 #home-view {
   display: block;
   height: 100%;
@@ -182,24 +158,17 @@
   position: relative;
   isolation: isolate;
   padding: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: #424e5c #161b22;
-  scroll-padding-block: 20px;
+  overflow: clip;
   color: var(--text);
-  background: var(--canvas);
+  background: radial-gradient(ellipse at 74% 42%, #242b35 0, #1a2029 34%, var(--canvas) 80%) var(--canvas);
 }
 #home-view[hidden] { display: none; }
-#home-view .home-surface { height: auto; }
-#home-view .study-layout { padding-right: max(0px, var(--home-pet-space, 174px) - var(--gutter)); }
-#home-view .companion-space { width: var(--home-pet-space, 174px); height: var(--pet-height); }
 #home-view #home-img {
   max-width: none; max-height: none; padding: 0; border: 0; border-radius: 0;
   object-position: center; background: transparent; box-shadow: none;
   opacity: 1; transform: none; filter: none; animation: none;
 }
-#home-view .home-music-slot { flex: 0 1 auto; min-width: 0; }
+#home-view .home-music-slot { flex: 0 0 336px; min-width: 0; min-height: 52px; }
 #home-view .bgm-capsule {
   position: static;
   display: flex;
@@ -246,24 +215,6 @@
 #home-view .bgm-volume::-webkit-slider-thumb { appearance: none; width: 7px; height: 7px; margin-top: -2.5px; border: 0; border-radius: 50%; background: #c4cddc; }
 #home-view button:focus-visible, #home-view input:focus-visible, #home-view a:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
 
-@media (max-width: 740px) {
-  #home-view .study-layout { padding-right: 0; }
-  #home-view .home-copy { width: min(380px, calc(100% - var(--home-pet-space, 114px))); justify-self: start; }
-  #home-view .companion-space { height: var(--home-pet-height, 190px); }
-  /* Only the homepage presentation shrinks; the saved pet scale and drag logic stay intact. */
-  body:has(> #home-view:not([hidden])) > #gaia-pet { transform: scale(.6); transform-origin: bottom right; }
-}
-@media (max-width: 540px) {
-  #home-view .home-music-slot { flex-basis: 100%; }
-  #home-view .bgm-capsule { gap: 5px; padding-right: 8px; }
-  #home-view .bgm-cover { display: none; }
-  #home-view .bgm-title-wrap { margin: 0 auto 0 0; max-width: none; }
-}
-@media (max-width: 350px) {
-  #home-view .bgm-capsule { flex-wrap: wrap; }
-  #home-view .bgm-title-wrap { flex-basis: calc(100% - 142px); }
-  #home-view .bgm-volume { flex: 1 0 90px; margin-left: 10px; }
-}
 @media (prefers-reduced-motion: reduce) {
   #home-view.view-fade { animation: none; }
   #home-view .bgm-capsule, #home-view .bgm-capsule .bgm-btn { transition: none; }

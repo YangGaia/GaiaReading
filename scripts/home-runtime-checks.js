@@ -15,6 +15,22 @@ module.exports = async ({ win, report, check, capture }) => {
   };
   const settle = () => evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const mouse = (type, x, y, button = 'left', held = false) => win.webContents.sendInputEvent({ type, x: Math.round(x), y: Math.round(y), button, clickCount: 1, modifiers: held ? [button === 'right' ? 'rightButtonDown' : 'leftButtonDown'] : [] });
+  const click = async (selector) => {
+    const point = await evaluate((selector) => {
+      const el = document.querySelector(selector);
+      const r = el.getBoundingClientRect();
+      const x = Math.round(r.left + r.width / 2);
+      const y = Math.round(r.top + r.height / 2);
+      const hit = document.elementFromPoint(x, y);
+      if (hit !== el && !el.contains(hit)) throw new Error(`${selector} is covered`);
+      return { x, y };
+    }, selector);
+    mouse('mouseMove', point.x, point.y);
+    mouse('mouseDown', point.x, point.y);
+    mouse('mouseUp', point.x, point.y);
+    await wait(40);
+  };
   const resize = async (width, height, zoom = 1) => {
     win.setContentSize(width, height);
     win.webContents.setZoomFactor(zoom);
@@ -62,26 +78,38 @@ module.exports = async ({ win, report, check, capture }) => {
     await evaluate(() => {
       const fail = (ok, message) => { if (!ok) throw new Error(message); };
       const overlaps = (a, b) => Math.min(a.right, b.right) > Math.max(a.left, b.left) + 1 && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top) + 1;
-      window.__homeRuntimeLayout = (fit) => {
+      let reference;
+      window.__homeRuntimeLayout = () => {
         const home = document.getElementById('home-view');
-        home.scrollTop = 0;
+        const viewport = home.getBoundingClientRect();
+        const canvas = home.querySelector('.home-surface').getBoundingClientRect();
+        const scale = Math.min(viewport.width / 1100, viewport.height / 760);
+        fail(Math.abs(canvas.width - 1100 * scale) < .1 && Math.abs(canvas.height - 760 * scale) < .1, 'The entire 1100×760 canvas must fit with one scale');
+        fail(Math.abs(canvas.left - (viewport.width - canvas.width) / 2) < .1 && Math.abs(canvas.top - (viewport.height - canvas.height) / 2) < .1, `The complete composition must stay centered: ${JSON.stringify(canvas.toJSON())}`);
         fail(home.scrollWidth <= home.clientWidth, `Home horizontal overflow at ${innerWidth}x${innerHeight}: ${home.scrollWidth}/${home.clientWidth}`);
-        if (fit) fail(home.scrollHeight <= home.clientHeight, `Home unexpectedly scrolls at ${innerWidth}x${innerHeight}: ${home.scrollHeight}/${home.clientHeight}`);
+        fail(home.scrollHeight <= home.clientHeight, `Home unexpectedly scrolls at ${innerWidth}x${innerHeight}: ${home.scrollHeight}/${home.clientHeight}`);
         const art = document.getElementById('home-img').getBoundingClientRect();
         const copy = home.querySelector('.home-copy').getBoundingClientRect();
         const pet = document.getElementById('gaia-pet').getBoundingClientRect();
         fail(art.width > 0 && Math.abs(art.width - art.height) < 1, 'Home art must retain its original aspect ratio');
         fail(!overlaps(art, copy), 'Home art must not cover the entry controls');
-        if (innerWidth > 740) fail(!overlaps(art, pet), 'Live desktop pet needs space beside the art');
+        fail(!overlaps(art, pet), 'Live desktop pet needs space beside the art');
+        const selectors = ['#home-title', '.app-mark', '.header-rule', '.copy-rule', '#btn-home-shelf', '#btn-home-add-books', '#btn-home-ai', '.study-divider', '.portrait-lines', '#home-img', '#home-bgm-slot', '.bgm-cover', '.bgm-volume', '#btn-home-settings', '.footer-rule', '.design-credit', '#gaia-pet'];
+        const normalized = selectors.map((selector) => {
+          const r = document.querySelector(selector).getBoundingClientRect();
+          return [(r.left - canvas.left) / scale, (r.top - canvas.top) / scale, r.width / scale, r.height / scale];
+        });
+        if (!reference) reference = normalized;
+        // Chromium snaps CSS borders to device pixels when page zoom changes.
+        normalized.forEach((rect, i) => rect.forEach((value, axis) => fail(Math.abs(value - reference[i][axis]) < .8, `${selectors[i]} changes composition at ${innerWidth}×${innerHeight}: ${rect} vs ${reference[i]}`)));
         const controls = [...home.querySelectorAll('button, input, a')];
         fail(controls.length === 10, 'All original entries, live music buttons and volume must remain present');
         for (const el of controls) {
-          el.scrollIntoView({ block: 'center', inline: 'nearest' });
           const r = el.getBoundingClientRect();
           const name = el.id || el.getAttribute('aria-label') || el.textContent.trim();
-          fail(r.width >= 24 && r.height >= 24, `Small or hidden home target: ${name}`);
+          fail(r.width / scale >= 24 && r.height / scale >= 24, `Small or hidden home target in design coordinates: ${name}`);
           fail(r.left >= 0 && r.right <= home.clientWidth && r.top >= 0 && r.bottom <= innerHeight, `Home target cannot be reached: ${name}`);
-          for (const [x, y] of [[r.left + 8, r.top + 8], [r.right - 8, r.bottom - 8], [r.left + r.width / 2, r.top + r.height / 2]]) {
+          for (const [x, y] of [[r.left + 8 * scale, r.top + 8 * scale], [r.right - 8 * scale, r.bottom - 8 * scale], [r.left + r.width / 2, r.top + r.height / 2]]) {
             const hit = document.elementFromPoint(x, y);
             fail(hit === el || el.contains(hit), `Home target ${name} is covered by ${hit && (hit.id || hit.className)}`);
           }
@@ -91,12 +119,13 @@ module.exports = async ({ win, report, check, capture }) => {
           range.selectNodeContents(el);
           fail(range.getBoundingClientRect().width <= el.getBoundingClientRect().width + 1, `Home label is clipped: ${el.textContent}`);
         }
-        home.scrollTop = 0;
-        return { width: innerWidth, height: innerHeight, documentHeight: home.scrollHeight, petWidth: pet.width, controls: controls.length };
+        fail(home.scrollTop === 0 && home.scrollLeft === 0, 'Home must never scroll to reveal a control');
+        return { width: innerWidth, height: innerHeight, scale, comparedElements: selectors.length, documentHeight: home.scrollHeight, petWidth: pet.width, controls: controls.length };
       };
     });
 
-    for (const [width, height] of [[1100, 760], [800, 600], [1600, 1000], [1440, 600], [800, 1000]]) {
+    const storedPet = await evaluate(() => window.api.stateGet('pet'));
+    for (const [width, height] of [[1100, 760], [800, 600], [1600, 1000], [1440, 600], [800, 1000], [1920, 1080], [2560, 1080]]) {
       await resize(width, height);
       report.checks.push({ name: 'runtime home layout', ...await evaluate(() => __homeRuntimeLayout(true)) });
       await capture(win, `home-runtime-${width}x${height}`);
@@ -108,7 +137,20 @@ module.exports = async ({ win, report, check, capture }) => {
       await resize(width, height);
       await evaluate(() => __homeRuntimeLayout(true));
     }
-    check(`${samples.length} continuous real-app sizes keep controls and live pet clear`, true);
+    check(`${samples.length} continuous real-app sizes retain the same composition and live pet proportions`, true);
+
+    for (const mode of ['maximize', 'fullscreen']) {
+      if (mode === 'maximize') win.maximize();
+      else win.setFullScreen(true);
+      await wait(400);
+      await settle();
+      check(`native ${mode} is active`, mode === 'maximize' ? win.isMaximized() : win.isFullScreen());
+      report.checks.push({ name: `native ${mode} composition`, ...await evaluate(() => __homeRuntimeLayout()) });
+      await capture(win, `home-runtime-${mode}`);
+      if (mode === 'maximize') win.unmaximize();
+      else win.setFullScreen(false);
+      await wait(400);
+    }
 
     for (const [width, height] of [[1100, 760], [800, 600]]) {
       for (const zoom of [1.25, 1.5, 2]) {
@@ -117,7 +159,9 @@ module.exports = async ({ win, report, check, capture }) => {
         await capture(win, `home-runtime-${width}x${height}-zoom-${zoom * 100}`);
       }
     }
-    // Real Tab input must reach every entry after zoom has caused a vertical reflow.
+    assert.deepEqual(await evaluate(() => window.api.stateGet('pet')), storedPet, 'Window resizing must not overwrite pet preferences or its saved position');
+    check('resizing, maximizing, fullscreen and app zoom preserve saved pet data', true);
+    // Real Tab input reaches every entry even at the smallest scaled composition.
     win.webContents.focus();
     const order = await evaluate(() => {
       const home = document.getElementById('home-view');
@@ -157,6 +201,62 @@ module.exports = async ({ win, report, check, capture }) => {
     check('desktop pet position can be restored without affecting the home layout', await evaluate(() => GaiaPet.getState().x) === petX);
     await evaluate(() => document.activeElement.blur());
 
+    const petSnapshot = () => evaluate(() => {
+      const r = document.getElementById('gaia-pet').getBoundingClientRect();
+      const c = document.querySelector('#home-view .home-surface').getBoundingClientRect();
+      return { ...GaiaPet.getState(), left: r.left, top: r.top, width: r.width, height: r.height, canvasScale: c.width / 1100 };
+    });
+    for (const [width, height] of [[800, 600], [1600, 1000], [800, 1000]]) {
+      await resize(width, height);
+      const before = await petSnapshot();
+      const drag = async (dx, dy) => {
+        const pet = await petSnapshot();
+        const x = Math.round(pet.left + pet.width / 2);
+        const y = Math.round(pet.top + pet.height / 2);
+        mouse('mouseMove', x, y);
+        mouse('mouseDown', x, y);
+        await wait(20);
+        mouse('mouseMove', x + dx, y + dy, 'left', true);
+        await wait(20);
+        mouse('mouseUp', x + dx, y + dy);
+        await wait(40);
+        assert.equal(await evaluate(() => document.getElementById('gaia-pet').classList.contains('dragging')), false, 'Pet must release pointer capture');
+      };
+      await drag(-36, -24);
+      const moved = await petSnapshot();
+      assert.ok(Math.abs(moved.left - before.left + 36) < .1 && Math.abs(moved.top - before.top + 24) < .1, `Pet must follow the pointer at ${width}×${height}: ${JSON.stringify({ before, moved })}`);
+      assert.ok(Math.abs(moved.x - before.x + 36 / before.canvasScale) < .1, 'Drag must map back to design coordinates');
+      await drag(36, 24);
+      const restored = await petSnapshot();
+      assert.ok(Math.abs(restored.x - before.x) < .1 && Math.abs(restored.y - before.y) < .1, 'Scaled pet drag must be reversible');
+      await evaluate(() => document.querySelector('#gaia-pet .gaia-pet-hitbox').focus());
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Left' });
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Left' });
+      const shifted = await petSnapshot();
+      assert.ok(Math.abs(shifted.left - restored.left + 8 * before.canvasScale) < .1, 'Keyboard movement must use the same canvas scale');
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Right' });
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
+      const playing = await evaluate(() => GaiaBgm.getState().on);
+      await click('#home-bgm-slot [data-action="play"]');
+      assert.equal(await evaluate(() => GaiaBgm.getState().on), !playing, 'Scaled music button must respond to actual mouse input');
+      await click('#home-bgm-slot [data-action="play"]');
+      const pet = await petSnapshot();
+      mouse('mouseDown', pet.left + pet.width / 2, pet.top + pet.height / 2, 'right');
+      mouse('mouseUp', pet.left + pet.width / 2, pet.top + pet.height / 2, 'right');
+      await wait(30);
+      check(`pet context menu fits the window at ${width}×${height}`, await evaluate(() => {
+        const panel = document.querySelector('.gaia-pet-console');
+        const r = panel.getBoundingClientRect();
+        return !panel.hidden && r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
+      }));
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+      await wait(50);
+      check(`real drag, keyboard and music clicks work at ${width}×${height}`, true);
+    }
+    await resize(1100, 760);
+    await evaluate(() => document.activeElement.blur());
+
     const playback = await evaluate(async () => {
       const before = GaiaBgm.getState();
       const click = (action) => document.querySelector(`#home-bgm-slot [data-action="${action}"]`).click();
@@ -186,6 +286,76 @@ module.exports = async ({ win, report, check, capture }) => {
     await evaluate(async () => { await __uiSmoke.click('#btn-settings-close'); });
     check('closing settings restores the same music instance into the homepage', await evaluate(() => !!document.querySelector('#home-bgm-slot #bgm-capsule') && document.querySelectorAll('#bgm-capsule').length === 1));
     assert.deepEqual(await evaluate(() => GaiaBgm.getState()), musicState, 'Repositioning music must not reset playback');
+
+    for (const [width, height] of [[800, 600], [1600, 1000], [800, 1000]]) {
+      await resize(width, height);
+      // Inspect the real animation at time zero to catch a scaled FLIP jump.
+      const animation = await evaluate(async () => {
+        const rect = () => {
+          const r = document.getElementById('bgm-capsule').getBoundingClientRect();
+          return [r.left, r.top, r.width, r.height];
+        };
+        const start = rect();
+        document.getElementById('btn-home-settings').click();
+        const entry = document.getElementById('bgm-capsule').getAnimations().find((a) => a.id === 'bgm-settings-entry-flip');
+        if (!entry) throw new Error('Missing settings entry animation');
+        entry.pause(); entry.currentTime = 0;
+        const entryStart = rect();
+        entry.finish();
+        await __uiSmoke.wait(320);
+        const away = rect();
+        document.getElementById('btn-settings-close').click();
+        const restore = document.getElementById('bgm-capsule').getAnimations().find((a) => a.id === 'bgm-settings-restore-flip');
+        if (!restore) throw new Error('Missing settings return animation');
+        restore.pause(); restore.currentTime = 0;
+        const returnStart = rect();
+        const stage = document.querySelector('#home-view .home-stage');
+        const unclipped = getComputedStyle(stage).overflow === 'visible';
+        restore.finish();
+        await __uiSmoke.wait(320);
+        return { start, entryStart, away, returnStart, end: rect(), unclipped, cleaned: stage.style.overflow === '' };
+      });
+      for (const [a, b] of [[animation.start, animation.entryStart], [animation.away, animation.returnStart], [animation.start, animation.end]]) {
+        a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) < 1, `Scaled music animation jumps at ${width}×${height}: ${a} vs ${b}`));
+      }
+      check(`settings music animation keeps its position and size at ${width}×${height}`, animation.unclipped && animation.cleaned);
+      const state = await evaluate(() => GaiaPet.getState());
+      await click('#btn-home-shelf');
+      await wait(320);
+      check(`leaving home removes pet presentation scaling at ${width}×${height}`, await evaluate(() => {
+        const pet = document.getElementById('gaia-pet');
+        return __gaiaDebug.getView() === 'library' && pet.style.transform === '' && pet.getBoundingClientRect().width === pet.offsetWidth;
+      }));
+      await click('#btn-back-home');
+      await wait(320);
+      assert.ok(Math.abs((await petSnapshot()).canvasScale - (await petSnapshot()).width / 150) < .001, 'Returning home must restore the pet canvas scale');
+      const after = await evaluate(() => GaiaPet.getState());
+      assert.equal(after.scale, state.scale);
+      assert.equal(after.xRatio, state.xRatio);
+      assert.equal(after.yRatio, state.yRatio);
+      check(`real shelf navigation returns to the same home composition at ${width}×${height}`, true);
+    }
+
+    const setPetScale = (value) => evaluate((value) => {
+      const select = [...document.querySelectorAll('.gaia-pet-console select')].find((el) => el.querySelector('option[value="1.5"]'));
+      select.value = String(value);
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }, value);
+    await setPetScale(1.5);
+    const customPet = await petSnapshot();
+    await evaluate(() => GaiaPet.setEnabled(false));
+    await resize(1600, 1000);
+    await evaluate(() => GaiaPet.setEnabled(true));
+    await settle();
+    const shown = await petSnapshot();
+    assert.equal(shown.scale, 1.5, 'Home fitting must preserve the user-selected pet size');
+    assert.equal(shown.xRatio, customPet.xRatio);
+    assert.equal(shown.yRatio, customPet.yRatio);
+    assert.ok(Math.abs(shown.width - 225 * shown.canvasScale) < .1 && shown.left + shown.width <= 1600 && shown.top + shown.height <= 1000, 'Re-enabled pet must use the current canvas scale and stay reachable');
+    check('hiding and re-enabling a custom-sized pet after resize preserves its preferences and position', true);
+    await setPetScale(petScale);
+    await resize(1100, 760);
+    await evaluate(() => document.activeElement.blur());
   } catch (error) {
     await capture(win, 'home-runtime-failure');
     throw error;

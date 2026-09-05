@@ -76,7 +76,6 @@ test('包括响应式与主题规则在内的新 CSS 全部限定在授权的三
     const selectors = styleSelectors(css);
     assert.ok(selectors.length > 10, `${sheet} should contain parsed style rules`);
     for (const selector of selectors) {
-      if (sheet === 'home.css' && selector === 'body:has(> #home-view:not([hidden])) > #gaia-pet') continue;
       assert.match(selector, /^(?:body(?:\.[\w-]+)*\s+)?#(?:home-view|library-view|stats-view)(?=$|[\s.#:[>])/, `${sheet}: unscoped selector ${selector}`);
       if (sheet === 'home.css') assert.match(selector, /^#home-view(?=$|[\s.#:[>])/, 'the new home stylesheet must not restyle other pages');
       assert.doesNotMatch(selector, /#(?:home-view|library-view|stats-view)(?:\[[^\]]*\]|::?[\w-]+(?:\([^)]*\))?|[.#][\w-]+)*\s*[+~]/, `${sheet}: selector escapes its page ${selector}`);
@@ -96,6 +95,13 @@ test('正式首页包含线条构图、原首页素材和可打包的轮廓蒙�
   const bundled = fs.readFileSync(path.join(renderer, 'images/home/alice-matte.png'));
   assert.deepEqual(bundled, fs.readFileSync(path.join(renderer, '../../docs/design/home/assets/alice-matte.png')));
   assert.match(html, /<script src="home-layout\.js"><\/script>/);
+});
+
+test('首页以固定构图整体缩放，不再使用窗口断点重排或独立缩放人物', () => {
+  const css = fs.readFileSync(path.join(renderer, 'home.css'), 'utf8');
+  assert.match(css, /\.home-surface\s*\{[^}]*width:\s*1100px;[^}]*height:\s*760px;[^}]*transform:\s*scale\(var\(--home-scale\)\)/);
+  assert.doesNotMatch(css, /\b\d*(?:vw|vh|svh|dvh)\b|@media[^\{]*(?:width|height)|--home-pet-space/);
+  assert.match(html, /class="home-stage"/);
 });
 
 test('首页、书架与目标页保留既有操作控件及动态内容挂载点', () => {

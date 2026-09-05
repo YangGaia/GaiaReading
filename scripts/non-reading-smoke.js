@@ -158,9 +158,9 @@ async function run(win) {
               if (/(auto|scroll|hidden|clip)/.test(style.overflowY)) { top = Math.max(top, clip.top); bottom = Math.min(bottom, clip.bottom); }
             }
             const label = el.id || el.textContent.trim();
-            // The shared music capsule keeps its existing dimensions in this UI-only redesign.
-            // Still verify that its controls are reachable and not covered by the new layout.
-            const minimumSize = el.closest('.bgm-capsule') ? 1 : 24;
+            // Home targets share the canvas scale; other views retain their original sizing.
+            const homeScale = view === 'home' ? root.querySelector('.home-surface').getBoundingClientRect().width / 1100 : 1;
+            const minimumSize = view === 'home' ? 24 * homeScale : el.closest('.bgm-capsule') ? 1 : 24;
             requireTrue(right - left >= minimumSize && bottom - top >= minimumSize, `${view} control ${label} has no reachable ${minimumSize}px target`);
             const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
             requireTrue(hit === el || el.contains(hit), `${view} control ${label} is covered by ${hit && (hit.id || hit.className)}`);
@@ -253,7 +253,7 @@ async function run(win) {
       for (const rule of rules) {
         if (rule.type === CSSRule.STYLE_RULE) {
           count += 1;
-          if (!rule.selectorText.split(',').every((selector) => selector.trim() === 'body:has(> #home-view:not([hidden])) > #gaia-pet' || /^(?:body(?:\.[\w-]+)*\s+)?#(?:home-view|library-view|stats-view)(?=$|[\s.#:[>])/.test(selector.trim()))) return false;
+          if (!rule.selectorText.split(',').every((selector) => /^(?:body(?:\.[\w-]+)*\s+)?#(?:home-view|library-view|stats-view)(?=$|[\s.#:[>])/.test(selector.trim()))) return false;
         } else if (rule.type === CSSRule.FONT_FACE_RULE) {
           if (!rule.style.fontFamily.includes('Gaia Home Noto')) return false;
         } else if (!rule.cssRules || !walk(rule.cssRules)) return false;

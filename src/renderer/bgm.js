@@ -29,6 +29,7 @@
   let currentView = 'home';
   let settingsOpen = false;
   let settingsAnimation = null;
+  let restoreHomeClip = () => {};
 
   function srcFor(track) {
     return 'bgm://local/' + encodeURIComponent(track.file);
@@ -151,6 +152,8 @@
   }
 
   function cancelSettingsAnimation() {
+    restoreHomeClip();
+    restoreHomeClip = () => {};
     if (settingsAnimation) settingsAnimation.cancel();
     settingsAnimation = null;
   }
@@ -167,8 +170,8 @@
     const dy = fromRect.top - toRect.top;
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
     settingsAnimation = ui.root.animate([
-      { transform: `translate(${dx}px, ${dy}px)`, opacity: 0.95 },
-      { transform: 'translateX(0)', opacity: 0.96 },
+      { transformOrigin: 'top left', transform: `translate(${dx}px, ${dy}px) scale(${fromRect.width / toRect.width}, ${fromRect.height / toRect.height})`, opacity: 0.95 },
+      { transformOrigin: 'top left', transform: 'translateX(0) scale(1)', opacity: 0.96 },
     ], { duration: SETTINGS_SLIDE_MS, easing: 'cubic-bezier(.2,.8,.2,1)' });
     settingsAnimation.id = 'bgm-settings-entry-flip';
   }
@@ -177,15 +180,25 @@
   function animateSettingsRestore(fromRect) {
     if (!canAnimateSettings() || !fromRect) return;
     const toRect = ui.root.getBoundingClientRect();
-    const dx = fromRect.left - toRect.left;
-    const dy = fromRect.top - toRect.top;
+    // FLIP deltas arrive in viewport pixels; a scaled homepage needs local ones.
+    const scale = toRect.width / parseFloat(getComputedStyle(ui.root).width) || 1;
+    const dx = (fromRect.left - toRect.left) / scale;
+    const dy = (fromRect.top - toRect.top) / scale;
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
     const finalOpacity = Number.parseFloat(getComputedStyle(ui.root).opacity) || 0.95;
     settingsAnimation = ui.root.animate([
-      { transform: `translate(${dx}px, ${dy}px)`, opacity: 0.96 },
-      { transform: 'translate(0, 0)', opacity: finalOpacity },
+      { transformOrigin: 'top left', transform: `translate(${dx}px, ${dy}px) scale(${fromRect.width / toRect.width}, ${fromRect.height / toRect.height})`, opacity: 0.96 },
+      { transformOrigin: 'top left', transform: 'translate(0, 0) scale(1)', opacity: finalOpacity },
     ], { duration: SETTINGS_SLIDE_MS, easing: 'cubic-bezier(.2,.8,.2,1)' });
     settingsAnimation.id = 'bgm-settings-restore-flip';
+    // In tall windows the drawer starts outside the centered home canvas.
+    // Let this one overlay travel across the margin until it reaches its slot.
+    const stage = ui.root.closest('.home-stage');
+    if (stage) {
+      stage.style.overflow = 'visible';
+      restoreHomeClip = () => stage.style.removeProperty('overflow');
+      settingsAnimation.onfinish = restoreHomeClip;
+    }
   }
 
   /** 设置抽屉打开时把胶囊移到抽屉左侧，关闭后恢复到当前视图原位。 */

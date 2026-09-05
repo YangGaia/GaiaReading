@@ -226,18 +226,32 @@
     else stopFpsMeter();
   }
 
+  // Positions stay logical within the homepage canvas. Other views retain the
+  // original viewport coordinates; persisted ratios work in either frame.
+  function positionFrame() {
+    const home = document.getElementById('home-view');
+    const surface = currentView === 'home' && home && !home.hidden && home.querySelector('.home-surface');
+    if (surface && surface.offsetWidth && surface.offsetHeight) {
+      const rect = surface.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, width: surface.offsetWidth, height: surface.offsetHeight, scale: rect.width / surface.offsetWidth, home: true };
+    }
+    return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight, scale: 1, home: false };
+  }
+
   function updatePositionRatios() {
     if (!ui.root) return;
-    const maxX = Math.max(0, window.innerWidth - ui.root.offsetWidth);
-    const maxY = Math.max(0, window.innerHeight - ui.root.offsetHeight);
+    const frame = positionFrame();
+    const maxX = Math.max(0, frame.width - ui.root.offsetWidth);
+    const maxY = Math.max(0, frame.height - ui.root.offsetHeight);
     saved.xRatio = maxX ? saved.x / maxX : 0;
     saved.yRatio = maxY ? saved.y / maxY : 0;
   }
 
   function restorePositionFromRatios() {
     if (!ui.root || !Number.isFinite(saved.xRatio) || !Number.isFinite(saved.yRatio)) return false;
-    saved.x = saved.xRatio * Math.max(0, window.innerWidth - ui.root.offsetWidth);
-    saved.y = saved.yRatio * Math.max(0, window.innerHeight - ui.root.offsetHeight);
+    const frame = positionFrame();
+    saved.x = saved.xRatio * Math.max(0, frame.width - ui.root.offsetWidth);
+    saved.y = saved.yRatio * Math.max(0, frame.height - ui.root.offsetHeight);
     return true;
   }
 
@@ -878,12 +892,15 @@
 
   function clampPosition() {
     if (!ui.root) return;
+    const frame = positionFrame();
     const bw = ui.root.offsetWidth;
     const bh = ui.root.offsetHeight;
-    saved.x = Math.max(0, Math.min(Math.max(0, window.innerWidth - bw), saved.x));
-    saved.y = Math.max(0, Math.min(Math.max(0, window.innerHeight - bh), saved.y));
-    ui.root.style.left = saved.x + 'px';
-    ui.root.style.top = saved.y + 'px';
+    saved.x = Math.max(0, Math.min(Math.max(0, frame.width - bw), saved.x));
+    saved.y = Math.max(0, Math.min(Math.max(0, frame.height - bh), saved.y));
+    ui.root.style.left = (frame.left + saved.x * frame.scale) + 'px';
+    ui.root.style.top = (frame.top + saved.y * frame.scale) + 'px';
+    ui.root.style.transform = frame.home ? `scale(${frame.scale})` : '';
+    ui.root.style.transformOrigin = frame.home ? 'top left' : '';
     updateBubbleSide();
   }
 
@@ -924,9 +941,10 @@
       if (ev.button !== 0) return;
       if (activePointerId != null) endDrag(null, true);
       const r = ui.root.getBoundingClientRect();
+      const frame = positionFrame();
       activePointerId = ev.pointerId;
       downPos = { x: ev.clientX, y: ev.clientY };
-      dragOffset = { x: ev.clientX - r.left, y: ev.clientY - r.top };
+      dragOffset = { x: (ev.clientX - r.left) / frame.scale, y: (ev.clientY - r.top) / frame.scale };
       try { target.setPointerCapture(ev.pointerId); } catch (error) {}
       window.addEventListener('pointermove', onDragMove);
       window.addEventListener('pointerup', endDrag);
@@ -955,11 +973,19 @@
         resetFpsSampling(true);
       }
     });
-    window.addEventListener('resize', () => {
+    function syncPosition() {
+      if (ui.root.hidden) return;
+      cancelActiveDrag();
       restorePositionFromRatios();
       clampPosition();
       positionConsole();
-      save();
+    }
+    window.addEventListener('gaia:home-layout', () => {
+      if (currentView === 'home') syncPosition();
+    });
+    window.addEventListener('resize', () => {
+      syncPosition();
+      if (!positionFrame().home) save();
     });
 
     function onDragMove(ev) {
@@ -977,13 +1003,10 @@
         ui.body.classList.add('no-breathe');
         updateVisibility();
       }
-      const bw = ui.root.offsetWidth;
-      const bh = ui.root.offsetHeight;
-      saved.x = Math.max(0, Math.min(Math.max(0, window.innerWidth - bw), ev.clientX - dragOffset.x));
-      saved.y = Math.max(0, Math.min(Math.max(0, window.innerHeight - bh), ev.clientY - dragOffset.y));
-      ui.root.style.left = saved.x + 'px';
-      ui.root.style.top = saved.y + 'px';
-      updateBubbleSide();
+      const frame = positionFrame();
+      saved.x = (ev.clientX - frame.left) / frame.scale - dragOffset.x;
+      saved.y = (ev.clientY - frame.top) / frame.scale - dragOffset.y;
+      clampPosition();
     }
 
     function endDrag(ev, cancelled) {
@@ -1332,9 +1355,9 @@
     try { handleAppWindowFocus(await window.api.isWindowFocused()); }
     catch (error) { handleAppWindowFocus(document.hasFocus()); }
     if (!restorePositionFromRatios() && (saved.x == null || saved.y == null)) {
-      const r = ui.root.getBoundingClientRect();
-      saved.x = Math.max(8, window.innerWidth - r.width - 24);
-      saved.y = Math.max(8, window.innerHeight - r.height - 24);
+      const frame = positionFrame();
+      saved.x = Math.max(8, frame.width - ui.root.offsetWidth - 24);
+      saved.y = Math.max(8, frame.height - ui.root.offsetHeight - 24);
     }
     clampPosition();
     updatePositionRatios();
@@ -1375,6 +1398,8 @@
       closeConsole(false);
       hideBubble(true);
     } else if (ui.root) {
+      restorePositionFromRatios();
+      clampPosition();
       manualHeld = false;
       lockedEmotion = null;
       manualEmotionKey = null;
@@ -1387,8 +1412,14 @@
   function setView(view) {
     const nextView = view || 'home';
     if (nextView !== currentView) resetReadingSession();
+    if (nextView !== currentView) cancelActiveDrag();
     currentView = nextView;
     updateVisibility();
+    if (ui.root && !ui.root.hidden) {
+      restorePositionFromRatios();
+      clampPosition();
+      positionConsole();
+    }
     startReadingSession(Date.now());
     updateReadingCareStatus(Date.now());
   }
