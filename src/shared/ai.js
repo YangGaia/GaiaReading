@@ -12,6 +12,7 @@
         { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna（轻量）' },
         { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra（均衡）' },
         { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol（旗舰）' },
+        { id: 'gpt-6-astra', label: 'gpt-6-astra' },
         { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini（兼容）' },
       ],
     },
@@ -26,7 +27,7 @@
       ],
     },
     ollama: { label: 'Ollama（本地）', baseUrl: 'http://127.0.0.1:11434/v1', apiKeyRequired: false, models: [] },
-    custom: { label: '自定义兼容接口', baseUrl: '', apiKeyRequired: true, models: [] },
+    custom: { label: '自定义兼容接口', baseUrl: '', apiKeyRequired: true, models: [{ id: 'gpt-6-astra', label: 'gpt-6-astra' }] },
   };
 
   const DEFAULT_CONFIG = {

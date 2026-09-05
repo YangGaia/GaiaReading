@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="music.css">
   <link rel="stylesheet" href="library.css">
   <link rel="stylesheet" href="stats.css">
+  <link rel="stylesheet" href="ai-center.css">
 </head>
 <body>
   <canvas id="fx-canvas" hidden></canvas>
@@ -71,77 +72,77 @@
 
   <div id="ai-view" hidden>
     <header class="topbar ai-center-topbar">
-      <button id="btn-ai-back" class="btn">← 返回</button>
-      <span class="page-title">AI 阅读中心</span>
-      <span id="ai-center-top-state" class="ai-center-top-state">等待配置</span>
+      <button id="btn-ai-back" class="btn" type="button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg>返回</button>
+      <span class="page-title">Gaia Reading</span>
+      <span class="ai-header-rule" aria-hidden="true"></span>
     </header>
-    <main class="ai-center-scroll">
-      <section class="ai-center-hero">
-        <div>
-          <p class="ai-center-eyebrow">GAIA INTELLIGENCE · READING COMPANION</p>
-          <h1>把接口、总结和有珠都放在正确的位置。</h1>
-          <p>这里统一管理 AI 服务。阅读时只需点击顶栏的 ✦ AI，即可总结、追问，或让有珠对当前章节说两句。</p>
+    <main class="ai-center-scroll" aria-labelledby="ai-center-title">
+      <div class="ai-center-layout">
+        <section class="ai-center-heading">
+          <div><h1 id="ai-center-title">AI 阅读中心</h1><p>管理接口，在阅读时总结章节、继续追问。</p></div>
+          <span id="ai-center-top-state" class="ai-center-top-state" role="status">等待配置</span>
+        </section>
+        <div class="ai-center-grid">
+          <section class="ai-center-card ai-profiles-card" aria-labelledby="ai-profiles-title">
+            <div class="ai-center-card-head"><h2 id="ai-profiles-title">接口档案</h2><button id="btn-ai-profile-new" class="btn" type="button"><span aria-hidden="true">＋</span>新建</button></div>
+            <p class="ai-config-note">选择档案编辑，保存后启用。</p>
+            <div id="ai-profile-list" class="ai-profile-list"></div>
+            <div class="ai-profile-ornament" aria-hidden="true">
+              <svg viewBox="0 0 240 190" fill="none"><path class="ai-orbit-line" d="M18 151C53 160 101 135 138 100S196 42 224 52M36 174C94 165 143 105 171 61"/><path class="ai-moon" d="M145 42a24 24 0 1 0 29 32 23 23 0 0 1-29-32Z"/><path class="ai-orbit-ticks" d="M27 46h16m-8-8v16M190 140h12m-6-6v12"/><circle cx="99" cy="135" r="2" fill="currentColor"/></svg>
+              <span class="ai-ornament-rule"></span>
+            </div>
+          </section>
+          <section class="ai-center-card ai-config-card" aria-labelledby="ai-config-title">
+            <div class="ai-center-card-head"><h2 id="ai-config-title">编辑接口</h2><span id="ai-center-badge" class="ai-center-badge">未配置</span></div>
+            <div class="ai-fields">
+              <div class="ai-field">
+                <label class="ai-config-label" for="ai-profile-name">接口名称</label>
+                <input id="ai-profile-name" class="ai-config-input" type="text" maxlength="40" spellcheck="false" autocomplete="off" placeholder="例如：我的 OpenAI">
+              </div>
+              <div class="ai-field">
+                <label class="ai-config-label" for="ai-provider">服务商</label>
+                <select id="ai-provider" class="drawer-select ai-config-control">
+                  <option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option><option value="ollama">Ollama（本地）</option><option value="custom">自定义兼容接口</option>
+                </select>
+              </div>
+              <div class="ai-field ai-field-wide">
+                <label class="ai-config-label" for="ai-base-url">Base URL</label>
+                <input id="ai-base-url" class="ai-config-input" type="url" spellcheck="false" autocomplete="off">
+              </div>
+              <div class="ai-field ai-field-wide">
+                <label class="ai-config-label" for="ai-api-key">API Key <span>Windows 加密保存</span></label>
+                <div class="ai-key-row">
+                  <input id="ai-api-key" class="ai-config-input" type="password" spellcheck="false" autocomplete="off" placeholder="尚未保存">
+                  <button id="btn-ai-key-toggle" class="btn" type="button">显示</button>
+                </div>
+              </div>
+              <div class="ai-field ai-field-wide">
+                <label class="ai-config-label" for="ai-model">模型 ID</label>
+                <div id="ai-model-picker" class="ai-model-picker">
+                  <div class="ai-model-row">
+                    <input id="ai-model" class="ai-config-input" type="text" spellcheck="false" autocomplete="off" placeholder="选择或填写模型 ID" aria-haspopup="listbox" aria-expanded="false" aria-controls="ai-model-options" aria-describedby="ai-model-hint">
+                    <button id="btn-ai-model-menu" class="btn ai-model-menu-button" type="button" aria-label="展开模型列表"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></button>
+                    <button id="btn-ai-model-refresh" class="btn" type="button">读取模型</button>
+                  </div>
+                  <div id="ai-model-options" class="ai-model-options" role="listbox" aria-label="模型 ID" hidden></div>
+                </div>
+                <p id="ai-model-hint" class="ai-model-hint">可选择内置模型，也可以填写接口支持的模型 ID。</p>
+              </div>
+            </div>
+            <p id="ai-config-target" class="ai-config-target"></p>
+            <p id="ai-config-status" class="ai-config-status" role="status" aria-live="polite"></p>
+            <div class="ai-config-actions">
+              <div class="ai-maintenance-actions"><button id="btn-ai-profile-delete" class="btn danger" type="button">删除接口</button><button id="btn-ai-key-clear" class="btn danger" type="button">清除 Key</button></div>
+              <div class="ai-primary-actions"><button id="btn-ai-test" class="btn" type="button">测试连接</button><button id="btn-ai-save" class="btn primary" type="button">保存并启用<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button></div>
+            </div>
+          </section>
         </div>
-        <div class="ai-center-orb" aria-hidden="true"><span>✦</span></div>
-      </section>
-      <div class="ai-center-grid">
-        <section class="ai-center-card ai-profiles-card">
-          <div class="ai-center-card-head"><div><small>PROFILES</small><h2>接口档案</h2></div><button id="btn-ai-profile-new" class="btn" type="button">＋ 新建</button></div>
-          <p class="ai-config-note">可同时保存多套接口，点击档案即可编辑，启用后阅读页立即切换。</p>
-          <div id="ai-profile-list" class="ai-profile-list"></div>
-        </section>
-        <section class="ai-center-card ai-config-card">
-          <div class="ai-center-card-head"><div><small>CONNECTION</small><h2>编辑接口</h2></div><span id="ai-center-badge" class="ai-center-badge">未配置</span></div>
-          <p class="ai-config-note">Key 由 Windows 加密保存。正文只发送到下方 Base URL，不经过 Gaia 服务器。测试连接和对话可能产生少量费用。</p>
-          <label class="ai-config-label" for="ai-profile-name">接口名称</label>
-          <input id="ai-profile-name" class="ai-config-input" type="text" maxlength="40" spellcheck="false" autocomplete="off" placeholder="例如：我的 DeepSeek">
-          <label class="ai-config-label" for="ai-provider">服务商</label>
-          <select id="ai-provider" class="drawer-select ai-config-control">
-            <option value="deepseek">DeepSeek</option>
-            <option value="openai">OpenAI</option>
-            <option value="ollama">Ollama（本地）</option>
-            <option value="custom">自定义兼容接口</option>
-          </select>
-          <label class="ai-config-label" for="ai-base-url">Base URL</label>
-          <input id="ai-base-url" class="ai-config-input" type="url" spellcheck="false" autocomplete="off">
-          <label class="ai-config-label" for="ai-api-key">API Key</label>
-          <div class="ai-key-row">
-            <input id="ai-api-key" class="ai-config-input" type="password" spellcheck="false" autocomplete="off" placeholder="尚未保存">
-            <button id="btn-ai-key-toggle" class="btn" type="button">显示</button>
-          </div>
-          <label class="ai-config-label" for="ai-model">模型名称</label>
-          <div id="ai-model-picker" class="ai-model-picker">
-            <div class="ai-model-row">
-              <input id="ai-model" class="ai-config-input" type="text" spellcheck="false" autocomplete="off" placeholder="选择或填写模型名称" aria-haspopup="listbox" aria-expanded="false" aria-controls="ai-model-options">
-              <button id="btn-ai-model-menu" class="btn ai-model-menu-button" type="button" aria-label="展开模型列表">⌄</button>
-              <button id="btn-ai-model-refresh" class="btn" type="button">读取模型</button>
-            </div>
-            <div id="ai-model-options" class="ai-model-options" role="listbox" hidden></div>
-          </div>
-          <p id="ai-model-hint" class="ai-model-hint">可直接选择内置模型，也可以输入接口支持的其他模型 ID。</p>
-          <p id="ai-config-target" class="ai-config-target"></p>
-          <p id="ai-config-status" class="ai-config-status" role="status" aria-live="polite"></p>
-          <div class="ai-config-actions">
-            <button id="btn-ai-profile-delete" class="btn danger" type="button">删除接口</button>
-            <button id="btn-ai-key-clear" class="btn danger" type="button">清除 Key</button>
-            <button id="btn-ai-test" class="btn" type="button">测试连接</button>
-            <button id="btn-ai-save" class="btn primary" type="button">保存并启用</button>
-          </div>
-        </section>
-        <aside class="ai-center-side">
-          <section class="ai-center-card">
-            <small>AVAILABLE IN READER</small><h2>阅读时可以做什么</h2>
-            <div class="ai-capability-list">
-              <div><b>01</b><span><strong>章节总结</strong><small>整理事件、人物和伏笔</small></span></div>
-              <div><b>02</b><span><strong>连续追问</strong><small>只围绕当前已读正文回答</small></span></div>
-              <div><b>03</b><span><strong>有珠短评</strong><small>一句概括或吐槽，只在桌宠气泡出现</small></span></div>
-            </div>
-          </section>
-          <section class="ai-center-card ai-privacy-card">
-            <small>PRIVACY BOUNDARY</small><h2>它不能做什么</h2>
-            <p>AI 只能接收当前章节文字并返回纯文本。它不能修改书籍、执行代码或操作你的电脑。关闭 AI 后，阅读器仍可独立使用。</p>
-          </section>
+        <aside class="ai-reading-tools" aria-label="阅读页中的 AI 功能">
+          <div class="ai-capability"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5c3-1 5.5-.3 8 1.5C14.5 4.7 17 4 20 5v14c-3-1-5.5-.3-8 1.5C9.5 18.7 7 18 4 19V5Zm8 1.5v14M7 9h2m-2 4h2m6-4h2m-2 4h2"/></svg><div><h3>章节总结</h3><p>梳理事件、人物与伏笔</p></div></div>
+          <div class="ai-capability"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4.5h14v12H9l-4 3v-15ZM8 8.5h8m-8 4h5"/></svg><div><h3>连续追问</h3><p>围绕当前已读正文展开</p></div></div>
+          <div class="ai-capability"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/></svg><div><h3>有珠短评</h3><p>一句回应，留在她的气泡里</p></div></div>
         </aside>
+        <footer class="ai-center-footer"><span class="ai-footer-mark" aria-hidden="true">Gaia</span><p>正文直接发送到所选接口。连接测试与对话按服务商规则计费。</p><span class="ai-footer-rule" aria-hidden="true"></span></footer>
       </div>
     </main>
   </div>
@@ -601,6 +602,7 @@
   <script src="home-layout.js"></script>
   <script src="home-interactions.js"></script>
   <script src="stats-presentation.js"></script>
+  <script src="ai-center-layout.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

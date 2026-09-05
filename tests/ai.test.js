@@ -57,6 +57,38 @@ test('API Key 与总结缓存按服务商和 Base URL 隔离', () => {
   assert.notStrictEqual(cacheKey('chapter-1', '正文', configIdentity(deepseek)), cacheKey('chapter-1', '正文', configIdentity(relay)));
 });
 
+test('OpenAI 和自定义接口提供官方 GPT-6 ID，原有模型配置保持原样', () => {
+  for (const provider of ['openai', 'custom']) {
+    const choices = PROVIDERS[provider].models.filter((item) => item.id === 'gpt-6-astra');
+    assert.deepStrictEqual(choices, [{ id: 'gpt-6-astra', label: 'gpt-6-astra' }]);
+    const saved = { id: provider, name: provider, provider, baseUrl: 'https://relay.example/v1', model: 'my-existing-model' };
+    assert.deepStrictEqual(normalizeProfile(saved), saved);
+  }
+  assert.strictEqual(PROVIDERS.openai.models[0].id, 'gpt-5.6-luna');
+  assert.ok(!PROVIDERS.deepseek.models.some((item) => item.id === 'gpt-6-astra'));
+  assert.strictEqual(PROVIDERS.ollama.models.length, 0);
+});
+
+for (const provider of ['openai', 'custom']) test(`${provider}: GPT-6 ID 贯穿请求和兼容重试，绝不替换成其他模型`, async () => {
+  let calls = 0;
+  const baseUrl = provider === 'openai' ? PROVIDERS.openai.baseUrl : 'https://relay.example/v1';
+  const fetchMock = async (url, options) => {
+    const body = JSON.parse(options.body);
+    assert.strictEqual(url, baseUrl + '/chat/completions');
+    assert.strictEqual(body.model, 'gpt-6-astra');
+    calls += 1;
+    if (calls === 1) return { ok: false, status: 400, json: async () => ({ error: { message: 'Unsupported parameter: max_tokens. Use max_completion_tokens.' } }) };
+    assert.strictEqual(body.max_tokens, undefined);
+    assert.strictEqual(body.max_completion_tokens, 1000);
+    if (calls === 2) return { ok: false, status: 400, json: async () => ({ error: { message: 'Unsupported parameter: temperature' } }) };
+    assert.strictEqual(body.temperature, undefined);
+    return { ok: true, json: async () => ({ choices: [{ message: { content: '章节总结' } }] }) };
+  };
+  const result = await requestChat(fetchMock, { provider, baseUrl, model: 'gpt-6-astra' }, 'test-key', [{ role: 'user', content: '测试正文' }]);
+  assert.strictEqual(result, '章节总结');
+  assert.strictEqual(calls, 3);
+});
+
 test('AI 返回期间章节标识波动时按相同正文保持当前结果', () => {
   const requested = { bookPath: 'D:/books/demo.epub', chapterId: 'epub:toc:chapter-1', content: ' 第一章\n\n正文 ' };
   const current = { bookPath: 'D:/books/demo.epub', chapterId: 'epub:heading:12', content: '第一章\n\n正文' };

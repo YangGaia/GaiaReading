@@ -15,7 +15,7 @@ const viewControls = {
 };
 
 test('软件和首页预览不包含第三方推广署名、样式或专用外链处理', () => {
-  const files = ['src/renderer/index.html', 'src/renderer/home.css', 'src/renderer/non-reading.css', 'src/renderer/library.css', 'src/renderer/stats.css', 'src/renderer/stats-presentation.js', 'src/renderer/music.css', 'src/main.js', 'docs/design/home/index.html', 'docs/design/home/home.css'];
+  const files = ['src/renderer/index.html', 'src/renderer/home.css', 'src/renderer/non-reading.css', 'src/renderer/library.css', 'src/renderer/stats.css', 'src/renderer/ai-center.css', 'src/renderer/stats-presentation.js', 'src/renderer/music.css', 'src/main.js', 'docs/design/home/index.html', 'docs/design/home/home.css'];
   for (const file of files) {
     const source = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
     assert.doesNotMatch(source, /deerflow|design-credit/i, file);
@@ -106,6 +106,21 @@ test('包括响应式与主题规则在内的新 CSS 全部限定在授权的三
       assert.doesNotMatch(selector, /#(?:reader-view|ai-view|settings-overlay|fx-canvas)\b/, `${sheet}: unrelated surface ${selector}`);
     }
   }
+});
+
+test('AI 中心的材质、响应式和焦点样式只作用于 AI 页面', () => {
+  const css = fs.readFileSync(path.join(renderer, 'ai-center.css'), 'utf8');
+  assert.ok(html.indexOf('href="ai-center.css"') > html.indexOf('href="styles.css"'));
+  const selectors = styleSelectors(css);
+  assert.ok(selectors.length > 50);
+  for (const selector of selectors) {
+    assert.match(selector, /^#ai-view(?=$|[\s.#:[>])/, selector);
+    assert.doesNotMatch(selector, /#(?:reader-view|settings-overlay|gaia-pet|bgm-capsule)/);
+  }
+  assert.doesNotMatch(css, /@import|url\(["']?https?:|body\.(?:dark|eye)/);
+  assert.match(css, /prefers-reduced-motion/);
+  assert.match(css, /max-width: 900px/);
+  assert.match(css, /:focus-visible/);
 });
 
 test('正式首页包含线条构图、原首页素材和可打包的轮廓蒙版', () => {

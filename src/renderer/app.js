@@ -4146,6 +4146,7 @@ function renderAiProfiles() {
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'ai-profile-item' + (profile.id === state.aiEditingProfileId ? ' selected' : '');
+    item.setAttribute('aria-pressed', String(profile.id === state.aiEditingProfileId));
     item.dataset.profileId = profile.id;
     const name = document.createElement('strong');
     name.textContent = profile.name;
@@ -4378,7 +4379,8 @@ function changeAiProvider() {
   if (preset.baseUrl) els.aiBaseUrl.value = preset.baseUrl;
   const selected = editingAiProfile();
   if (!selected || selected.provider !== provider) {
-    if (preset.models && preset.models[0]) els.aiModel.value = preset.models[0].id;
+    // Custom presets are suggestions; preserve the user's relay-specific ID.
+    if (provider !== 'custom' && preset.models && preset.models[0]) els.aiModel.value = preset.models[0].id;
     else if (provider === 'ollama') els.aiModel.value = '';
   }
   const needsKey = preset.apiKeyRequired;

@@ -194,6 +194,7 @@ async function run(win) {
           home: '#home-title, button',
           library: '.page-title, .library-heading h1, .library-status > span, button, .book-title, .book-author, .book-format, .book-progress-label, .hint > strong, .hint > span:not([aria-hidden]), .hint > small, .library-footer > span',
           stats: '.page-title, .stats-page-heading, button, .stats-eyebrow, .stats-today, .stats-secondary, .stats-time-unit, .stats-date, .stats-clock-footnote, .stats-goal-status, #stats-ring-percent, .stats-companion-copy > span, .stats-alice-line, .stats-section-head h2, .stats-section-head > strong, .stats-streak strong, .stats-streak small, .stats-day-label, .stats-day-minutes, .stats-day-detail, .stats-finished-title, .stats-finished-date, .stats-empty, .stats-footer > span',
+          ai: '.page-title, h1, h2, h3, p, label, label span, .ai-center-top-state, .ai-center-badge, .ai-profile-item strong, .ai-profile-item small, .ai-profile-active, .ai-footer-mark, .btn:not(:disabled), .ai-model-option strong, .ai-model-option small',
         }[view];
         // Shared music controls are outside the palette redesign; they retain baseline layout checks.
         const nodes = [...root.querySelectorAll(selector)].filter((el) => visible(el) && el.textContent.trim() && !el.closest('.bgm-capsule'));
@@ -223,9 +224,16 @@ async function run(win) {
         requireTrue(nodes.length > 0, `${view} has no readable text to check`);
         return { view, contrastSamples: nodes.length, minimumBaseContrast: Number(lowestRatio.toFixed(2)) };
       },
-      assertStyleIsolation(view) {
-        const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home|library|stats)\.css$/.test(sheet.href || ''));
-        requireTrue(sheets.length === 5, 'All UI stylesheets must be loaded');
+      async assertStyleIsolation(view) {
+        const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home|library|stats)\.css$/.test(sheet.href || '') || (view === 'reader' && /\/ai-center\.css$/.test(sheet.href || '')));
+        requireTrue(sheets.length === (view === 'reader' ? 6 : 5), 'All UI stylesheets must be loaded');
+        // Gaia's fonts are intentionally shared by the redesigned pages. Keep
+        // their definitions while disabling page rules so font fallback is not
+        // confused with CSS leaking between views.
+        const sharedFonts = await Promise.all(sheets.flatMap((sheet) => [...sheet.cssRules].filter((rule) => rule.type === CSSRule.FONT_FACE_RULE).map((rule) =>
+          new FontFace(rule.style.fontFamily.replace(/^["']|["']$/g, ''), rule.style.src, { weight: rule.style.fontWeight, style: rule.style.fontStyle }).load()
+        )));
+        sharedFonts.forEach((font) => document.fonts.add(font));
         const root = document.getElementById(view + '-view');
         const nodes = [root, ...root.querySelectorAll('*')];
         const snapshot = () => nodes.map((el) => {
@@ -238,13 +246,22 @@ async function run(win) {
         try {
           const after = snapshot();
           differences = before.flatMap((props, i) => props.filter(([name, value], j) => value !== after[i][j][1]).map(([name]) => `${nodes[i].id || nodes[i].className || nodes[i].tagName}:${name}`));
-        } finally { sheets.forEach((sheet) => { sheet.disabled = false; }); }
+        } finally {
+          sheets.forEach((sheet) => { sheet.disabled = false; });
+          sharedFonts.forEach((font) => document.fonts.delete(font));
+          await document.fonts.ready;
+        }
         requireTrue(!differences.length, `UI styles change ${view}: ${differences.slice(0, 12).join(', ')}`);
         return { view, elements: nodes.length };
       },
     };
   });
 
+  if (process.env.GAIA_UI_AI_ONLY === '1') {
+    await require('./ai-center-runtime-checks')({ win, report, check, capture });
+    check('no renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
+    return;
+  }
   if (process.env.GAIA_UI_STATS_ONLY === '1') {
     await require('./stats-runtime-checks')({ win, report, check, capture });
     check('no renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);

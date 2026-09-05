@@ -1,0 +1,186 @@
+/* The AI workspace shares Gaia's graphite palette; reader themes stay local. */
+#ai-view {
+  --bg: #111419;
+  --surface: #1b222b;
+  --border: #35404f;
+  --border-strong: #48566a;
+  --text: #eceff4;
+  --text-soft: #a8b3c4;
+  --accent: #c1d1ed;
+  --accent-soft: #2b384b;
+  --danger: #e9aba8;
+  --shadow: #00000040;
+  --ai-unit: clamp(.85px, min(calc(100vw / 1100), calc(100vh / 760)), 1.32px);
+  --ai-inset: clamp(24px, 4.4vw, 80px);
+  color-scheme: dark;
+  color: var(--text);
+  background: radial-gradient(ellipse at 80% 0, #29354a20, transparent 60%), var(--bg);
+  font: 400 14px/1.6 "Gaia Home Noto", "Noto Sans SC", sans-serif;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+#ai-view svg { display: block; flex: 0 0 auto; width: 20px; height: 20px; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+#ai-view button svg { pointer-events: none; }
+#ai-view .ai-center-topbar { flex: 0 0 auto; min-height: calc(92 * var(--ai-unit)); padding: calc(20 * var(--ai-unit)) var(--ai-inset); gap: calc(24 * var(--ai-unit)); border: 0; background: transparent; box-shadow: none; }
+#ai-view .page-title { flex: 0 0 auto; gap: 0; color: #d1d9e7; font: 500 23px/1.2 "Gaia Wordmark", serif; letter-spacing: -.015em; }
+#ai-view .ai-header-rule { flex: 1; min-width: 12px; height: 1px; background: linear-gradient(90deg, #7d8da5 0 28px, #3c4654 28px); }
+#ai-view .ai-center-scroll { flex: 1; min-height: 0; padding: 0 max(var(--ai-inset), calc(var(--ai-companion-width, 150px) + 40px)) calc(20 * var(--ai-unit)) var(--ai-inset); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: #4b586c transparent; scroll-padding-block: 16px; }
+#ai-view .ai-center-layout { max-width: 1280px; margin-inline: auto; }
+#ai-view .ai-center-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: calc(6 * var(--ai-unit)) 0 calc(21 * var(--ai-unit)); }
+#ai-view .ai-center-heading h1 { margin: 0 0 7px; font-size: clamp(26px, calc(29 * var(--ai-unit)), 38px); font-weight: 500; line-height: 1.4; letter-spacing: .08em; }
+#ai-view .ai-center-heading p { margin: 0; color: var(--text-soft); font-size: 13px; letter-spacing: .025em; }
+#ai-view .ai-center-top-state { flex: 0 1 auto; max-width: 40%; padding: 7px 11px; border: 1px solid #3b4655; border-radius: 6px; color: #aeb9cb; background: #1c242e; font-size: 12px; overflow-wrap: anywhere; }
+#ai-view .ai-center-top-state::before { content: ""; display: inline-block; width: 5px; height: 5px; margin: 0 8px 2px 0; border-radius: 50%; background: #8291a8; }
+#ai-view .ai-center-top-state.ready { border-color: #465772; color: #c1d1ed; background: #202b3a; }
+#ai-view .ai-center-top-state.ready::before { background: #bed0ed; box-shadow: 0 0 7px #b8c9e63b; }
+
+/* The vertical rule separates the archive from the active connection. */
+#ai-view .ai-center-grid { display: grid; grid-template-columns: minmax(210px, .37fr) minmax(0, 1fr); max-width: none; margin: 0; gap: calc(30 * var(--ai-unit)); align-items: stretch; }
+#ai-view .ai-center-card { min-width: 0; border-radius: 10px; box-shadow: none; }
+#ai-view .ai-center-card-head { display: flex; align-items: center; justify-content: space-between; min-width: 0; gap: 14px; }
+#ai-view .ai-center-card h2 { margin: 0; font: 500 clamp(16px, calc(17 * var(--ai-unit)), 21px)/1.5 "Gaia Home Noto", "Noto Sans SC", sans-serif; letter-spacing: .075em; }
+#ai-view .ai-profiles-card { display: flex; flex-direction: column; padding: calc(18 * var(--ai-unit)) calc(23 * var(--ai-unit)) 12px 0; border: 0; border-right: 1px solid #35404f; border-radius: 0; background: transparent; }
+#ai-view .ai-profiles-card .ai-center-card-head { margin-bottom: 10px; }
+#ai-view .ai-config-note { color: #a8b3c4; font-size: 12px; line-height: 1.6; }
+#ai-view .ai-profile-list { display: flex; flex-direction: column; gap: 9px; padding: 4px 3px 12px; max-height: calc(335 * var(--ai-unit)); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #4b586c transparent; }
+#ai-view .ai-profile-list:empty::before { content: "新建一套接口，开始配置。"; display: block; padding-block: 14px; color: var(--text-soft); font-size: 13px; }
+#ai-view .ai-profile-item { position: relative; min-height: calc(82 * var(--ai-unit)); padding: 15px 14px 14px 17px; border: 1px solid #323e4e; border-radius: 6px; color: var(--text); background: linear-gradient(145deg, #242e3a, #1a222d); box-shadow: inset 0 1px 0 #ffffff04, 0 3px 8px #00000020; transition: border-color .2s ease, background .2s ease, box-shadow .2s ease, transform .15s ease; }
+#ai-view .ai-profile-item::before { content: ""; position: absolute; left: -1px; top: 17px; bottom: 17px; width: 2px; background: #b9cae6; opacity: 0; transition: opacity .2s ease; }
+#ai-view .ai-profile-item strong { font-size: 13px; font-weight: 500; letter-spacing: .035em; }
+#ai-view .ai-profile-item small { margin-top: 5px; color: #a8b5c9; font-size: 11px; line-height: 1.6; }
+#ai-view .ai-profile-item .ai-profile-active { padding: 1px 5px; border: 1px solid #5d6f87; border-radius: 4px; color: #d3e0f5; background: #334155; font-size: 10px; font-weight: 400; white-space: nowrap; }
+#ai-view .ai-profile-item:hover { transform: translateY(-1px); border-color: #63768f; background: #263243; box-shadow: inset 0 1px 0 #ffffff08, 0 5px 12px #00000038; }
+#ai-view .ai-profile-item.selected { border-color: #596d8a; background: linear-gradient(125deg, #2c394c, #222d3c); box-shadow: inset 0 1px 0 #ffffff09, 0 4px 12px #00000030; }
+#ai-view .ai-profile-item.selected::before { opacity: 1; }
+#ai-view .ai-profile-item:active { transform: translateY(1px); box-shadow: inset 0 2px 5px #00000040; }
+#ai-view .ai-profile-ornament { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100px; padding: 8px 6px; color: #97a9c4; pointer-events: none; user-select: none; }
+#ai-view .ai-profile-ornament svg { width: min(100%, 220px); height: auto; stroke-width: .8; }
+#ai-view .ai-orbit-line { stroke: #70849f; opacity: .45; }
+#ai-view .ai-orbit-ticks { stroke: #a3b5cd; opacity: .7; }
+#ai-view .ai-moon { stroke: none; fill: #dae2ed; }
+#ai-view .ai-ornament-rule { width: 44px; height: 1px; background: #667992; opacity: .6; }
+
+#ai-view .ai-config-card { padding: calc(20 * var(--ai-unit)) calc(27 * var(--ai-unit)); border: 1px solid; border-color: #455164 #364152 #2d3745; background: linear-gradient(150deg, #ffffff03, transparent 45%), #1b222b; box-shadow: inset 0 1px 0 #ffffff07, 0 12px 30px #00000020; }
+#ai-view .ai-config-card .ai-center-card-head { padding-bottom: calc(14 * var(--ai-unit)); margin-bottom: calc(14 * var(--ai-unit)); border-bottom: 1px solid #35404f; }
+#ai-view .ai-center-badge { flex: 0 0 auto; padding: 4px 9px; border: 1px solid #465267; border-radius: 5px; background: #202934; color: #b3bfd2; font-size: 11px; }
+#ai-view .ai-center-badge.ready { color: #d0ddf1; background: #2d3b4d; border-color: #5d728e; }
+#ai-view .ai-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .85fr); gap: calc(12 * var(--ai-unit)) 18px; }
+#ai-view .ai-field { min-width: 0; }
+#ai-view .ai-field-wide { grid-column: 1 / -1; }
+#ai-view .ai-config-label { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 0 5px; color: #c8d2e1; font-size: 12px; font-weight: 400; letter-spacing: .035em; }
+#ai-view .ai-config-label span { color: #a0aec2; font-size: 11px; letter-spacing: 0; }
+#ai-view .ai-config-input,
+#ai-view .ai-config-control { width: 100%; min-width: 0; height: max(40px, calc(40 * var(--ai-unit))); min-height: 0; padding: 9px 12px; border: 1px solid #425069; border-radius: 6px; color: #e5ebf5; background-color: #151c25; box-shadow: inset 0 2px 4px #00000025, 0 1px 0 #ffffff04; font: 400 clamp(13px, calc(13 * var(--ai-unit)), 16px)/1.5 "Gaia Home Noto", "Noto Sans SC", sans-serif; transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease; }
+#ai-view .ai-config-control { padding-right: 28px; }
+#ai-view .ai-config-input::placeholder { color: #9ba9be; opacity: 1; }
+#ai-view .ai-config-input:hover,
+#ai-view .ai-config-control:hover { border-color: #647791; }
+#ai-view .ai-config-input:focus,
+#ai-view .ai-config-control:focus { outline: none; border-color: #b0c4e4; background-color: #1a2432; box-shadow: 0 0 0 3px #aec3e419, inset 0 1px 4px #00000020; }
+#ai-view .ai-config-input:disabled { color: #99a5b7; opacity: .6; }
+#ai-view #ai-model,
+#ai-view #ai-base-url { font-family: Consolas, "Cascadia Mono", monospace; letter-spacing: .01em; }
+#ai-view .ai-key-row { gap: 8px; }
+#ai-view .ai-model-row { grid-template-columns: minmax(0, 1fr) 38px auto; gap: 8px; }
+#ai-view .ai-model-row .btn { min-width: 0; }
+#ai-view .ai-model-menu-button svg { transition: transform .18s ease; }
+#ai-view .ai-model-menu-button[aria-expanded="true"] svg { transform: rotate(180deg); }
+#ai-view .ai-model-options { position: static; display: grid; gap: 3px; max-height: 216px; margin-top: 8px; padding: 6px; border: 1px solid #536780; border-radius: 7px; background: #17202c; box-shadow: inset 0 1px 0 #ffffff06, 0 5px 14px #00000025; scrollbar-color: #60718b transparent; }
+#ai-view .ai-model-options[hidden] { display: none; }
+#ai-view .ai-model-option { min-width: 0; min-height: 38px; padding: 9px 10px; border: 1px solid transparent; border-radius: 4px; color: #e0e8f4; transition: background .15s ease, border-color .15s ease; }
+#ai-view .ai-model-option strong { font: 400 13px/1.5 "Gaia Home Noto", "Noto Sans SC", sans-serif; }
+#ai-view .ai-model-option small { color: #afbed3; font: 400 11px/1.5 Consolas, "Cascadia Mono", monospace; }
+#ai-view .ai-model-option:hover,
+#ai-view .ai-model-option:focus,
+#ai-view .ai-model-option.active { color: #edf3fc; border-color: #4f6684; background: #2b3a50; }
+#ai-view .ai-model-hint { margin: 8px 0 0; color: #a7b5c9; font-size: 11px; line-height: 1.65; }
+#ai-view .ai-model-options-empty { padding: 10px; color: var(--text-soft); font-size: 12px; }
+#ai-view .ai-config-target { margin: calc(15 * var(--ai-unit)) 0 0; padding: 9px 0 0; border-top: 1px solid #35404f; border-radius: 0; color: #a7b5c9; background: transparent; font-size: 11px; line-height: 1.65; overflow-wrap: anywhere; }
+#ai-view .ai-config-status { min-height: 0; margin: 8px 0 0; color: #bccae0; font-size: 12px; line-height: 1.6; }
+#ai-view .ai-config-status:empty { display: none; }
+#ai-view .ai-config-status.success { color: #b4d7c1; }
+#ai-view .ai-config-status.error { color: #f3b4b0; }
+
+/* Pressed metal surfaces match the homepage actions. */
+#ai-view .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 8px 12px; border: 1px solid; border-color: #4a5870 #364257 #2e394b; border-radius: 6px; color: #d0daea; background: linear-gradient(150deg, #2c3748, #222c3b); box-shadow: inset 0 1px 0 #ffffff08, 0 3px 8px #00000022; font: 400 12px/1.5 "Gaia Home Noto", "Noto Sans SC", sans-serif; letter-spacing: .025em; white-space: nowrap; cursor: pointer; transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .12s ease; }
+#ai-view .btn:hover { color: #f0f4fc; border-color: #8498b6; background: #34435a; box-shadow: inset 0 1px 0 #ffffff0d, 0 5px 12px #00000038; }
+#ai-view .btn:active { transform: translateY(1px); box-shadow: inset 0 2px 5px #00000045; }
+#ai-view .btn.primary { padding-inline: 16px; color: #eff4fc; border-color: #7d90ad #536680 #414f66; background: linear-gradient(155deg, #4a5b74, #34445b 55%, #2b374b); box-shadow: inset 0 1px 0 #e3edff24, 0 4px 12px #00000040; }
+#ai-view .btn.primary:hover { filter: none; border-color: #b7c9e4; background: linear-gradient(155deg, #566b88, #3a4d67); }
+#ai-view .btn.primary svg { width: 16px; height: 16px; transition: transform .18s ease; }
+#ai-view .btn.primary:hover svg { transform: translateX(2px); }
+#ai-view .btn.danger { color: #cbb4bc; border-color: transparent; background: transparent; box-shadow: none; }
+#ai-view .btn.danger:hover { color: #ffcfca; border-color: #744f5b; background: #392c35; }
+#ai-view .btn:disabled { color: #9da9ba; opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+#ai-view .topbar .btn { padding-inline: 4px; border-color: transparent; color: #aebbd0; background: transparent; box-shadow: none; }
+#ai-view .topbar .btn:hover { color: #eef3fc; }
+#ai-view .ai-profiles-card .btn { min-height: 32px; padding: 5px 9px; font-size: 11px; }
+#ai-view .ai-config-actions { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-top: calc(16 * var(--ai-unit)); }
+#ai-view .ai-maintenance-actions,
+#ai-view .ai-primary-actions { display: flex; gap: 8px; min-width: 0; }
+#ai-view .ai-primary-actions { margin-left: auto; }
+#ai-view .btn:focus-visible,
+#ai-view .ai-profile-item:focus-visible,
+#ai-view .ai-model-option:focus,
+#ai-view .ai-model-option:focus-visible { outline: 2px solid #b6c8f0; outline-offset: 3px; }
+
+#ai-view .ai-reading-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(26 * var(--ai-unit)); padding: calc(18 * var(--ai-unit)) 0; margin-top: calc(20 * var(--ai-unit)); border-block: 1px solid #35404f; }
+#ai-view .ai-capability { display: flex; align-items: center; min-width: 0; gap: 14px; padding-inline: 12px; color: #aebfd9; }
+#ai-view .ai-capability + .ai-capability { border-left: 1px solid #35404f; padding-left: calc(26 * var(--ai-unit)); }
+#ai-view .ai-capability svg { width: 26px; height: 26px; stroke-width: 1.1; transition: color .25s ease, transform .25s ease; }
+#ai-view .ai-capability:hover svg { color: #e0eaf9; transform: translateY(-2px); }
+#ai-view .ai-capability h3 { margin: 0 0 4px; color: #d8e1ee; font-size: 13px; font-weight: 500; letter-spacing: .055em; }
+#ai-view .ai-capability p { margin: 0; color: #a8b5c9; font-size: 11px; }
+#ai-view .ai-center-footer { display: flex; align-items: center; gap: 18px; padding: 17px 0 4px; }
+#ai-view .ai-footer-mark { color: #a8b8ce; font: 500 22px/1 "Gaia Wordmark", serif; }
+#ai-view .ai-center-footer p { margin: 0; color: #9faec3; font-size: 11px; line-height: 1.6; }
+#ai-view .ai-footer-rule { flex: 1; height: 1px; background: #35404f; }
+
+@media (max-width: 900px) {
+  #ai-view .ai-center-topbar { gap: 14px; }
+  #ai-view .ai-center-heading { padding-block: 10px 22px; }
+  #ai-view .ai-center-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  #ai-view .ai-profiles-card { padding: 0 0 10px; border: 0; }
+  #ai-view .ai-profiles-card .ai-center-card-head { margin-bottom: 6px; }
+  #ai-view .ai-profiles-card .ai-config-note { margin-bottom: 6px; }
+  #ai-view .ai-profile-list { flex-direction: row; max-height: none; padding: 3px 3px 9px; overflow-x: auto; }
+  #ai-view .ai-profile-item { flex: 0 0 232px; min-width: 0; min-height: 80px; }
+  #ai-view .ai-profile-ornament { display: none; }
+  #ai-view .ai-config-card { padding: 22px 24px; }
+  #ai-view .ai-reading-tools { gap: 14px; }
+  #ai-view .ai-capability { gap: 10px; padding-inline: 0; }
+  #ai-view .ai-capability + .ai-capability { padding-left: 16px; }
+}
+@media (max-width: 620px) {
+  #ai-view { --ai-inset: 18px; }
+  #ai-view .ai-center-topbar { flex-wrap: wrap; gap: 10px 14px; min-height: 0; padding-block: 16px; }
+  #ai-view .page-title { font-size: 21px; }
+  #ai-view .ai-header-rule { min-width: 24px; }
+  #ai-view .ai-center-heading { flex-wrap: wrap; gap: 12px; }
+  #ai-view .ai-center-top-state { max-width: 100%; }
+  #ai-view .ai-config-card { padding: 20px 16px; }
+  #ai-view .ai-fields { grid-template-columns: minmax(0, 1fr); }
+  #ai-view .ai-config-label { flex-wrap: wrap; }
+  #ai-view .ai-model-row { grid-template-columns: minmax(0, 1fr) 36px; }
+  #ai-view #btn-ai-model-refresh { grid-column: 1 / -1; justify-self: end; }
+  #ai-view .ai-reading-tools { grid-template-columns: minmax(0, 1fr); gap: 18px; padding-block: 20px; }
+  #ai-view .ai-capability + .ai-capability { padding-left: 0; border-left: 0; }
+  #ai-view .ai-center-footer { align-items: baseline; gap: 12px; }
+  #ai-view .ai-footer-rule { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #ai-view .btn,
+  #ai-view .btn.primary svg,
+  #ai-view .ai-profile-item,
+  #ai-view .ai-profile-item::before,
+  #ai-view .ai-config-input,
+  #ai-view .ai-config-control,
+  #ai-view .ai-model-menu-button svg,
+  #ai-view .ai-model-option,
+  #ai-view .ai-capability svg { transition: none; }
+  #ai-view .btn:active,
+  #ai-view .btn.primary:hover svg,
+  #ai-view .ai-profile-item:hover,
+  #ai-view .ai-profile-item:active,
+  #ai-view .ai-capability:hover svg { transform: none; }
+}
