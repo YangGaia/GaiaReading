@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="non-reading.css">
 <link rel="stylesheet" href="library-stats.css">
+<link rel="stylesheet" href="home.css">
 </head>
 <body>
   <canvas id="fx-canvas" hidden></canvas>
@@ -17,24 +18,49 @@
   </div>
 
   <div id="home-view" hidden>
-    <div class="home-masthead"><span class="page-bookmark" aria-hidden="true"></span><span>私人书房</span></div>
-    <div class="home-left">
-      <h1 class="home-title"><span>Gaia</span> <span>Reading<span class="home-title-dot" aria-hidden="true">.</span></span></h1>
-      <p class="home-subtitle">把时间，留给故事。</p>
-      <nav class="home-menu" aria-label="书房入口">
-        <button class="home-item d1" id="btn-home-shelf"><span class="home-item-number" aria-hidden="true">01</span><span>进入书架</span><span class="home-arrow" aria-hidden="true">↗</span></button>
-        <button class="home-item d2" id="btn-home-add-books"><span class="home-item-number" aria-hidden="true">02</span><span>添加图书</span><span class="home-arrow" aria-hidden="true">＋</span></button>
-        <button class="home-item d3" id="btn-home-ai"><span class="home-item-number" aria-hidden="true">03</span><span>AI 章节助手</span><span class="home-arrow" aria-hidden="true">↗</span></button>
-        <button class="home-item d4" id="btn-home-settings"><svg class="home-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 4v16M12 4v16M19 4v16M2 8h6M9 16h6M16 10h6"/></svg><span>设置</span></button>
-      </nav>
-    </div>
-    <div class="home-right">
-      <div class="home-art">
-        <img id="home-img" src="images/1.jpg" alt="久远寺有珠">
+    <main class="home-surface" aria-label="Gaia Reading 首页">
+      <header class="page-header">
+        <div class="app-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none"><path d="M6 6.5c4.5-1 7.4-.1 10 2.1 2.6-2.2 5.5-3.1 10-2.1v18c-4.3-1-7.3-.2-10 1.6-2.7-1.8-5.7-2.6-10-1.6v-18Z"/><path d="M16 8.6v17.5M10 11.5c1.1 0 2.1.3 3 .8M10 15.5c1.1 0 2.1.3 3 .8"/></svg>
+        </div>
+        <span class="header-rule" aria-hidden="true"></span>
+        <div id="home-bgm-slot" class="home-music-slot" aria-label="阅读音乐"></div>
+      </header>
+
+      <div class="study-layout">
+        <section class="home-copy" aria-labelledby="home-title">
+          <h1 id="home-title">Gaia Reading</h1>
+          <div class="copy-rule" aria-hidden="true"><span></span></div>
+          <nav class="home-actions" aria-label="首页入口">
+            <button id="btn-home-shelf" class="action-button primary-action" type="button">
+              <svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5c3-.8 5.5-.2 8 1.5 2.5-1.7 5-2.3 8-1.5v13c-3-.8-5.5-.2-8 1.5-2.5-1.7-5-2.3-8-1.5v-13ZM12 7v13"/></svg>
+              <span>进入书架</span>
+              <svg class="forward-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
+            </button>
+            <div class="secondary-actions">
+              <button id="btn-home-add-books" class="action-button secondary-action" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>添加图书</span></button>
+              <button id="btn-home-ai" class="action-button secondary-action" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6L12 3Z"/></svg><span>AI 助手</span></button>
+            </div>
+          </nav>
+        </section>
+
+        <div class="study-divider" aria-hidden="true"><span></span></div>
+
+        <figure class="portrait" aria-label="久远寺有珠">
+          <div class="portrait-mount">
+            <svg class="portrait-lines" viewBox="0 0 1200 1200" fill="none" aria-hidden="true"><path d="M326 78H76V710M76 922V1132H208M1020 78H1115V1132H1068"/></svg>
+            <img id="home-img" src="images/1.jpg" alt="戴着帽子、手指轻抵唇边的久远寺有珠" draggable="false">
+          </div>
+        </figure>
       </div>
-      <div class="home-caption"><span class="home-caption-line" aria-hidden="true"></span><span>久远寺有珠 · 与你共读</span></div>
-    </div>
-    <footer class="home-footer"><a class="design-credit" href="https://deerflow.tech" target="_blank" rel="noopener noreferrer">Created By Deerflow</a></footer>
+
+      <footer class="page-footer">
+        <button id="btn-home-settings" class="settings-button" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4v16M12 4v16M19 4v16M2 8h6M9 16h6M16 10h6"/></svg><span>设置</span></button>
+        <span class="footer-rule" aria-hidden="true"></span>
+        <a class="design-credit" href="https://deerflow.tech" target="_blank" rel="noopener noreferrer">Created By Deerflow</a>
+        <span class="companion-space" aria-hidden="true"></span>
+      </footer>
+    </main>
   </div>
 
   <div id="ai-view" hidden>
@@ -486,6 +512,7 @@
   <script src="../shared/ai.js"></script>
   <script src="bgm.js"></script>
   <script src="pet.js"></script>
+  <script src="home-layout.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

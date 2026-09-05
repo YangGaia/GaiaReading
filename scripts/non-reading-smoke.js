@@ -49,7 +49,7 @@ for (let i = 0; i < 8; i += 1) {
 }
 const progress = Object.fromEntries(books.slice(0, 9).map((book, i) => [book.path, { percent: 10 + i * 9, updatedAt: now - i * 1000 }]));
 const completedBooks = Object.fromEntries(books.slice(0, 7).map((book, i) => [book.path, { ...book, finishedAt: now - i * 86400000 }]));
-fs.writeFileSync(path.join(sandbox, 'gaia-reading.json'), JSON.stringify({ library: [], prefs: { theme: 'light' }, progress, readingStats: { version: 1, goalMinutes: 30, days, completedBooks } }));
+fs.writeFileSync(path.join(sandbox, 'gaia-reading.json'), JSON.stringify({ library: [], prefs: { theme: 'light' }, pet: { auto: false, autoSpeech: false, autoSleep: false }, progress, readingStats: { version: 1, goalMinutes: 30, days, completedBooks } }));
 
 const report = { userData: sandbox, outputDir, checks: [], screenshots: [], consoleErrors: [], externalRequests };
 let finished = false;
@@ -72,6 +72,7 @@ function attachWindow(win) {
   if (runStarted) return;
   runStarted = true;
   win.webContents.setBackgroundThrottling(false);
+  win.webContents.setAudioMuted(true);
   win.webContents.on('console-message', (_event, level, message) => {
     if (level >= 3) { report.consoleErrors.push(message); console.error('UI_RENDERER:', message); }
   });
@@ -190,7 +191,7 @@ async function run(win) {
           return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
         }).reduce((total, channel, i) => total + channel * [.2126, .7152, .0722][i], 0);
         const selector = {
-          home: '.home-title, .home-subtitle, .home-masthead, .home-caption, .design-credit, button',
+          home: '#home-title, .design-credit, button',
           library: '.page-title, .library-heading h1, .library-status > span, button, .book-title, .book-author, .book-format, .book-progress-label, .hint > strong, .hint > span:not([aria-hidden]), .hint > small, .library-footer > span, .design-credit',
           stats: '.page-title, .stats-page-heading, button, .stats-eyebrow, .stats-today, .stats-secondary, .stats-companion-copy > span, .stats-alice-line, .stats-ring-center strong, .stats-section-head h2, .stats-section-head > strong, .stats-section-head > span, .stats-streak strong, .stats-streak small, .stats-day-label, .stats-day-minutes, .stats-finished-title, .stats-empty, .stats-footer > span, .design-credit',
         }[view];
@@ -223,8 +224,8 @@ async function run(win) {
         return { view, contrastSamples: nodes.length, minimumBaseContrast: Number(lowestRatio.toFixed(2)) };
       },
       assertStyleIsolation(view) {
-        const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats)\.css$/.test(sheet.href || ''));
-        requireTrue(sheets.length === 2, 'Both UI stylesheets must be loaded');
+        const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home)\.css$/.test(sheet.href || ''));
+        requireTrue(sheets.length === 3, 'All UI stylesheets must be loaded');
         const root = document.getElementById(view + '-view');
         const nodes = [root, ...root.querySelectorAll('*')];
         const snapshot = () => nodes.map((el) => {
@@ -245,14 +246,16 @@ async function run(win) {
   });
 
   check('browser parses only scoped UI rules', await evaluate(() => {
-    const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats)\.css$/.test(sheet.href || ''));
-    if (sheets.length !== 2) return false;
+    const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home)\.css$/.test(sheet.href || ''));
+    if (sheets.length !== 3) return false;
     let count = 0;
     function walk(rules) {
       for (const rule of rules) {
         if (rule.type === CSSRule.STYLE_RULE) {
           count += 1;
-          if (!rule.selectorText.split(',').every((selector) => /^(?:body(?:\.[\w-]+)*\s+)?#(?:home-view|library-view|stats-view)(?=$|[\s.#:[>])/.test(selector.trim()))) return false;
+          if (!rule.selectorText.split(',').every((selector) => selector.trim() === 'body:has(> #home-view:not([hidden])) > #gaia-pet' || /^(?:body(?:\.[\w-]+)*\s+)?#(?:home-view|library-view|stats-view)(?=$|[\s.#:[>])/.test(selector.trim()))) return false;
+        } else if (rule.type === CSSRule.FONT_FACE_RULE) {
+          if (!rule.style.fontFamily.includes('Gaia Home Noto')) return false;
         } else if (!rule.cssRules || !walk(rule.cssRules)) return false;
       }
       return true;
@@ -260,6 +263,9 @@ async function run(win) {
     return sheets.every((sheet) => walk(sheet.cssRules)) && count > 20;
   }));
   await evaluate(async () => { await __uiSmoke.wait(500); });
+  await require('./home-runtime-checks')({ win, report, check, capture });
+  check('no renderer exceptions during live homepage checks', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
+  if (process.env.GAIA_UI_HOME_ONLY === '1') return;
   await capture(win, 'home-light-1100x760');
   check('initial home', await evaluate(() => __gaiaDebug.getView() === 'home'));
   const windowsBeforeCredit = windowsCreated;

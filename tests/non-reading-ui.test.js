@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const renderer = path.join(__dirname, '..', 'src', 'renderer');
 const html = fs.readFileSync(path.join(renderer, 'index.html'), 'utf8');
-const sheets = ['non-reading.css', 'library-stats.css'];
+const sheets = ['non-reading.css', 'library-stats.css', 'home.css'];
 const viewControls = {
   home: ['btn-home-shelf', 'btn-home-add-books', 'btn-home-ai', 'btn-home-settings', 'home-img'],
   library: ['btn-back-home', 'btn-settings', 'btn-add-books', 'btn-manage', 'btn-reading-stats', 'import-status', 'manage-bar', 'manage-count', 'btn-select-all', 'btn-remove-selected', 'btn-exit-manage', 'library-hint', 'bookshelf'],
@@ -44,8 +44,13 @@ function styleSelectors(source) {
       }
       assert.equal(depth, 0, 'CSS block must close');
       if (prelude.startsWith('@')) {
-        assert.match(prelude, /^@(media|supports|container|layer)\b/, 'new sheets must not introduce global at-rules');
-        walk(text.slice(bodyStart, i - 1));
+        if (prelude === '@font-face') {
+          assert.match(text.slice(bodyStart, i - 1), /font-family:\s*"Gaia Home Noto"/);
+          assert.match(text.slice(bodyStart, i - 1), /src:\s*local\("Noto Sans SC"\)/);
+        } else {
+          assert.match(prelude, /^@(media|supports|container|layer)\b/, 'new sheets must not introduce other global at-rules');
+          walk(text.slice(bodyStart, i - 1));
+        }
       } else selectors.push(...prelude.split(',').map((selector) => selector.trim()));
       start = i;
       i -= 1;
@@ -71,11 +76,26 @@ test('包括响应式与主题规则在内的新 CSS 全部限定在授权的三
     const selectors = styleSelectors(css);
     assert.ok(selectors.length > 10, `${sheet} should contain parsed style rules`);
     for (const selector of selectors) {
+      if (sheet === 'home.css' && selector === 'body:has(> #home-view:not([hidden])) > #gaia-pet') continue;
       assert.match(selector, /^(?:body(?:\.[\w-]+)*\s+)?#(?:home-view|library-view|stats-view)(?=$|[\s.#:[>])/, `${sheet}: unscoped selector ${selector}`);
+      if (sheet === 'home.css') assert.match(selector, /^#home-view(?=$|[\s.#:[>])/, 'the new home stylesheet must not restyle other pages');
       assert.doesNotMatch(selector, /#(?:home-view|library-view|stats-view)(?:\[[^\]]*\]|::?[\w-]+(?:\([^)]*\))?|[.#][\w-]+)*\s*[+~]/, `${sheet}: selector escapes its page ${selector}`);
       assert.doesNotMatch(selector, /#(?:reader-view|ai-view|settings-overlay|fx-canvas)\b/, `${sheet}: unrelated surface ${selector}`);
     }
   }
+});
+
+test('正式首页包含线条构图、原首页素材和可打包的轮廓蒙版', () => {
+  const section = html.slice(html.indexOf('id="home-view"'), html.indexOf('id="ai-view"'));
+  assert.match(section, /id="home-img"[^>]+src="images\/1\.jpg"/);
+  assert.doesNotMatch(section, /2\.jpeg|home-item-number|home-subtitle|alice-companion/);
+  for (const marker of ['home-bgm-slot', 'header-rule', 'study-divider', 'portrait-lines']) assert.ok(section.includes(marker), marker);
+  const css = fs.readFileSync(path.join(renderer, 'home.css'), 'utf8');
+  assert.match(css, /mask-image:\s*url\("images\/home\/alice-matte\.png"\)/);
+  assert.doesNotMatch(css, /mask-image:\s*(?:radial|linear)-gradient/);
+  const bundled = fs.readFileSync(path.join(renderer, 'images/home/alice-matte.png'));
+  assert.deepEqual(bundled, fs.readFileSync(path.join(renderer, '../../docs/design/home/assets/alice-matte.png')));
+  assert.match(html, /<script src="home-layout\.js"><\/script>/);
 });
 
 test('首页、书架与目标页保留既有操作控件及动态内容挂载点', () => {

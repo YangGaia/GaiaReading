@@ -61,12 +61,15 @@
     if (!ui.root) return;
     const t = trackById(state.trackId);
     ui.root.dataset.playing = state.on ? '1' : '0';
+    ui.root.dataset.muted = state.muted ? '1' : '0';
     renderTitle(t ? t.title : '');
     ui.title.title = t ? (t.title + ' · ' + t.artist) : '';
     ui.play.textContent = state.on ? '⏸' : '▶';
     ui.play.title = state.on ? '暂停' : '播放';
+    ui.play.setAttribute('aria-label', ui.play.title);
     ui.mute.textContent = state.muted ? '🔇' : '🔊';
     ui.mute.title = state.muted ? '取消静音' : '静音';
+    ui.mute.setAttribute('aria-label', ui.mute.title);
     ui.volume.value = String(Math.round(state.volume * 100));
     ui.cover.classList.toggle('playing', state.on);
     ui.root.title = t ? (t.title + ' · ' + t.artist) : '背景音乐';
@@ -134,7 +137,7 @@
       if (ui.root.parentElement !== document.body) document.body.appendChild(ui.root);
       return;
     }
-    const topbarSelector = currentView === 'reader'
+    const topbarSelector = currentView === 'home' ? '#home-bgm-slot' : currentView === 'reader'
       ? '#reader-bgm-slot'
       : (currentView === 'library' ? '#library-view .topbar' : (currentView === 'ai' ? '#ai-view .topbar' : null));
     const topbar = topbarSelector ? document.querySelector(topbarSelector) : null;
@@ -197,11 +200,13 @@
     else animateSettingsRestore(fromRect);
   }
 
-  function mkBtn(text, tip) {
+  function mkBtn(text, tip, action) {
     const b = document.createElement('button');
     b.className = 'bgm-btn';
     b.textContent = text;
     b.title = tip;
+    b.dataset.action = action;
+    b.setAttribute('aria-label', tip);
     return b;
   }
 
@@ -209,6 +214,8 @@
     const root = document.createElement('div');
     root.id = 'bgm-capsule';
     root.className = 'bgm-capsule';
+    root.setAttribute('role', 'group');
+    root.setAttribute('aria-label', '阅读音乐');
     root.dataset.view = 'home';
     root.dataset.playing = '0';
     root.dataset.settingsOpen = '0';
@@ -225,10 +232,10 @@
     title.className = 'bgm-title';
     titleWrap.appendChild(title);
 
-    const prev = mkBtn('⏮', '上一首');
-    const play = mkBtn('▶', '播放');
-    const nxt = mkBtn('⏭', '下一首');
-    const mute = mkBtn('🔊', '静音');
+    const prev = mkBtn('⏮', '上一首', 'prev');
+    const play = mkBtn('▶', '播放', 'play');
+    const nxt = mkBtn('⏭', '下一首', 'next');
+    const mute = mkBtn('🔊', '静音', 'mute');
 
     const volume = document.createElement('input');
     volume.className = 'bgm-volume';
@@ -237,6 +244,7 @@
     volume.max = '100';
     volume.step = '1';
     volume.title = '音量';
+    volume.setAttribute('aria-label', '音量');
 
     root.append(cover, titleWrap, prev, play, nxt, mute, volume);
 
