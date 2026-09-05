@@ -87,30 +87,61 @@ async function run(win) {
       const r = document.getElementById('reader-content').getBoundingClientRect();
       return { x: Math.ceil(r.x + 48), y: Math.ceil(r.y + 30), width: Math.floor(r.width - 96), height: Math.floor(r.height - 60) };
     });
-    const before = await win.webContents.capturePage(rect);
+    const petProbe = await evaluate(() => {
+      const pet = document.getElementById('gaia-pet');
+      const face = pet.querySelector('.gaia-pet-face:not(.gaia-pet-blink-face)').getBoundingClientRect();
+      const overlays = [...document.querySelectorAll('.gaia-pet-console, .gaia-pet-bubble')].filter((el) => !el.hidden && el.getClientRects().length).map((el) => {
+        const r = el.getBoundingClientRect();
+        return { name: el.classList[0], rect: { x: Math.max(0, Math.round(r.left + 8)), y: Math.max(0, Math.round(r.top + 8)), width: Math.max(1, Math.floor(Math.min(r.width - 16, innerWidth - r.left - 16))), height: Math.max(1, Math.floor(Math.min(r.height - 16, innerHeight - r.top - 16))) } };
+      });
+      return { rect: { x: Math.round(face.left + face.width * 0.2), y: Math.round(face.top + face.height * 0.25), width: Math.max(1, Math.floor(face.width * 0.6)), height: Math.max(1, Math.floor(face.height * 0.55)) }, width: pet.offsetWidth, height: pet.offsetHeight, opacity: getComputedStyle(pet).opacity, overlays };
+    });
+    const beforeScreen = await win.webContents.capturePage();
+    const before = beforeScreen.crop(rect);
     const samples = [pixels(before, theme)];
+    const petSamples = [pixels(beforeScreen.crop(petProbe.rect), theme)];
+    const overlaySamples = petProbe.overlays.map((probe) => ({ name: probe.name, values: [pixels(beforeScreen.crop(probe.rect), theme).light] }));
     let done = false;
     let actionError;
     const action = evaluate(fn).catch((error) => { actionError = error; }).finally(() => { done = true; });
     const started = Date.now();
     const screenshots = [];
     do {
-      const image = await win.webContents.capturePage(rect);
+      const screen = await win.webContents.capturePage();
+      const image = screen.crop(rect);
       samples.push(pixels(image, theme));
+      petSamples.push(pixels(screen.crop(petProbe.rect), theme));
+      petProbe.overlays.forEach((probe, index) => overlaySamples[index].values.push(pixels(screen.crop(probe.rect), theme).light));
       if (samples.length === 3 || samples.length === 7) {
         const target = path.join(output, `${name}-${samples.length}.png`);
         fs.writeFileSync(target, image.toPNG());
         screenshots.push(target);
+        fs.writeFileSync(path.join(output, `${name}-pet-${samples.length}.png`), screen.crop(petProbe.rect).toPNG());
       }
       await wait(16);
       if (Date.now() - started > 12000) throw new Error(`${name}: turn never completed`);
     } while (!done || Date.now() - started < 80);
     await action;
     if (actionError) throw actionError;
-    const last = await win.webContents.capturePage(rect);
+    const lastScreen = await win.webContents.capturePage();
+    const last = lastScreen.crop(rect);
     samples.push(pixels(last, theme));
+    petSamples.push(pixels(lastScreen.crop(petProbe.rect), theme));
+    petProbe.overlays.forEach((probe, index) => overlaySamples[index].values.push(pixels(lastScreen.crop(probe.rect), theme).light));
     const baseline = Math.min(samples[0].ink, samples.at(-1).ink);
-    report.recordings.push({ name, theme, samples, screenshots });
+    report.recordings.push({ name, theme, samples, petSamples, overlaySamples, screenshots });
+    const minPetLight = Math.min(petSamples[0].light, petSamples.at(-1).light) - 25;
+    const maxPetLight = Math.max(petSamples[0].light, petSamples.at(-1).light) + 25;
+    check(`${name}: pet stays visible without flashing`, petSamples.every((p) => p.light >= minPetLight && p.light <= maxPetLight));
+    for (const overlay of overlaySamples) {
+      const low = Math.min(overlay.values[0], overlay.values.at(-1)) - 15;
+      const high = Math.max(overlay.values[0], overlay.values.at(-1)) + 15;
+      check(`${name}: ${overlay.name} stays visible`, overlay.values.every((light) => light >= low && light <= high));
+    }
+    check(`${name}: pet size and opacity are preserved`, await evaluate((probe) => {
+      const pet = document.getElementById('gaia-pet');
+      return !pet.hidden && pet.offsetWidth === probe.width && pet.offsetHeight === probe.height && getComputedStyle(pet).opacity === probe.opacity;
+    }, petProbe));
     check(`${name}: no animation-frame deadlock`, Date.now() - started < 2500);
     check(`${name}: captured intermediate frames`, samples.length >= 4);
     if (baseline > 0.0001) check(`${name}: no empty content frame`, samples.every((p) => p.ink >= baseline * 0.35));
@@ -125,6 +156,12 @@ async function run(win) {
 
   for (const book of await fixtures) {
     await evaluate((b) => __gaiaDebug.openBook({ ...b, title: '翻页验证' }), book);
+    await evaluate(async () => {
+      await GaiaPet.whenReady();
+      const pet = document.getElementById('gaia-pet');
+      pet.style.left = Math.round((innerWidth - pet.offsetWidth) / 2) + 'px';
+      pet.style.top = '180px';
+    });
     if (book.format === 'mobi' || book.format === 'azw3') await evaluate(() => __gaiaDebug.jumpToMobiChapter(10));
     for (const theme of ['light', 'eye', 'dark']) for (const mode of ['single', 'spread']) {
       await evaluate(async ({ theme, mode }) => {
@@ -211,6 +248,54 @@ async function run(win) {
       await record('txt-dark-reduced-motion', 'dark', () => __gaiaDebug.nextPage());
       await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] });
       win.webContents.debugger.detach();
+      for (const [label, value, name] of [['透明度', '0.4', 'opacity40'], ['阅读页', 'dim', 'reader-dim'], ['尺寸', '1.5', 'scale150']]) {
+        await evaluate(({ label, value }) => {
+          for (const [key, setting] of [['透明度', '1'], ['阅读页', 'normal'], ['尺寸', '1'], [label, value]]) {
+            const row = [...document.querySelectorAll('.gaia-pet-console-select-row')].find((el) => el.querySelector('span').textContent === key);
+            const select = row.querySelector('select');
+            select.value = setting;
+            select.dispatchEvent(new Event('change'));
+          }
+          const pet = document.getElementById('gaia-pet');
+          pet.style.left = '450px';
+          pet.style.top = '180px';
+        }, { label, value });
+        await wait(220);
+        await record(`txt-dark-pet-${name}`, 'dark', () => __gaiaDebug.nextPage());
+      }
+      await evaluate(() => {
+        const row = [...document.querySelectorAll('.gaia-pet-console-select-row')].find((el) => el.querySelector('span').textContent === '尺寸');
+        row.querySelector('select').value = '1';
+        row.querySelector('select').dispatchEvent(new Event('change'));
+        GaiaPet.speak('翻页时，我仍然在这里。', 10000);
+        GaiaPet.openConsole();
+      });
+      await wait(220);
+      await record('txt-dark-pet-console-and-bubble', 'dark', () => __gaiaDebug.nextPage());
+      await evaluate(() => GaiaPet.closeConsole());
+
+      const dragProbe = await evaluate(async () => {
+        const pet = document.getElementById('gaia-pet');
+        pet.style.left = '350px';
+        pet.style.top = '180px';
+        window.__petDragTurn = __gaiaDebug.nextPage();
+        while (!activePageTransition) await new Promise((resolve) => setTimeout(resolve, 1));
+        await activePageTransition.ready;
+        const r = pet.getBoundingClientRect();
+        const pointer = { pointerId: 91, pointerType: 'mouse', isPrimary: true, button: 0, buttons: 1, clientX: r.left + 75, clientY: r.top + 100, bubbles: true };
+        pet.querySelector('.gaia-pet-hitbox').dispatchEvent(new PointerEvent('pointerdown', pointer));
+        window.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientX: pointer.clientX + 220 }));
+        const face = pet.querySelector('.gaia-pet-face:not(.gaia-pet-blink-face)').getBoundingClientRect();
+        return { x: Math.round(face.left + face.width * 0.2), y: Math.round(face.top + face.height * 0.25), width: Math.floor(face.width * 0.6), height: Math.floor(face.height * 0.55) };
+      });
+      await wait(30);
+      const dragImage = await win.webContents.capturePage(dragProbe);
+      fs.writeFileSync(path.join(output, 'pet-drag-during-page-turn.png'), dragImage.toPNG());
+      check('Pet visibly follows dragging during a page turn', pixels(dragImage, 'dark').light > 100);
+      await evaluate(async () => {
+        window.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 91 }));
+        await window.__petDragTurn;
+      });
     }
     await evaluate(() => __gaiaDebug.backToLibrary());
   }

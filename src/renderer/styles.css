@@ -513,8 +513,16 @@ button { font-family: inherit; }
 /* Keep the paper opaque. Chromium retains the old page while the next one renders. */
 :root.reader-page-turn { view-transition-name: none; }
 :root.reader-page-turn #reader-content { view-transition-name: reader-page; }
+/* View-transition layers sit above normal z-index layers, including the pet. */
+:root.reader-page-turn #gaia-pet { view-transition-name: reader-pet; }
+:root.reader-page-turn .gaia-pet-console { view-transition-name: reader-pet-console; }
 ::view-transition { pointer-events: none; }
-::view-transition-group(reader-page) { animation: none; overflow: clip; }
+::view-transition-group(reader-page) { z-index: 0; animation: none; overflow: clip; }
+::view-transition-group(reader-pet) { z-index: 1; animation: none; }
+::view-transition-group(reader-pet-console) { z-index: 2; animation: none; }
+/* One live pet layer preserves translucent modes without doubling its opacity. */
+::view-transition-old(reader-pet), ::view-transition-old(reader-pet-console) { display: none; }
+::view-transition-new(reader-pet), ::view-transition-new(reader-pet-console) { animation: none; mix-blend-mode: normal; }
 ::view-transition-image-pair(reader-page) { isolation: isolate; }
 ::view-transition-old(reader-page), ::view-transition-new(reader-page) { opacity: 1; mix-blend-mode: normal; animation: none; }
 ::view-transition-old(reader-page) { z-index: 0; }
