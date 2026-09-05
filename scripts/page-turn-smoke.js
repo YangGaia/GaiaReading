@@ -101,17 +101,47 @@ async function run(win) {
     const samples = [pixels(before, theme)];
     const petSamples = [pixels(beforeScreen.crop(petProbe.rect), theme)];
     const overlaySamples = petProbe.overlays.map((probe) => ({ name: probe.name, values: [pixels(beforeScreen.crop(probe.rect), theme).light] }));
+    const reducedMotion = await evaluate(() => {
+      window.__turnMotion = [];
+      const sample = () => {
+        for (const animation of document.getAnimations()) {
+          if (!/^(readerPageEnter|pageSlideNext|pageSlidePrev)$/.test(animation.animationName) || animation.playState !== 'running') continue;
+          const native = animation.animationName === 'readerPageEnter';
+          const style = native ? getComputedStyle(document.documentElement, '::view-transition-new(reader-page)') : getComputedStyle(animation.effect.target);
+          const matrix = new DOMMatrixReadOnly(style.transform === 'none' ? undefined : style.transform);
+          const timing = animation.effect.getComputedTiming();
+          window.__turnMotion.push({ name: animation.animationName, duration: timing.duration, progress: timing.progress, opacity: Number(style.opacity), x: matrix.m41,
+            oldOpacity: native ? Number(getComputedStyle(document.documentElement, '::view-transition-old(reader-page)').opacity) : null });
+        }
+        window.__turnMotionFrame = requestAnimationFrame(sample);
+      };
+      window.__turnMotionFrame = requestAnimationFrame(sample);
+      return matchMedia('(prefers-reduced-motion: reduce)').matches;
+    });
     let done = false;
     let actionError;
-    const action = evaluate(fn).catch((error) => { actionError = error; }).finally(() => { done = true; });
+    let actionResult;
+    const action = evaluate(fn).then((result) => { actionResult = result; }).catch((error) => { actionError = error; }).finally(() => { done = true; });
     const started = Date.now();
     const screenshots = [];
+    const previewFrames = [];
+    const savePreview = ['txt-light-single-next', 'pdf-dark-single-next'].includes(name);
+    if (savePreview) {
+      const target = path.join(output, `${name}-frame-000.png`);
+      fs.writeFileSync(target, before.toPNG());
+      previewFrames.push({ path: target, at: 0 });
+    }
     do {
       const screen = await win.webContents.capturePage();
       const image = screen.crop(rect);
       samples.push(pixels(image, theme));
       petSamples.push(pixels(screen.crop(petProbe.rect), theme));
       petProbe.overlays.forEach((probe, index) => overlaySamples[index].values.push(pixels(screen.crop(probe.rect), theme).light));
+      if (savePreview) {
+        const target = path.join(output, `${name}-frame-${String(previewFrames.length).padStart(3, '0')}.png`);
+        fs.writeFileSync(target, image.toPNG());
+        previewFrames.push({ path: target, at: Date.now() - started });
+      }
       if (samples.length === 3 || samples.length === 7) {
         const target = path.join(output, `${name}-${samples.length}.png`);
         fs.writeFileSync(target, image.toPNG());
@@ -122,6 +152,7 @@ async function run(win) {
       if (Date.now() - started > 12000) throw new Error(`${name}: turn never completed`);
     } while (!done || Date.now() - started < 80);
     await action;
+    const motion = await evaluate(() => { cancelAnimationFrame(window.__turnMotionFrame); return window.__turnMotion; });
     if (actionError) throw actionError;
     const lastScreen = await win.webContents.capturePage();
     const last = lastScreen.crop(rect);
@@ -129,7 +160,20 @@ async function run(win) {
     petSamples.push(pixels(lastScreen.crop(petProbe.rect), theme));
     petProbe.overlays.forEach((probe, index) => overlaySamples[index].values.push(pixels(lastScreen.crop(probe.rect), theme).light));
     const baseline = Math.min(samples[0].ink, samples.at(-1).ink);
-    report.recordings.push({ name, theme, samples, petSamples, overlaySamples, screenshots });
+    report.recordings.push({ name, theme, samples, petSamples, overlaySamples, motion, screenshots, previewFrames });
+    if (reducedMotion) {
+      check(`${name}: reduced motion suppresses page effects`, motion.length === 0);
+    } else if (actionResult !== false) {
+      check(`${name}: a visible 320ms page effect actually runs`, motion.some((p) => p.duration === 320 && Math.abs(p.x) > 2 && p.progress > 0 && p.progress < 1));
+      if (!name.includes('rapid') && /-(next|prev)$/.test(name)) {
+        const direction = name.endsWith('-next') ? 1 : -1;
+        check(`${name}: motion follows the page direction`, motion.every((p) => p.x * direction >= -.1));
+      }
+      const entering = motion.filter((p) => p.name === 'readerPageEnter');
+      if (entering.length) {
+        check(`${name}: new page fades in over opaque old paper`, entering.some((p) => p.opacity > .25 && p.opacity < .98) && entering.every((p) => p.oldOpacity === 1));
+      }
+    }
     const minPetLight = Math.min(petSamples[0].light, petSamples.at(-1).light) - 25;
     const maxPetLight = Math.max(petSamples[0].light, petSamples.at(-1).light) + 25;
     check(`${name}: pet stays visible without flashing`, petSamples.every((p) => p.light >= minPetLight && p.light <= maxPetLight));
@@ -227,6 +271,15 @@ async function run(win) {
       check(`${book.format}: backward crossed chapter`, await evaluate(() => __gaiaDebug.getMobiIndex()) === chapter);
     }
     if (book.format === 'txt') {
+      for (const [label, input] of [
+        ['button', () => { document.getElementById('btn-next-page').click(); return pageTurnQueue; }],
+        ['keyboard', () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); return pageTurnQueue; }],
+        ['wheel', () => { document.getElementById('reader-content').dispatchEvent(new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true })); return pageTurnQueue; }],
+      ]) {
+        const before = await evaluate(() => __gaiaDebug.getPaginatorPage());
+        await record(`txt-dark-${label}-next`, 'dark', input);
+        check(`${label}: input turns exactly one spread`, await evaluate(() => __gaiaDebug.getPaginatorPage()) === before + 2);
+      }
       const page = await evaluate(() => __gaiaDebug.getPaginatorPage());
       await record('txt-dark-rapid-next-next-prev', 'dark', () => Promise.all([__gaiaDebug.nextPage(), __gaiaDebug.nextPage(), __gaiaDebug.prevPage()]));
       check('Rapid turns preserve page order', await evaluate(() => __gaiaDebug.getPaginatorPage()) === page + 2);
@@ -234,7 +287,20 @@ async function run(win) {
         window.__nativePageTransition = document.startViewTransition;
         document.startViewTransition = undefined;
       });
-      await record('txt-dark-fallback', 'dark', () => __gaiaDebug.nextPage().then(() => new Promise((resolve) => setTimeout(resolve, 220))));
+      await record('txt-dark-fallback', 'dark', () => __gaiaDebug.nextPage());
+      const fallbackPage = await evaluate(() => __gaiaDebug.getPaginatorPage());
+      await record('txt-dark-fallback-rapid', 'dark', () => Promise.all([__gaiaDebug.nextPage(), __gaiaDebug.nextPage(), __gaiaDebug.prevPage()]));
+      check('Fallback rapid turns preserve order and complete their motion', await evaluate(() => __gaiaDebug.getPaginatorPage()) === fallbackPage + 2);
+      await evaluate(() => {
+        document.startViewTransition = (update) => {
+          const transition = window.__nativePageTransition.call(document, update);
+          transition.skipTransition();
+          return transition;
+        };
+      });
+      const skippedPage = await evaluate(() => __gaiaDebug.getPaginatorPage());
+      await record('txt-dark-skipped-transition', 'dark', () => __gaiaDebug.nextPage());
+      check('Skipped snapshots still animate without turning twice', await evaluate(() => __gaiaDebug.getPaginatorPage()) === skippedPage + 2);
       await evaluate(() => { document.startViewTransition = window.__nativePageTransition; });
       for (const [width, height] of [[800, 600], [1600, 1000]]) {
         win.setContentSize(width, height);

@@ -20,7 +20,7 @@ function harness({ fallback = false, skip = false } = {}) {
     return { values, add: (...names) => names.forEach((name) => values.add(name)), remove: (...names) => names.forEach((name) => values.delete(name)) };
   };
   const root = { classList: classes(), style: { setProperty() {}, removeProperty() {} } };
-  const reader = { classList: classes(), offsetWidth: 800 };
+  const reader = { classList: classes(), offsetWidth: 800, getAnimations: () => [] };
   const errors = [];
   const state = { current: {} };
   const document = { documentElement: root };
@@ -79,11 +79,55 @@ test('页面加载失败后清理动画状态，下一次翻页仍可执行', as
 });
 
 test('浏览器跳过动画截图时只更新一次，不重复翻页', async () => {
-  const { context, errors } = harness({ skip: true });
+  const { context, errors, reader } = harness({ skip: true });
   let pages = 0;
   await context.queuePageTurn('next', () => { pages += 1; });
   assert.equal(pages, 1);
   assert.equal(errors.length, 0);
+  assert.ok(reader.classList.values.has('paging-fallback'), '截图被跳过时仍须有可见的备用动画');
+});
+
+test('动画接口同步失败时仍更新一次并显示备用动画', async () => {
+  const { context, reader, errors } = harness();
+  context.document.startViewTransition = () => { throw new Error('unavailable'); };
+  let pages = 0;
+  await context.queuePageTurn('prev', () => { pages += 1; });
+  assert.equal(pages, 1);
+  assert.equal(errors.length, 0);
+  assert.ok(reader.classList.values.has('paging-fallback'));
+  assert.ok(reader.classList.values.has('paging-prev'));
+});
+
+test('备用动画播完后才执行下一次翻页，取消后不会阻塞新书', async () => {
+  const { context, reader, state } = harness({ fallback: true });
+  const animation = deferred();
+  let cancelled = 0;
+  reader.getAnimations = () => [{ animationName: 'pageSlideNext', finished: animation.promise, cancel: () => { cancelled += 1; animation.resolve(); } }];
+  const pages = [];
+  const first = context.queuePageTurn('next', () => { pages.push(1); });
+  const second = context.queuePageTurn('next', () => { pages.push(2); });
+  await tick();
+  assert.deepEqual(pages, [1], '备用动画不能被连续输入立刻覆盖');
+  context.cancelPageTurns();
+  state.current = {};
+  reader.getAnimations = () => [];
+  await context.queuePageTurn('prev', () => { pages.push(3); });
+  await Promise.all([first, second]);
+  assert.equal(cancelled, 1);
+  assert.deepEqual(pages, [1, 3]);
+});
+
+test('到达边界或取消后不会补播被跳过的动画', async () => {
+  const { context, reader } = harness({ skip: true });
+  await context.queuePageTurn('next', () => false);
+  assert.ok(!reader.classList.values.has('paging-fallback'));
+  const gate = deferred();
+  const pending = context.queuePageTurn('next', () => gate.promise);
+  await tick();
+  context.cancelPageTurns();
+  gate.resolve(true);
+  await pending;
+  assert.equal(reader.classList.values.size, 0);
 });
 
 test('备用动画等页面就绪后才开始，到书籍边界不重复动画', async () => {
@@ -115,15 +159,47 @@ test('取消发生在截图准备阶段时，不执行已过期的页面更新',
   assert.equal(calls, 0);
 });
 
-test('PDF 绘制保留动画帧调度，避免截图冻结导致渲染超时', async () => {
-  const { context, state, reader } = harness();
+test('PDF 先完成绘制，再对同步替换的页面播放动画，避免冻结绘制', async () => {
+  const { context, state, root } = harness();
   state.current.format = 'pdf';
-  context.document.startViewTransition = () => { throw new Error('PDF must be allowed to render'); };
+  const start = context.document.startViewTransition;
+  let prepared = false;
+  let snapshots = 0;
+  let swaps = 0;
+  context.document.startViewTransition = (swap) => {
+    assert.ok(prepared, 'PDF 必须先完成依赖 rAF 的绘制');
+    snapshots += 1;
+    return start(swap);
+  };
   const gate = deferred();
-  const turning = context.queuePageTurn('next', () => gate.promise);
+  const turning = context.queuePageTurn('next', async (present) => {
+    await gate.promise;
+    prepared = true;
+    return present(() => { swaps += 1; return true; });
+  });
   await tick();
-  assert.equal(reader.classList.values.size, 0);
+  assert.equal(snapshots, 0);
+  assert.equal(root.classList.values.size, 0);
   gate.resolve(true);
   assert.equal(await turning, true);
-  assert.ok(reader.classList.values.has('paging-fallback'));
+  assert.equal(snapshots, 1);
+  assert.equal(swaps, 1);
+});
+
+test('PDF 准备期间换书，旧页不能再提交或启动动画', async () => {
+  const { context, state, root } = harness();
+  state.current.format = 'pdf';
+  const gate = deferred();
+  let swaps = 0;
+  const turning = context.queuePageTurn('next', async (present) => {
+    await gate.promise;
+    return present(() => { swaps += 1; return true; });
+  });
+  await tick();
+  context.cancelPageTurns();
+  state.current = {};
+  gate.resolve();
+  assert.equal(await turning, false);
+  assert.equal(swaps, 0);
+  assert.equal(root.classList.values.size, 0);
 });

@@ -988,11 +988,14 @@ function resizeEpubRendition() {
 let pageTurnQueue = Promise.resolve();
 let pageTurnGeneration = 0;
 let activePageTransition = null;
+let activePageFallbackAnimations = [];
 
 function cancelPageTurns() {
   pageTurnGeneration += 1;
   if (activePageTransition) activePageTransition.skipTransition();
   activePageTransition = null;
+  for (const animation of activePageFallbackAnimations) animation.cancel();
+  activePageFallbackAnimations = [];
   pageTurnQueue = Promise.resolve();
   document.documentElement.classList.remove('reader-page-turn');
   document.documentElement.style.removeProperty('--reader-turn-offset');
@@ -1007,6 +1010,18 @@ function animatePage(direction, fallback = false) {
   el.classList.add(direction === 'next' ? 'paging-next' : 'paging-prev');
 }
 
+async function animatePageFallback(direction) {
+  if (document.hidden) return;
+  animatePage(direction, true);
+  const animations = els.readerContent.getAnimations({ subtree: true })
+    .filter((animation) => /^pageSlide(?:Next|Prev)$/.test(animation.animationName));
+  activePageFallbackAnimations = animations;
+  // Wait for the visible motion before allowing a queued turn to replace it.
+  // Reduced-motion CSS produces no animations, so this also resolves immediately.
+  await Promise.all(animations.map((animation) => animation.finished.catch(() => {})));
+  if (activePageFallbackAnimations === animations) activePageFallbackAnimations = [];
+}
+
 function queuePageTurn(direction, update) {
   const current = state.current;
   const generation = pageTurnGeneration;
@@ -1017,39 +1032,54 @@ function queuePageTurn(direction, update) {
     const epubQueue = current.rendition && current.rendition.q;
     if (epubQueue && epubQueue.running && epubQueue.defered) await epubQueue.defered.promise;
     if (!isCurrent()) return false;
-    const root = document.documentElement;
-    // PDF.js paints through rAF. Its prepared spread already keeps the old page
-    // visible, so animate after the swap without freezing its render callbacks.
-    if (current.format === 'pdf' || typeof document.startViewTransition !== 'function') {
-      const moved = await update();
-      if (moved !== false && isCurrent()) animatePage(direction, true);
-      return moved;
-    }
-    root.classList.add('reader-page-turn');
-    root.style.setProperty('--reader-turn-offset', direction === 'next' ? '12px' : '-12px');
-    let moved = false;
-    try {
-      const transition = document.startViewTransition(async () => {
-        if (!isCurrent()) return;
-        moved = await update();
-        if (isCurrent()) animatePage(direction);
-      });
-      activePageTransition = transition;
-      // A skipped visual transition must not retry (and duplicate) the page turn.
-      transition.ready.catch(() => {});
-      const finished = transition.finished.catch(() => {});
-      await transition.updateCallbackDone;
-      if (moved === false || !isCurrent()) transition.skipTransition();
-      await finished;
-      return moved;
-    } finally {
-      if (generation === pageTurnGeneration) {
-        activePageTransition = null;
-        root.classList.remove('reader-page-turn');
-        root.style.removeProperty('--reader-turn-offset');
+    const present = async (swap) => {
+      if (!isCurrent()) return false;
+      if (typeof document.startViewTransition !== 'function') {
+        const moved = await swap();
+        if (moved !== false && isCurrent()) await animatePageFallback(direction);
+        return moved;
       }
-      if (isCurrent() && current.rendition) current.rendition.reportLocation();
-    }
+      const root = document.documentElement;
+      root.classList.add('reader-page-turn');
+      root.style.setProperty('--reader-turn-offset', direction === 'next' ? '30px' : '-30px');
+      let moved = false;
+      try {
+        let transition;
+        try {
+          transition = document.startViewTransition(async () => {
+            if (!isCurrent()) return;
+            moved = await swap();
+            if (isCurrent()) animatePage(direction);
+          });
+        } catch (error) {
+          // A synchronous API failure occurs before the update callback runs.
+          moved = await swap();
+          if (moved !== false && isCurrent()) await animatePageFallback(direction);
+          return moved;
+        }
+        activePageTransition = transition;
+        const ready = transition.ready.then(() => true, () => false);
+        const finished = transition.finished.catch(() => {});
+        await transition.updateCallbackDone;
+        if (moved === false || !isCurrent()) transition.skipTransition();
+        const displayed = await ready;
+        await finished;
+        // Replay only the visual feedback, never the page update, if Chromium
+        // skipped its snapshots (for example after a window resize).
+        if (!displayed && moved !== false && isCurrent()) await animatePageFallback(direction);
+        return moved;
+      } finally {
+        if (generation === pageTurnGeneration) {
+          activePageTransition = null;
+          root.classList.remove('reader-page-turn');
+          root.style.removeProperty('--reader-turn-offset');
+        }
+        if (isCurrent() && current.rendition) current.rendition.reportLocation();
+      }
+    };
+    // PDF.js must finish rAF-driven canvas/text rendering before snapshot capture.
+    // Its renderer calls present only for the synchronous, fully prepared swap.
+    return current.format === 'pdf' ? update(present) : present(update);
   };
   const result = pageTurnQueue.then(run);
   pageTurnQueue = result.catch((error) => {
@@ -1392,28 +1422,32 @@ async function renderPdfPage(options) {
     }
     if (state.current !== c || c.pdfRenderVersion !== renderVersion) return false;
 
-    els.readerContent.classList.toggle('pdf-dark', state.prefs.theme === 'dark');
-    els.readerContent.replaceChildren(stage);
-    stage.classList.remove('is-preparing');
-    if (renderOptions.scrollTarget === 'top') els.readerContent.scrollTop = 0;
-    else if (renderOptions.scrollTarget === 'bottom') els.readerContent.scrollTop = Math.max(0, els.readerContent.scrollHeight - els.readerContent.clientHeight);
-    else if (c.pdfZoomMode === PDF_ZOOM_MODES.MANUAL) restorePdfZoomAnchor(stage, renderOptions.anchor);
-    else {
-      els.readerContent.scrollLeft = 0;
-      els.readerContent.scrollTop = 0;
-    }
+    const commit = () => {
+      if (state.current !== c || c.pdfRenderVersion !== renderVersion) return false;
+      els.readerContent.classList.toggle('pdf-dark', state.prefs.theme === 'dark');
+      els.readerContent.replaceChildren(stage);
+      stage.classList.remove('is-preparing');
+      if (renderOptions.scrollTarget === 'top') els.readerContent.scrollTop = 0;
+      else if (renderOptions.scrollTarget === 'bottom') els.readerContent.scrollTop = Math.max(0, els.readerContent.scrollHeight - els.readerContent.clientHeight);
+      else if (c.pdfZoomMode === PDF_ZOOM_MODES.MANUAL) restorePdfZoomAnchor(stage, renderOptions.anchor);
+      else {
+        els.readerContent.scrollLeft = 0;
+        els.readerContent.scrollTop = 0;
+      }
 
-    c.pdfTextRoots = textRoots;
-    c.pdfTextRoot = textRoots.get(c.page) || textRoots.values().next().value || null;
-    c.pdfHasText = Array.from(textRoots.values()).some((root) => !!root.textContent.trim());
-    restoreTextAnnotations();
-    restoreBookSearchHighlight();
-    const progressPage = c.pdfVisiblePages[c.pdfVisiblePages.length - 1] || c.page;
-    updateProgress((progressPage / c.pages) * 100, pdfStatusText(c));
-    updatePdfZoomUi();
-    if (!c.pdfHasText) els.readerStatus.textContent += ' · 当前页面无文字层，无法划线';
-    saveProgress(c.path, { page: c.page, percent: (progressPage / c.pages) * 100 });
-    return true;
+      c.pdfTextRoots = textRoots;
+      c.pdfTextRoot = textRoots.get(c.page) || textRoots.values().next().value || null;
+      c.pdfHasText = Array.from(textRoots.values()).some((root) => !!root.textContent.trim());
+      restoreTextAnnotations();
+      restoreBookSearchHighlight();
+      const progressPage = c.pdfVisiblePages[c.pdfVisiblePages.length - 1] || c.page;
+      updateProgress((progressPage / c.pages) * 100, pdfStatusText(c));
+      updatePdfZoomUi();
+      if (!c.pdfHasText) els.readerStatus.textContent += ' · 当前页面无文字层，无法划线';
+      saveProgress(c.path, { page: c.page, percent: (progressPage / c.pages) * 100 });
+      return true;
+    };
+    return renderOptions.present ? await renderOptions.present(commit) : commit();
   } finally {
     if (stage.classList.contains('is-preparing')) stage.remove();
   }
@@ -1760,10 +1794,10 @@ function applyTxtTypography() {
 }
 
 function nextPage(pdfScrollTarget) {
-  return queuePageTurn('next', () => advancePage(pdfScrollTarget));
+  return queuePageTurn('next', (present) => advancePage(pdfScrollTarget, present));
 }
 
-async function advancePage(pdfScrollTarget) {
+async function advancePage(pdfScrollTarget, present) {
   const c = state.current;
   if (!c) return false;
   hideSelectionToolbar();
@@ -1776,7 +1810,7 @@ async function advancePage(pdfScrollTarget) {
     if (target <= c.pages) {
       cancelPendingPdfZoomRender();
       c.page = target;
-      return renderPdfPage({ scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top' });
+      return renderPdfPage({ scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top', present });
     }
   } else if (c.paginator) {
     const step = state.readMode === 'spread' ? 2 : 1;
@@ -1796,10 +1830,10 @@ async function advancePage(pdfScrollTarget) {
 }
 
 function prevPage(pdfScrollTarget) {
-  return queuePageTurn('prev', () => retreatPage(pdfScrollTarget));
+  return queuePageTurn('prev', (present) => retreatPage(pdfScrollTarget, present));
 }
 
-async function retreatPage(pdfScrollTarget) {
+async function retreatPage(pdfScrollTarget, present) {
   const c = state.current;
   if (!c) return false;
   hideSelectionToolbar();
@@ -1812,7 +1846,7 @@ async function retreatPage(pdfScrollTarget) {
     if (target >= 1) {
       cancelPendingPdfZoomRender();
       c.page = target;
-      return renderPdfPage({ scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top' });
+      return renderPdfPage({ scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top', present });
     }
   } else if (c.paginator) {
     const step = state.readMode === 'spread' ? 2 : 1;
