@@ -45,8 +45,10 @@ function styleSelectors(source) {
       assert.equal(depth, 0, 'CSS block must close');
       if (prelude.startsWith('@')) {
         if (prelude === '@font-face') {
-          assert.match(text.slice(bodyStart, i - 1), /font-family:\s*"Gaia Home Noto"/);
-          assert.match(text.slice(bodyStart, i - 1), /src:\s*local\("Noto Sans SC"\)/);
+          const face = text.slice(bodyStart, i - 1);
+          assert.match(face, /font-family:\s*"Gaia (?:Home Noto|Wordmark)"/);
+          if (face.includes('Gaia Home Noto')) assert.match(face, /src:\s*local\("Noto Sans SC"\)/);
+          else assert.match(face, /src:\s*url\("fonts\/cormorant-garamond-latin-500\.woff2"\)/);
         } else {
           assert.match(prelude, /^@(media|supports|container|layer)\b/, 'new sheets must not introduce other global at-rules');
           walk(text.slice(bodyStart, i - 1));
@@ -104,10 +106,33 @@ test('首页按实际尺寸绘制等比例构图，不放大已合成的页面�
     const rule = css.match(new RegExp(`\\.${selector}\\s*\\{([^}]+)\\}`))[1];
     assert.doesNotMatch(rule, /transform:|zoom:|filter:/);
   }
-  assert.match(css, /font-size:\s*calc\(36 \* var\(--home-unit\)\)/);
+  assert.match(css, /font-size:\s*calc\(46 \* var\(--home-unit\)\)/);
   assert.match(css, /backdrop-filter:\s*none/);
   assert.doesNotMatch(css, /\b\d*(?:vw|vh|svh|dvh)\b|@media[^\{]*(?:width|height)|--home-pet-space/);
   assert.match(html, /class="home-stage"/);
+});
+
+test('首页字标字体随软件离线分发，控件保持 Noto Sans SC', () => {
+  const font = fs.readFileSync(path.join(renderer, 'fonts/cormorant-garamond-latin-500.woff2'));
+  assert.equal(font.subarray(0, 4).toString('ascii'), 'wOF2');
+  assert.match(fs.readFileSync(path.join(renderer, 'fonts/CormorantGaramond-OFL.txt'), 'utf8'), /SIL OPEN FONT LICENSE/);
+  const css = fs.readFileSync(path.join(renderer, 'home.css'), 'utf8');
+  assert.match(css, /#home-view h1\s*\{[^}]*font-family:\s*"Gaia Wordmark"/);
+  assert.match(css, /#home-view\s*\{[^}]*font-family:\s*"Gaia Home Noto"/);
+  assert.doesNotMatch(css, /@import|src:\s*url\(["']?https?:/);
+  assert.match(html, /rel="preload" href="fonts\/cormorant-garamond-latin-500\.woff2"/);
+});
+
+test('首页光感反馈不接管点击或存储，离页与减少动态效果会清理动画', () => {
+  const script = fs.readFileSync(path.join(renderer, 'home-interactions.js'), 'utf8');
+  assert.match(html, /<script src="home-interactions\.js"><\/script>/);
+  assert.doesNotMatch(script, /window\.api|stateSet|localStorage|preventDefault|stopPropagation|addEventListener\(['"]click/);
+  assert.match(script, /event\.pointerType === 'touch' \|\| event\.buttons/);
+  assert.match(script, /cancelAnimationFrame\(frame\)/);
+  assert.match(script, /reducedMotion\.addEventListener\('change', syncVisibility\)/);
+  assert.match(script, /document\.addEventListener\('visibilitychange', syncVisibility\)/);
+  assert.match(script, /animation\.onfinish = .*animation\.cancel\(\)/);
+  assert.doesNotMatch(script, /setInterval|setTimeout|\.scale|rotate|transform:/);
 });
 
 test('桌宠不依赖首页画布大小和坐标系，只使用原有窗口位置与用户尺寸设置', () => {

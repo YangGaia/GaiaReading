@@ -78,10 +78,16 @@ module.exports = async ({ win, report, check, capture }) => {
     await evaluate(async () => {
       await GaiaPet.whenReady();
       await document.fonts.load('500 36px "Gaia Home Noto"', 'Gaia Reading 进入书架');
+      await document.fonts.load('500 46px "Gaia Wordmark"', 'Gaia Reading');
       await document.fonts.ready;
       await document.getElementById('home-img').decode();
+      await Promise.allSettled(document.getAnimations().filter((animation) => animation.id.startsWith('home-entry-')).map((animation) => animation.finished));
     });
     await settle();
+    if (process.env.GAIA_UI_HOME_INTERACTIONS_ONLY === '1') {
+      await require('./home-interaction-checks')({ win, evaluate, resize, check, capture });
+      return;
+    }
     check('home runs in the real renderer with preload and shared music instance', await evaluate(() =>
       typeof window.api.stateGet === 'function' && __gaiaDebug.getView() === 'home' &&
       document.querySelectorAll('#bgm-capsule').length === 1 && !!document.querySelector('#home-bgm-slot #bgm-capsule')
@@ -102,11 +108,11 @@ module.exports = async ({ win, report, check, capture }) => {
     await win.webContents.debugger.sendCommand('DOM.enable');
     await win.webContents.debugger.sendCommand('CSS.enable');
     const { root } = await win.webContents.debugger.sendCommand('DOM.getDocument');
-    for (const selector of ['#home-title', '#btn-home-shelf > span']) {
+    for (const [selector, family] of [['#home-title', 'Cormorant Garamond'], ['#btn-home-shelf > span', 'Noto Sans SC']]) {
       const { nodeId } = await win.webContents.debugger.sendCommand('DOM.querySelector', { nodeId: root.nodeId, selector });
       const { fonts } = await win.webContents.debugger.sendCommand('CSS.getPlatformFontsForNode', { nodeId });
       const used = fonts.filter((font) => font.glyphCount > 0);
-      check(`runtime ${selector} actually renders Noto Sans SC`, used.length > 0 && used.every((font) => /Noto Sans SC/i.test(font.familyName)));
+      check(`runtime ${selector} actually renders ${family}`, used.length > 0 && used.every((font) => font.familyName.includes(family)));
     }
     win.webContents.debugger.detach();
 
@@ -130,7 +136,7 @@ module.exports = async ({ win, report, check, capture }) => {
         fail(art.width > 0 && Math.abs(art.width - art.height) < 1, 'Home art must retain its original aspect ratio');
         fail(!overlaps(art, copy), 'Home art must not cover the entry controls');
         fail(pet.width === 150 * GaiaPet.getState().scale, 'Pet size must be independent of the home scale');
-        for (const [selector, base] of [['#home-title', 36], ['#btn-home-shelf', 14], ['#home-bgm-slot .bgm-title', 12]]) {
+        for (const [selector, base] of [['#home-title', 46], ['#btn-home-shelf', 14], ['#home-bgm-slot .bgm-title', 12]]) {
           const el = document.querySelector(selector);
           fail(Math.abs(parseFloat(getComputedStyle(el).fontSize) - base * scale) < .01, `${selector} must paint text at its final font size`);
           for (let node = el; node; node = node.parentElement) {
@@ -413,6 +419,7 @@ module.exports = async ({ win, report, check, capture }) => {
     await resize(1100, 760);
     await evaluate(() => document.activeElement.blur());
     await require('./home-pet-checks')({ win, evaluate, resize, setPetScale, check });
+    await require('./home-interaction-checks')({ win, evaluate, resize, check, capture });
   } catch (error) {
     await capture(win, 'home-runtime-failure');
     throw error;

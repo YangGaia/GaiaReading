@@ -260,7 +260,7 @@ async function run(win) {
           count += 1;
           if (!rule.selectorText.split(',').every((selector) => /^(?:body(?:\.[\w-]+)*\s+)?#(?:home-view|library-view|stats-view)(?=$|[\s.#:[>])/.test(selector.trim()))) return false;
         } else if (rule.type === CSSRule.FONT_FACE_RULE) {
-          if (!rule.style.fontFamily.includes('Gaia Home Noto')) return false;
+          if (!/^"?Gaia (Home Noto|Wordmark)"?$/.test(rule.style.fontFamily)) return false;
         } else if (!rule.cssRules || !walk(rule.cssRules)) return false;
       }
       return true;

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: bgm:; style-src 'self' 'unsafe-inline' blob:; script-src 'self' 'unsafe-eval'; font-src 'self' data:; media-src 'self' bgm: blob: data:; frame-src 'self' blob: data:; connect-src 'self' blob: data:;">
 <title>Gaia Reading</title>
+<link rel="preload" href="fonts/cormorant-garamond-latin-500.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="non-reading.css">
 <link rel="stylesheet" href="library-stats.css">
@@ -35,13 +36,13 @@
           <div class="copy-rule" aria-hidden="true"><span></span></div>
           <nav class="home-actions" aria-label="首页入口">
             <button id="btn-home-shelf" class="action-button primary-action" type="button">
-              <svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5c3-.8 5.5-.2 8 1.5 2.5-1.7 5-2.3 8-1.5v13c-3-.8-5.5-.2-8 1.5-2.5-1.7-5-2.3-8-1.5v-13ZM12 7v13"/></svg>
+              <svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5c3-.8 5.5-.2 8 1.5 2.5-1.7 5-2.3 8-1.5v13c-3-.8-5.5-.2-8 1.5-2.5-1.7-5-2.3-8-1.5v-13ZM12 7v13"/><path class="book-detail" d="m7 10 2 .5m6 0 2-.5m-10 3 2 .5m6 0 2-.5"/></svg>
               <span>进入书架</span>
               <svg class="forward-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
             </button>
             <div class="secondary-actions">
-              <button id="btn-home-add-books" class="action-button secondary-action" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>添加图书</span></button>
-              <button id="btn-home-ai" class="action-button secondary-action" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6L12 3Z"/></svg><span>AI 助手</span></button>
+              <button id="btn-home-add-books" class="action-button secondary-action" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path class="add-frame" d="M8 3H4v4m12 14h4v-4"/><path class="add-stroke" d="M12 7v10M7 12h10"/></svg><span>添加图书</span></button>
+              <button id="btn-home-ai" class="action-button secondary-action" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path class="ai-star" d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6L12 3Z"/><circle class="ai-core" cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg><span>AI 助手</span></button>
             </div>
           </nav>
         </section>
@@ -519,6 +520,7 @@
   <script src="bgm.js"></script>
   <script src="pet.js"></script>
   <script src="home-layout.js"></script>
+  <script src="home-interactions.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
