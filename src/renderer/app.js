@@ -790,6 +790,7 @@ function updateSettingsValues() {
 }
 
 function closeReaderContent() {
+  cancelPageTurns();
   closeNoteEditor();
   closeBookSearch({ reset: true, refresh: false });
   window.clearTimeout(epubWindowResizeTimer);
@@ -995,11 +996,81 @@ function resizeEpubRendition() {
   }, 120);
 }
 
-function animatePage(direction) {
+let pageTurnQueue = Promise.resolve();
+let pageTurnGeneration = 0;
+let activePageTransition = null;
+
+function cancelPageTurns() {
+  pageTurnGeneration += 1;
+  if (activePageTransition) activePageTransition.skipTransition();
+  activePageTransition = null;
+  pageTurnQueue = Promise.resolve();
+  document.documentElement.classList.remove('reader-page-turn');
+  document.documentElement.style.removeProperty('--reader-turn-offset');
+  els.readerContent.classList.remove('paging-next', 'paging-prev', 'paging-fallback');
+}
+
+function animatePage(direction, fallback = false) {
   const el = els.readerContent;
-  el.classList.remove('paging-next', 'paging-prev');
+  el.classList.remove('paging-next', 'paging-prev', 'paging-fallback');
   void el.offsetWidth;
+  if (fallback) el.classList.add('paging-fallback');
   el.classList.add(direction === 'next' ? 'paging-next' : 'paging-prev');
+}
+
+function queuePageTurn(direction, update) {
+  const current = state.current;
+  const generation = pageTurnGeneration;
+  const isCurrent = () => current && state.current === current && generation === pageTurnGeneration;
+  const run = async () => {
+    if (!isCurrent()) return false;
+    // Finish EPUB layout work before Chromium suspends animation-frame callbacks.
+    const epubQueue = current.rendition && current.rendition.q;
+    if (epubQueue && epubQueue.running && epubQueue.defered) await epubQueue.defered.promise;
+    if (!isCurrent()) return false;
+    const root = document.documentElement;
+    // PDF.js paints through rAF. Its prepared spread already keeps the old page
+    // visible, so animate after the swap without freezing its render callbacks.
+    if (current.format === 'pdf' || typeof document.startViewTransition !== 'function') {
+      const moved = await update();
+      if (moved !== false && isCurrent()) animatePage(direction, true);
+      return moved;
+    }
+    root.classList.add('reader-page-turn');
+    root.style.setProperty('--reader-turn-offset', direction === 'next' ? '12px' : '-12px');
+    let moved = false;
+    try {
+      const transition = document.startViewTransition(async () => {
+        if (!isCurrent()) return;
+        moved = await update();
+        if (isCurrent()) animatePage(direction);
+      });
+      activePageTransition = transition;
+      // A skipped visual transition must not retry (and duplicate) the page turn.
+      transition.ready.catch(() => {});
+      const finished = transition.finished.catch(() => {});
+      await transition.updateCallbackDone;
+      if (moved === false || !isCurrent()) transition.skipTransition();
+      await finished;
+      return moved;
+    } finally {
+      if (generation === pageTurnGeneration) {
+        activePageTransition = null;
+        root.classList.remove('reader-page-turn');
+        root.style.removeProperty('--reader-turn-offset');
+      }
+      if (isCurrent() && current.rendition) current.rendition.reportLocation();
+    }
+  };
+  const result = pageTurnQueue.then(run);
+  pageTurnQueue = result.catch((error) => {
+    if (isCurrent()) {
+      console.error('PAGE_TURN_FAILED', error);
+      els.readerStatus.textContent = '翻页失败，请重试';
+    }
+    return false;
+  });
+  return pageTurnQueue;
 }
 
 function toggleSpread() {
@@ -1277,78 +1348,86 @@ async function renderPdfPage(options) {
   stage.style.gap = gap + 'px';
   stage.style.width = Math.ceil(slotSizes.reduce((sum, size) => sum + size.width * scale, 0) + gap * Math.max(0, slotSizes.length - 1)) + 'px';
   stage.style.height = Math.ceil(Math.max(...slotSizes.map((size) => size.height * scale))) + 'px';
-  els.readerContent.innerHTML = '';
-  els.readerContent.classList.toggle('pdf-dark', state.prefs.theme === 'dark');
+  // Keep the painted spread until every canvas and its text/image layers are ready.
+  stage.classList.add('is-preparing');
   els.readerContent.appendChild(stage);
 
-  const pageWraps = new Map();
-  for (let index = 0; index < layout.slots.length; index += 1) {
-    const pageNumber = layout.slots[index];
-    const size = slotSizes[index];
-    if (!pageNumber) {
-      const placeholder = document.createElement('div');
-      placeholder.className = 'pdf-page-placeholder';
-      placeholder.style.width = Math.floor(size.width * scale) + 'px';
-      placeholder.style.height = Math.floor(size.height * scale) + 'px';
-      stage.appendChild(placeholder);
-      continue;
+  try {
+    const pageWraps = new Map();
+    for (let index = 0; index < layout.slots.length; index += 1) {
+      const pageNumber = layout.slots[index];
+      const size = slotSizes[index];
+      if (!pageNumber) {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'pdf-page-placeholder';
+        placeholder.style.width = Math.floor(size.width * scale) + 'px';
+        placeholder.style.height = Math.floor(size.height * scale) + 'px';
+        stage.appendChild(placeholder);
+        continue;
+      }
+      const page = loadedPages.get(pageNumber);
+      const viewport = page.getViewport({ scale });
+      const wrap = document.createElement('div');
+      wrap.className = 'pdf-page';
+      wrap.dataset.pdfPage = String(pageNumber);
+      wrap.style.width = Math.floor(viewport.width) + 'px';
+      wrap.style.height = Math.floor(viewport.height) + 'px';
+      const canvas = document.createElement('canvas');
+      canvas.className = 'pdf-canvas-base';
+      canvas.width = Math.floor(viewport.width * dpr);
+      canvas.height = Math.floor(viewport.height * dpr);
+      canvas.style.width = Math.floor(viewport.width) + 'px';
+      canvas.style.height = Math.floor(viewport.height) + 'px';
+      wrap.appendChild(canvas);
+      stage.appendChild(wrap);
+      pageWraps.set(pageNumber, { page, viewport, wrap, canvas });
     }
-    const page = loadedPages.get(pageNumber);
-    const viewport = page.getViewport({ scale });
-    const wrap = document.createElement('div');
-    wrap.className = 'pdf-page';
-    wrap.dataset.pdfPage = String(pageNumber);
-    wrap.style.width = Math.floor(viewport.width) + 'px';
-    wrap.style.height = Math.floor(viewport.height) + 'px';
-    const canvas = document.createElement('canvas');
-    canvas.className = 'pdf-canvas-base';
-    canvas.width = Math.floor(viewport.width * dpr);
-    canvas.height = Math.floor(viewport.height * dpr);
-    canvas.style.width = Math.floor(viewport.width) + 'px';
-    canvas.style.height = Math.floor(viewport.height) + 'px';
-    wrap.appendChild(canvas);
-    stage.appendChild(wrap);
-    pageWraps.set(pageNumber, { page, viewport, wrap, canvas });
-  }
 
-  if (renderOptions.scrollTarget === 'top') els.readerContent.scrollTop = 0;
-  else if (renderOptions.scrollTarget === 'bottom') els.readerContent.scrollTop = Math.max(0, els.readerContent.scrollHeight - els.readerContent.clientHeight);
-  else if (c.pdfZoomMode === PDF_ZOOM_MODES.MANUAL) restorePdfZoomAnchor(stage, renderOptions.anchor);
-  else {
-    els.readerContent.scrollLeft = 0;
-    els.readerContent.scrollTop = 0;
-  }
-
-  const textRoots = new Map();
-  for (const [pageNumber, entry] of pageWraps) {
+    const textRoots = new Map();
+    for (const [pageNumber, entry] of pageWraps) {
+      if (state.current !== c || c.pdfRenderVersion !== renderVersion) return false;
+      const ctx = entry.canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      await entry.page.render({ canvasContext: ctx, viewport: entry.viewport }).promise;
+      if (state.current !== c || c.pdfRenderVersion !== renderVersion) return false;
+      const textLayer = await renderPdfTextLayer(entry.page, entry.viewport, entry.wrap);
+      if (textLayer) {
+        textLayer.dataset.pdfPage = String(pageNumber);
+        textRoots.set(pageNumber, textLayer);
+        bindTextAnnotationInputs(document, textLayer);
+      }
+      if (state.prefs.theme === 'dark') {
+        const overlay = await buildPdfImageOverlay(entry.page, entry.viewport, dpr);
+        if (overlay) entry.wrap.appendChild(overlay);
+      }
+    }
     if (state.current !== c || c.pdfRenderVersion !== renderVersion) return false;
-    const ctx = entry.canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    await entry.page.render({ canvasContext: ctx, viewport: entry.viewport }).promise;
-    const textLayer = await renderPdfTextLayer(entry.page, entry.viewport, entry.wrap);
-    if (textLayer) {
-      textLayer.dataset.pdfPage = String(pageNumber);
-      textRoots.set(pageNumber, textLayer);
-      bindTextAnnotationInputs(document, textLayer);
-    }
-    if (state.prefs.theme === 'dark') {
-      const overlay = await buildPdfImageOverlay(entry.page, entry.viewport, dpr);
-      if (overlay) entry.wrap.appendChild(overlay);
-    }
-  }
-  if (state.current !== c || c.pdfRenderVersion !== renderVersion) return false;
 
-  c.pdfTextRoots = textRoots;
-  c.pdfTextRoot = textRoots.get(c.page) || textRoots.values().next().value || null;
-  c.pdfHasText = Array.from(textRoots.values()).some((root) => !!root.textContent.trim());
-  restoreTextAnnotations();
-  restoreBookSearchHighlight();
-  const progressPage = c.pdfVisiblePages[c.pdfVisiblePages.length - 1] || c.page;
-  updateProgress((progressPage / c.pages) * 100, pdfStatusText(c));
-  updatePdfZoomUi();
-  if (!c.pdfHasText) els.readerStatus.textContent += ' · 当前页面无文字层，无法划线';
-  saveProgress(c.path, { page: c.page, percent: (progressPage / c.pages) * 100 });
-  return true;
+    els.readerContent.classList.toggle('pdf-dark', state.prefs.theme === 'dark');
+    els.readerContent.replaceChildren(stage);
+    stage.classList.remove('is-preparing');
+    if (renderOptions.scrollTarget === 'top') els.readerContent.scrollTop = 0;
+    else if (renderOptions.scrollTarget === 'bottom') els.readerContent.scrollTop = Math.max(0, els.readerContent.scrollHeight - els.readerContent.clientHeight);
+    else if (c.pdfZoomMode === PDF_ZOOM_MODES.MANUAL) restorePdfZoomAnchor(stage, renderOptions.anchor);
+    else {
+      els.readerContent.scrollLeft = 0;
+      els.readerContent.scrollTop = 0;
+    }
+
+    c.pdfTextRoots = textRoots;
+    c.pdfTextRoot = textRoots.get(c.page) || textRoots.values().next().value || null;
+    c.pdfHasText = Array.from(textRoots.values()).some((root) => !!root.textContent.trim());
+    restoreTextAnnotations();
+    restoreBookSearchHighlight();
+    const progressPage = c.pdfVisiblePages[c.pdfVisiblePages.length - 1] || c.page;
+    updateProgress((progressPage / c.pages) * 100, pdfStatusText(c));
+    updatePdfZoomUi();
+    if (!c.pdfHasText) els.readerStatus.textContent += ' · 当前页面无文字层，无法划线';
+    saveProgress(c.path, { page: c.page, percent: (progressPage / c.pages) * 100 });
+    return true;
+  } finally {
+    if (stage.classList.contains('is-preparing')) stage.remove();
+  }
 }
 
 async function renderPdfTextLayer(page, viewport, wrap) {
@@ -1519,7 +1598,11 @@ async function openMobi(book) {
 
 async function loadMobiChapter(chapterIndex, opts) {
   const c = state.current;
-  if (!c || !c.mobiSession) return;
+  if (!c || !c.mobiSession) return false;
+  const loadVersion = (c.mobiLoadVersion || 0) + 1;
+  c.mobiLoadVersion = loadVersion;
+  const isCurrent = () => state.current === c && c.mobiLoadVersion === loadVersion;
+  if (c.paginator) c.paginator.cancelPendingRender();
   hideSelectionToolbar();
   const chapters = c.mobi.chapters;
   const clamped = Math.max(0, Math.min(chapters.length - 1, chapterIndex));
@@ -1527,12 +1610,14 @@ async function loadMobiChapter(chapterIndex, opts) {
   els.readerStatus.textContent = '加载中…';
   try {
     const ch = await window.api.mobiChapter(c.mobiSession, clamped);
+    if (!isCurrent()) return false;
     let html = ch.html || '';
     const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
     if (bodyMatch) html = bodyMatch[1];
     if (c.paginator) {
       if (c.flow) c.flow.gotoChapter(clamped);
-      await c.paginator.render(html, ch.cssText || '');
+      const rendered = await c.paginator.render(html, ch.cssText || '');
+      if (!rendered || !isCurrent()) return false;
       bindReaderInputs(c.paginator.doc);
       bindMobiDocumentLinks(c.paginator.doc);
       bindTextAnnotationInputs(c.paginator.doc, c.paginator.doc.body);
@@ -1555,11 +1640,14 @@ async function loadMobiChapter(chapterIndex, opts) {
       if (c.flow) c.flow.page = Math.min(Math.max(0, p), total - 1);
       updateMobiProgress(true);
       window.setTimeout(observeAiChapter, 0);
+      return true;
     }
   } catch (err) {
+    if (!isCurrent()) return false;
     console.error(err);
     els.readerStatus.textContent = '章节加载失败：' + err.message;
   }
+  return false;
 }
 
 function applyMobiTypography() {
@@ -1683,69 +1771,84 @@ function applyTxtTypography() {
 }
 
 function nextPage(pdfScrollTarget) {
+  return queuePageTurn('next', () => advancePage(pdfScrollTarget));
+}
+
+async function advancePage(pdfScrollTarget) {
   const c = state.current;
-  if (!c) return;
+  if (!c) return false;
   hideSelectionToolbar();
   noteReadingActivity();
   if (c.format === 'epub') {
-    if (c.rendition) { animatePage('next'); return c.rendition.next(); }
+    if (c.rendition) return moveEpubPage(c, 'next');
   } else if (c.format === 'pdf') {
     const visible = c.pdfVisiblePages && c.pdfVisiblePages.length ? c.pdfVisiblePages : [c.page];
     const target = Math.max(...visible) + 1;
     if (target <= c.pages) {
       cancelPendingPdfZoomRender();
       c.page = target;
-      animatePage('next');
       return renderPdfPage({ scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top' });
     }
   } else if (c.paginator) {
     const step = state.readMode === 'spread' ? 2 : 1;
     const moved = c.paginator.next(step);
     if (moved) {
-      animatePage('next');
       if (c.flow) c.flow.page = c.paginator.currentPage;
       updateMobiProgress(false);
+      return true;
     } else if (c.flow && c.flow.canNext()) {
-      animatePage('next');
       const r = c.flow.next(step);
       if (r && (c.format === 'mobi' || c.format === 'azw3')) {
-        loadMobiChapter(r.chapter, { page: 0 });
+        return loadMobiChapter(r.chapter, { page: 0 });
       }
     }
   }
+  return false;
 }
 
 function prevPage(pdfScrollTarget) {
+  return queuePageTurn('prev', () => retreatPage(pdfScrollTarget));
+}
+
+async function retreatPage(pdfScrollTarget) {
   const c = state.current;
-  if (!c) return;
+  if (!c) return false;
   hideSelectionToolbar();
   noteReadingActivity();
   if (c.format === 'epub') {
-    if (c.rendition) { animatePage('prev'); return c.rendition.prev(); }
+    if (c.rendition) return moveEpubPage(c, 'prev');
   } else if (c.format === 'pdf') {
     const visible = c.pdfVisiblePages && c.pdfVisiblePages.length ? c.pdfVisiblePages : [c.page];
     const target = Math.min(...visible) - 1;
     if (target >= 1) {
       cancelPendingPdfZoomRender();
       c.page = target;
-      animatePage('prev');
       return renderPdfPage({ scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top' });
     }
   } else if (c.paginator) {
     const step = state.readMode === 'spread' ? 2 : 1;
     const moved = c.paginator.prev(step);
     if (moved) {
-      animatePage('prev');
       if (c.flow) c.flow.page = c.paginator.currentPage;
       updateMobiProgress(false);
+      return true;
     } else if (c.flow && c.flow.canPrev()) {
-      animatePage('prev');
       const r = c.flow.prev(step);
       if (r && (c.format === 'mobi' || c.format === 'azw3')) {
-        loadMobiChapter(r.chapter, { page: 'end' });
+        return loadMobiChapter(r.chapter, { page: 'end' });
       }
     }
   }
+  return false;
+}
+
+async function moveEpubPage(current, direction) {
+  // Navigation is already serialized by queuePageTurn. The rendition's public
+  // next/prev queue waits for rAF, which is suspended inside a View Transition.
+  await current.rendition.manager[direction]();
+  if (state.current !== current) return false;
+  if (!activePageTransition) current.rendition.reportLocation();
+  return true;
 }
 
 function isReaderTyping(target) {

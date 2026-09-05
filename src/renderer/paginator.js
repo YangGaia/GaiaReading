@@ -39,6 +39,8 @@ class Paginator {
     this.marginPct = 8;
     this.verticalPadding = 28;
     this._boundResize = () => this.reflow();
+    this._renderVersion = 0;
+    this._pendingFrame = null;
   }
 
   /** 列步进宽度：下一页/上一页的滚动距离（含列间距）。 */
@@ -48,21 +50,22 @@ class Paginator {
 
   /** 渲染内容。html 为章节/全文 HTML 片段（不含 <html>/<body>）。 */
   async render(html, cssText) {
-    this.destroy();
+    this.cancelPendingRender();
+    const version = this._renderVersion;
     const frame = document.createElement('iframe');
-    frame.className = 'paginator-frame';
+    frame.className = 'paginator-frame paginator-pending';
     frame.setAttribute('scrolling', 'no');
     frame.setAttribute('title', '阅读内容');
-    this.frame = frame;
+    frame.style.background = this.pageBg;
+    this._pendingFrame = frame;
     this.host.appendChild(frame);
 
     const doc = frame.contentDocument;
-    this.doc = doc;
     let full = '<!DOCTYPE html><html><head><meta charset="utf-8">';
     if (cssText) full += '<style id="paginator-book">' + cssText + '</style>';
     full += '<style id="paginator-base"></style>';
     full += '<style id="paginator-typo"></style>';
-    full += '<style id="paginator-theme"></style>';
+    full += '<style id="paginator-theme">html, body { background: ' + this.pageBg + ' !important; }</style>';
     full += '</head><body>' + (html || '') + '</body></html>';
     doc.open();
     doc.write(full);
@@ -70,20 +73,44 @@ class Paginator {
 
     await new Promise((resolve) => {
       if (doc.readyState === 'complete') return resolve();
-      frame.addEventListener('load', () => resolve(), { once: true });
-      setTimeout(resolve, 1500);
+      const finish = () => {
+        clearTimeout(timer);
+        frame.removeEventListener('load', finish);
+        resolve();
+      };
+      const timer = setTimeout(finish, 1500);
+      frame.addEventListener('load', finish, { once: true });
     });
 
-    this.applyTypography();
-    this.applyTheme();
-    this.applyLayout();
-    this.waitImages();
-    window.addEventListener('resize', this._boundResize);
+    if (version !== this._renderVersion) { frame.remove(); return false; }
+    const previousFrame = this.frame;
+    const previousDoc = this.doc;
+    this.frame = frame;
+    this.doc = doc;
+    try {
+      this.applyTypography();
+      this.applyTheme();
+      this.applyLayout();
+      // Swap only after typography, theme and pagination are ready to paint.
+      frame.classList.remove('paginator-pending');
+      if (previousFrame) previousFrame.remove();
+      this._pendingFrame = null;
+      this.waitImages();
+      window.addEventListener('resize', this._boundResize);
+      return true;
+    } catch (error) {
+      frame.remove();
+      this._pendingFrame = null;
+      this.frame = previousFrame;
+      this.doc = previousDoc;
+      throw error;
+    }
   }
 
   /** 等待图片加载完成后重排（保证页数准确）。 */
   waitImages() {
     if (!this.doc) return;
+    const version = this._renderVersion;
     const imgs = Array.from(this.doc.images || []);
     if (!imgs.length) return;
     let pending = imgs.length;
@@ -91,7 +118,7 @@ class Paginator {
     const finish = () => {
       if (done) return;
       done = true;
-      this.reflow();
+      if (version === this._renderVersion && this.doc) this.reflow();
     };
     const check = () => {
       pending -= 1;
@@ -145,7 +172,7 @@ class Paginator {
 
   setTheme(theme) {
     this.theme = theme;
-    this.pageBg = theme === 'eye' ? '#f7efdd' : (theme === 'dark' ? '#000000' : '#fffdf7');
+    this.pageBg = theme === 'eye' ? '#f5ecd9' : (theme === 'dark' ? '#000000' : '#fffdf7');
     if (this.doc) this.applyTheme();
   }
 
@@ -410,7 +437,14 @@ class Paginator {
     this.applyLayout();
   }
 
+  cancelPendingRender() {
+    this._renderVersion += 1;
+    if (this._pendingFrame) this._pendingFrame.remove();
+    this._pendingFrame = null;
+  }
+
   destroy() {
+    this.cancelPendingRender();
     window.removeEventListener('resize', this._boundResize);
     if (this.frame) {
       try {
