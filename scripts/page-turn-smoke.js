@@ -19,7 +19,7 @@ app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 fs.writeFileSync(path.join(sandbox, 'gaia-reading.json'), JSON.stringify({ library: [], prefs: { theme: 'light' }, pet: { auto: false, autoSpeech: false, autoSleep: false } }));
 BrowserWindow.prototype.show = function () { this.showInactive(); };
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const report = { checks: [], recordings: [], keyboard: [], consoleErrors: [], skipped: [], output, sandbox };
+const report = { checks: [], recordings: [], keyboard: [], holdCancellation: [], consoleErrors: [], skipped: [], output, sandbox };
 let finished = false;
 const timeout = setTimeout(() => finish(new Error('Page-turn smoke timed out')), 240000);
 function finish(error) {
@@ -149,7 +149,7 @@ async function run(win) {
     const started = Date.now();
     const screenshots = [];
     const previewFrames = [];
-    const savePreview = ['txt-light-single-next', 'pdf-dark-single-next', 'txt-dark-tap-and-release-next', 'txt-dark-rapid-taps'].includes(name);
+    const savePreview = ['txt-light-single-next', 'pdf-dark-single-next', 'txt-dark-tap-and-release-next', 'txt-dark-rapid-taps', 'txt-dark-hold-and-reverse'].includes(name);
     if (savePreview) {
       const target = path.join(output, `${name}-frame-000.png`);
       fs.writeFileSync(target, before.toPNG());
@@ -233,7 +233,8 @@ async function run(win) {
         const c = state.current;
         if (c.format === 'pdf') return String(c.page);
         if (c.paginator) return `${c.flow ? c.flow.chapter : 0}:${c.paginator.currentPage}`;
-        return c.rendition.currentLocation().start.cfi;
+        const manager = c.rendition.manager;
+        return JSON.stringify([manager.views.all().filter((view) => !view.element.classList.contains('is-preparing')).map((view) => view.section.index), manager.container.scrollLeft, manager.container.scrollTop]);
       };
       const send = (type, key, repeat = false) => {
         // Exercise the real content-document bindings as well as the outer UI.
@@ -243,8 +244,8 @@ async function run(win) {
       };
       const originalNext = advancePage, originalPrev = retreatPage;
       let calls = [];
-      advancePage = async (...args) => { const moved = await originalNext(...args); calls.push({ direction: 'next', at: performance.now(), moved }); return moved; };
-      retreatPage = async (...args) => { const moved = await originalPrev(...args); calls.push({ direction: 'prev', at: performance.now(), moved }); return moved; };
+      advancePage = async (...args) => { const before = position(); const moved = await originalNext(...args); calls.push({ direction: 'next', at: performance.now(), moved, before, after: position() }); return moved; };
+      retreatPage = async (...args) => { const before = position(); const moved = await originalPrev(...args); calls.push({ direction: 'prev', at: performance.now(), moved, before, after: position() }); return moved; };
       try {
         send('keydown', 'ArrowRight');
         await pageTurnQueue;
@@ -276,19 +277,43 @@ async function run(win) {
         await pageTurnQueue;
         const rapid = { expected: directions, directions: calls.map((call) => call.direction),
           firstResponseMs: calls[0].at - started, tailMs: performance.now() - released,
-          before, after: position() };
+          before, after: position(), trace: calls.slice() };
         calls = [];
+        const holdStarted = performance.now();
         send('keydown', 'ArrowRight');
-        for (let i = 0; i < 35; i += 1) { await pause(20); send('keydown', 'ArrowRight', true); }
+        const holdMotion = [];
+        // No synthetic OS repeats: the software's hold mapping must drive this.
+        for (let i = 0; i < 40; i += 1) {
+          await pause(20);
+          if (i > 10 && activePageAnimation && activePageAnimation.playState === 'running') {
+            const style = getComputedStyle(activePageAnimation.effect.target);
+            holdMotion.push({ x: new DOMMatrixReadOnly(style.transform).m41, opacity: style.opacity });
+          }
+        }
         send('keyup', 'ArrowRight');
         const atRelease = calls.length;
+        const releasedPage = position();
+        const releasedMoves = calls.filter((call) => call.moved !== false).length;
+        const elapsed = performance.now() - holdStarted;
         await pageTurnQueue;
         const afterCurrentTurn = calls.length;
         const stoppedPage = position();
         await pause(300);
-        const hold = { atRelease, afterCurrentTurn, finalCalls: calls.length, stoppedPage, finalPage: position() };
-        return { tap, rapid, hold };
+        const hold = { atRelease, afterCurrentTurn, releasedMoves, finalMoves: calls.filter((call) => call.moved !== false).length,
+          elapsed, motion: holdMotion, finalCalls: calls.length, releasedPage, stoppedPage, finalPage: position() };
+        calls = [];
+        send('keydown', 'ArrowLeft');
+        await pause(320);
+        send('keydown', 'ArrowRight');
+        send('keyup', 'ArrowLeft');
+        const switchedAt = calls.length;
+        await pause(320);
+        send('keyup', 'ArrowRight');
+        await pageTurnQueue;
+        const reverse = calls.slice(switchedAt).filter((call) => call.moved !== false).map((call) => call.direction);
+        return { tap, rapid, hold, reverse };
       } finally {
+        stopHeldPageKey();
         advancePage = originalNext;
         retreatPage = originalPrev;
       }
@@ -300,8 +325,96 @@ async function run(win) {
     check(`${format}: first key responds within 150ms`, result.rapid.firstResponseMs < 150);
     check(`${format}: rapid input has no accumulated animation delay`, result.rapid.tailMs < 250);
     check(`${format}: holding the key continues turning`, result.hold.atRelease > 1);
+    if (format === 'txt') {
+      check('TXT: automatic hold runs near 30 turns/sec without OS repeats', result.hold.atRelease >= 17 && result.hold.atRelease <= Math.ceil((result.hold.elapsed - 200) / (1000 / 30)) + 2);
+      check('TXT: high-speed hold retains visible opaque animation', result.hold.motion.length >= 15 && result.hold.motion.some((frame) => Math.abs(frame.x) > 2) && result.hold.motion.every((frame) => frame.opacity === '1'));
+    }
     check(`${format}: key release leaves no queued repeats`, result.hold.afterCurrentTurn <= result.hold.atRelease + 1);
+    check(`${format}: release prevents all uncommitted automatic moves`, result.hold.releasedMoves === result.hold.finalMoves && result.hold.releasedPage === result.hold.stoppedPage);
     check(`${format}: no autonomous turns after release`, result.hold.finalCalls === result.hold.afterCurrentTurn && result.hold.finalPage === result.hold.stoppedPage);
+    check(`${format}: direction switch invalidates old holds and ignores old key release`, result.reverse.length > 1 && result.reverse.every((direction) => direction === 'next'));
+  }
+
+  async function checkHoldCancellation(format) {
+    if (format === 'txt') return;
+    const result = await evaluate(async () => {
+      const c = state.current;
+      __gaiaDebug.setMode('single');
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      if (c.format === 'epub') {
+        await c.rendition.display('c0.xhtml');
+        // Let epub.js finish the resize triggered by the content/theme hooks
+        // before positioning the fixture at its penultimate page.
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const manager = c.rendition.manager;
+        manager.scrollTo(manager.container.scrollWidth - 2 * manager.layout.delta, 0, true);
+      } else if (c.paginator) {
+        await loadMobiChapter(10, { page: 0 });
+        c.paginator.showPage(c.paginator.totalPages - 2);
+      } else {
+        await renderPdfPage({ page: 1 });
+      }
+      const send = (type) => document.dispatchEvent(new KeyboardEvent(type, { key: 'ArrowRight', bubbles: true }));
+      send('keydown');
+      await pageTurnQueue;
+      if (c.rendition && c.rendition.q.running && c.rendition.q.defered) await c.rendition.q.defered.promise;
+      const position = () => c.paginator ? `${c.flow.chapter}:${c.flow.page}:${c.paginator.currentPage}` :
+        c.format === 'pdf' ? JSON.stringify([c.page, c.pdfVisiblePages]) :
+          JSON.stringify([c.rendition.manager.views.all().filter((view) => !view.element.classList.contains('is-preparing')).map((view) => view.section.index), c.rendition.manager.container.scrollLeft, c.rendition.manager.container.scrollTop]);
+      const saved = () => JSON.stringify(state.progress[c.path]);
+      const before = position(), beforeSaved = saved();
+      const old = els.readerContent.querySelector('iframe, .pdf-spread');
+      let release, entered;
+      const gate = new Promise((resolve) => { release = resolve; });
+      const started = new Promise((resolve) => { entered = resolve; });
+      const restore = [];
+      if (c.format === 'epub') {
+        const manager = c.rendition.manager, append = manager.append;
+        manager.append = (...args) => {
+          const displaying = append.apply(manager, args);
+          entered();
+          return Promise.all([displaying, gate]).then(([view]) => view);
+        };
+        restore.push(() => { manager.append = append; });
+      } else if (c.paginator) {
+        const render = c.paginator.render;
+        c.paginator.render = async (...args) => { entered(); await gate; return render.apply(c.paginator, args); };
+        restore.push(() => { c.paginator.render = render; });
+      } else {
+        const getPage = c.pdf.getPage;
+        c.pdf.getPage = async (...args) => {
+          const page = await getPage.apply(c.pdf, args), render = page.render;
+          page.render = (...renderArgs) => {
+            const task = render.apply(page, renderArgs);
+            entered();
+            return { promise: Promise.all([task.promise, gate]) };
+          };
+          restore.push(() => { page.render = render; });
+          return page;
+        };
+        restore.push(() => { c.pdf.getPage = getPage; });
+      }
+      try {
+        await Promise.race([started, new Promise((_, reject) => setTimeout(() => reject(new Error('Hold never started delayed preparation')), 3000))]);
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        const retainedDuringLoad = old.isConnected;
+        const during = position(), duringSaved = saved();
+        send('keyup');
+        release();
+        await pageTurnQueue;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return { before, during, after: position(), beforeSaved, duringSaved, afterSaved: saved(), retainedDuringLoad,
+          oldStillVisible: old.isConnected, preparing: !!els.readerContent.querySelector('.is-preparing, .paginator-pending') };
+      } finally {
+        stopHeldPageKey();
+        release();
+        restore.forEach((fn) => fn());
+      }
+    });
+    report.holdCancellation.push({ format, ...result });
+    check(`${format}: delayed hold preserves painted page during and after release`, result.retainedDuringLoad && result.oldStillVisible);
+    check(`${format}: delayed hold never changes page or progress after release`, result.before === result.during && result.before === result.after && result.beforeSaved === result.duringSaved && result.beforeSaved === result.afterSaved);
+    check(`${format}: cancelled hold cleans every prepared page`, !result.preparing);
   }
 
   for (const book of await fixtures) {
@@ -379,7 +492,7 @@ async function run(win) {
     if (book.format === 'txt') {
       for (const [label, input] of [
         ['button', () => { document.getElementById('btn-next-page').click(); return pageTurnQueue; }],
-        ['keyboard', () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); return pageTurnQueue; }],
+        ['keyboard', () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); document.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true })); return pageTurnQueue; }],
         ['wheel', () => { document.getElementById('reader-content').dispatchEvent(new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true })); return pageTurnQueue; }],
       ]) {
         const before = await evaluate(() => __gaiaDebug.getPaginatorPage());
@@ -402,6 +515,15 @@ async function run(win) {
           document.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
           await new Promise((resolve) => setTimeout(resolve, 40));
         }
+        await pageTurnQueue;
+      });
+      await record('txt-dark-hold-and-reverse', 'dark', async () => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+        document.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 450));
+        document.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', bubbles: true }));
         await pageTurnQueue;
       });
       for (const [width, height] of [[800, 600], [1600, 1000]]) {
@@ -471,6 +593,7 @@ async function run(win) {
       await evaluate((b) => __gaiaDebug.openBook({ ...b, title: '翻页验证' }), book);
     }
     await checkKeyboardResponse(book.format);
+    await checkHoldCancellation(book.format);
     await evaluate(() => __gaiaDebug.backToLibrary());
   }
 
@@ -509,12 +632,17 @@ async function run(win) {
     const latest = p.render('<p>latest</p>');
     await Promise.all([stale, latest]);
     const latestWon = p.doc.body.textContent === 'latest' && host.querySelectorAll('iframe').length === 1;
+    let held = true, committed = false;
+    const cancelled = p.render('<p>cancelled hold</p>', '', { isCurrent: () => held, beforeCommit: () => { committed = true; } });
+    held = false;
+    const cancelledResult = await cancelled;
+    const heldPageRetained = cancelledResult === false && !committed && p.doc.body.textContent === 'latest' && host.querySelectorAll('iframe').length === 1 && !p._pendingFrame;
     const pending = p.render('<p>closed book</p>');
     p.destroy();
     await pending;
     const destroyed = !p.frame && !host.querySelector('iframe');
     host.remove();
-    return retained && replaced && latestWon && destroyed;
+    return retained && replaced && latestWon && heldPageRetained && destroyed;
   }));
   check('Page turning never uses snapshot transitions', await evaluate(() => window.__pageSnapshotCalls === 0));
   check('No renderer errors', report.consoleErrors.length === 0);

@@ -49,7 +49,7 @@ class Paginator {
   }
 
   /** 渲染内容。html 为章节/全文 HTML 片段（不含 <html>/<body>）。 */
-  async render(html, cssText) {
+  async render(html, cssText, options = {}) {
     this.cancelPendingRender();
     const version = this._renderVersion;
     const frame = document.createElement('iframe');
@@ -82,12 +82,19 @@ class Paginator {
       frame.addEventListener('load', finish, { once: true });
     });
 
-    if (version !== this._renderVersion) { frame.remove(); return false; }
+    if (version !== this._renderVersion || (options.isCurrent && !options.isCurrent())) {
+      frame.remove();
+      if (this._pendingFrame === frame) this._pendingFrame = null;
+      return false;
+    }
     const previousFrame = this.frame;
     const previousDoc = this.doc;
     this.frame = frame;
     this.doc = doc;
     try {
+      // Chapter bookkeeping joins the same synchronous commit as the iframe,
+      // so a released hold cannot advance progress for an unseen chapter.
+      if (options.beforeCommit) options.beforeCommit();
       this.applyTypography();
       this.applyTheme();
       this.applyLayout();

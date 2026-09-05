@@ -258,6 +258,7 @@ function saveProgress(pathKey, value) {
 }
 
 function showView(name) {
+  if (name !== 'reader') stopHeldPageKey();
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   for (const key of Object.keys(views)) {
     views[key].hidden = key !== name;
@@ -725,6 +726,7 @@ function saveSearchSettings() {
 let settingsReturnFocus = null;
 
 function openSettings(section) {
+  stopHeldPageKey();
   if (section === 'ai') {
     openAiCenter();
     return;
@@ -992,6 +994,7 @@ let pendingPageTurns = 0;
 let activePageAnimation = null;
 
 function cancelPageTurns() {
+  stopHeldPageKey();
   pageTurnGeneration += 1;
   pendingPageTurns = 0;
   pageTurnQueue = Promise.resolve();
@@ -1021,14 +1024,14 @@ function animatePage(direction) {
   animation.finished.then(clear, clear);
 }
 
-function queuePageTurn(direction, update) {
+function queuePageTurn(direction, update, requestIsCurrent) {
   const current = state.current;
   const generation = pageTurnGeneration;
-  const isCurrent = () => current && state.current === current && generation === pageTurnGeneration;
+  const isCurrent = () => current && state.current === current && generation === pageTurnGeneration && (!requestIsCurrent || requestIsCurrent());
   pendingPageTurns += 1;
   const run = async () => {
     if (!isCurrent()) return false;
-    const moved = await update();
+    const moved = await update(isCurrent);
     if (moved !== false && isCurrent()) animatePage(direction);
     return moved;
   };
@@ -1042,6 +1045,40 @@ function queuePageTurn(direction, update) {
     if (generation === pageTurnGeneration) pendingPageTurns -= 1;
   });
   return pageTurnQueue;
+}
+
+// Arrow holds have one frame callback and at most one automatic turn in flight. The
+// first press is independent: a quick release must never discard a normal tap.
+let heldPageKey = null;
+const PAGE_HOLD_DELAY = 200;
+const PAGE_HOLD_INTERVAL = 1000 / 30;
+
+function stopHeldPageKey() {
+  if (heldPageKey) window.cancelAnimationFrame(heldPageKey.frame);
+  heldPageKey = null;
+}
+
+function startHeldPageKey(key, direction) {
+  stopHeldPageKey();
+  const held = { key, current: state.current, frame: 0 };
+  heldPageKey = held;
+  const isCurrent = () => heldPageKey === held && state.current === held.current &&
+    !document.hidden && !views.reader.hidden && !isSettingsOpen();
+  const turn = direction === 'next' ? nextPage : prevPage;
+  let nextAt = performance.now() + PAGE_HOLD_DELAY;
+  const repeat = async () => {
+    if (!isCurrent()) return;
+    // Other explicit input may still be loading. Do not put automatic turns
+    // behind it, or try to catch up with missed frames afterwards.
+    if (performance.now() >= nextAt && pendingPageTurns === 0) {
+      const moved = await turn(undefined, isCurrent);
+      if (moved === false) return;
+      nextAt = Math.max(performance.now(), nextAt + PAGE_HOLD_INTERVAL);
+    }
+    if (isCurrent()) held.frame = window.requestAnimationFrame(repeat);
+  };
+  turn();
+  held.frame = window.requestAnimationFrame(repeat);
 }
 
 function toggleSpread() {
@@ -1281,17 +1318,17 @@ async function renderPdfPage(options) {
   const renderOptions = options && typeof options === 'object' ? options : {};
   const renderVersion = (c.pdfRenderVersion || 0) + 1;
   c.pdfRenderVersion = renderVersion;
+  const isCurrent = () => state.current === c && c.pdfRenderVersion === renderVersion &&
+    (!renderOptions.isCurrent || renderOptions.isCurrent());
   hideSelectionToolbar();
   const spread = state.readMode === 'spread';
-  const layout = pdfLayoutForPage(c.page, c.pages, spread, c.pdfPairing);
-  c.page = layout.start;
-  c.pdfVisiblePages = layout.pages.slice();
+  const layout = pdfLayoutForPage(renderOptions.page == null ? c.page : renderOptions.page, c.pages, spread, c.pdfPairing);
 
   const loadedPages = new Map();
   await Promise.all(layout.pages.map(async (pageNumber) => {
     loadedPages.set(pageNumber, await c.pdf.getPage(pageNumber));
   }));
-  if (state.current !== c || c.pdfRenderVersion !== renderVersion) return false;
+  if (!isCurrent()) return false;
 
   const baseSizes = new Map();
   for (const [pageNumber, page] of loadedPages) {
@@ -1311,8 +1348,6 @@ async function renderPdfPage(options) {
     zoom: c.zoom,
   });
   const scale = scaleInfo.scale;
-  c.pdfScale = scale;
-  c.pdfFitWidthScale = scaleInfo.fitWidthScale;
   const dpr = window.devicePixelRatio || 1;
   const stage = document.createElement('div');
   stage.className = 'pdf-spread' + (spread ? ' is-spread' : ' is-single');
@@ -1359,11 +1394,11 @@ async function renderPdfPage(options) {
 
     const textRoots = new Map();
     for (const [pageNumber, entry] of pageWraps) {
-      if (state.current !== c || c.pdfRenderVersion !== renderVersion) return false;
+      if (!isCurrent()) return false;
       const ctx = entry.canvas.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       await entry.page.render({ canvasContext: ctx, viewport: entry.viewport }).promise;
-      if (state.current !== c || c.pdfRenderVersion !== renderVersion) return false;
+      if (!isCurrent()) return false;
       const textLayer = await renderPdfTextLayer(entry.page, entry.viewport, entry.wrap);
       if (textLayer) {
         textLayer.dataset.pdfPage = String(pageNumber);
@@ -1375,10 +1410,14 @@ async function renderPdfPage(options) {
         if (overlay) entry.wrap.appendChild(overlay);
       }
     }
-    if (state.current !== c || c.pdfRenderVersion !== renderVersion) return false;
+    if (!isCurrent()) return false;
 
     const commit = () => {
-      if (state.current !== c || c.pdfRenderVersion !== renderVersion) return false;
+      if (!isCurrent()) return false;
+      c.page = layout.start;
+      c.pdfVisiblePages = layout.pages.slice();
+      c.pdfScale = scale;
+      c.pdfFitWidthScale = scaleInfo.fitWidthScale;
       els.readerContent.classList.toggle('pdf-dark', state.prefs.theme === 'dark');
       els.readerContent.replaceChildren(stage);
       stage.classList.remove('is-preparing');
@@ -1577,15 +1616,15 @@ async function openMobi(book) {
 async function loadMobiChapter(chapterIndex, opts) {
   const c = state.current;
   if (!c || !c.mobiSession) return false;
+  opts = opts || {};
   const loadVersion = (c.mobiLoadVersion || 0) + 1;
   c.mobiLoadVersion = loadVersion;
-  const isCurrent = () => state.current === c && c.mobiLoadVersion === loadVersion;
+  const isCurrent = () => state.current === c && c.mobiLoadVersion === loadVersion && (!opts.isCurrent || opts.isCurrent());
   if (c.paginator) c.paginator.cancelPendingRender();
   hideSelectionToolbar();
   const chapters = c.mobi.chapters;
   const clamped = Math.max(0, Math.min(chapters.length - 1, chapterIndex));
-  opts = opts || {};
-  els.readerStatus.textContent = '加载中…';
+  if (!opts.isCurrent) els.readerStatus.textContent = '加载中…';
   try {
     const ch = await window.api.mobiChapter(c.mobiSession, clamped);
     if (!isCurrent()) return false;
@@ -1593,8 +1632,10 @@ async function loadMobiChapter(chapterIndex, opts) {
     const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
     if (bodyMatch) html = bodyMatch[1];
     if (c.paginator) {
-      if (c.flow) c.flow.gotoChapter(clamped);
-      const rendered = await c.paginator.render(html, ch.cssText || '');
+      const rendered = await c.paginator.render(html, ch.cssText || '', {
+        isCurrent,
+        beforeCommit: () => { if (c.flow) c.flow.gotoChapter(clamped); },
+      });
       if (!rendered || !isCurrent()) return false;
       bindReaderInputs(c.paginator.doc);
       bindMobiDocumentLinks(c.paginator.doc);
@@ -1748,24 +1789,23 @@ function applyTxtTypography() {
   applyMobiTypography();
 }
 
-function nextPage(pdfScrollTarget) {
-  return queuePageTurn('next', () => advancePage(pdfScrollTarget));
+function nextPage(pdfScrollTarget, isCurrent) {
+  return queuePageTurn('next', (valid) => advancePage(pdfScrollTarget, valid), isCurrent);
 }
 
-async function advancePage(pdfScrollTarget) {
+async function advancePage(pdfScrollTarget, isCurrent = () => true) {
   const c = state.current;
-  if (!c) return false;
+  if (!c || !isCurrent()) return false;
   hideSelectionToolbar();
   noteReadingActivity();
   if (c.format === 'epub') {
-    if (c.rendition) return moveEpubPage(c, 'next');
+    if (c.rendition) return moveEpubPage(c, 'next', isCurrent);
   } else if (c.format === 'pdf') {
     const visible = c.pdfVisiblePages && c.pdfVisiblePages.length ? c.pdfVisiblePages : [c.page];
     const target = Math.max(...visible) + 1;
     if (target <= c.pages) {
       cancelPendingPdfZoomRender();
-      c.page = target;
-      return renderPdfPage({ scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top' });
+      return renderPdfPage({ page: target, isCurrent, scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top' });
     }
   } else if (c.paginator) {
     const step = state.readMode === 'spread' ? 2 : 1;
@@ -1775,33 +1815,31 @@ async function advancePage(pdfScrollTarget) {
       updateMobiProgress(false);
       return true;
     } else if (c.flow && c.flow.canNext()) {
-      const r = c.flow.next(step);
-      if (r && (c.format === 'mobi' || c.format === 'azw3')) {
-        return loadMobiChapter(r.chapter, { page: 0 });
+      if (c.format === 'mobi' || c.format === 'azw3') {
+        return loadMobiChapter(c.flow.chapter + 1, { page: 0, isCurrent });
       }
     }
   }
   return false;
 }
 
-function prevPage(pdfScrollTarget) {
-  return queuePageTurn('prev', () => retreatPage(pdfScrollTarget));
+function prevPage(pdfScrollTarget, isCurrent) {
+  return queuePageTurn('prev', (valid) => retreatPage(pdfScrollTarget, valid), isCurrent);
 }
 
-async function retreatPage(pdfScrollTarget) {
+async function retreatPage(pdfScrollTarget, isCurrent = () => true) {
   const c = state.current;
-  if (!c) return false;
+  if (!c || !isCurrent()) return false;
   hideSelectionToolbar();
   noteReadingActivity();
   if (c.format === 'epub') {
-    if (c.rendition) return moveEpubPage(c, 'prev');
+    if (c.rendition) return moveEpubPage(c, 'prev', isCurrent);
   } else if (c.format === 'pdf') {
     const visible = c.pdfVisiblePages && c.pdfVisiblePages.length ? c.pdfVisiblePages : [c.page];
     const target = Math.min(...visible) - 1;
     if (target >= 1) {
       cancelPendingPdfZoomRender();
-      c.page = target;
-      return renderPdfPage({ scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top' });
+      return renderPdfPage({ page: target, isCurrent, scrollTarget: typeof pdfScrollTarget === 'string' ? pdfScrollTarget : 'top' });
     }
   } else if (c.paginator) {
     const step = state.readMode === 'spread' ? 2 : 1;
@@ -1811,26 +1849,34 @@ async function retreatPage(pdfScrollTarget) {
       updateMobiProgress(false);
       return true;
     } else if (c.flow && c.flow.canPrev()) {
-      const r = c.flow.prev(step);
-      if (r && (c.format === 'mobi' || c.format === 'azw3')) {
-        return loadMobiChapter(r.chapter, { page: 'end' });
+      if (c.format === 'mobi' || c.format === 'azw3') {
+        return loadMobiChapter(c.flow.chapter - 1, { page: 'end', isCurrent });
       }
     }
   }
   return false;
 }
 
-async function moveEpubPage(current, direction) {
+async function moveEpubPage(current, direction, requestIsCurrent = () => true) {
   const rendition = current.rendition;
   const manager = rendition.manager;
+  const isCurrent = () => state.current === current && requestIsCurrent();
   // Finish pending layout changes before inspecting the actual page boundary.
   if (rendition.q.running && rendition.q.defered) await rendition.q.defered.promise;
-  if (state.current !== current) return false;
-  const locations = manager.currentLocation();
-  if (!locations.length) return false;
+  if (!isCurrent()) return false;
+  if (!manager.views.all().length) return false;
+  manager.updateLayout();
   const forward = direction === 'next';
-  const edge = forward ? locations[locations.length - 1] : locations[0];
-  const atEdge = forward ? edge.pages[edge.pages.length - 1] >= edge.totalPages : edge.pages[0] <= 1;
+  // Use layout scroll coordinates, not page numbers derived from animated
+  // getBoundingClientRect() values: fractional translations can round a page
+  // down at the chapter edge and make rapid reverse input skip a page.
+  const horizontal = manager.settings.axis === 'horizontal';
+  const container = manager.container;
+  const extent = horizontal ? container.scrollWidth - container.offsetWidth : container.scrollHeight - container.offsetHeight;
+  let offset = horizontal ? Math.abs(container.scrollLeft) : container.scrollTop;
+  if (horizontal && manager.settings.direction === 'rtl' && manager.settings.rtlScrollType === 'default') offset = extent - container.scrollLeft;
+  const step = horizontal ? manager.layout.delta : manager.layout.height;
+  const atEdge = forward ? offset + step > extent + 0.5 : offset < 0.5;
   if (!atEdge) {
     await manager[direction]();
   } else {
@@ -1861,7 +1907,7 @@ async function moveEpubPage(current, direction) {
         } finally {
           rendition.off('rendered', onRendered);
         }
-        if (state.current !== current) return false;
+        if (!isCurrent()) return false;
       }
       // Swap in one task. Old iframes stay painted throughout asynchronous work.
       for (const view of oldViews) manager.views.remove(view);
@@ -1881,7 +1927,7 @@ async function moveEpubPage(current, direction) {
       }
     }
   }
-  if (state.current !== current) return false;
+  if (!isCurrent()) return false;
   rendition.reportLocation();
   return true;
 }
@@ -1894,6 +1940,7 @@ function isReaderTyping(target) {
 
 function onReaderKey(ev) {
   if (ev.key === 'Escape') {
+    stopHeldPageKey();
     if (els.selectionToolbar && !els.selectionToolbar.hidden) { ev.preventDefault(); hideSelectionToolbar(); return; }
     if (els.bookSearchPanel && !els.bookSearchPanel.hidden) { ev.preventDefault(); closeBookSearch(); return; }
     if (isSettingsOpen()) { ev.preventDefault(); closeSettings(); return; }
@@ -1901,25 +1948,49 @@ function onReaderKey(ev) {
     if (!views.reader.hidden) { ev.preventDefault(); backToLibrary(); }
     return;
   }
-  if (isSettingsOpen()) return;
+  if (isSettingsOpen()) { stopHeldPageKey(); return; }
   if ((ev.ctrlKey || ev.metaKey) && String(ev.key).toLowerCase() === 'f' && !views.reader.hidden) {
     ev.preventDefault();
     openBookSearch();
     return;
   }
-  if (isReaderTyping(ev.target)) return;
-  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-  if (views.reader.hidden) return;
+  if (isReaderTyping(ev.target) || ev.ctrlKey || ev.metaKey || ev.altKey || views.reader.hidden || document.hidden) {
+    stopHeldPageKey();
+    return;
+  }
   noteReadingActivity();
   const previous = ev.key === 'ArrowLeft' || ev.key === 'PageUp';
   const next = ev.key === 'ArrowRight' || ev.key === 'PageDown';
   if (!previous && !next) return;
   ev.preventDefault();
-  // OS key repeats are disposable while a page is busy. Separate presses are
-  // never dropped, and neither path schedules any automatic repeat after keyup.
+  if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+    if (ev.repeat || (heldPageKey && heldPageKey.key === ev.key)) return;
+    startHeldPageKey(ev.key, previous ? 'prev' : 'next');
+    return;
+  }
+  stopHeldPageKey();
+  // PageUp/PageDown retain their existing system-repeat behavior.
   if (ev.repeat && pendingPageTurns > 0) return;
   if (previous) prevPage();
   else nextPage();
+}
+
+function onReaderKeyUp(ev) {
+  if (heldPageKey && heldPageKey.key === ev.key) stopHeldPageKey();
+}
+
+function onReaderFocus(ev) {
+  if (isReaderTyping(ev.target)) stopHeldPageKey();
+}
+
+function onReaderBlur() {
+  // Focusing a book iframe also blurs the outer window. Only stop when focus
+  // leaves the application, including when that iframe owns the keyboard.
+  window.setTimeout(() => { if (!document.hasFocus()) stopHeldPageKey(); }, 0);
+}
+
+function onReaderVisibility() {
+  if (document.hidden) stopHeldPageKey();
 }
 
 function onReaderWheel(ev) {
@@ -1949,6 +2020,10 @@ function bindReaderKeyboard(target) {
   if (!target || target.__gaiaKeyBound) return;
   try {
     target.addEventListener('keydown', onReaderKey);
+    target.addEventListener('keyup', onReaderKeyUp);
+    target.addEventListener('focusin', onReaderFocus);
+    target.addEventListener('visibilitychange', onReaderVisibility);
+    if (target.defaultView) target.defaultView.addEventListener('blur', onReaderBlur);
     target.__gaiaKeyBound = true;
   } catch (e) {}
 }
@@ -2775,6 +2850,7 @@ function scheduleBookSearch() {
 }
 
 function openBookSearch() {
+  stopHeldPageKey();
   if (!state.current || views.reader.hidden) return;
   const layoutAnchor = captureReaderLayoutAnchor();
   closeSettings();
@@ -3217,6 +3293,7 @@ async function persistSelectionAnnotation(context, color, note) {
 }
 
 function openNoteEditor(context) {
+  stopHeldPageKey();
   const c = state.current;
   if (!c || !context) return;
   const existing = context.existingId ? currentAnnotations().find((item) => item.id === context.existingId) : null;

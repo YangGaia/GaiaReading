@@ -31,20 +31,50 @@ function harness({ reducedMotion = false } = {}) {
   const errors = [];
   const state = { current: {} };
   const listeners = new Map();
+  const windowListeners = new Map();
+  const timers = new Map();
+  let now = 0, timerId = 0, focused = true, settingsOpen = false;
+  const window = {
+    matchMedia: () => ({ matches: reducedMotion }),
+    setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: now + delay }); return id; },
+    clearTimeout: (id) => timers.delete(id),
+    requestAnimationFrame: (fn) => { const id = ++timerId; timers.set(id, { fn, at: now + 1000 / 120 }); return id; },
+    cancelAnimationFrame: (id) => timers.delete(id),
+    addEventListener: (type, fn) => windowListeners.set(type, fn),
+  };
   const document = { addEventListener: (type, fn) => listeners.set(type, fn),
+    defaultView: window, hasFocus: () => focused,
     startViewTransition() { throw new Error('Snapshots must never be used'); } };
   const context = vm.createContext({ document, state, els: { readerContent: reader, readerStatus: {} },
-    window: { matchMedia: () => ({ matches: reducedMotion }) }, console: { error: (...args) => errors.push(args) },
-    views: { reader: { hidden: false } }, isSettingsOpen: () => false, noteReadingActivity() {} });
+    window, performance: { now: () => now }, console: { error: (...args) => errors.push(args) },
+    views: { reader: { hidden: false } }, isSettingsOpen: () => settingsOpen, noteReadingActivity() {} });
   vm.runInContext(source + keyboardSource + bindingSource + epubSource, context);
   const h = { context, reader, content, animations, errors, state, pages: [] };
   h.update = (direction) => { h.pages.push(direction); return true; };
-  context.nextPage = () => context.queuePageTurn('next', () => h.update('next'));
-  context.prevPage = () => context.queuePageTurn('prev', () => h.update('prev'));
+  context.nextPage = (_, valid) => context.queuePageTurn('next', (current) => h.update('next', current), valid);
+  context.prevPage = (_, valid) => context.queuePageTurn('prev', (current) => h.update('prev', current), valid);
   context.bindReaderKeyboard(document);
   h.key = (key, repeat = false, target = {}) => listeners.get('keydown')({ key, repeat, target, preventDefault() {} });
   h.release = (key) => { const handler = listeners.get('keyup'); if (handler) handler({ key }); };
   h.settled = () => vm.runInContext('pageTurnQueue', context);
+  h.advance = async (ms) => {
+    const end = now + ms;
+    while (true) {
+      const next = [...timers].sort((a, b) => a[1].at - b[1].at)[0];
+      if (!next || next[1].at > end) break;
+      now = next[1].at;
+      timers.delete(next[0]);
+      next[1].fn();
+      await tick();
+    }
+    now = end;
+    await tick();
+  };
+  h.focus = (target) => listeners.get('focusin')({ target });
+  h.blur = (outside = true) => { focused = !outside; windowListeners.get('blur')(); };
+  h.hide = () => { document.hidden = true; listeners.get('visibilitychange')(); };
+  h.settings = () => { settingsOpen = true; context.stopHeldPageKey(); };
+  h.timerCount = () => timers.size;
   return h;
 }
 
@@ -53,6 +83,7 @@ test('翻页只等待内容，动画尚未结束时下一次按键立即改变�
   h.key('ArrowRight');
   await h.settled();
   assert.equal(h.animations[0].playState, 'running');
+  h.release('ArrowRight');
   h.key('ArrowRight');
   await h.settled();
   assert.deepEqual(h.pages, ['next', 'next']);
@@ -115,16 +146,103 @@ test('长按加载期间的系统重复事件不积压，松手后不补翻', as
   assert.equal(h.animations[0].playState, 'running');
 });
 
-test('页面已就绪时每次长按重复都能响应，不受 160ms 动画限制', async () => {
+test('按住 200ms 自动进入约 30 次每秒连翻，系统重复不叠加，动画不阻塞内容', async () => {
   const h = harness();
   h.key('ArrowRight');
   await h.settled();
+  await h.advance(199);
+  assert.equal(h.pages.length, 1);
   for (let i = 0; i < 10; i += 1) { h.key('ArrowRight', true); await h.settled(); }
+  assert.equal(h.pages.length, 1, '系统重复不得提前启动或另行翻页');
+  await h.advance(1001);
+  assert.ok(h.pages.length >= 31 && h.pages.length <= 32, '无需系统 repeat 事件也持续高速翻页');
+  const count = h.pages.length;
   h.release('ArrowRight');
-  await tick();
-  assert.deepEqual(h.pages, Array(11).fill('next'));
+  await h.advance(1000);
+  assert.deepEqual(h.pages, Array(count).fill('next'));
+  assert.equal(h.timerCount(), 0);
   assert.equal(h.animations.length, 1);
   assert.equal(h.animations[0].playState, 'running');
+});
+
+test('长按只允许一个自动加载，松手后过期加载不提交页码，也不追赶漏掉的次数', async () => {
+  const h = harness();
+  h.key('ArrowRight');
+  await h.settled();
+  const gate = deferred();
+  let calls = 0;
+  h.update = async (direction, valid) => {
+    calls += 1;
+    await gate.promise;
+    if (!valid()) return false;
+    h.pages.push(direction);
+    return true;
+  };
+  await h.advance(2000);
+  assert.equal(calls, 1);
+  h.release('ArrowRight');
+  gate.resolve();
+  await h.settled();
+  await h.advance(2000);
+  assert.deepEqual(h.pages, ['next']);
+  assert.equal(calls, 1);
+});
+
+test('按下反向键立即使旧自动请求失效，释放旧键不会打断新方向', async () => {
+  const h = harness();
+  h.key('ArrowRight');
+  await h.settled();
+  const gate = deferred();
+  h.update = async (direction, valid) => {
+    if (direction === 'next') await gate.promise;
+    if (!valid()) return false;
+    h.pages.push(direction);
+    return true;
+  };
+  await h.advance(200);
+  h.key('ArrowLeft');
+  h.release('ArrowRight');
+  gate.resolve();
+  await h.settled();
+  assert.deepEqual(h.pages, ['next', 'prev']);
+  await h.advance(300);
+  assert.ok(h.pages.length > 3);
+  assert.ok(h.pages.slice(1).every((direction) => direction === 'prev'));
+  h.release('ArrowLeft');
+});
+
+for (const reason of ['blur', 'hide', 'settings', 'typing', 'close']) test(`${reason} 停止连翻；框架内焦点切换不误停`, async () => {
+  const h = harness();
+  h.key('ArrowRight');
+  await h.settled();
+  h.blur(false);
+  await h.advance(250);
+  assert.ok(h.pages.length > 1);
+  const count = h.pages.length;
+  if (reason === 'typing') h.focus({ tagName: 'TEXTAREA' });
+  else if (reason === 'close') h.context.cancelPageTurns();
+  else h[reason]();
+  await h.advance(1000);
+  assert.equal(h.pages.length, count);
+  h.key('ArrowRight', true);
+  await h.advance(1000);
+  assert.equal(h.pages.length, count, '失焦后的旧 repeat 不得重启连翻');
+});
+
+test('书尾自动停止，不持续调用翻页；PageUp/PageDown 保持原系统重复操作', async () => {
+  const h = harness();
+  h.key('ArrowRight');
+  await h.settled();
+  let calls = 0;
+  h.update = () => { calls += 1; return false; };
+  await h.advance(1000);
+  assert.equal(calls, 1);
+  assert.equal(h.timerCount(), 0);
+  h.key('PageUp');
+  await h.settled();
+  h.key('PageUp', true);
+  await h.settled();
+  assert.equal(calls, 3);
 });
 
 test('异步准备仍按独立输入顺序执行，不并发覆盖页码', async () => {
@@ -192,8 +310,8 @@ function epubHarness(direction = 'next') {
   let reported = 0;
   const manager = {
     layout: { name: 'reflowable', divisor: 1, delta: 500, height: 600 }, settings: { axis: 'horizontal', direction: 'ltr' },
-    container: { scrollWidth: 1500, scrollHeight: 600 },
-    currentLocation: () => [{ pages: [direction === 'next' ? 3 : 1], totalPages: 3 }],
+    container: { scrollWidth: 1500, offsetWidth: 500, scrollHeight: 600, offsetHeight: 600, scrollLeft: direction === 'next' ? 1000 : 0, scrollTop: 0 },
+    currentLocation: () => { throw new Error('Animated rectangles must not decide chapter boundaries'); },
     views: { all: () => all, last: () => all.at(-1), indexOf: (v) => all.indexOf(v), remove: (v) => all.splice(all.indexOf(v), 1), show() {} },
     append(section) { const next = view(section); all.push(next); return gate.promise.then(() => { events.get('rendered')(section); return next; }); },
     updateLayout() {}, scrollTo(x, y) { this.position = [x, y]; },
@@ -214,6 +332,32 @@ for (const direction of ['next', 'prev']) test(`EPUB ${direction} 跨章保留�
   assert.equal(h.all[0].section.index, direction === 'next' ? 2 : 0);
   assert.deepEqual(h.manager.position, direction === 'next' ? [0, 0] : [1000, 0]);
   assert.equal(h.reported(), 1);
+});
+
+for (const rtl of [false, 'negative', 'default']) test(`EPUB ${rtl || 'LTR'} 在章内反向连按使用滚动位置，不受动画小数位影响`, async () => {
+  const h = epubHarness();
+  const manager = h.manager;
+  if (rtl) { manager.settings.direction = 'rtl'; manager.settings.rtlScrollType = rtl; }
+  manager.container.scrollLeft = rtl === 'negative' ? -500 : 500;
+  let turns = 0;
+  manager.prev = () => { turns += 1; };
+  manager.next = () => { turns += 1; };
+  assert.equal(await h.context.moveEpubPage(h.state.current, 'prev'), true);
+  assert.equal(await h.context.moveEpubPage(h.state.current, 'next'), true);
+  assert.equal(turns, 2);
+  assert.deepEqual(h.all, [h.old]);
+});
+
+for (const direction of ['next', 'prev']) test(`EPUB ${direction} 跨章等待期间松手，保留旧章节且不改变进度`, async () => {
+  const h = epubHarness(direction);
+  let held = true;
+  const turning = h.context.moveEpubPage(h.state.current, direction, () => held);
+  await tick();
+  held = false;
+  h.gate.resolve();
+  assert.equal(await turning, false);
+  assert.deepEqual(h.all, [h.old]);
+  assert.equal(h.reported(), 0);
 });
 
 test('EPUB 章节加载失败保留旧页，换书后不提交过期章节', async () => {

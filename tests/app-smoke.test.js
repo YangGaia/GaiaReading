@@ -323,7 +323,7 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
   assert.ok(app.includes("c.format === 'pdf' && (ev.ctrlKey || ev.metaKey)") && app.includes('queuePdfWheelZoom(d, ev)'), 'PDF 应支持 Ctrl+滚轮缩放');
   assert.ok(app.includes('shouldScrollPdfPage(els.readerContent, d)'), 'PDF 普通滚轮应优先滚动当前页');
   assert.ok(app.includes('restorePdfZoomAnchor(stage, renderOptions.anchor)'), 'PDF 缩放后应保持鼠标所指阅读位置');
-  assert.ok(html.includes('../shared/pdf-layout.js') && app.includes('pdfLayoutForPage(c.page, c.pages, spread, c.pdfPairing)'), 'PDF 阅读器应接入单页/双页布局模块');
+  assert.ok(html.includes('../shared/pdf-layout.js') && app.includes('pdfLayoutForPage(renderOptions.page == null ? c.page : renderOptions.page, c.pages, spread, c.pdfPairing)'), 'PDF 阅读器应接入单页/双页布局模块');
   assert.ok(app.includes('PDF_ZOOM_MODES.FIT_PAGE') && app.includes('PDF_ZOOM_MODES.FIT_WIDTH') && app.includes('PDF_ZOOM_MODES.MANUAL'), 'PDF 应支持适合页面、适合宽度和手动缩放');
   assert.ok(app.includes('c.pdfTextRoots = textRoots'), 'PDF 双页必须分别保存每页文字层以支持搜索和笔记');
   assert.ok(css.includes('.pdf-zoom-controls'), 'PDF 手动缩放控件缺少样式');
