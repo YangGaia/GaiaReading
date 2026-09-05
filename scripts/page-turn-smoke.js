@@ -34,6 +34,7 @@ function finish(error) {
 }
 function check(name, value) { assert.ok(value, name); report.checks.push(name); }
 
+const epubVariants = [];
 const fixtures = (async () => {
   const text = '月光落在书页上，阅读继续。页面始终保持清晰，翻页时纸面的亮度保持稳定。 ';
   const txt = path.join(sandbox, 'page-turn.txt');
@@ -46,6 +47,20 @@ const fixtures = (async () => {
   zip.file('OEBPS/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>目录</title></head><body><nav epub:type="toc"><ol><li><a href="c0.xhtml">第一章</a></li><li><a href="c1.xhtml">第二章</a></li><li><a href="c2.xhtml">第三章</a></li></ol></nav></body></html>');
   for (let n = 0; n < 3; n += 1) zip.file(`OEBPS/c${n}.xhtml`, '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>章节</title></head><body>' + Array.from({ length: 40 }, (_, i) => `<p>第 ${n + 1} 章 · ${i + 1} ${text.repeat(5)}</p>`).join('') + '</body></html>');
   fs.writeFileSync(epub, await zip.generateAsync({ type: 'nodebuffer' }));
+  for (const variant of ['rtl', 'fixed']) {
+    const clone = await JSZip.loadAsync(fs.readFileSync(epub));
+    let opf = await clone.file('OEBPS/content.opf').async('string');
+    if (variant === 'rtl') opf = opf.replace('<spine>', '<spine page-progression-direction="rtl">');
+    else opf = opf.replace('</metadata>', '<meta property="rendition:layout">pre-paginated</meta></metadata>');
+    clone.file('OEBPS/content.opf', opf);
+    if (variant === 'fixed') for (let i = 0; i < 3; i += 1) {
+      const html = await clone.file(`OEBPS/c${i}.xhtml`).async('string');
+      clone.file(`OEBPS/c${i}.xhtml`, html.replace('<head>', '<head><meta name="viewport" content="width=600,height=800"/>'));
+    }
+    const file = path.join(sandbox, `page-turn-${variant}.epub`);
+    fs.writeFileSync(file, await clone.generateAsync({ type: 'nodebuffer' }));
+    epubVariants.push({ path: file, format: 'epub', label: variant });
+  }
   const books = [{ path: txt, format: 'txt' }, { path: epub, format: 'epub' }, { path: path.join(project, 'tests/fixtures/sample.pdf'), format: 'pdf' }];
   for (const format of ['mobi', 'azw3']) {
     const file = fs.readdirSync(project).find((name) => name.includes('乔布斯') && name.endsWith('.' + format));
@@ -80,9 +95,10 @@ async function run(win) {
   });
   const evaluate = (fn, arg) => win.webContents.executeJavaScript(`(${fn.toString()})(${JSON.stringify(arg)})`);
   await evaluate(() => window.__gaiaDebug.waitHome());
-  check('Chromium supports retaining old page snapshots', await evaluate(() => typeof document.startViewTransition === 'function'));
+  await evaluate(() => { window.__pageSnapshotCalls = 0; document.startViewTransition = () => { window.__pageSnapshotCalls += 1; throw new Error('Page turns must not capture snapshots'); }; });
 
   async function record(name, theme, fn) {
+    const initialSize = await evaluate(() => ({ width: els.readerContent.clientWidth, height: els.readerContent.clientHeight }));
     const rect = await evaluate(() => {
       const r = document.getElementById('reader-content').getBoundingClientRect();
       return { x: Math.ceil(r.x + 48), y: Math.ceil(r.y + 30), width: Math.floor(r.width - 96), height: Math.floor(r.height - 60) };
@@ -105,13 +121,13 @@ async function run(win) {
       window.__turnMotion = [];
       const sample = () => {
         for (const animation of document.getAnimations()) {
-          if (!/^(readerPageEnter|pageSlideNext|pageSlidePrev)$/.test(animation.animationName) || animation.playState !== 'running') continue;
-          const native = animation.animationName === 'readerPageEnter';
-          const style = native ? getComputedStyle(document.documentElement, '::view-transition-new(reader-page)') : getComputedStyle(animation.effect.target);
+          if (animation.id !== 'reader-page-turn' || animation.playState !== 'running') continue;
+          const style = getComputedStyle(animation.effect.target);
           const matrix = new DOMMatrixReadOnly(style.transform === 'none' ? undefined : style.transform);
           const timing = animation.effect.getComputedTiming();
-          window.__turnMotion.push({ name: animation.animationName, duration: timing.duration, progress: timing.progress, opacity: Number(style.opacity), x: matrix.m41,
-            oldOpacity: native ? Number(getComputedStyle(document.documentElement, '::view-transition-old(reader-page)').opacity) : null });
+          window.__turnMotion.push({ at: performance.now(), startTime: animation.startTime, duration: timing.duration,
+            progress: timing.progress, opacity: Number(style.opacity), x: matrix.m41,
+            width: els.readerContent.clientWidth, height: els.readerContent.clientHeight });
         }
         window.__turnMotionFrame = requestAnimationFrame(sample);
       };
@@ -121,11 +137,19 @@ async function run(win) {
     let done = false;
     let actionError;
     let actionResult;
-    const action = evaluate(fn).then((result) => { actionResult = result; }).catch((error) => { actionError = error; }).finally(() => { done = true; });
+    const action = evaluate(fn).then(async (result) => {
+      actionResult = result;
+      // Observe the entire visual effect; the production page promise only waits
+      // for content, so it cannot accidentally make this test pass by blocking input.
+      await evaluate(async () => {
+        const effects = document.getAnimations().filter((animation) => animation.id === 'reader-page-turn');
+        await Promise.all(effects.map((animation) => animation.finished.catch(() => {})));
+      });
+    }).catch((error) => { actionError = error; }).finally(() => { done = true; });
     const started = Date.now();
     const screenshots = [];
     const previewFrames = [];
-    const savePreview = ['txt-light-single-next', 'pdf-dark-single-next'].includes(name);
+    const savePreview = ['txt-light-single-next', 'pdf-dark-single-next', 'txt-dark-tap-and-release-next', 'txt-dark-rapid-taps'].includes(name);
     if (savePreview) {
       const target = path.join(output, `${name}-frame-000.png`);
       fs.writeFileSync(target, before.toPNG());
@@ -160,6 +184,7 @@ async function run(win) {
     petSamples.push(pixels(lastScreen.crop(petProbe.rect), theme));
     petProbe.overlays.forEach((probe, index) => overlaySamples[index].values.push(pixels(lastScreen.crop(probe.rect), theme).light));
     const baseline = Math.min(samples[0].ink, samples.at(-1).ink);
+    const finalSize = await evaluate(() => ({ width: els.readerContent.clientWidth, height: els.readerContent.clientHeight }));
     report.recordings.push({ name, theme, samples, petSamples, overlaySamples, motion, screenshots, previewFrames });
     if (reducedMotion) {
       check(`${name}: reduced motion suppresses page effects`, motion.length === 0);
@@ -167,14 +192,13 @@ async function run(win) {
       check(`${name}: a visible 160ms page effect actually runs`, motion.some((p) => p.duration === 160 && Math.abs(p.x) > 2 && p.progress > 0 && p.progress < 1));
       check(`${name}: every page effect stays short and within 20px`, motion.every((p) => p.duration === 160 && Math.abs(p.x) <= 20.1));
       check(`${name}: incoming text stays opaque without crossfade ghosting`, motion.every((p) => p.opacity === 1));
+      check(`${name}: moving paper does not create transient scrollbars`, motion.every((p) => ['width', 'height'].every((key) => p[key] >= Math.min(initialSize[key], finalSize[key]) && p[key] <= Math.max(initialSize[key], finalSize[key]))));
+      check(`${name}: animation frames continue without stalls over 50ms`, motion.every((p, i) => i === 0 || p.startTime !== motion[i - 1].startTime || p.at - motion[i - 1].at < 50));
       if (!name.includes('rapid') && /-(next|prev)$/.test(name)) {
         const direction = name.endsWith('-next') ? 1 : -1;
         check(`${name}: motion follows the page direction`, motion.every((p) => p.x * direction >= -.1));
       }
-      const entering = motion.filter((p) => p.name === 'readerPageEnter');
-      if (entering.length) {
-        check(`${name}: old paper stays opaque behind the incoming page`, entering.every((p) => p.oldOpacity === 1));
-      }
+
     }
     const minPetLight = Math.min(petSamples[0].light, petSamples.at(-1).light) - 25;
     const maxPetLight = Math.max(petSamples[0].light, petSamples.at(-1).light) + 25;
@@ -196,7 +220,7 @@ async function run(win) {
     check(`${name}: background remains opaque and stationary`, await evaluate(() => {
       const content = document.getElementById('reader-content');
       const style = getComputedStyle(content);
-      return style.opacity === '1' && style.transform === 'none' && !document.documentElement.classList.contains('reader-page-turn');
+      return style.opacity === '1' && style.transform === 'none';
     }));
   }
 
@@ -222,6 +246,22 @@ async function run(win) {
       advancePage = async (...args) => { const moved = await originalNext(...args); calls.push({ direction: 'next', at: performance.now(), moved }); return moved; };
       retreatPage = async (...args) => { const moved = await originalPrev(...args); calls.push({ direction: 'prev', at: performance.now(), moved }); return moved; };
       try {
+        send('keydown', 'ArrowRight');
+        await pageTurnQueue;
+        const tapAnimation = activePageAnimation;
+        await pause(20);
+        send('keyup', 'ArrowRight');
+        const survivesRelease = tapAnimation === activePageAnimation && tapAnimation.playState === 'running';
+        const releasedAt = tapAnimation.currentTime;
+        await pause(40);
+        const advancesAfterRelease = tapAnimation.currentTime > releasedAt;
+        await tapAnimation.finished;
+        const tap = { survivesRelease, advancesAfterRelease, duration: tapAnimation.effect.getComputedTiming().duration };
+        send('keydown', 'ArrowLeft');
+        send('keyup', 'ArrowLeft');
+        await pageTurnQueue;
+        if (activePageAnimation) await activePageAnimation.finished;
+        calls = [];
         const before = position();
         const directions = Array.from({ length: 12 }, (_, i) => i % 4 < 2 ? 'next' : 'prev');
         const started = performance.now();
@@ -247,13 +287,14 @@ async function run(win) {
         const stoppedPage = position();
         await pause(300);
         const hold = { atRelease, afterCurrentTurn, finalCalls: calls.length, stoppedPage, finalPage: position() };
-        return { rapid, hold };
+        return { tap, rapid, hold };
       } finally {
         advancePage = originalNext;
         retreatPage = originalPrev;
       }
     });
     report.keyboard.push({ format, ...result });
+    check(`${format}: a full visible animation survives key release`, result.tap.survivesRelease && result.tap.advancesAfterRelease && result.tap.duration === 160);
     check(`${format}: rapid separate presses preserve every direction`, JSON.stringify(result.rapid.directions) === JSON.stringify(result.rapid.expected));
     check(`${format}: alternating keys return to the same page`, result.rapid.before === result.rapid.after);
     check(`${format}: first key responds within 150ms`, result.rapid.firstResponseMs < 150);
@@ -348,25 +389,21 @@ async function run(win) {
       const page = await evaluate(() => __gaiaDebug.getPaginatorPage());
       await record('txt-dark-rapid-next-next-prev', 'dark', () => Promise.all([__gaiaDebug.nextPage(), __gaiaDebug.nextPage(), __gaiaDebug.prevPage()]));
       check('Rapid turns preserve page order', await evaluate(() => __gaiaDebug.getPaginatorPage()) === page + 2);
-      await evaluate(() => {
-        window.__nativePageTransition = document.startViewTransition;
-        document.startViewTransition = undefined;
+      await record('txt-dark-tap-and-release-next', 'dark', async () => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        document.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
+        await pageTurnQueue;
       });
-      await record('txt-dark-fallback', 'dark', () => __gaiaDebug.nextPage());
-      const fallbackPage = await evaluate(() => __gaiaDebug.getPaginatorPage());
-      await record('txt-dark-fallback-rapid', 'dark', () => Promise.all([__gaiaDebug.nextPage(), __gaiaDebug.nextPage(), __gaiaDebug.prevPage()]));
-      check('Fallback rapid turns preserve order and complete their motion', await evaluate(() => __gaiaDebug.getPaginatorPage()) === fallbackPage + 2);
-      await evaluate(() => {
-        document.startViewTransition = (update) => {
-          const transition = window.__nativePageTransition.call(document, update);
-          transition.skipTransition();
-          return transition;
-        };
+      await record('txt-dark-rapid-taps', 'dark', async () => {
+        for (let i = 0; i < 8; i += 1) {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          document.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
+          await new Promise((resolve) => setTimeout(resolve, 40));
+        }
+        await pageTurnQueue;
       });
-      const skippedPage = await evaluate(() => __gaiaDebug.getPaginatorPage());
-      await record('txt-dark-skipped-transition', 'dark', () => __gaiaDebug.nextPage());
-      check('Skipped snapshots still animate without turning twice', await evaluate(() => __gaiaDebug.getPaginatorPage()) === skippedPage + 2);
-      await evaluate(() => { document.startViewTransition = window.__nativePageTransition; });
       for (const [width, height] of [[800, 600], [1600, 1000]]) {
         win.setContentSize(width, height);
         await wait(200);
@@ -410,8 +447,8 @@ async function run(win) {
         pet.style.left = '350px';
         pet.style.top = '180px';
         window.__petDragTurn = __gaiaDebug.nextPage();
-        while (!activePageTransition) await new Promise((resolve) => setTimeout(resolve, 1));
-        await activePageTransition.ready;
+        while (!activePageAnimation) await new Promise((resolve) => setTimeout(resolve, 1));
+        await activePageAnimation.ready;
         const r = pet.getBoundingClientRect();
         const pointer = { pointerId: 91, pointerType: 'mouse', isPrimary: true, button: 0, buttons: 1, clientX: r.left + 75, clientY: r.top + 100, bubbles: true };
         pet.querySelector('.gaia-pet-hitbox').dispatchEvent(new PointerEvent('pointerdown', pointer));
@@ -434,6 +471,24 @@ async function run(win) {
       await evaluate((b) => __gaiaDebug.openBook({ ...b, title: '翻页验证' }), book);
     }
     await checkKeyboardResponse(book.format);
+    await evaluate(() => __gaiaDebug.backToLibrary());
+  }
+
+  for (const book of epubVariants) {
+    await evaluate((b) => __gaiaDebug.openBook({ ...b, title: '章节方向验证' }), book);
+    await evaluate(() => __gaiaDebug.setTheme('dark'));
+    for (const mode of ['single', 'spread']) {
+      await evaluate(async (mode) => {
+        __gaiaDebug.setMode(mode);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        await state.current.rendition.display('c1.xhtml');
+      }, mode);
+      await record(`epub-${book.label}-${mode}-chapter-prev`, 'dark', () => __gaiaDebug.prevPage());
+      check(`${book.label}/${mode}: backward chapter is correct`, await evaluate(() => state.current.rendition.manager.views.first().section.index === 0));
+      await record(`epub-${book.label}-${mode}-chapter-next`, 'dark', () => __gaiaDebug.nextPage());
+      check(`${book.label}/${mode}: forward chapter is correct`, await evaluate(() => state.current.rendition.manager.views.first().section.index === 1));
+      check(`${book.label}/${mode}: no abandoned preparing view`, await evaluate(() => !document.querySelector('.epub-view.is-preparing')));
+    }
     await evaluate(() => __gaiaDebug.backToLibrary());
   }
 
@@ -461,6 +516,7 @@ async function run(win) {
     host.remove();
     return retained && replaced && latestWon && destroyed;
   }));
+  check('Page turning never uses snapshot transitions', await evaluate(() => window.__pageSnapshotCalls === 0));
   check('No renderer errors', report.consoleErrors.length === 0);
 }
 

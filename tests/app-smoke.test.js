@@ -309,7 +309,7 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
   const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
   assert.ok(css.includes('#reader-view.dark'), '缺少夜间模式变量');
   assert.ok(css.includes('#reader-view.eye'), '缺少护眼模式变量');
-  assert.ok(css.includes('paging-next'), '缺少翻页动画规则');
+  assert.ok(app.includes("animation.id = 'reader-page-turn'"), '缺少书页内容动画');
   assert.ok(css.includes('pdf-dark'), '缺少 PDF 深色规则');
   assert.ok(css.includes('book-progress'), '缺少书架进度样式');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
