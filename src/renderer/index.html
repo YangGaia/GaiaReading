@@ -17,24 +17,24 @@
   </div>
 
   <div id="home-view" hidden>
+    <div class="home-masthead"><span class="page-bookmark" aria-hidden="true"></span><span>私人书房</span></div>
     <div class="home-left">
-      <p class="home-eyebrow">你的私人书房</p>
-      <h1 class="home-title">Gaia Reading</h1>
-      <p class="home-subtitle">在书页之间，留一点时间给自己。</p>
-      <div class="home-menu">
-        <button class="home-item d1" id="btn-home-shelf"><svg class="home-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 5h7l2 2 2-2h7v14h-7l-2 2-2-2H3zM12 7v14"/></svg><span>进入书架</span><span class="home-arrow" aria-hidden="true">↗</span></button>
-        <button class="home-item d2" id="btn-home-add-books"><svg class="home-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg><span>添加图书</span></button>
-        <button class="home-item d3" id="btn-home-ai"><svg class="home-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m12 3 2.7 6.3L21 12l-6.3 2.7L12 21l-2.7-6.3L3 12l6.3-2.7z"/></svg><span>AI 章节助手</span></button>
+      <h1 class="home-title"><span>Gaia</span> <span>Reading<span class="home-title-dot" aria-hidden="true">.</span></span></h1>
+      <p class="home-subtitle">把时间，留给故事。</p>
+      <nav class="home-menu" aria-label="书房入口">
+        <button class="home-item d1" id="btn-home-shelf"><span class="home-item-number" aria-hidden="true">01</span><span>进入书架</span><span class="home-arrow" aria-hidden="true">↗</span></button>
+        <button class="home-item d2" id="btn-home-add-books"><span class="home-item-number" aria-hidden="true">02</span><span>添加图书</span><span class="home-arrow" aria-hidden="true">＋</span></button>
+        <button class="home-item d3" id="btn-home-ai"><span class="home-item-number" aria-hidden="true">03</span><span>AI 章节助手</span><span class="home-arrow" aria-hidden="true">↗</span></button>
         <button class="home-item d4" id="btn-home-settings"><svg class="home-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 4v16M12 4v16M19 4v16M2 8h6M9 16h6M16 10h6"/></svg><span>设置</span></button>
-      </div>
-      <p class="home-footnote">一卷书，一段安静的时光。</p>
+      </nav>
     </div>
     <div class="home-right">
       <div class="home-art">
         <img id="home-img" src="images/1.jpg" alt="久远寺有珠">
       </div>
-      <div class="home-caption"><span>与有珠一起</span><span>让故事慢慢展开</span></div>
+      <div class="home-caption"><span class="home-caption-line" aria-hidden="true"></span><span>久远寺有珠 · 与你共读</span></div>
     </div>
+    <footer class="home-footer"><a class="design-credit" href="https://deerflow.tech" target="_blank" rel="noopener noreferrer">Created By Deerflow</a></footer>
   </div>
 
   <div id="ai-view" hidden>
@@ -117,73 +117,76 @@
   <div id="library-view" hidden>
     <header class="topbar">
       <button id="btn-back-home" class="btn">← 首页</button>
-      <span class="page-title">书架</span>
+      <span class="page-title"><span class="page-bookmark" aria-hidden="true"></span>书架</span>
       <div class="actions">
         <button id="btn-settings" class="btn">设置</button>
       </div>
     </header>
     <div class="library-heading">
-      <p class="eyebrow">藏在书页里的世界</p>
-      <h1>我的书架</h1>
-      <p class="subtitle">熟悉的故事，新的相遇。</p>
+      <h1>我的藏书<span class="heading-dot" aria-hidden="true">.</span></h1>
+      <div class="shelf-toolbar">
+        <button id="btn-add-books" class="btn primary">添加图书</button>
+        <button id="btn-manage" class="btn">批量管理</button>
+        <button id="btn-reading-stats" class="btn">阅读目标 <span aria-hidden="true">↗</span></button>
+      </div>
     </div>
-    <div class="shelf-toolbar">
-      <button id="btn-add-books" class="btn primary">添加图书</button>
-      <button id="btn-manage" class="btn">批量管理</button>
-      <button id="btn-reading-stats" class="btn">阅读目标</button>
-      <span id="import-status" class="import-status" role="status" aria-live="polite"></span>
-    </div>
+    <div class="library-status"><span>书页之间，自有天地。</span><span id="import-status" class="import-status" role="status" aria-live="polite"></span></div>
     <div id="manage-bar" class="manage-bar" hidden>
       <span>已选 <b id="manage-count">0</b> 本</span>
       <button id="btn-select-all" class="btn">全选</button>
       <button id="btn-remove-selected" class="btn danger">移除选中</button>
       <button id="btn-exit-manage" class="btn">完成</button>
     </div>
-    <p id="library-hint" class="hint">书架为空，点击“添加图书”选择文件夹、单个文件或多个文件（EPUB / PDF / TXT / MOBI / AZW3）</p>
+    <p id="library-hint" class="hint"><span class="empty-book" aria-hidden="true">Ⅰ</span><strong>第一本书，从这里开始。</strong><span>点击“添加图书”，选择文件夹或书籍文件。</span><small>EPUB / PDF / TXT / MOBI / AZW3</small></p>
     <div id="bookshelf" class="bookshelf"></div>
+    <footer class="library-footer"><span>Gaia Reading</span><a class="design-credit" href="https://deerflow.tech" target="_blank" rel="noopener noreferrer">Created By Deerflow</a></footer>
   </div>
 
   <div id="stats-view" hidden>
     <header class="topbar">
       <button id="btn-stats-back" class="btn">← 返回</button>
-      <span class="page-title">有珠的阅读记录</span>
+      <span class="page-title"><span class="page-bookmark" aria-hidden="true"></span>有珠的阅读记录</span>
     </header>
     <main class="stats-scroll">
       <section class="stats-hero stats-card">
-        <span class="stats-sigil stats-sigil-a">◇</span><span class="stats-sigil stats-sigil-b">✦</span>
         <div class="stats-hero-copy">
-          <p class="stats-eyebrow">ALICE'S READING RECORD · 今日</p>
+          <h1 class="stats-page-heading">阅读札记<span class="heading-dot" aria-hidden="true">.</span></h1>
+          <p class="stats-eyebrow">今日已读</p>
           <div id="stats-today" class="stats-today">0分钟</div>
-          <p id="stats-goal-copy" class="stats-secondary">每日目标 30 分钟</p>
-          <p id="stats-alice-line" class="stats-alice-line">书页还很安静。开始之后，我会替你记着。</p>
-        </div>
-        <div class="stats-hero-visual">
-          <img id="stats-alice" class="stats-alice" src="images/pet/stats/idle.png" alt="久远寺有珠" draggable="false" tabindex="0" role="button" aria-label="久远寺有珠，点击依次触发眨眼、打哈欠和睡觉">
-          <span id="stats-alice-zzz" class="stats-alice-zzz" hidden>Zzz</span>
-          <div id="stats-ring" class="stats-ring" style="--goal-progress: 0deg">
-            <span class="stats-ring-diamond">◆</span>
-            <div class="stats-ring-center"><strong id="stats-ring-percent">0%</strong><span>今日仪式</span></div>
+          <div class="stats-goal-summary">
+            <div id="stats-ring" class="stats-ring" style="--goal-progress: 0deg" aria-label="今日阅读目标完成率">
+              <div class="stats-ring-center"><strong id="stats-ring-percent">0%</strong></div>
+            </div>
+            <p id="stats-goal-copy" class="stats-secondary">每日目标 30 分钟</p>
           </div>
         </div>
       </section>
-      <section class="stats-card stats-trace-card">
-        <div class="stats-section-head"><div><p class="stats-eyebrow">WEEKLY TRACE · 本周轨迹</p><h2>阅读时间</h2></div><strong id="stats-week-total">0分钟</strong></div>
-        <div id="stats-week-chart" class="stats-week-chart"></div>
-      </section>
-      <section class="stats-streak-grid">
-        <div class="stats-card stats-streak"><span class="stats-streak-mark">◆</span><div><strong id="stats-current-streak">0 天</strong><small>CURRENT · 当前连续阅读</small></div></div>
-        <div class="stats-card stats-streak"><span class="stats-streak-mark">✦</span><div><strong id="stats-longest-streak">0 天</strong><small>LONGEST · 最长连续阅读</small></div></div>
-      </section>
       <section class="stats-card stats-goal-card">
-        <div class="stats-section-head"><div><p class="stats-eyebrow">DAILY RITUAL · 每日仪式</p><h2>每天留一点时间给书</h2></div></div>
+        <div class="stats-section-head"><h2>每日目标</h2><span>给阅读留一点时间</span></div>
         <div id="stats-goal-options" class="stats-goal-options" role="group" aria-label="每日阅读目标">
           <button data-goal-minutes="15">15 分钟</button><button data-goal-minutes="30">30 分钟</button><button data-goal-minutes="45">45 分钟</button><button data-goal-minutes="60">60 分钟</button>
         </div>
       </section>
+      <aside class="stats-hero-visual" aria-label="有珠的阅读陪伴">
+        <div class="stats-portrait">
+          <img id="stats-alice" class="stats-alice" src="images/pet/stats/idle.png" alt="久远寺有珠" draggable="false" tabindex="0" role="button" aria-label="久远寺有珠，点击依次触发眨眼、打哈欠和睡觉">
+          <span id="stats-alice-zzz" class="stats-alice-zzz" hidden>Zzz</span>
+        </div>
+        <div class="stats-companion-copy"><span>有珠 · 陪你读下去</span><p id="stats-alice-line" class="stats-alice-line">书页还很安静。开始之后，我会替你记着。</p></div>
+      </aside>
+      <section class="stats-card stats-trace-card">
+        <div class="stats-section-head"><h2>本周阅读</h2><strong id="stats-week-total">0分钟</strong></div>
+        <div id="stats-week-chart" class="stats-week-chart"></div>
+      </section>
+      <section class="stats-streak-grid">
+        <div class="stats-card stats-streak"><div><strong id="stats-current-streak">0 天</strong><small>当前连续阅读</small></div></div>
+        <div class="stats-card stats-streak"><div><strong id="stats-longest-streak">0 天</strong><small>最长连续阅读</small></div></div>
+      </section>
       <section class="stats-card stats-archive-card">
-        <div class="stats-section-head"><div><p class="stats-eyebrow">ARCHIVE · 今年</p><h2>读完的书</h2></div><strong id="stats-finished-count">0 本</strong></div>
+        <div class="stats-section-head"><h2>今年读完的书</h2><strong id="stats-finished-count">0 本</strong></div>
         <div id="stats-finished-books" class="stats-finished-books"><p class="stats-empty">读完一本书后，它会出现在这里。</p></div>
       </section>
+      <footer class="stats-footer"><span>Gaia Reading</span><a class="design-credit" href="https://deerflow.tech" target="_blank" rel="noopener noreferrer">Created By Deerflow</a></footer>
     </main>
   </div>
 

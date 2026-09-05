@@ -405,6 +405,17 @@ function createWindow() {
     },
   });
 
+  // The design credit is an external page, not a reader window with our preload.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url === 'https://deerflow.tech/' || url === 'https://deerflow.tech') {
+      shell.openExternal('https://deerflow.tech/').catch((error) => {
+        console.warn('Could not open design credit:', error.message);
+      });
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
+
   mainWindow.once('ready-to-show', () => mainWindow.show());
   let displayUpdateTimer = null;
   const sendDisplayFrequency = () => {
@@ -1252,7 +1263,10 @@ function createWindow() {
             const statsAliceRect = statsAlice.getBoundingClientRect();
             const statsRingRect = document.getElementById('stats-ring').getBoundingClientRect();
             const statsAliceVisible = statsAliceRect.width > 0 && statsAliceRect.height > 0;
-            const statsAliceSizeStable = Math.abs(parseFloat(getComputedStyle(statsAlice).height) - 350) < 1;
+            const statsAliceSizeBefore = {
+              width: parseFloat(getComputedStyle(statsAlice).width),
+              height: parseFloat(getComputedStyle(statsAlice).height),
+            };
             const statsLayoutOverlap = Math.max(0, Math.min(statsAliceRect.right, statsRingRect.right) - Math.max(statsAliceRect.left, statsRingRect.left)) <= 28;
             const statsPetHidden = petRoot.hidden;
             const statsBreathing = statsAlice.classList.contains('stats-alice') &&
@@ -1271,6 +1285,14 @@ function createWindow() {
             const statsSleepStarted = statsAlice.classList.contains('stats-alice-sleep') && !document.getElementById('stats-alice-zzz').hidden && statsAlice.src.endsWith('/images/pet/stats/blink.png');
             statsAlice.click();
             const statsWakeStarted = statsAlice.classList.contains('stats-alice-wake') && document.getElementById('stats-alice-zzz').hidden;
+            const statsAliceSizeAfter = {
+              width: parseFloat(getComputedStyle(statsAlice).width),
+              height: parseFloat(getComputedStyle(statsAlice).height),
+            };
+            const statsAliceSizeStable = statsAliceSizeBefore.width > 0 && statsAliceSizeBefore.height > 0 &&
+              Math.abs(statsAliceSizeBefore.width / statsAliceSizeBefore.height - 356 / 647) < .01 &&
+              Math.abs(statsAliceSizeAfter.width - statsAliceSizeBefore.width) < 1 &&
+              Math.abs(statsAliceSizeAfter.height - statsAliceSizeBefore.height) < 1;
             const dragEvent = new Event('dragstart', { cancelable: true });
             statsAlice.dispatchEvent(dragEvent);
             const statsDragDisabled = statsAlice.draggable === false && dragEvent.defaultPrevented;

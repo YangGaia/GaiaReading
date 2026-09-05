@@ -98,3 +98,20 @@ test('首页、书架与目标页保留既有操作控件及动态内容挂载�
   assert.match(html, /<[^>]*id="stats-alice-zzz"[^>]*\bhidden\b[^>]*>/);
   assert.match(html, /<[^>]*id="stats-alice"[^>]*role="button"[^>]*>/);
 });
+
+test('视觉改版保留可访问的角色说明、导入反馈与目标选择语义', () => {
+  const tagFor = (id) => {
+    const tag = html.match(new RegExp(`<[^>]*\\bid="${id}"[^>]*>`));
+    assert.ok(tag, `${id} is missing`);
+    return tag[0];
+  };
+  for (const id of ['home-img', 'stats-alice']) {
+    assert.match(tagFor(id), /\balt="[^"]+"/, `${id} must describe its character art`);
+  }
+  assert.match(tagFor('stats-alice'), /\btabindex="0"/, 'the interactive character must remain keyboard accessible');
+  assert.match(tagFor('stats-alice'), /\baria-label="[^"]+"/, 'the interactive character must explain its action');
+  assert.match(tagFor('import-status'), /\brole="status"/, 'import status must stay a live status region');
+  assert.match(tagFor('import-status'), /\baria-live="polite"/);
+  assert.match(tagFor('stats-goal-options'), /\brole="group"/);
+  assert.match(tagFor('stats-goal-options'), /\baria-label="[^"]+"/, 'the goal controls need a group name');
+});

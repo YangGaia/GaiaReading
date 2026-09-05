@@ -3,12 +3,18 @@
 // Run with: npx electron scripts/non-reading-smoke.js
 // All test books, preferences and screenshots live in a new temporary directory.
 // GAIA_UI_OUTPUT_DIR may point to another screenshot/report directory.
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, shell } = require('electron');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { dateKey } = require('../src/shared/reading-stats');
+
+// Install before loading the main process so link checks never open the real browser.
+const externalRequests = [];
+shell.openExternal = async (url) => { externalRequests.push(url); };
+let windowsCreated = 0;
+app.on('browser-window-created', () => { windowsCreated += 1; });
 
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'gaia-ui-smoke-'));
 const outputDir = path.resolve(process.env.GAIA_UI_OUTPUT_DIR || path.join(sandbox, 'screenshots'));
@@ -45,7 +51,7 @@ const progress = Object.fromEntries(books.slice(0, 9).map((book, i) => [book.pat
 const completedBooks = Object.fromEntries(books.slice(0, 7).map((book, i) => [book.path, { ...book, finishedAt: now - i * 86400000 }]));
 fs.writeFileSync(path.join(sandbox, 'gaia-reading.json'), JSON.stringify({ library: [], prefs: { theme: 'light' }, progress, readingStats: { version: 1, goalMinutes: 30, days, completedBooks } }));
 
-const report = { userData: sandbox, outputDir, checks: [], screenshots: [], consoleErrors: [] };
+const report = { userData: sandbox, outputDir, checks: [], screenshots: [], consoleErrors: [], externalRequests };
 let finished = false;
 const timeout = setTimeout(() => finish(new Error('UI smoke timed out after 150 seconds')), 150000);
 function finish(error) {
@@ -123,7 +129,98 @@ async function run(win) {
             requireTrue(r.top >= 0 && r.bottom <= innerHeight, `${el.id} clips vertically`);
           }
         }
+        if (view === 'library' && root.querySelector('.book-card')) {
+          const first = root.querySelector('.book-card').getBoundingClientRect();
+          requireTrue(first.bottom <= innerHeight, `the first book does not fit below the shelf header (${first.bottom}/${innerHeight})`);
+        }
         return { view, width: innerWidth, height: innerHeight, cards: root.querySelectorAll('.book-card').length };
+      },
+      async controls(view) {
+        const root = document.getElementById(view + '-view');
+        const scrollPositions = [root, ...root.querySelectorAll('*')]
+          .filter((el) => el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth)
+          .map((el) => [el, el.scrollLeft, el.scrollTop]);
+        const controls = [...root.querySelectorAll('button, [role="button"], a[href]')].filter(visible);
+        try {
+          for (const el of controls) {
+            el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const rect = el.getBoundingClientRect();
+            let left = Math.max(0, rect.left);
+            let right = Math.min(innerWidth, rect.right);
+            let top = Math.max(0, rect.top);
+            let bottom = Math.min(innerHeight, rect.bottom);
+            for (let parent = el.parentElement; parent; parent = parent.parentElement) {
+              const style = getComputedStyle(parent);
+              const clip = parent.getBoundingClientRect();
+              if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) { left = Math.max(left, clip.left); right = Math.min(right, clip.right); }
+              if (/(auto|scroll|hidden|clip)/.test(style.overflowY)) { top = Math.max(top, clip.top); bottom = Math.min(bottom, clip.bottom); }
+            }
+            const label = el.id || el.textContent.trim();
+            // The shared music capsule keeps its existing dimensions in this UI-only redesign.
+            // Still verify that its controls are reachable and not covered by the new layout.
+            const minimumSize = el.closest('.bgm-capsule') ? 1 : 24;
+            requireTrue(right - left >= minimumSize && bottom - top >= minimumSize, `${view} control ${label} has no reachable ${minimumSize}px target`);
+            const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+            requireTrue(hit === el || el.contains(hit), `${view} control ${label} is covered by ${hit && (hit.id || hit.className)}`);
+          }
+        } finally {
+          for (const [el, x, y] of scrollPositions) { el.scrollLeft = x; el.scrollTop = y; }
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+        return { view, reachableControls: controls.length };
+      },
+      contrast(view) {
+        // Test resolved text colors over the painted background-color layers.
+        // Artwork, gradients and pseudo-elements still require screenshot review.
+        const root = document.getElementById(view + '-view');
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 1;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        const rgba = (value) => {
+          context.clearRect(0, 0, 1, 1);
+          context.fillStyle = value;
+          context.fillRect(0, 0, 1, 1);
+          const pixel = [...context.getImageData(0, 0, 1, 1).data];
+          return [pixel[0], pixel[1], pixel[2], pixel[3] / 255];
+        };
+        const over = (foreground, background) => foreground.slice(0, 3).map((channel, i) => channel * foreground[3] + background[i] * (1 - foreground[3]));
+        const luminance = (color) => color.map((channel) => {
+          const value = channel / 255;
+          return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+        }).reduce((total, channel, i) => total + channel * [.2126, .7152, .0722][i], 0);
+        const selector = {
+          home: '.home-title, .home-subtitle, .home-masthead, .home-caption, .design-credit, button',
+          library: '.page-title, .library-heading h1, .library-status > span, button, .book-title, .book-author, .book-format, .book-progress-label, .hint > strong, .hint > span:not([aria-hidden]), .hint > small, .library-footer > span, .design-credit',
+          stats: '.page-title, .stats-page-heading, button, .stats-eyebrow, .stats-today, .stats-secondary, .stats-companion-copy > span, .stats-alice-line, .stats-ring-center strong, .stats-section-head h2, .stats-section-head > strong, .stats-section-head > span, .stats-streak strong, .stats-streak small, .stats-day-label, .stats-day-minutes, .stats-finished-title, .stats-empty, .stats-footer > span, .design-credit',
+        }[view];
+        // Shared music controls are outside the palette redesign; they retain baseline layout checks.
+        const nodes = [...root.querySelectorAll(selector)].filter((el) => visible(el) && el.textContent.trim() && !el.closest('.bgm-capsule'));
+        let lowestRatio = Infinity;
+        for (const el of nodes) {
+          const ancestors = [];
+          for (let node = el; node; node = node.parentElement) ancestors.unshift(node);
+          let background = [255, 255, 255];
+          let opacity = 1;
+          for (const node of ancestors) {
+            const style = getComputedStyle(node);
+            background = over(rgba(style.backgroundColor), background);
+            opacity *= Number(style.opacity);
+          }
+          const style = getComputedStyle(el);
+          const foreground = rgba(style.color);
+          foreground[3] *= opacity;
+          const text = luminance(over(foreground, background));
+          const surface = luminance(background);
+          const ratio = (Math.max(text, surface) + .05) / (Math.min(text, surface) + .05);
+          const fontSize = parseFloat(style.fontSize);
+          const large = fontSize >= 24 || (fontSize >= 18.66 && Number(style.fontWeight) >= 700);
+          const minimum = large ? 3 : 4.5;
+          requireTrue(ratio >= minimum, `${view} text ${el.id || el.className} contrasts ${ratio.toFixed(2)}:1; needs ${minimum}:1 (${style.color} on ${background.map(Math.round).join(',')})`);
+          lowestRatio = Math.min(lowestRatio, ratio);
+        }
+        requireTrue(nodes.length > 0, `${view} has no readable text to check`);
+        return { view, contrastSamples: nodes.length, minimumBaseContrast: Number(lowestRatio.toFixed(2)) };
       },
       assertStyleIsolation(view) {
         const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats)\.css$/.test(sheet.href || ''));
@@ -165,13 +262,27 @@ async function run(win) {
   await evaluate(async () => { await __uiSmoke.wait(500); });
   await capture(win, 'home-light-1100x760');
   check('initial home', await evaluate(() => __gaiaDebug.getView() === 'home'));
+  const windowsBeforeCredit = windowsCreated;
+  await evaluate(async () => { await __uiSmoke.click('#home-view .design-credit'); });
+  check('home design credit requests only its official HTTPS URL in the system browser', externalRequests.length === 1 && /^https:\/\/deerflow\.tech\/?$/.test(externalRequests[0]));
+  check('home design credit creates no Electron child window', windowsCreated === windowsBeforeCredit && BrowserWindow.getAllWindows().length === 1);
+  check('home design credit preserves the current page', await evaluate(() => __gaiaDebug.getView() === 'home'));
   await evaluate(async () => { await __uiSmoke.click('#btn-home-add-books'); });
   check('home import dialog opens', await evaluate(() => !document.getElementById('book-import-overlay').hidden));
   await evaluate(async () => { await __uiSmoke.click('#btn-book-import-close'); await __uiSmoke.click('#btn-home-settings'); });
   check('home settings opens', await evaluate(() => __gaiaDebug.isSettingsOpen()));
   await evaluate(async () => { await __uiSmoke.click('#btn-settings-close'); await __uiSmoke.click('#btn-home-shelf'); });
   check('empty shelf and hint', await evaluate(() => __gaiaDebug.getView() === 'library' && !document.getElementById('library-hint').hidden && !document.querySelector('.book-card')));
-  await capture(win, 'library-empty-1100x760');
+  for (const [width, height] of [[800, 600], [1100, 760], [1600, 1000]]) {
+    win.setContentSize(width, height);
+    await evaluate(async () => { await __uiSmoke.wait(180); });
+    report.checks.push({ state: 'empty', ...await evaluate(() => __uiSmoke.layout('library')) });
+    report.checks.push({ state: 'empty', ...await evaluate(() => __uiSmoke.controls('library')) });
+    report.checks.push({ state: 'empty', ...await evaluate(() => __uiSmoke.contrast('library')) });
+    await capture(win, `library-empty-${width}x${height}`);
+  }
+  win.setContentSize(1100, 760);
+  await evaluate(async () => { await __uiSmoke.wait(180); });
   await evaluate(async () => { await __uiSmoke.click('#btn-add-books'); });
   check('library import dialog opens', await evaluate(() => !document.getElementById('book-import-overlay').hidden));
   await evaluate(async () => { await __uiSmoke.click('#btn-book-import-close'); });
@@ -181,6 +292,8 @@ async function run(win) {
   check('24 books render, empty hint hides, unsafe title remains text', await evaluate(() => __gaiaDebug.getLibraryCount() === 24 && document.querySelectorAll('.book-card').length === 24 && document.getElementById('library-hint').hidden && !window.__uiTitleUnsafe && [...document.querySelectorAll('.book-title')].some((el) => el.textContent.startsWith('<img') && !el.children.length)));
   await evaluate(async () => { await __uiSmoke.click('#btn-manage'); await __uiSmoke.click('#btn-select-all'); });
   check('bulk management selects every book', await evaluate(() => __gaiaDebug.getSelectedCount() === 24 && document.getElementById('manage-count').textContent === '24' && document.querySelectorAll('.book-card.selected').length === 24));
+  report.checks.push(await evaluate(() => __uiSmoke.controls('library')));
+  report.checks.push(await evaluate(() => __uiSmoke.contrast('library')));
   await capture(win, 'library-manage-1100x760');
   await evaluate(async () => { await __uiSmoke.click('#btn-exit-manage'); });
   check('leaving bulk mode clears selection', await evaluate(() => __gaiaDebug.getSelectedCount() === 0 && document.getElementById('manage-bar').hidden));
@@ -191,10 +304,14 @@ async function run(win) {
       win.setContentSize(width, height);
       await evaluate(async () => { await __uiSmoke.wait(180); __gaiaDebug.showView('home'); await __uiSmoke.wait(350); });
       report.checks.push(await evaluate(() => __uiSmoke.layout('home')));
+      report.checks.push(await evaluate(() => __uiSmoke.controls('home')));
+      report.checks.push(await evaluate(() => __uiSmoke.contrast('home')));
       const takeShot = theme === 'light' || (theme === 'dark' && width === 1600);
       if (takeShot) await capture(win, `home-${theme}-${width}x${height}`);
       await evaluate(async () => { await __uiSmoke.click('#btn-home-shelf'); await __uiSmoke.wait(300); });
       report.checks.push(await evaluate(() => __uiSmoke.layout('library')));
+      report.checks.push(await evaluate(() => __uiSmoke.controls('library')));
+      report.checks.push(await evaluate(() => __uiSmoke.contrast('library')));
       check(`long titles fit within two lines and card width ${theme} ${width}`, await evaluate(() => [...document.querySelectorAll('.book-title')].every((el) => {
         const r = el.getBoundingClientRect();
         return r.width <= el.closest('.book-card').getBoundingClientRect().width && r.height <= parseFloat(getComputedStyle(el).lineHeight) * 2 + 1;
@@ -206,6 +323,8 @@ async function run(win) {
       if (takeShot) await capture(win, `library-${theme}-${width}x${height}`);
       await evaluate(async () => { await __uiSmoke.click('#btn-reading-stats'); await __uiSmoke.wait(300); });
       report.checks.push(await evaluate(() => __uiSmoke.layout('stats')));
+      report.checks.push(await evaluate(() => __uiSmoke.controls('stats')));
+      report.checks.push(await evaluate(() => __uiSmoke.contrast('stats')));
       check(`weekly chart and finished books ${theme} ${width}`, await evaluate(() => document.querySelectorAll('.stats-day').length === 7 && document.querySelectorAll('.stats-finished-book').length === 7));
       if (takeShot) await capture(win, `stats-${theme}-${width}x${height}`);
       await evaluate(async () => { await __uiSmoke.click('[data-goal-minutes="45"]'); });
