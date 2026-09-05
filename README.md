@@ -2,9 +2,20 @@
 
 Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB、PDF、TXT、MOBI 和 AZW3。它把多格式阅读、章节级 AI 对话、划线笔记、阅读统计和桌面角色「久远寺有珠」放在同一个应用中。
 
-当前稳定版本：**1.0.3**
+当前稳定版本：**1.1.0**
 
-[下载 1.0.3](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.3) · [查看本版说明](RELEASE_NOTES_1.0.3.md) · [版本记录](CHANGELOG.md)
+[下载 1.1.0](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.0) · [查看本版说明](RELEASE_NOTES_1.1.0.md) · [版本记录](CHANGELOG.md)
+
+## 1.1.0 更新亮点
+
+相较 1.0.3，本版统一了非阅读界面的视觉设计，并集中打磨窗口适配、计时器和翻页交互。
+
+- **统一的石墨灰界面**：首页、书架、阅读目标、AI 阅读中心与设置侧栏采用银白文字、冷色细线和有层次的按钮，保留久远寺有珠的视觉主题。
+- **随窗口变化的布局**：首页保持构图比例，界面按实际尺寸清晰绘制；书架、阅读目标和 AI 中心在窄窗口重新排列。音乐胶囊统一外观，非阅读页随窗口缩放，阅读页保持固定大小。
+- **累计阅读计时器**：分钟针每圈代表 60 分钟，细秒针每圈代表 60 秒，数显保留完整小时、分钟和秒；目标外圈独立展示完成度。
+- **更利落的翻页**：保留翻页动画，修复闪白、拖影和桌宠闪烁；长按左右方向键可持续高速翻页，松开后停止，不积压重复操作。
+- **更新 AI 模型选项**：OpenAI 和自定义接口均可直接选择 `gpt-6-astra`，继续支持手填模型 ID 和读取服务商模型列表。
+- **阅读配色独立**：日间、夜间和护眼模式只影响阅读界面，其他页面保持统一设计。
 
 ## 界面截图
 
@@ -16,23 +27,23 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 
 ### 首页
 
-![Gaia Reading 首页](docs/screenshots/PixPin_2026-09-03_01-12-06.png)
+![Gaia Reading 首页](docs/screenshots/PixPin_2026-09-06_04-05-26.png)
+
+### 书架
+
+![Gaia Reading 书架](docs/screenshots/PixPin_2026-09-06_04-05-36.png)
+
+### 双页阅读、AI 对话与设置侧栏
+
+![Gaia Reading 双页阅读、AI 对话与设置侧栏](docs/screenshots/PixPin_2026-09-06_04-06-39.png)
+
+### 阅读目标与累计计时器
+
+![Gaia Reading 阅读目标与累计计时器](docs/screenshots/PixPin_2026-09-06_04-06-52.png)
 
 ### AI 阅读中心
 
-![Gaia Reading AI 阅读中心](docs/screenshots/PixPin_2026-09-03_01-13-04.png)
-
-### 书架与有珠控制台
-
-![Gaia Reading 书架与有珠控制台](docs/screenshots/PixPin_2026-09-03_01-13-48.png)
-
-### 双页阅读与 AI 对话
-
-![Gaia Reading 双页阅读与 AI 对话](docs/screenshots/PixPin_2026-09-03_01-14-32.png)
-
-### 阅读统计
-
-![Gaia Reading 阅读统计](docs/screenshots/PixPin_2026-09-03_01-14-46.png)
+![Gaia Reading AI 阅读中心](docs/screenshots/PixPin_2026-09-06_04-07-33.png)
 
 ## 主要功能
 
@@ -55,6 +66,7 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 
 - 用户自行配置接口，支持 OpenAI、DeepSeek、兼容 OpenAI 格式的第三方服务和本地 Ollama。
 - 可保存多套接口档案，分别管理 Base URL、API Key 和模型，并在阅读时随时切换。
+- OpenAI 和自定义接口内置 `gpt-6-astra` 候选，模型 ID 原样保存和发送；实际可用模型由账号权限或接口服务商决定，原有档案不会被自动替换。
 - AI 只接收当前逻辑章节作为上下文；正文没有提供的信息会明确说明，不主动补写剧情或剧透后文。
 - 提供“总结本章”“人物关系”“伏笔”三个输入快捷键，点击后仅填入问题，由用户确认发送。
 - 生成期间可以停止；输入新问题后可以中止旧请求并立即发送。
@@ -69,14 +81,16 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 ### 阅读记录与有珠
 
 - 记录每日和每周阅读时长、目标完成度、连续阅读天数与年度读完书籍。
+- 阅读目标页用 60 分钟计时表盘与完整数显展示今日累计阅读时长，支持 15 / 30 / 45 / 60 分钟目标；停留在统计页不累计阅读时间。
 - 有珠支持点击、拖动、表情、哈欠、困倦、睡眠、梦话和阅读关怀提醒；透明或阅读页淡化时，鼠标碰到她会完全显现并唤醒。
 - 控制台可调整有珠的尺寸、透明度、阅读页显示方式和自主行为。
 - 内置 BGM 胶囊，支持播放、切歌、音量与状态记忆。
+- 桌宠保持独立尺寸和拖动坐标，窗口放大不会同步放大有珠；书架以知更鸟、白色月牙、封面边框和阅读进度丰富展示。
 
 ## 下载与运行
 
-1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.0.3)。
-2. 下载 `Gaia.Reading.1.0.3.exe`。
+1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.0)。
+2. 下载 `Gaia.Reading.1.1.0.exe`。
 3. 双击运行，无需安装 Node.js，也无需执行安装程序。
 
 系统要求：Windows 10/11 x64。当前发行文件未购买商业代码签名证书，Windows 首次运行时可能显示 SmartScreen 提示；请确认下载来源并核对 Release 中公布的 SHA-256。
@@ -85,12 +99,12 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 
 | 类型 | Base URL 示例 | 模型示例 | 说明 |
 | --- | --- | --- | --- |
-| OpenAI | `https://api.openai.com/v1` | 账号可用的模型 ID | 使用 OpenAI API Key |
+| OpenAI | `https://api.openai.com/v1` | `gpt-6-astra` 等账号可用 ID | 使用 OpenAI API Key |
 | DeepSeek | `https://api.deepseek.com` | `deepseek-chat` | 使用 DeepSeek API Key |
 | 第三方兼容接口 | 服务商提供的地址 | 服务商提供的模型 ID | 地址和 Key 均由服务商决定 |
 | Ollama | `http://127.0.0.1:11434` | 本机已安装模型 | 完全本地运行，不需要 API Key |
 
-Base URL 决定请求发送到哪里，API Key 用来向该地址证明身份，模型名称决定调用该服务中的哪个模型。三项必须与同一家服务的文档保持一致。
+Base URL 决定请求发送到哪里，API Key 用来向该地址证明身份，模型 ID 决定调用该服务中的哪个模型。三项必须与同一家服务的文档保持一致。自定义接口也提供 `gpt-6-astra` 候选；如果服务商采用其他命名，可直接填写它支持的 ID。
 
 ## 隐私与数据
 
@@ -105,6 +119,7 @@ Base URL 决定请求发送到哪里，API Key 用来向该地址证明身份，
 | 操作 | 按键或方式 |
 | --- | --- |
 | 上一页 / 下一页 | `←` / `→` 或 `PageUp` / `PageDown` |
+| 高速连续翻页 | 长按 `←` / `→`，保留动画，松开停止 |
 | 返回书架 | `Esc` |
 | 书内全文搜索 | `Ctrl + F`（结果中 `Enter` 下一处，`Shift + Enter` 上一处） |
 | 打开目录 | 点击阅读页左下角“目录”，或将鼠标移到阅读区最左侧 |
@@ -146,4 +161,4 @@ tests/               自动化测试和测试用电子书
 assets/bgm/          内置音乐资源
 ```
 
-本次更新详情请阅读 [RELEASE_NOTES_1.0.3.md](RELEASE_NOTES_1.0.3.md)；上一版本说明可查看 [RELEASE_NOTES_1.0.2.md](RELEASE_NOTES_1.0.2.md)。
+本次更新详情请阅读 [RELEASE_NOTES_1.1.0.md](RELEASE_NOTES_1.1.0.md)；上一版本说明可查看 [RELEASE_NOTES_1.0.3.md](RELEASE_NOTES_1.0.3.md)。
