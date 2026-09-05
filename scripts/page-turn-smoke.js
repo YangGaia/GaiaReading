@@ -164,14 +164,16 @@ async function run(win) {
     if (reducedMotion) {
       check(`${name}: reduced motion suppresses page effects`, motion.length === 0);
     } else if (actionResult !== false) {
-      check(`${name}: a visible 320ms page effect actually runs`, motion.some((p) => p.duration === 320 && Math.abs(p.x) > 2 && p.progress > 0 && p.progress < 1));
+      check(`${name}: a visible 160ms page effect actually runs`, motion.some((p) => p.duration === 160 && Math.abs(p.x) > 2 && p.progress > 0 && p.progress < 1));
+      check(`${name}: every page effect stays short and within 20px`, motion.every((p) => p.duration === 160 && Math.abs(p.x) <= 20.1));
+      check(`${name}: incoming text stays opaque without crossfade ghosting`, motion.every((p) => p.opacity === 1));
       if (!name.includes('rapid') && /-(next|prev)$/.test(name)) {
         const direction = name.endsWith('-next') ? 1 : -1;
         check(`${name}: motion follows the page direction`, motion.every((p) => p.x * direction >= -.1));
       }
       const entering = motion.filter((p) => p.name === 'readerPageEnter');
       if (entering.length) {
-        check(`${name}: new page fades in over opaque old paper`, entering.some((p) => p.opacity > .25 && p.opacity < .98) && entering.every((p) => p.oldOpacity === 1));
+        check(`${name}: old paper stays opaque behind the incoming page`, entering.every((p) => p.oldOpacity === 1));
       }
     }
     const minPetLight = Math.min(petSamples[0].light, petSamples.at(-1).light) - 25;

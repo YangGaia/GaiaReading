@@ -1041,7 +1041,7 @@ function queuePageTurn(direction, update) {
       }
       const root = document.documentElement;
       root.classList.add('reader-page-turn');
-      root.style.setProperty('--reader-turn-offset', direction === 'next' ? '30px' : '-30px');
+      root.style.setProperty('--reader-turn-offset', direction === 'next' ? '20px' : '-20px');
       let moved = false;
       try {
         let transition;

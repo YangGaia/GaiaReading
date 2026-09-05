@@ -526,13 +526,14 @@ button { font-family: inherit; }
 ::view-transition-image-pair(reader-page) { isolation: isolate; }
 ::view-transition-old(reader-page), ::view-transition-new(reader-page) { opacity: 1; mix-blend-mode: normal; animation: none; }
 ::view-transition-old(reader-page) { z-index: 0; }
-::view-transition-new(reader-page) { z-index: 1; animation: readerPageEnter .32s ease both; }
-@keyframes readerPageEnter { from { opacity: .25; transform: translateX(var(--reader-turn-offset, 30px)); } to { opacity: 1; transform: translateX(0); } }
+/* Keep the incoming page opaque: a crossfade superimposes two sets of text. */
+::view-transition-new(reader-page) { z-index: 1; animation: readerPageEnter .16s cubic-bezier(.2, .65, .3, 1) both; }
+@keyframes readerPageEnter { from { transform: translateX(var(--reader-turn-offset, 20px)); } to { transform: translateX(0); } }
 /* Without an old snapshot, slide opaque content over the stationary paper. */
-@keyframes pageSlideNext { from { transform: translateX(30px); } to { transform: translateX(0); } }
-@keyframes pageSlidePrev { from { transform: translateX(-30px); } to { transform: translateX(0); } }
-#reader-content.paging-fallback.paging-next > :is(.paginator-frame, .epub-container, .pdf-spread) { animation: pageSlideNext .32s ease; }
-#reader-content.paging-fallback.paging-prev > :is(.paginator-frame, .epub-container, .pdf-spread) { animation: pageSlidePrev .32s ease; }
+@keyframes pageSlideNext { from { transform: translateX(20px); } to { transform: translateX(0); } }
+@keyframes pageSlidePrev { from { transform: translateX(-20px); } to { transform: translateX(0); } }
+#reader-content.paging-fallback.paging-next > :is(.paginator-frame, .epub-container, .pdf-spread) { animation: pageSlideNext .16s cubic-bezier(.2, .65, .3, 1); }
+#reader-content.paging-fallback.paging-prev > :is(.paginator-frame, .epub-container, .pdf-spread) { animation: pageSlidePrev .16s cubic-bezier(.2, .65, .3, 1); }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-new(reader-page), #reader-content.paging-fallback > * { animation: none !important; }
 }
