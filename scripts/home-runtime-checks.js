@@ -133,6 +133,9 @@ module.exports = async ({ win, report, check, capture }) => {
         const art = document.getElementById('home-img').getBoundingClientRect();
         const copy = home.querySelector('.home-copy').getBoundingClientRect();
         const pet = document.getElementById('gaia-pet').getBoundingClientRect();
+        const leftSpace = (copy.left - canvas.left) / scale;
+        const rightSpace = (canvas.right - art.right) / scale;
+        fail(Math.abs(leftSpace - rightSpace) < 1, `Home copy and portrait must have balanced outer space: ${leftSpace}/${rightSpace}`);
         fail(art.width > 0 && Math.abs(art.width - art.height) < 1, 'Home art must retain its original aspect ratio');
         fail(!overlaps(art, copy), 'Home art must not cover the entry controls');
         fail(pet.width === 150 * GaiaPet.getState().scale, 'Pet size must be independent of the home scale');
@@ -170,7 +173,7 @@ module.exports = async ({ win, report, check, capture }) => {
           fail(range.getBoundingClientRect().width <= el.getBoundingClientRect().width + 1, `Home label is clipped: ${el.textContent}`);
         }
         fail(home.scrollTop === 0 && home.scrollLeft === 0, 'Home must never scroll to reveal a control');
-        return { width: innerWidth, height: innerHeight, scale, comparedElements: selectors.length, documentHeight: home.scrollHeight, petWidth: pet.width, controls: controls.length, nativeTextRendering: true };
+        return { width: innerWidth, height: innerHeight, scale, comparedElements: selectors.length, documentHeight: home.scrollHeight, petWidth: pet.width, controls: controls.length, nativeTextRendering: true, compositionMargins: { left: leftSpace, right: rightSpace } };
       };
     });
 
@@ -207,9 +210,10 @@ module.exports = async ({ win, report, check, capture }) => {
 
     assert.deepEqual(await evaluate(() => window.api.stateGet('pet')), storedPet, 'Window resizing must not change saved pet preferences');
     // A freely positioned pet can overlap content. At 200% browser zoom, park
-    // her in the center gap using a real drag before checking all home targets.
+    // her beyond the centered entry controls using a real drag before checking
+    // all home targets. This changes only the isolated test's saved position.
     await resize(1100, 760);
-    await movePetToRatio(.5);
+    await movePetToRatio(.65);
     storedPet = await evaluate(() => window.api.stateGet('pet'));
     for (const [width, height] of [[1100, 760], [800, 600]]) {
       for (const zoom of [1.25, 1.5, 2]) {

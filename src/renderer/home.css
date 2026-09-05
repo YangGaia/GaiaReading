@@ -66,7 +66,8 @@
   align-items: center;
   column-gap: calc(48.4 * var(--home-unit));
   padding-block: var(--main-space);
-  padding-right: calc(116.8 * var(--home-unit));
+  /* Balance the composition without changing the copy or portrait dimensions. */
+  padding-inline: calc(58.4 * var(--home-unit));
 }
 #home-view .home-copy { width: 100%; max-width: calc(336 * var(--home-unit)); min-width: 0; }
 #home-view h1 { margin: 0; font-family: "Gaia Wordmark", "Gaia Home Noto", sans-serif; font-size: calc(46 * var(--home-unit)); font-weight: 500; line-height: 1.06; letter-spacing: -.018em; font-kerning: normal; color: #edf0f6; }
