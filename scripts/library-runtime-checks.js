@@ -28,7 +28,8 @@ module.exports = async ({ win, report, check, capture, books }) => {
       [...document.querySelectorAll('.library-ornament')].every((el) => el.getAttribute('aria-hidden') === 'true' && getComputedStyle(el).pointerEvents === 'none') &&
       [...document.querySelectorAll('.book-card')].every((el) => el.tabIndex === 0 && el.getAttribute('role') === 'button' && el.getAttribute('aria-label'));
   }));
-  for (const [width, height, zoom] of [[800, 600, 1], [1100, 760, 1], [1600, 1000, 1], [1920, 1080, 1], [2560, 1080, 1], [800, 600, 1.25]]) {
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: 1, y: 1 });
+  for (const [width, height, zoom] of [[800, 600, 1], [1100, 760, 1], [1600, 1000, 1], [1440, 600, 1], [800, 1000, 1], [1920, 1080, 1], [2560, 1080, 1], [800, 600, 1.25]]) {
     await resize(width, height, zoom);
     const layout = await evaluate(() => {
       const requireTrue = (ok, message) => { if (!ok) throw new Error(message); };
@@ -49,7 +50,18 @@ module.exports = async ({ win, report, check, capture, books }) => {
         requireTrue(r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, `${selector} must remain on screen`);
         requireTrue(r.right <= content.left || r.left >= content.right, `${selector} must remain outside the books at ${innerWidth}: [${r.left}, ${r.right}] / [${content.left}, ${content.right}]`);
       }
-      return { width: innerWidth, height: innerHeight, columns: getComputedStyle(document.getElementById('bookshelf')).gridTemplateColumns.split(' ').length, covers: cards.length };
+      const scale = Math.min(innerWidth / 1100, innerHeight / 760);
+      const bird = document.querySelector('.library-robin').getBoundingClientRect();
+      const moon = document.querySelector('.library-moon').getBoundingClientRect();
+      const leftLine = document.querySelector('.library-ornament-left .library-side-rule').getBoundingClientRect();
+      const rightLine = document.querySelector('.library-ornament-right .library-side-rule').getBoundingClientRect();
+      const birdGap = (leftLine.left - bird.right) / scale;
+      const moonGap = (moon.left - rightLine.right) / scale;
+      requireTrue(birdGap >= 28 && moonGap >= 32, `Rotated ornaments need visible space from shelf lines: ${birdGap}/${moonGap}`);
+      const body = document.querySelector('.library-body').getBoundingClientRect();
+      requireTrue((moon.top - body.top) / scale >= 55, 'Moon should sit below the heading level');
+      requireTrue(Math.abs(parseFloat(getComputedStyle(document.querySelector('.library-robin')).width) / scale - 64) < .1 && Math.abs(parseFloat(getComputedStyle(document.querySelector('.library-moon')).width) / scale - 50) < .1, 'Ornaments must scale smoothly with the homepage reference');
+      return { width: innerWidth, height: innerHeight, columns: getComputedStyle(document.getElementById('bookshelf')).gridTemplateColumns.split(' ').length, covers: cards.length, birdGap, moonGap };
     });
     report.checks.push({ name: 'library display mounts and ornaments fit', ...layout });
     await capture(win, `library-detail-${width}x${height}-${zoom}`);
@@ -132,4 +144,5 @@ module.exports = async ({ win, report, check, capture, books }) => {
   await capture(win, 'music-reader-800x600');
   await resize(1100, 760);
   await evaluate(async () => __gaiaDebug.backToLibrary());
+  await require('./music-responsive-checks')({ win, report, check, capture });
 };

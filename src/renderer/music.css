@@ -3,7 +3,8 @@
   position: fixed;
   z-index: 150;
   top: 18px; right: 28px; bottom: auto; left: auto;
-  --music-unit: 1px;
+  /* Match the homepage's 1100 × 760 fit without scaling a rasterized layer. */
+  --music-unit: min(calc(100vw / 1100), calc(100vh / 760));
   --secondary: #adb5c3;
   --text: #eceff4;
   color-scheme: dark;
@@ -64,16 +65,17 @@
 #bgm-capsule .bgm-btn { cursor: pointer; }
 #bgm-capsule .bgm-volume { display: block; }
 #bgm-capsule button:focus-visible, #bgm-capsule input:focus-visible { outline: calc(2 * var(--music-unit)) solid #b6c8f0; outline-offset: calc(3 * var(--music-unit)); }
-#bgm-capsule[data-view="reader"][data-settings-open="0"] { width: clamp(270px, 28vw, 336px); margin-left: 0; }
-#bgm-capsule[data-settings-open="1"] { position: fixed; z-index: 9201; top: 16px; right: calc(var(--settings-drawer-width) + 24px); bottom: auto; left: auto; margin: 0; width: min(382px, calc(100vw - var(--settings-drawer-width) - 48px)); }
+#bgm-capsule[data-view="reader"][data-settings-open="0"] { margin-left: 0; }
+#bgm-capsule[data-settings-open="1"] { position: fixed; z-index: 9201; top: 16px; right: calc(var(--settings-drawer-width) + 24px); bottom: auto; left: auto; margin: 0; }
+#bgm-capsule[data-view="reader"] { --music-unit: 1px; width: 304px; }
 @media (max-width: 1040px) {
-  #bgm-capsule[data-view="reader"][data-settings-open="0"] .bgm-cover { display: none; }
+  #bgm-capsule[data-view="reader"] .bgm-cover { display: none; }
 }
 @media (max-width: 760px) {
   #bgm-capsule[data-settings-open="1"] { visibility: hidden; opacity: 0; pointer-events: none; }
 }
 @media (max-width: 640px) {
-  #bgm-capsule[data-view="library"][data-settings-open="0"] { width: 100%; margin-left: 0; }
+  #bgm-capsule[data-view="library"][data-settings-open="0"] { margin-left: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
   #bgm-capsule, #bgm-capsule .bgm-btn { transition: none; }

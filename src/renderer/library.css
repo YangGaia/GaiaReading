@@ -11,7 +11,8 @@
   --paper-font: "Gaia Home Noto", "Noto Sans SC", sans-serif;
   --title-font: var(--paper-font);
   --page-inset: clamp(24px, 4.5vw, 72px);
-  --side-width: clamp(40px, 7.5vw, 136px);
+  --library-unit: min(calc(100vw / 1100), calc(100vh / 760));
+  --side-width: calc(96 * var(--library-unit));
   --cover-height: clamp(158px, 28vh, 242px);
   position: relative;
   isolation: isolate;
@@ -82,21 +83,21 @@
 #library-view .book-check { z-index: 2; top: 10px; right: 10px; width: 25px; height: 25px; border-radius: 7px; line-height: 21px; color: #172030; background: #b6c8e5; border-color: #b6c8e5; box-shadow: 0 2px 7px #00000040; }
 #library-view .book-card.selected .book-check { background: #b6c8e5; border-color: #b6c8e5; }
 #library-view .library-ornament { position: relative; min-height: 0; pointer-events: none; user-select: none; }
-#library-view .library-side-rule { position: absolute; top: 62px; bottom: 11%; width: 1px; background: linear-gradient(180deg, #65799466, #3e4c6030 58%, transparent); }
-#library-view .library-ornament-left .library-side-rule { right: 8px; }
-#library-view .library-ornament-right .library-side-rule { left: 8px; top: 180px; }
-#library-view .library-robin { position: absolute; left: -12%; top: 32%; width: 110%; max-width: none; height: auto; object-fit: contain; filter: saturate(.72) drop-shadow(0 10px 14px #00000038); transform: rotate(-9deg); transition: transform .65s cubic-bezier(.2,.7,.2,1); }
+#library-view .library-side-rule { position: absolute; top: calc(62 * var(--library-unit)); bottom: 11%; width: 1px; background: linear-gradient(180deg, #65799466, #3e4c6030 58%, transparent); }
+#library-view .library-ornament-left .library-side-rule { right: calc(8 * var(--library-unit)); }
+#library-view .library-ornament-right .library-side-rule { left: calc(8 * var(--library-unit)); top: calc(180 * var(--library-unit)); }
+/* Clearance includes the rotated silhouette, not just the image's layout box. */
+#library-view .library-robin { position: absolute; right: calc(44 * var(--library-unit)); top: 32%; width: calc(64 * var(--library-unit)); max-width: none; height: auto; object-fit: contain; filter: saturate(.72) drop-shadow(0 10px 14px #00000038); transform: rotate(-9deg); transition: transform .65s cubic-bezier(.2,.7,.2,1); }
 #library-view:has(.book-card:hover) .library-robin { transform: translateY(-3px) rotate(-6deg); }
 #library-view .library-flight-line { position: absolute; top: 54%; left: 12%; width: 60%; max-height: 32%; stroke: #8597b1; stroke-width: .8; opacity: .35; }
-#library-view .library-moon { position: absolute; top: 16px; left: 14%; width: 72%; max-width: 86px; color: #e5eaf3; filter: drop-shadow(0 5px 10px #00000024); transform: rotate(-12deg); }
-#library-view .library-orbit { position: absolute; top: 136px; left: 7px; width: 3px; height: 3px; border-radius: 50%; background: #c1ccde; box-shadow: 0 12px 0 #718198; }
+#library-view .library-moon { position: absolute; top: calc(64 * var(--library-unit)); left: calc(56 * var(--library-unit)); width: calc(50 * var(--library-unit)); color: #e5eaf3; filter: drop-shadow(0 5px 10px #00000024); transform: rotate(-12deg); }
+#library-view .library-orbit { position: absolute; top: calc(150 * var(--library-unit)); left: calc(7 * var(--library-unit)); width: 3px; height: 3px; border-radius: 50%; background: #c1ccde; box-shadow: 0 12px 0 #718198; }
 #library-view .hint { margin: clamp(16px, 4vh, 48px) auto 0; padding: 12px 18px; gap: 9px; text-align: center; }
 #library-view .hint strong { font: 400 20px/1.5 var(--paper-font); letter-spacing: .04em; }
 #library-view .empty-book { width: 54px; height: 72px; margin-bottom: 8px; color: #b6c8e5; border-color: #8296b2; font-family: "Gaia Wordmark", serif; background: #253040; box-shadow: 5px 8px 15px #00000030; }
 #library-view .library-footer { flex: 0 0 auto; min-height: 45px; gap: 22px; padding: 10px var(--page-inset) 16px; border: 0; font: 500 15px/1 "Gaia Wordmark", serif; color: #adb9cd; }
 #library-view .library-footer-rule { height: 1px; flex: 1; margin-right: 174px; background: #3c4654; }
 @media (max-width: 1200px) {
-  #library-view { --side-width: 64px; }
   #library-view .topbar { gap: 16px; }
   #library-view .bookshelf { grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 23px 18px; }
   #library-view .library-heading h1 { font-size: 25px; }
@@ -105,18 +106,16 @@
   #library-view .shelf-toolbar .btn { padding-inline: 10px; }
 }
 @media (max-width: 900px) {
-  #library-view { --page-inset: 24px; --side-width: 30px; }
+  #library-view { --page-inset: 24px; }
   #library-view .topbar { gap: 12px; min-height: 86px; padding-block: 17px; }
   #library-view .topbar .page-title { font-size: 20px; }
   #library-view .library-body { gap: 10px; }
   #library-view .library-heading { padding-top: 16px; }
-  #library-view .library-moon { left: -10%; width: 140%; }
-  #library-view .library-robin { top: 43%; left: -55%; width: 160%; }
   #library-view .library-flight-line { left: 0; width: 80%; }
   #library-view .library-side-rule { opacity: .55; }
 }
 @media (max-width: 640px) {
-  #library-view { --page-inset: 14px; --side-width: 16px; --cover-height: 158px; }
+  #library-view { --page-inset: 14px; --cover-height: 158px; }
   #library-view .topbar { flex-wrap: wrap; gap: 6px 10px; padding-block: 10px; }
   #library-view .library-header-rule { min-width: 10px; }
   #library-view .library-heading { flex-direction: column; align-items: flex-start; gap: 12px; padding-block: 12px; }
@@ -126,8 +125,6 @@
   #library-view .bookshelf { grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 22px 12px; }
   #library-view .book-jacket { padding: 16px 10px 20px; }
   #library-view .book-cover-name { font-size: 13px; }
-  #library-view .library-moon { top: 8px; left: 0; width: 130%; }
-  #library-view .library-robin { top: 45%; left: -40%; width: 140%; }
   #library-view .library-footer-rule { margin-right: 80px; }
 }
 @media (prefers-reduced-motion: reduce) {
