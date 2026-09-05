@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="dark">
+  <title>Gaia Reading · 首页设计预览</title>
+  <link rel="stylesheet" href="home.css">
+</head>
+<body>
+  <main class="home-preview" aria-label="Gaia Reading 首页">
+    <header class="page-header">
+      <div class="app-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none"><path d="M6 6.5c4.5-1 7.4-.1 10 2.1 2.6-2.2 5.5-3.1 10-2.1v18c-4.3-1-7.3-.2-10 1.6-2.7-1.8-5.7-2.6-10-1.6v-18Z"/><path d="M16 8.6v17.5M10 11.5c1.1 0 2.1.3 3 .8M10 15.5c1.1 0 2.1.3 3 .8"/></svg>
+      </div>
+      <section class="music-player" aria-label="阅读音乐">
+        <img class="track-cover" src="../../../src/renderer/images/2.jpeg" alt="" draggable="false">
+        <div class="track-copy"><span class="track-title">久远寺有珠</span><span class="track-album">魔法使之夜</span></div>
+        <div class="playback-controls" role="group" aria-label="音乐控制">
+          <button class="icon-button" type="button" aria-label="上一首"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 4h1.5v12H4zM15 4.5v11L6.5 10 15 4.5Z"/></svg></button>
+          <button class="icon-button play-button" type="button" aria-label="播放"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M6.5 4.5 15 10l-8.5 5.5v-11Z"/></svg></button>
+          <button class="icon-button" type="button" aria-label="下一首"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M14.5 4H16v12h-1.5zM5 4.5l8.5 5.5L5 15.5v-11Z"/></svg></button>
+        </div>
+        <div class="volume-control"><svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="M8.5 6 5 8H2.5v4H5l3.5 2V6ZM12 7c1.5 1.6 1.5 4.4 0 6M14 4.5c3 3 3 8 0 11"/></svg><input type="range" min="0" max="100" value="45" aria-label="音量"></div>
+      </section>
+    </header>
+
+    <div class="study-layout">
+      <section class="home-copy" aria-labelledby="home-title">
+        <h1 id="home-title">Gaia Reading</h1>
+        <nav class="home-actions" aria-label="首页入口">
+          <button id="preview-shelf" class="action-button primary-action" type="button">
+            <svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5c3-.8 5.5-.2 8 1.5 2.5-1.7 5-2.3 8-1.5v13c-3-.8-5.5-.2-8 1.5-2.5-1.7-5-2.3-8-1.5v-13ZM12 7v13"/></svg>
+            <span>进入书架</span>
+            <svg class="forward-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
+          </button>
+          <div class="secondary-actions">
+            <button id="preview-add" class="action-button secondary-action" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>添加图书</span></button>
+            <button id="preview-ai" class="action-button secondary-action" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6L12 3Z"/></svg><span>AI 助手</span></button>
+          </div>
+          <button id="preview-settings" class="settings-button" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4v16M12 4v16M19 4v16M2 8h6M9 16h6M16 10h6"/></svg><span>设置</span></button>
+        </nav>
+      </section>
+
+      <figure class="portrait" aria-label="久远寺有珠">
+        <img id="alice-art" src="../../../src/renderer/images/2.jpeg" alt="神情冷静的久远寺有珠" draggable="false">
+      </figure>
+
+      <aside class="companion-space" aria-label="桌宠位置">
+        <img id="alice-companion" src="../../../src/renderer/images/pet/stats/idle.png" alt="久远寺有珠桌宠" draggable="false">
+      </aside>
+    </div>
+
+    <footer class="page-footer"><a class="design-credit" href="https://deerflow.tech" target="_blank" rel="noopener noreferrer">Created By Deerflow</a></footer>
+  </main>
+</body>
+</html>
