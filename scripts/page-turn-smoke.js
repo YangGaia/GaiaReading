@@ -19,7 +19,7 @@ app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 fs.writeFileSync(path.join(sandbox, 'gaia-reading.json'), JSON.stringify({ library: [], prefs: { theme: 'light' }, pet: { auto: false, autoSpeech: false, autoSleep: false } }));
 BrowserWindow.prototype.show = function () { this.showInactive(); };
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const report = { checks: [], recordings: [], consoleErrors: [], skipped: [], output, sandbox };
+const report = { checks: [], recordings: [], keyboard: [], consoleErrors: [], skipped: [], output, sandbox };
 let finished = false;
 const timeout = setTimeout(() => finish(new Error('Page-turn smoke timed out')), 240000);
 function finish(error) {
@@ -200,6 +200,69 @@ async function run(win) {
     }));
   }
 
+  async function checkKeyboardResponse(format) {
+    const result = await evaluate(async () => {
+      __gaiaDebug.setMode('single');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const position = () => {
+        const c = state.current;
+        if (c.format === 'pdf') return String(c.page);
+        if (c.paginator) return `${c.flow ? c.flow.chapter : 0}:${c.paginator.currentPage}`;
+        return c.rendition.currentLocation().start.cfi;
+      };
+      const send = (type, key, repeat = false) => {
+        // Exercise the real content-document bindings as well as the outer UI.
+        const frame = document.querySelector('#reader-content iframe');
+        const target = frame ? frame.contentDocument : document;
+        target.dispatchEvent(new KeyboardEvent(type, { key, repeat, bubbles: true, cancelable: true }));
+      };
+      const originalNext = advancePage, originalPrev = retreatPage;
+      let calls = [];
+      advancePage = async (...args) => { const moved = await originalNext(...args); calls.push({ direction: 'next', at: performance.now(), moved }); return moved; };
+      retreatPage = async (...args) => { const moved = await originalPrev(...args); calls.push({ direction: 'prev', at: performance.now(), moved }); return moved; };
+      try {
+        const before = position();
+        const directions = Array.from({ length: 12 }, (_, i) => i % 4 < 2 ? 'next' : 'prev');
+        const started = performance.now();
+        for (const direction of directions) {
+          const key = direction === 'next' ? 'ArrowRight' : 'ArrowLeft';
+          send('keydown', key);
+          await pause(18);
+          send('keyup', key);
+          await pause(42);
+        }
+        const released = performance.now();
+        await pageTurnQueue;
+        const rapid = { expected: directions, directions: calls.map((call) => call.direction),
+          firstResponseMs: calls[0].at - started, tailMs: performance.now() - released,
+          before, after: position() };
+        calls = [];
+        send('keydown', 'ArrowRight');
+        for (let i = 0; i < 35; i += 1) { await pause(20); send('keydown', 'ArrowRight', true); }
+        send('keyup', 'ArrowRight');
+        const atRelease = calls.length;
+        await pageTurnQueue;
+        const afterCurrentTurn = calls.length;
+        const stoppedPage = position();
+        await pause(300);
+        const hold = { atRelease, afterCurrentTurn, finalCalls: calls.length, stoppedPage, finalPage: position() };
+        return { rapid, hold };
+      } finally {
+        advancePage = originalNext;
+        retreatPage = originalPrev;
+      }
+    });
+    report.keyboard.push({ format, ...result });
+    check(`${format}: rapid separate presses preserve every direction`, JSON.stringify(result.rapid.directions) === JSON.stringify(result.rapid.expected));
+    check(`${format}: alternating keys return to the same page`, result.rapid.before === result.rapid.after);
+    check(`${format}: first key responds within 150ms`, result.rapid.firstResponseMs < 150);
+    check(`${format}: rapid input has no accumulated animation delay`, result.rapid.tailMs < 250);
+    check(`${format}: holding the key continues turning`, result.hold.atRelease > 1);
+    check(`${format}: key release leaves no queued repeats`, result.hold.afterCurrentTurn <= result.hold.atRelease + 1);
+    check(`${format}: no autonomous turns after release`, result.hold.finalCalls === result.hold.afterCurrentTurn && result.hold.finalPage === result.hold.stoppedPage);
+  }
+
   for (const book of await fixtures) {
     await evaluate((b) => __gaiaDebug.openBook({ ...b, title: '翻页验证' }), book);
     await evaluate(async () => {
@@ -365,6 +428,12 @@ async function run(win) {
         await window.__petDragTurn;
       });
     }
+    // PDF's deliberately delayed canvas fixture belongs to the separate loading
+    // regression above; restore its normal renderer for keyboard latency checks.
+    if (book.format === 'pdf') {
+      await evaluate((b) => __gaiaDebug.openBook({ ...b, title: '翻页验证' }), book);
+    }
+    await checkKeyboardResponse(book.format);
     await evaluate(() => __gaiaDebug.backToLibrary());
   }
 

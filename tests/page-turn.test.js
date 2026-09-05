@@ -7,6 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const app = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
 const source = app.slice(app.indexOf('let pageTurnQueue ='), app.indexOf('function toggleSpread()'));
+const keyboardSource = app.slice(app.indexOf('function isReaderTyping('), app.indexOf('function onReaderWheel('));
 const deferred = () => {
   let resolve, reject;
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
@@ -98,23 +99,131 @@ test('动画接口同步失败时仍更新一次并显示备用动画', async ()
   assert.ok(reader.classList.values.has('paging-prev'));
 });
 
-test('备用动画播完后才执行下一次翻页，取消后不会阻塞新书', async () => {
+test('新输入立即收尾备用动画，取消后不会阻塞新书', async () => {
   const { context, reader, state } = harness({ fallback: true });
   const animation = deferred();
   let cancelled = 0;
-  reader.getAnimations = () => [{ animationName: 'pageSlideNext', finished: animation.promise, cancel: () => { cancelled += 1; animation.resolve(); } }];
+  let finished = 0;
+  reader.getAnimations = () => [{ animationName: 'pageSlideNext', finished: animation.promise,
+    finish: () => { finished += 1; animation.resolve(); }, cancel: () => { cancelled += 1; animation.resolve(); } }];
   const pages = [];
   const first = context.queuePageTurn('next', () => { pages.push(1); });
-  const second = context.queuePageTurn('next', () => { pages.push(2); });
   await tick();
-  assert.deepEqual(pages, [1], '备用动画不能被连续输入立刻覆盖');
+  const second = context.queuePageTurn('next', () => { pages.push(2); });
+  await Promise.all([first, second]);
+  assert.equal(finished, 1, '新输入不等待 160ms 备用动画播完');
+  assert.deepEqual(pages, [1, 2]);
+  const blocked = deferred();
+  reader.getAnimations = () => [{ animationName: 'pageSlideNext', finished: blocked.promise,
+    finish: () => blocked.resolve(), cancel: () => { cancelled += 1; blocked.resolve(); } }];
+  const third = context.queuePageTurn('next', () => { pages.push(3); });
+  await tick();
   context.cancelPageTurns();
   state.current = {};
   reader.getAnimations = () => [];
-  await context.queuePageTurn('prev', () => { pages.push(3); });
-  await Promise.all([first, second]);
+  await context.queuePageTurn('prev', () => { pages.push(4); });
+  await third;
   assert.equal(cancelled, 1);
-  assert.deepEqual(pages, [1, 3]);
+  assert.deepEqual(pages, [1, 2, 3, 4]);
+});
+
+function keyboardHarness(options) {
+  const h = harness(options);
+  h.context.views = { reader: { hidden: false } };
+  h.context.isSettingsOpen = () => false;
+  h.context.noteReadingActivity = () => {};
+  h.pages = [];
+  h.update = (direction) => { h.pages.push(direction); return true; };
+  h.context.nextPage = () => h.context.queuePageTurn('next', () => h.update('next'));
+  h.context.prevPage = () => h.context.queuePageTurn('prev', () => h.update('prev'));
+  vm.runInContext(keyboardSource, h.context);
+  h.key = (key, repeat = false, target = {}) => h.context.onReaderKey({ key, repeat, target, preventDefault() {} });
+  h.release = (key) => h.context.onReaderKeyUp({ key });
+  h.settled = () => vm.runInContext('pageTurnQueue', h.context);
+  return h;
+}
+
+test('快速独立按键逐次生效，不等待前一次动画结束，也不丢失反向输入', async () => {
+  const h = keyboardHarness();
+  const motions = [];
+  h.context.document.startViewTransition = (update) => {
+    const motion = deferred();
+    motions.push(motion);
+    const done = Promise.resolve().then(update);
+    return { ready: done, updateCallbackDone: done, finished: done.then(() => motion.promise), skipTransition: () => motion.resolve() };
+  };
+  const keys = ['ArrowRight', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'PageDown', 'PageUp', 'ArrowRight', 'ArrowRight'];
+  for (const key of keys) {
+    h.key(key);
+    await tick();
+    // Each new key must advance even though no mock animation ends by itself.
+  }
+  assert.deepEqual(h.pages, ['next', 'next', 'prev', 'next', 'next', 'prev', 'next', 'next']);
+  h.release(keys.at(-1));
+  await h.settled();
+});
+
+test('长按在加载期间产生的重复事件不积压，松手后不会补翻', async () => {
+  const h = keyboardHarness();
+  const gate = deferred();
+  h.update = async (direction) => { await gate.promise; h.pages.push(direction); return true; };
+  h.key('ArrowRight');
+  await tick();
+  for (let i = 0; i < 100; i += 1) h.key('ArrowRight', true);
+  h.release('ArrowRight');
+  gate.resolve();
+  await h.settled();
+  await tick();
+  assert.deepEqual(h.pages, ['next'], '仅完成已经开始的那一页，不补播 100 次重复输入');
+  h.key('ArrowLeft');
+  await h.settled();
+  assert.deepEqual(h.pages, ['next', 'prev']);
+});
+
+test('长按在页面就绪后继续响应；停止发送按键后不自动翻页', async () => {
+  const h = keyboardHarness();
+  h.key('PageDown');
+  await h.settled();
+  for (let i = 0; i < 5; i += 1) {
+    h.key('PageDown', true);
+    await h.settled();
+  }
+  h.release('PageDown');
+  await tick();
+  await tick();
+  assert.deepEqual(h.pages, Array(6).fill('next'));
+});
+
+test('同一轮快速按下及松开保留每个独立输入，输入框和非阅读页面不翻页', async () => {
+  const h = keyboardHarness();
+  for (let i = 0; i < 12; i += 1) { h.key('ArrowRight'); h.release('ArrowRight'); }
+  await h.settled();
+  assert.deepEqual(h.pages, Array(12).fill('next'));
+  h.key('ArrowRight', false, { tagName: 'INPUT' });
+  h.context.views.reader.hidden = true;
+  h.key('ArrowLeft');
+  await h.settled();
+  assert.equal(h.pages.length, 12);
+});
+
+test('主动结束快照动画不会被误判成失败而补播第二段动画', async () => {
+  const h = keyboardHarness();
+  const captured = deferred();
+  const motion = deferred();
+  let skips = 0;
+  h.context.document.startViewTransition = (update) => {
+    const done = Promise.resolve().then(update);
+    return { ready: captured.promise, updateCallbackDone: done, finished: done.then(() => motion.promise),
+      skipTransition() { skips += 1; motion.resolve(); } };
+  };
+  h.key('ArrowRight');
+  await tick();
+  h.release('ArrowRight');
+  assert.equal(skips, 0, '准备期间保留旧页快照');
+  captured.resolve();
+  await h.settled();
+  assert.equal(skips, 1);
+  assert.ok(!h.reader.classList.values.has('paging-fallback'));
 });
 
 test('到达边界或取消后不会补播被跳过的动画', async () => {

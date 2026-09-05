@@ -989,6 +989,18 @@ let pageTurnQueue = Promise.resolve();
 let pageTurnGeneration = 0;
 let activePageTransition = null;
 let activePageFallbackAnimations = [];
+let pendingPageTurns = 0;
+const interruptedPageTransitions = new WeakSet();
+
+function finishPageTurnAnimation() {
+  const transition = activePageTransition;
+  if (transition && !interruptedPageTransitions.has(transition)) {
+    interruptedPageTransitions.add(transition);
+    // Keep the old paper during preparation; skip only its remaining motion.
+    transition.ready.then(() => transition.skipTransition(), () => {});
+  }
+  for (const animation of activePageFallbackAnimations) animation.finish();
+}
 
 function cancelPageTurns() {
   pageTurnGeneration += 1;
@@ -996,6 +1008,7 @@ function cancelPageTurns() {
   activePageTransition = null;
   for (const animation of activePageFallbackAnimations) animation.cancel();
   activePageFallbackAnimations = [];
+  pendingPageTurns = 0;
   pageTurnQueue = Promise.resolve();
   document.documentElement.classList.remove('reader-page-turn');
   document.documentElement.style.removeProperty('--reader-turn-offset');
@@ -1011,13 +1024,12 @@ function animatePage(direction, fallback = false) {
 }
 
 async function animatePageFallback(direction) {
-  if (document.hidden) return;
+  if (document.hidden || pendingPageTurns > 1) return;
   animatePage(direction, true);
   const animations = els.readerContent.getAnimations({ subtree: true })
     .filter((animation) => /^pageSlide(?:Next|Prev)$/.test(animation.animationName));
   activePageFallbackAnimations = animations;
-  // Wait for the visible motion before allowing a queued turn to replace it.
-  // Reduced-motion CSS produces no animations, so this also resolves immediately.
+  // A later input finishes this motion early; rendering still stays ordered.
   await Promise.all(animations.map((animation) => animation.finished.catch(() => {})));
   if (activePageFallbackAnimations === animations) activePageFallbackAnimations = [];
 }
@@ -1025,6 +1037,8 @@ async function animatePageFallback(direction) {
 function queuePageTurn(direction, update) {
   const current = state.current;
   const generation = pageTurnGeneration;
+  pendingPageTurns += 1;
+  finishPageTurnAnimation();
   const isCurrent = () => current && state.current === current && generation === pageTurnGeneration;
   const run = async () => {
     if (!isCurrent()) return false;
@@ -1058,6 +1072,7 @@ function queuePageTurn(direction, update) {
           return moved;
         }
         activePageTransition = transition;
+        if (pendingPageTurns > 1) finishPageTurnAnimation();
         const ready = transition.ready.then(() => true, () => false);
         const finished = transition.finished.catch(() => {});
         await transition.updateCallbackDone;
@@ -1066,7 +1081,7 @@ function queuePageTurn(direction, update) {
         await finished;
         // Replay only the visual feedback, never the page update, if Chromium
         // skipped its snapshots (for example after a window resize).
-        if (!displayed && moved !== false && isCurrent()) await animatePageFallback(direction);
+        if (!displayed && !interruptedPageTransitions.has(transition) && moved !== false && isCurrent()) await animatePageFallback(direction);
         return moved;
       } finally {
         if (generation === pageTurnGeneration) {
@@ -1081,7 +1096,9 @@ function queuePageTurn(direction, update) {
     // Its renderer calls present only for the synchronous, fully prepared swap.
     return current.format === 'pdf' ? update(present) : present(update);
   };
-  const result = pageTurnQueue.then(run);
+  const result = pageTurnQueue.then(run).finally(() => {
+    if (generation === pageTurnGeneration) pendingPageTurns -= 1;
+  });
   pageTurnQueue = result.catch((error) => {
     if (isCurrent()) {
       console.error('PAGE_TURN_FAILED', error);
@@ -1899,8 +1916,19 @@ function onReaderKey(ev) {
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
   if (views.reader.hidden) return;
   noteReadingActivity();
-  if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') { ev.preventDefault(); prevPage(); }
-  else if (ev.key === 'ArrowRight' || ev.key === 'PageDown') { ev.preventDefault(); nextPage(); }
+  const previous = ev.key === 'ArrowLeft' || ev.key === 'PageUp';
+  const next = ev.key === 'ArrowRight' || ev.key === 'PageDown';
+  if (!previous && !next) return;
+  ev.preventDefault();
+  // OS key repeats are disposable while a page is busy. Separate presses are
+  // never dropped, and neither path schedules any automatic repeat after keyup.
+  if (ev.repeat && pendingPageTurns > 0) { finishPageTurnAnimation(); return; }
+  if (previous) prevPage();
+  else nextPage();
+}
+
+function onReaderKeyUp(ev) {
+  if (['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'].includes(ev.key)) finishPageTurnAnimation();
 }
 
 function onReaderWheel(ev) {
@@ -1928,7 +1956,11 @@ function onReaderWheel(ev) {
 
 function bindReaderKeyboard(target) {
   if (!target || target.__gaiaKeyBound) return;
-  try { target.addEventListener('keydown', onReaderKey); target.__gaiaKeyBound = true; } catch (e) {}
+  try {
+    target.addEventListener('keydown', onReaderKey);
+    target.addEventListener('keyup', onReaderKeyUp, true);
+    target.__gaiaKeyBound = true;
+  } catch (e) {}
 }
 
 function bindReaderWheel(target) {
