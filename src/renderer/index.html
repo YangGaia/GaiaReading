@@ -5,6 +5,8 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: bgm:; style-src 'self' 'unsafe-inline' blob:; script-src 'self' 'unsafe-eval'; font-src 'self' data:; media-src 'self' bgm: blob: data:; frame-src 'self' blob: data:; connect-src 'self' blob: data:;">
 <title>Gaia Reading</title>
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="non-reading.css">
+<link rel="stylesheet" href="library-stats.css">
 </head>
 <body>
   <canvas id="fx-canvas" hidden></canvas>
@@ -16,15 +18,22 @@
 
   <div id="home-view" hidden>
     <div class="home-left">
+      <p class="home-eyebrow">你的私人书房</p>
       <h1 class="home-title">Gaia Reading</h1>
-      <p class="home-subtitle">欢迎回来，选择要做什么</p>
-      <button class="home-item d1" id="btn-home-shelf"><span class="home-ico">📚</span>进入书架</button>
-      <button class="home-item d2" id="btn-home-add-books"><span class="home-ico">＋</span>添加图书</button>
-      <button class="home-item d3" id="btn-home-ai"><span class="home-ico">✦</span>AI 章节助手</button>
-      <button class="home-item d4" id="btn-home-settings"><span class="home-ico">⚙</span>设置</button>
+      <p class="home-subtitle">在书页之间，留一点时间给自己。</p>
+      <div class="home-menu">
+        <button class="home-item d1" id="btn-home-shelf"><svg class="home-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 5h7l2 2 2-2h7v14h-7l-2 2-2-2H3zM12 7v14"/></svg><span>进入书架</span><span class="home-arrow" aria-hidden="true">↗</span></button>
+        <button class="home-item d2" id="btn-home-add-books"><svg class="home-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg><span>添加图书</span></button>
+        <button class="home-item d3" id="btn-home-ai"><svg class="home-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m12 3 2.7 6.3L21 12l-6.3 2.7L12 21l-2.7-6.3L3 12l6.3-2.7z"/></svg><span>AI 章节助手</span></button>
+        <button class="home-item d4" id="btn-home-settings"><svg class="home-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 4v16M12 4v16M19 4v16M2 8h6M9 16h6M16 10h6"/></svg><span>设置</span></button>
+      </div>
+      <p class="home-footnote">一卷书，一段安静的时光。</p>
     </div>
     <div class="home-right">
-      <img id="home-img" src="images/1.jpg" alt="Gaia Reading">
+      <div class="home-art">
+        <img id="home-img" src="images/1.jpg" alt="久远寺有珠">
+      </div>
+      <div class="home-caption"><span>与有珠一起</span><span>让故事慢慢展开</span></div>
     </div>
   </div>
 
@@ -113,6 +122,11 @@
         <button id="btn-settings" class="btn">设置</button>
       </div>
     </header>
+    <div class="library-heading">
+      <p class="eyebrow">藏在书页里的世界</p>
+      <h1>我的书架</h1>
+      <p class="subtitle">熟悉的故事，新的相遇。</p>
+    </div>
     <div class="shelf-toolbar">
       <button id="btn-add-books" class="btn primary">添加图书</button>
       <button id="btn-manage" class="btn">批量管理</button>
@@ -160,13 +174,13 @@
         <div class="stats-card stats-streak"><span class="stats-streak-mark">◆</span><div><strong id="stats-current-streak">0 天</strong><small>CURRENT · 当前连续阅读</small></div></div>
         <div class="stats-card stats-streak"><span class="stats-streak-mark">✦</span><div><strong id="stats-longest-streak">0 天</strong><small>LONGEST · 最长连续阅读</small></div></div>
       </section>
-      <section class="stats-card">
+      <section class="stats-card stats-goal-card">
         <div class="stats-section-head"><div><p class="stats-eyebrow">DAILY RITUAL · 每日仪式</p><h2>每天留一点时间给书</h2></div></div>
         <div id="stats-goal-options" class="stats-goal-options" role="group" aria-label="每日阅读目标">
           <button data-goal-minutes="15">15 分钟</button><button data-goal-minutes="30">30 分钟</button><button data-goal-minutes="45">45 分钟</button><button data-goal-minutes="60">60 分钟</button>
         </div>
       </section>
-      <section class="stats-card">
+      <section class="stats-card stats-archive-card">
         <div class="stats-section-head"><div><p class="stats-eyebrow">ARCHIVE · 今年</p><h2>读完的书</h2></div><strong id="stats-finished-count">0 本</strong></div>
         <div id="stats-finished-books" class="stats-finished-books"><p class="stats-empty">读完一本书后，它会出现在这里。</p></div>
       </section>

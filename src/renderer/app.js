@@ -420,8 +420,14 @@ function renderLibrary() {
       card.appendChild(img);
     } else {
       const div = document.createElement('div');
-      div.className = 'book-cover';
-      div.textContent = book.format.toUpperCase();
+      div.className = 'book-cover book-cover-placeholder';
+      const coverName = document.createElement('span');
+      coverName.className = 'book-cover-name';
+      coverName.textContent = book.title || '(未命名)';
+      const coverType = document.createElement('span');
+      coverType.className = 'book-cover-type';
+      coverType.textContent = book.format.toUpperCase();
+      div.append(coverName, coverType);
       card.appendChild(div);
     }
 

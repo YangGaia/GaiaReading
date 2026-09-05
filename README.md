@@ -130,6 +130,7 @@ npm start
 npm test            # 全部自动化测试
 npm run smoke       # Electron 基础启动验证
 npm run smoke:open  # 打开测试 EPUB 的综合冒烟验证
+npm run smoke:ui    # 三个非阅读页面的主题、尺寸、交互和样式隔离验证（独立临时数据）
 npm run dist        # 生成 Windows 绿色版 exe
 ```
 
