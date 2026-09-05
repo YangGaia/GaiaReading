@@ -733,12 +733,12 @@ function createWindow() {
               await __gaiaDebug.setTheme('dark');
               await new Promise((r) => setTimeout(r, 400));
               const nightAfter = __gaiaDebug.isNight();
-              const bodyDark = __gaiaDebug.isBodyDark();
+              const readerDark = __gaiaDebug.isReaderDark() && !__gaiaDebug.isBodyDark();
               const darkInjected = __gaiaDebug.isDarkInjected();
               await __gaiaDebug.setTheme('eye');
               await new Promise((r) => setTimeout(r, 300));
               const eyeTheme = __gaiaDebug.getTheme() === 'eye';
-              const bodyEye = __gaiaDebug.isBodyEye();
+              const readerEye = __gaiaDebug.isReaderEye() && !__gaiaDebug.isBodyEye();
               await __gaiaDebug.setFont('song');
               await new Promise((r) => setTimeout(r, 300));
               const fontInjected = __gaiaDebug.isFontInjected();
@@ -876,9 +876,10 @@ function createWindow() {
               const settingsDrawer = document.getElementById('settings-drawer');
               const settingsCapsuleRect = settingsCapsule.getBoundingClientRect();
               const settingsDrawerRect = settingsDrawer.getBoundingClientRect();
-              const themeButtonRect = document.getElementById('btn-theme').getBoundingClientRect();
-              const petButtonRect = document.getElementById('btn-pet-toggle').getBoundingClientRect();
-              const appearanceControlsAligned = Math.abs(themeButtonRect.top - petButtonRect.top) <= 1 && Math.abs(themeButtonRect.height - petButtonRect.height) <= 1;
+              const themeButtons = [...document.querySelectorAll('[data-reader-theme]')];
+              const readingThemeControlsReady = themeButtons.length === 3 && themeButtons.every((button) => button.closest('#drawer-reading')) &&
+                themeButtons.find((button) => button.dataset.readerTheme === 'eye').getAttribute('aria-pressed') === 'true' &&
+                getComputedStyle(settingsDrawer).backgroundColor === 'rgb(25, 29, 36)';
               const bgmAvoidsSettings = settingsCapsuleRect.right <= settingsDrawerRect.left - 16;
               const bgmSettingsState = settingsCapsule.dataset.settingsOpen === '1' && settingsCapsule.parentElement === document.body;
               const readerActionsAvoidSettings = getComputedStyle(document.querySelector('.reader-actions')).visibility === 'hidden';
@@ -929,7 +930,7 @@ function createWindow() {
               const particleCountLibrary = __gaiaDebug.getParticleCount();
               console.log('DEBUG_VIEW', viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epSize.w, epSize.h);
               console.log('DEBUG_FX', fxOnHome, particleCount, fxInReader, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, diamondCount);
-              console.log('DEBUG_NIGHT', nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass);
+              console.log('DEBUG_NIGHT', nightBefore, nightAfter, readerDark, darkInjected, eyeTheme, readerEye, fontInjected, pagingClass);
               console.log('DEBUG_REOPEN', reopenStatus, reopenPct, memOk, shelfOrderAfterRead, shelfProgressCount);
               console.log('DEBUG_SPREAD', spreadBefore, spreadAfter, epSizeAfterSpread.w);
               console.log('DEBUG_PROGRESS', pctBefore, pctAfter);
@@ -938,7 +939,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, highlightSaved, highlightPanelOpen, highlightCardLocated, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, appearanceControlsAligned, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, bodyDark, darkInjected, eyeTheme, bodyEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, settingsOpenBeforeBookmark, bookmarkActionClosedImmediately, bookmarkActionOpenedImmediately, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocWithEntriesHasNoEmptyMessage, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, edgeTocDisabledSetting, edgeTocDisabledBlocksHover, edgeTocDisabledKeepsManual, edgeTocReenabled, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, highlightSaved, highlightPanelOpen, highlightCardLocated, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, readingThemeControlsReady, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, readerDark, darkInjected, eyeTheme, readerEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, settingsOpenBeforeBookmark, bookmarkActionClosedImmediately, bookmarkActionOpenedImmediately, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocWithEntriesHasNoEmptyMessage, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, edgeTocDisabledSetting, edgeTocDisabledBlocksHover, edgeTocDisabledKeepsManual, edgeTocReenabled, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -969,7 +970,7 @@ function createWindow() {
               parsed.drawerOpen === true &&
               parsed.drawerClosed === true &&
               parsed.searchSettingsReady === true &&
-              parsed.appearanceControlsAligned === true &&
+              parsed.readingThemeControlsReady === true &&
               parsed.bgmAvoidsSettings === true &&
               parsed.readerActionsAvoidSettings === true &&
               parsed.bgmSettingsState === true &&
@@ -990,10 +991,10 @@ function createWindow() {
               parsed.fxInReader === false &&
               parsed.nightBefore === false &&
               parsed.nightAfter === true &&
-              parsed.bodyDark === true &&
+              parsed.readerDark === true &&
               parsed.darkInjected === true &&
               parsed.eyeTheme === true &&
-              parsed.bodyEye === true &&
+              parsed.readerEye === true &&
               parsed.fontInjected === true &&
               parsed.fxOnLibrary === true &&
               parsed.particleCountLibrary > 0 &&

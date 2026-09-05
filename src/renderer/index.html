@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="non-reading.css">
 <link rel="stylesheet" href="library-stats.css">
 <link rel="stylesheet" href="home.css">
+<link rel="stylesheet" href="settings.css">
 </head>
 <body>
   <canvas id="fx-canvas" hidden></canvas>
@@ -386,28 +387,39 @@
   </div>
 
   <div id="settings-overlay" hidden>
-    <div id="settings-drawer">
-      <div class="drawer-head">
-        <span class="drawer-title">设置</span>
-        <button id="btn-settings-close" class="btn">×</button>
-      </div>
+    <section id="settings-drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <header class="drawer-head">
+        <h2 id="settings-title" class="drawer-title">设置</h2>
+        <button id="btn-settings-close" class="btn" type="button" aria-label="关闭设置"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button>
+      </header>
+      <div class="drawer-scroll">
       <div id="drawer-reading" hidden>
-        <h3>阅读</h3>
+        <h3>阅读配色</h3>
+        <div id="reader-theme-options" class="reader-theme-options" role="group" aria-label="阅读配色，仅影响阅读界面">
+          <button type="button" data-reader-theme="light" aria-pressed="true"><span class="theme-swatch" aria-hidden="true"></span>日间</button>
+          <button type="button" data-reader-theme="dark" aria-pressed="false"><span class="theme-swatch" aria-hidden="true"></span>夜间</button>
+          <button type="button" data-reader-theme="eye" aria-pressed="false"><span class="theme-swatch" aria-hidden="true"></span>护眼</button>
+        </div>
+        <p class="drawer-hint">仅调整阅读界面的配色</p>
+        <h3>排版</h3>
         <div class="drawer-row">
-          <button id="btn-font-minus" class="btn">A−</button>
-          <span id="font-value">100%</span>
-          <button id="btn-font-plus" class="btn">A+</button>
+          <span class="drawer-label">字号</span>
+          <div class="drawer-stepper" role="group" aria-label="阅读字号">
+            <button id="btn-font-minus" class="btn" type="button" aria-label="减小阅读字号">−</button>
+            <span id="font-value" aria-live="polite">100%</span>
+            <button id="btn-font-plus" class="btn" type="button" aria-label="增大阅读字号">＋</button>
+          </div>
         </div>
         <div class="drawer-row">
-          <button id="btn-line-height" class="btn">行距</button>
-          <span id="line-height-value">1.8</span>
+          <span class="drawer-label" id="line-height-label">行距</span>
+          <button id="btn-line-height" class="btn drawer-cycle" type="button" aria-labelledby="line-height-label line-height-value" title="点击切换行距"><span id="line-height-value">1.8</span></button>
         </div>
         <div class="drawer-row">
-          <button id="btn-margin" class="btn">边距</button>
-          <span id="margin-value">8%</span>
+          <span class="drawer-label" id="margin-label">边距</span>
+          <button id="btn-margin" class="btn drawer-cycle" type="button" aria-labelledby="margin-label margin-value" title="点击切换边距"><span id="margin-value">8%</span></button>
         </div>
         <div class="drawer-row">
-          <span class="drawer-label">字体</span>
+          <label class="drawer-label" for="font-select">字体</label>
           <select id="font-select" class="drawer-select">
             <option value="default">默认</option>
             <option value="song">宋体</option>
@@ -417,24 +429,25 @@
           </select>
         </div>
         <div class="drawer-row" id="drawer-text-contrast">
-          <button id="btn-text-contrast" class="btn" type="button">文字对比度</button>
-          <span id="text-contrast-value">标准</span>
+          <span class="drawer-label" id="text-contrast-label">文字对比度</span>
+          <button id="btn-text-contrast" class="btn drawer-cycle" type="button" aria-labelledby="text-contrast-label text-contrast-value" title="点击切换文字对比度"><span id="text-contrast-value">标准</span></button>
         </div>
         <div class="drawer-row" id="drawer-spread">
-          <button id="btn-spread" class="btn">单页 / 双页</button>
-          <span id="spread-value">单页</span>
+          <span class="drawer-label" id="spread-label">页面布局</span>
+          <button id="btn-spread" class="btn drawer-cycle" type="button" aria-labelledby="spread-label spread-value" title="切换单页 / 双页"><span id="spread-value">单页</span></button>
         </div>
         <div class="drawer-row" id="drawer-spread-gap">
-          <button id="btn-spread-gap" class="btn" type="button">页面间隙</button>
-          <span id="spread-gap-value">无 · 0px</span>
+          <span class="drawer-label" id="spread-gap-label">页面间隙</span>
+          <button id="btn-spread-gap" class="btn drawer-cycle" type="button" aria-labelledby="spread-gap-label spread-gap-value" title="点击切换页面间隙"><span id="spread-gap-value">无 · 0px</span></button>
         </div>
         <div class="drawer-row" id="drawer-edge-toc">
-          <button id="btn-edge-toc" class="btn" type="button" aria-pressed="true">左缘悬停目录</button>
-          <span id="edge-toc-value">开启</span>
+          <span class="drawer-label" id="edge-toc-label">左缘悬停目录</span>
+          <button id="btn-edge-toc" class="btn drawer-switch" type="button" aria-pressed="true" aria-labelledby="edge-toc-label"><span id="edge-toc-value" class="drawer-sr-only">开启</span></button>
         </div>
       </div>
       <div id="drawer-funcs" hidden>
-        <h3>功能</h3>
+        <h3>阅读工具</h3>
+        <div class="drawer-tools">
         <button id="btn-toc" class="btn block">目录</button>
         <button id="btn-bookmarks" class="btn block">书签</button>
         <button id="btn-add-bookmark" class="btn block" type="button">添加书签</button>
@@ -442,22 +455,15 @@
         <button id="btn-annotations" class="btn block">划线与笔记</button>
         <button id="btn-book-search-drawer" class="btn block">书内全文搜索</button>
         <button id="btn-ai-assistant" class="btn block">AI 阅读助手</button>
+        </div>
       </div>
       <div id="drawer-appearance">
-        <h3>外观</h3>
-        <div class="drawer-row appearance-row">
-          <div class="appearance-control">
-            <button id="btn-theme" class="btn">主题</button>
-            <span id="theme-value">日间</span>
-          </div>
-          <div class="appearance-control">
-            <button id="btn-pet-toggle" class="btn">桌宠</button>
-            <span id="pet-value">开</span>
-          </div>
-          <div class="appearance-control">
-            <button id="btn-pet-console" class="btn">有珠控制台</button>
-          </div>
+        <h3>桌面伙伴</h3>
+        <div class="drawer-row">
+          <span class="drawer-label" id="pet-label">显示桌宠</span>
+          <button id="btn-pet-toggle" class="btn drawer-switch" type="button" role="switch" aria-checked="true" aria-labelledby="pet-label"><span id="pet-value" class="drawer-sr-only">开</span></button>
         </div>
+        <button id="btn-pet-console" class="btn drawer-link" type="button">有珠控制台<span aria-hidden="true">↗</span></button>
       </div>
       <div id="drawer-lookup">
         <h3>查词与搜索</h3>
@@ -477,17 +483,15 @@
         </div>
       </div>
       <div id="drawer-ai" class="drawer-ai-link">
-        <h3>AI 章节助手</h3>
+        <h3>AI 阅读助手</h3>
         <div class="drawer-ai-state">
           <span><strong id="ai-settings-title">尚未配置</strong><small id="ai-settings-state">前往 AI 中心设置接口</small></span>
           <button id="btn-open-ai-center" class="btn" type="button">打开 AI 中心</button>
         </div>
       </div>
-      <div class="drawer-about">
-        <h3>关于</h3>
-        <p>Gaia Reading 1.0.3 · 电子书阅读器</p>
       </div>
-    </div>
+      <footer class="drawer-about"><span>Gaia Reading</span><span>1.0.3</span></footer>
+    </section>
   </div>
 
   <script src="vendor/jszip.min.js"></script>

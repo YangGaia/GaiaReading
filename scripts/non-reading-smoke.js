@@ -53,7 +53,7 @@ fs.writeFileSync(path.join(sandbox, 'gaia-reading.json'), JSON.stringify({ libra
 
 const report = { userData: sandbox, outputDir, checks: [], screenshots: [], consoleErrors: [], externalRequests };
 let finished = false;
-const timeout = setTimeout(() => finish(new Error('UI smoke timed out after 150 seconds')), 150000);
+const timeout = setTimeout(() => finish(new Error('UI smoke timed out after 210 seconds')), 210000);
 function finish(error) {
   if (finished) return;
   finished = true;
@@ -245,6 +245,11 @@ async function run(win) {
     };
   });
 
+  if (process.env.GAIA_UI_SETTINGS_ONLY === '1') {
+    await require('./settings-runtime-checks')({ win, report, check, capture, book: books[0] });
+    check('no renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
+    return;
+  }
   check('browser parses only scoped UI rules', await evaluate(() => {
     const sheets = [...document.styleSheets].filter((sheet) => /\/(non-reading|library-stats|home)\.css$/.test(sheet.href || ''));
     if (sheets.length !== 3) return false;
@@ -348,6 +353,7 @@ async function run(win) {
     check(`reading still turns a page ${theme}`, pageMoved);
     await evaluate(async () => { await __gaiaDebug.backToLibrary(); });
   }
+  await require('./settings-runtime-checks')({ win, report, check, capture, book: books[0] });
   check('no renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
 }
 

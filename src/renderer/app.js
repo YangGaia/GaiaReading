@@ -159,7 +159,6 @@ const els = {
   spreadGapValue: $('spread-gap-value'),
   edgeTocButton: $('btn-edge-toc'),
   edgeTocValue: $('edge-toc-value'),
-  themeValue: $('theme-value'),
   progressFill: $('progress-fill'),
   fontSelect: $('font-select'),
   searchEngine: $('search-engine'),
@@ -713,13 +712,15 @@ function saveSearchSettings() {
   window.api.stateSet('prefs', state.prefs);
 }
 
+let settingsReturnFocus = null;
+
 function openSettings(section) {
   if (section === 'ai') {
     openAiCenter();
     return;
   }
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
-  const inReader = state.current != null;
+  const inReader = !views.reader.hidden && state.current != null;
   els.drawerReading.hidden = !inReader;
   els.drawerFuncs.hidden = !inReader;
   els.drawerSpread.hidden = !inReader;
@@ -727,17 +728,24 @@ function openSettings(section) {
   updatePetUI();
   if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(true);
   views.reader.classList.toggle('settings-open', !views.reader.hidden);
+  if (!isSettingsOpen()) settingsReturnFocus = document.activeElement;
   els.settingsOverlay.hidden = false;
+  $('btn-settings-close').focus({ preventScroll: true });
   updateTocEdgeAvailability();
   updateSearchSettingsUi();
   updateAiConfigForm();
 }
 
 function closeSettings() {
+  const wasOpen = isSettingsOpen();
   els.settingsOverlay.hidden = true;
   views.reader.classList.remove('settings-open');
   if (window.GaiaBgm && window.GaiaBgm.setSettingsOpen) window.GaiaBgm.setSettingsOpen(false);
   updateTocEdgeAvailability();
+  if (wasOpen && settingsReturnFocus && settingsReturnFocus.isConnected) {
+    settingsReturnFocus.focus({ preventScroll: true });
+  }
+  settingsReturnFocus = null;
 }
 
 function isSettingsOpen() {
@@ -1734,6 +1742,7 @@ function onReaderKey(ev) {
     if (!views.reader.hidden) { ev.preventDefault(); backToLibrary(); }
     return;
   }
+  if (isSettingsOpen()) return;
   if ((ev.ctrlKey || ev.metaKey) && String(ev.key).toLowerCase() === 'f' && !views.reader.hidden) {
     ev.preventDefault();
     openBookSearch();
@@ -3435,16 +3444,15 @@ function clearFx() {
   if (fx.ctx) fx.ctx.clearRect(0, 0, fx.canvas.width, fx.canvas.height);
 }
 
-/* ===== 主题（日间 / 护眼 / 夜间） ===== */
-function themeLabel(t) {
-  return t === 'dark' ? '夜间' : t === 'eye' ? '护眼' : '日间';
-}
-
+/* ===== 阅读配色（日间 / 护眼 / 夜间），不改变软件界面 ===== */
 function applyThemeClass() {
+  // Clear legacy global classes; reading colors belong only to the reader.
   document.body.classList.remove('dark', 'eye');
-  if (state.prefs.theme === 'dark') document.body.classList.add('dark');
-  if (state.prefs.theme === 'eye') document.body.classList.add('eye');
-  els.themeValue.textContent = themeLabel(state.prefs.theme);
+  views.reader.classList.toggle('dark', state.prefs.theme === 'dark');
+  views.reader.classList.toggle('eye', state.prefs.theme === 'eye');
+  for (const button of document.querySelectorAll('[data-reader-theme]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.readerTheme === state.prefs.theme));
+  }
 }
 
 async function applyTheme(theme) {
@@ -3471,6 +3479,7 @@ function petValueLabel() {
 function updatePetUI() {
   const el = $('pet-value');
   if (el) el.textContent = petValueLabel();
+  $('btn-pet-toggle').setAttribute('aria-checked', String(!!(window.GaiaPet && window.GaiaPet.getState().on)));
 }
 
 function togglePet() {
@@ -4870,6 +4879,18 @@ function bindEvents() {
   els.settingsOverlay.addEventListener('click', (ev) => {
     if (ev.target === els.settingsOverlay) closeSettings();
   });
+  els.settingsOverlay.addEventListener('keydown', (ev) => {
+    // Keep reader shortcuts out of the settings controls (including arrow keys).
+    ev.stopPropagation();
+    if (ev.key === 'Escape') { ev.preventDefault(); closeSettings(); return; }
+    if (ev.key !== 'Tab') return;
+    const controls = [...els.settingsDrawer.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled), a[href]')]
+      .filter((el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+  });
   els.settingsDrawer.addEventListener('click', (ev) => ev.stopPropagation());
   els.searchEngine.addEventListener('change', saveSearchSettings);
   els.searchCustomTemplate.addEventListener('input', updateCustomSearchStatus);
@@ -4954,7 +4975,9 @@ function bindEvents() {
   $('btn-spread').addEventListener('click', toggleSpread);
   $('btn-spread-gap').addEventListener('click', cycleSpreadGap);
   els.edgeTocButton.addEventListener('click', toggleEdgeToc);
-  $('btn-theme').addEventListener('click', cycleTheme);
+  for (const button of document.querySelectorAll('[data-reader-theme]')) {
+    button.addEventListener('click', () => applyTheme(button.dataset.readerTheme));
+  }
   $('btn-pet-toggle').addEventListener('click', togglePet);
   $('btn-pet-console').addEventListener('click', openPetConsole);
   els.fontSelect.addEventListener('change', (ev) => {
@@ -5328,6 +5351,8 @@ window.__gaiaDebug = {
   isNight: () => state.prefs.theme === 'dark',
   isBodyDark: () => document.body.classList.contains('dark'),
   isBodyEye: () => document.body.classList.contains('eye'),
+  isReaderDark: () => views.reader.classList.contains('dark'),
+  isReaderEye: () => views.reader.classList.contains('eye'),
   isDarkInjected: () => isThemeInjected() && state.prefs.theme === 'dark',
   setFont: async (name) => {
     state.fontName = name;

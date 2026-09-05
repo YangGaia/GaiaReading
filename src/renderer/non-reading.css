@@ -20,23 +20,6 @@
   background: var(--bg);
   font-family: var(--paper-font);
 }
-body.dark #library-view,
-body.dark #stats-view {
-  --bg: #101a17;
-  --surface: #1a2620;
-  --border: #334238;
-  --accent-soft: #27342a;
-}
-body.eye #library-view,
-body.eye #stats-view {
-  --bg: #20251e;
-  --surface: #292f25;
-  --border: #424b3c;
-  --text: #f1ecdd;
-  --text-soft: #bfc3b0;
-  --accent: #d0bb8d;
-  --accent-soft: #383e2e;
-}
 #library-view .page-bookmark,
 #stats-view .page-bookmark {
   display: inline-block;

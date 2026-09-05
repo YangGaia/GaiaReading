@@ -340,9 +340,7 @@
   gap: 26px;
 }
 
-#stats-view,
-body.dark #stats-view,
-body.eye #stats-view {
+#stats-view {
   --stats-accent: var(--accent);
   --stats-accent-soft: var(--accent-soft);
   --stats-hero-a: var(--bg);

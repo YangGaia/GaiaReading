@@ -56,7 +56,7 @@ test('阅读目标只接受预设档位，时长格式稳定', () => {
   assert.strictEqual(formatDuration(90 * 60000), '1小时30分钟');
 });
 
-test('阅读仪表盘使用有珠主题素材并兼容三种阅读模式', () => {
+test('阅读仪表盘保留有珠素材且不跟随阅读配色', () => {
   const root = path.join(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'src/renderer/index.html'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src/renderer/styles.css'), 'utf8');
@@ -66,7 +66,7 @@ test('阅读仪表盘使用有珠主题素材并兼容三种阅读模式', () =>
   assert.ok(html.includes('draggable="false"'), '仪表盘有珠不应允许拖动');
   assert.ok(html.includes('id="stats-alice-zzz"'), '统计页睡觉动作应显示 Zzz 状态');
   assert.ok(html.includes('id="stats-alice-line"'), '缺少有珠动态阅读台词');
-  assert.ok(css.includes('body.eye #stats-view') && css.includes('body.dark #stats-view'), '有珠仪表盘应分别适配护眼和夜间模式');
+  assert.doesNotMatch(css, /body\.(eye|dark)\s+#stats-view/, '阅读配色不能接管目标页');
   assert.ok(css.includes('@keyframes statsOrbit'), '目标仪式盘应具有低干扰轨道动画');
   assert.ok(css.includes('@keyframes statsAliceBreathe') && css.includes('@keyframes statsAliceYawn') && css.includes('@keyframes statsAliceSleep'), '完整有珠立绘应支持呼吸、打哈欠和睡觉动作');
   assert.ok(app.includes('interactWithStatsAlice') && app.includes("stats-alice-perk"), '仪表盘有珠应支持无对话的移入和点击互动');

@@ -135,9 +135,9 @@ test('版本号为 1.0.3 且界面同步', () => {
   assert.strictEqual(pkg.version, '1.0.3');
   assert.strictEqual(pkg.build.win.artifactName, 'Gaia.Reading.${version}.${ext}', '发行文件名应与 GitHub Release 保持一致');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.ok(html.includes('Gaia Reading 1.0.3'), '关于面板版本号未同步');
+  assert.match(html, /class="drawer-about"[^>]*>[\s\S]*?Gaia Reading[\s\S]*?1\.0\.3[\s\S]*?<\/footer>/, '关于面板版本号未同步');
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
-  assert.ok(html.includes('btn-theme'), '缺少主题切换');
+  assert.ok(html.includes('reader-theme-options'), '缺少主题切换');
   assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
 });
 
@@ -307,15 +307,15 @@ test('README 按拍摄时间引用当前全部界面截图', () => {
 test('主题/排版/翻页动画/菜单相关配置存在', () => {
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
-  assert.ok(css.includes('body.dark'), '缺少夜间模式变量');
-  assert.ok(css.includes('body.eye'), '缺少护眼模式变量');
+  assert.ok(css.includes('#reader-view.dark'), '缺少夜间模式变量');
+  assert.ok(css.includes('#reader-view.eye'), '缺少护眼模式变量');
   assert.ok(css.includes('paging-next'), '缺少翻页动画规则');
   assert.ok(css.includes('pdf-dark'), '缺少 PDF 深色规则');
   assert.ok(css.includes('book-progress'), '缺少书架进度样式');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
   assert.ok(html.includes('font-select'), '缺少字体选择');
   assert.ok(html.includes('btn-text-contrast') && html.includes('text-contrast-value'), '缺少夜间文字对比度控制');
-  assert.ok(html.includes('btn-theme'), '缺少主题切换');
+  assert.ok(html.includes('reader-theme-options'), '缺少主题切换');
   assert.ok(html.includes('btn-pet-console'), '设置页缺少有珠控制台入口');
   for (const id of ['pdf-zoom-controls', 'btn-pdf-zoom-out', 'btn-pdf-zoom-reset', 'btn-pdf-zoom-in', 'btn-pdf-pairing', 'pdf-zoom-value']) {
     assert.ok(html.includes(`id="${id}"`), `PDF 阅读器缺少手动缩放控件 ${id}`);
@@ -328,9 +328,6 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
   assert.ok(app.includes('c.pdfTextRoots = textRoots'), 'PDF 双页必须分别保存每页文字层以支持搜索和笔记');
   assert.ok(css.includes('.pdf-zoom-controls'), 'PDF 手动缩放控件缺少样式');
   assert.ok(html.includes('progress-fill'), '缺少阅读进度条');
-  assert.match(html, /class="drawer-row appearance-row"[\s\S]*?class="appearance-control"[\s\S]*?id="btn-theme"[\s\S]*?<\/div>\s*<div class="appearance-control">[\s\S]*?id="btn-pet-toggle"/, '主题与桌宠应为同一行内的同级控制组');
-  assert.ok(css.includes('.appearance-control { display: flex; align-items: center;'), '主题与桌宠控制组应垂直居中');
-  assert.ok(css.includes('.appearance-control .btn { min-width: 52px; height: 30px; }'), '主题与桌宠按钮应使用相同高度');
   assert.ok(html.includes("style-src 'self' 'unsafe-inline' blob:"), '缺少 blob 样式许可（图书 CSS 会被拦截）');
   const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
   assert.ok(main.includes('setApplicationMenu'), '缺少自定义菜单');

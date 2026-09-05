@@ -3,9 +3,9 @@ html, body { height: 100%; margin: 0; }
 body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); overflow: hidden; transition: background .25s ease, color .25s ease; }
 button { font-family: inherit; }
 
-/* ===== 主题变量 ===== */
+/* ===== 固定软件配色 / 阅读界面局部配色 ===== */
 :root {
-  --settings-drawer-width: 320px;
+  --settings-drawer-width: min(350px, 100vw);
   --bg: #f5f6f8;
   --surface: #ffffff;
   --border: #e2e5e9;
@@ -21,7 +21,9 @@ button { font-family: inherit; }
   --shadow: rgba(0,0,0,.12);
   --overlay: rgba(0,0,0,.25);
 }
-body.dark {
+#reader-view { color: var(--text); color-scheme: light; }
+#reader-view.dark {
+  color-scheme: dark;
   --bg: #101418;
   --surface: #161b22;
   --border: #2d333b;
@@ -373,10 +375,6 @@ body.dark {
 #spread-gap-value { min-width: 74px; }
 #drawer-spread-gap[hidden] { display: none; }
 #btn-spread-gap:disabled { cursor: not-allowed; opacity: .48; }
-.appearance-row { align-items: center; gap: 12px 16px; flex-wrap: wrap; }
-.appearance-control { display: flex; align-items: center; gap: 8px; min-height: 30px; }
-.appearance-control .btn { min-width: 52px; height: 30px; }
-#theme-value, #pet-value { min-width: 36px; font-size: 13px; line-height: 30px; color: var(--text-soft); text-align: center; }
 .btn.block { display: block; width: 100%; text-align: left; margin-bottom: 8px; }
 .drawer-about p { font-size: 12px; color: var(--text-soft); margin: 0; }
 
@@ -496,7 +494,7 @@ body.dark {
 #fx-canvas { position: fixed; inset: 0; z-index: 90; pointer-events: none; }
 #fx-canvas[hidden] { display: none; }
 /* ===== 护眼主题 ===== */
-body.eye {
+#reader-view.eye {
   --bg: #f5ecd9;
   --surface: #fbf5e9;
   --border: #e6d9b8;
@@ -555,22 +553,6 @@ body.eye {
   background:
     radial-gradient(circle at 82% 8%, color-mix(in srgb, var(--stats-accent) 12%, transparent), transparent 28%),
     var(--bg);
-}
-body.eye #stats-view {
-  --stats-accent: #77566e;
-  --stats-accent-soft: #eadfdc;
-  --stats-hero-a: #352a34;
-  --stats-hero-b: #685150;
-  --stats-hero-soft: #e2d3cd;
-  --stats-card-tint: #f9f0e3;
-}
-body.dark #stats-view {
-  --stats-accent: #b594ca;
-  --stats-accent-soft: #2c2035;
-  --stats-hero-a: #08060c;
-  --stats-hero-b: #25172f;
-  --stats-hero-soft: #bcaec6;
-  --stats-card-tint: #19151e;
 }
 .stats-scroll { flex: 1; overflow-y: auto; width: 100%; padding: 30px max(24px, calc((100vw - 920px) / 2)) 60px; }
 .stats-card { position: relative; overflow: hidden; background: linear-gradient(145deg, var(--surface), var(--stats-card-tint)); border: 1px solid color-mix(in srgb, var(--stats-accent) 22%, var(--border)); border-radius: 8px 20px 8px 20px; padding: 24px; box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 52%, transparent); margin-bottom: 18px; }
