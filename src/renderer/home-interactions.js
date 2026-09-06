@@ -46,7 +46,10 @@
   function syncVisibility() {
     const visible = !home.hidden && !document.hidden;
     if (!visible || reducedMotion.matches) { cancelReveals(); clearLight(); }
-    if (visible && !wasVisible && !reducedMotion.matches) {
+    // Returning from the shelf/AI uses one short content entrance, without a
+    // second staggered reveal extending the navigation animation.
+    const entering = home.querySelector('.study-layout').getAnimations().some((animation) => animation.id === 'view-content-enter');
+    if (visible && !wasVisible && !reducedMotion.matches && !entering) {
       // Only opacity changes; text and artwork are always drawn at their final size.
       ['#home-title', '.copy-rule', '.primary-action', '.secondary-actions'].forEach((selector, index) => {
         const target = home.querySelector(selector);

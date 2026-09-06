@@ -103,17 +103,17 @@ module.exports = async ({ win, evaluate, resize, check, capture }) => {
       const hiddenClean = !document.getAnimations().some((animation) => animation.id.startsWith('home-entry-'));
       __gaiaDebug.showView('home');
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      const animations = document.getAnimations().filter((animation) => animation.id.startsWith('home-entry-'));
-      const delays = animations.map((animation) => animation.effect.getTiming().delay);
-      const onlyOpacity = animations.every((animation) => animation.effect.getKeyframes().every((frame) => !('transform' in frame) && 'opacity' in frame));
-      for (const animation of animations) { animation.pause(); animation.currentTime = 160; }
-      return { hiddenClean, delays, onlyOpacity };
+      const animations = document.getAnimations().filter((animation) => animation.id === 'view-content-enter');
+      const noStagger = !document.getAnimations().some((animation) => animation.id.startsWith('home-entry-'));
+      const shortEntrance = animations.length === 1 && animations[0].effect.getTiming().duration === 200 &&
+        animations[0].effect.target === document.querySelector('.study-layout');
+      for (const animation of animations) { animation.pause(); animation.currentTime = 70; }
+      return { hiddenClean, noStagger, shortEntrance };
     });
-    assert.deepEqual(entry.delays.sort((a, b) => a - b), [0, 45, 90, 135]);
-    check('home entry reveals are staggered, finite and never scale text', entry.hiddenClean && entry.onlyOpacity);
+    check('returning home uses one short entrance without stacked staggered reveals', entry.hiddenClean && entry.noStagger && entry.shortEntrance);
     await capture(win, 'home-entry-feedback-1100x760');
-    await evaluate(() => { for (const animation of document.getAnimations().filter((animation) => animation.id.startsWith('home-entry-'))) animation.finish(); });
-    await until(() => !document.getAnimations().some((animation) => animation.id.startsWith('home-entry-')));
+    await evaluate(() => { for (const animation of document.getAnimations().filter((animation) => animation.id === 'view-content-enter')) animation.finish(); });
+    await until(() => !document.getAnimations().some((animation) => animation.id === 'view-content-enter'));
 
     win.webContents.debugger.attach('1.3');
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
@@ -131,7 +131,7 @@ module.exports = async ({ win, evaluate, resize, check, capture }) => {
       __gaiaDebug.showView('home');
       await new Promise((resolve) => requestAnimationFrame(resolve));
     });
-    check('reduced motion skips entry animations and keeps controls visible', await evaluate(() => !document.getAnimations().some((animation) => animation.id.startsWith('home-entry-')) && getComputedStyle(document.getElementById('btn-home-shelf')).opacity === '1'));
+    check('reduced motion skips entry animations and keeps controls visible', await evaluate(() => !document.getAnimations().some((animation) => animation.id.startsWith('home-entry-') || animation.id === 'view-content-enter') && getComputedStyle(document.querySelector('.study-layout')).opacity === '1' && getComputedStyle(document.getElementById('btn-home-shelf')).opacity === '1'));
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] });
     win.webContents.debugger.detach();
     mouse('mouseMove', 1, 1);

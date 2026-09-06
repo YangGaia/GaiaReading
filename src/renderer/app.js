@@ -257,7 +257,36 @@ function saveProgress(pathKey, value) {
   }
 }
 
+let viewEntryAnimation = null;
+
+function animateViewEntry(from, name) {
+  if (viewEntryAnimation) {
+    viewEntryAnimation.cancel();
+    viewEntryAnimation = null;
+  }
+  const homeNavigation = (from === 'home' && (name === 'library' || name === 'ai')) ||
+    (name === 'home' && (from === 'library' || from === 'ai'));
+  if (!homeNavigation) return false;
+
+  // Keep the opaque page, music header and independent pet outside the effect.
+  const content = views[name].querySelector({ home: '.study-layout', library: '.library-body', ai: '.ai-center-layout' }[name]);
+  if (content && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const animation = content.animate([
+      { opacity: 0, transform: 'translateY(8px)' },
+      { opacity: 1, transform: 'translateY(0)' },
+    ], { duration: 200, easing: 'cubic-bezier(.2,.7,.2,1)' });
+    animation.id = 'view-content-enter';
+    viewEntryAnimation = animation;
+    animation.onfinish = () => {
+      if (viewEntryAnimation === animation) viewEntryAnimation = null;
+      animation.cancel();
+    };
+  }
+  return true;
+}
+
 function showView(name) {
+  const previous = Object.keys(views).find((key) => !views[key].hidden);
   if (name !== 'reader') stopHeldPageKey();
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   for (const key of Object.keys(views)) {
@@ -265,8 +294,10 @@ function showView(name) {
   }
   const el = views[name];
   el.classList.remove('view-fade');
-  void el.offsetWidth;
-  el.classList.add('view-fade');
+  if (!animateViewEntry(previous, name)) {
+    void el.offsetWidth;
+    el.classList.add('view-fade');
+  }
   const fxCanvas = $('fx-canvas');
   fxCanvas.hidden = !(name === 'home' || name === 'library');
   if (name !== 'home' && name !== 'library') clearFx();

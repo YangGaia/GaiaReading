@@ -257,6 +257,11 @@ async function run(win) {
     };
   });
 
+  if (process.env.GAIA_UI_TRANSITIONS_ONLY === '1') {
+    await require('./view-transition-checks')({ win, report, check, books });
+    check('no renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
+    return;
+  }
   if (process.env.GAIA_UI_AI_ONLY === '1') {
     await require('./ai-center-runtime-checks')({ win, report, check, capture });
     check('no renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
