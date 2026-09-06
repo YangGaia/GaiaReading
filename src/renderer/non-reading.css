@@ -114,8 +114,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-#library-view.view-fade,
-#stats-view.view-fade { animation: none; }
 #library-view .btn,
 #stats-view .btn { transition: none; }
 }

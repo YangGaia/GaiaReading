@@ -1,6 +1,6 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); overflow: hidden; transition: background .25s ease, color .25s ease; }
+body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: #111419; color: var(--text); overflow: hidden; transition: color .25s ease; }
 button { font-family: inherit; }
 
 /* ===== 固定软件配色 / 阅读界面局部配色 ===== */
@@ -43,8 +43,6 @@ button { font-family: inherit; }
 /* ===== 通用视图切换 ===== */
 #home-view, #library-view, #reader-view, #stats-view, #ai-view { display: flex; flex-direction: column; height: 100%; }
 #home-view[hidden], #library-view[hidden], #reader-view[hidden], #stats-view[hidden], #ai-view[hidden] { display: none; }
-.view-fade { animation: fadeIn .3s ease; }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* ===== 闪屏 ===== */
 #splash-view { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg); transition: opacity .45s ease; }

@@ -46,7 +46,7 @@
   function syncVisibility() {
     const visible = !home.hidden && !document.hidden;
     if (!visible || reducedMotion.matches) { cancelReveals(); clearLight(); }
-    // Returning from the shelf/AI uses one short content entrance, without a
+    // Returning from another page uses one short content entrance, without a
     // second staggered reveal extending the navigation animation.
     const entering = home.querySelector('.study-layout').getAnimations().some((animation) => animation.id === 'view-content-enter');
     if (visible && !wasVisible && !reducedMotion.matches && !entering) {

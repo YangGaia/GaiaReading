@@ -28,6 +28,9 @@ module.exports = async ({ win, evaluate, resize, check, capture }) => {
     });
   });
   try {
+    // Native cursor updates must not overwrite sendInputEvent's pointer during
+    // a resize. Renderer input still exercises the real pointer/click handlers.
+    win.setIgnoreMouseEvents(true);
     for (const [width, height] of [[800, 600], [1100, 760], [1600, 1000]]) {
       await resize(width, height);
       mouse('mouseMove', 1, 1);
@@ -39,10 +42,13 @@ module.exports = async ({ win, evaluate, resize, check, capture }) => {
         await until((expected) => Math.abs(parseFloat(document.getElementById('btn-home-shelf').style.getPropertyValue('--hover-x')) - expected) < 1, ratio * 100);
       }
       await wait(320);
-      check(`pointer light follows the same relative position at ${width}`, await evaluate(() => {
+      const hover = await evaluate(() => {
         const button = document.getElementById('btn-home-shelf');
-        return getComputedStyle(button, '::after').opacity === '1' && getComputedStyle(button, '::after').pointerEvents === 'none' && getComputedStyle(button).transform === 'none';
-      }));
+        return { opacity: getComputedStyle(button, '::after').opacity, pointerEvents: getComputedStyle(button, '::after').pointerEvents,
+          transform: getComputedStyle(button).transform, hovered: button.matches(':hover'), active: button.matches(':active'), focused: document.hasFocus() };
+      });
+      const hoverPassed = hover.opacity === '1' && hover.pointerEvents === 'none' && hover.transform === 'none';
+      check(`pointer light follows the same relative position at ${width}${hoverPassed ? '' : ': ' + JSON.stringify(hover)}`, hoverPassed);
       const labelAfter = await evaluate(() => document.querySelector('#btn-home-shelf > span').getBoundingClientRect().toJSON());
       assert.deepEqual(labelAfter, labelBefore, 'Hover light and shadow must not move or scale the label');
       await capture(win, `home-primary-hover-${width}x${height}`);
@@ -50,7 +56,9 @@ module.exports = async ({ win, evaluate, resize, check, capture }) => {
       mouse('mouseMove', p.x, p.y);
       mouse('mouseDown', p.x, p.y);
       await until(() => document.getElementById('btn-home-shelf').matches(':active'));
-      await wait(120);
+      // Pressed color takes 240ms while the transform takes 100ms. Check the
+      // settled surface, not an intermediate color after a fixed 120ms sleep.
+      await until(() => !document.getElementById('btn-home-shelf').getAnimations().some((animation) => animation.playState === 'running'));
       check(`pressed surface has a recessed shadow at ${width}`, await evaluate(() => {
         const style = getComputedStyle(document.getElementById('btn-home-shelf'));
         return style.boxShadow.includes('inset') && new DOMMatrix(style.transform).m42 > 0 && style.backgroundColor === 'rgb(40, 51, 68)';
@@ -142,6 +150,7 @@ module.exports = async ({ win, evaluate, resize, check, capture }) => {
     await evaluate(() => document.activeElement.blur());
     await wait(350);
   } finally {
+    win.setIgnoreMouseEvents(false);
     if (win.webContents.debugger.isAttached()) {
       await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] });
       win.webContents.debugger.detach();

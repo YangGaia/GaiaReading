@@ -91,6 +91,28 @@ async function run(win) {
   const evaluate = (fn, arg) => win.webContents.executeJavaScript(`(${fn.toString()})(${JSON.stringify(arg)})`);
   const check = (name, result) => { assert.ok(result, name); report.checks.push(name); };
   win.setContentSize(1100, 760);
+  if (process.env.GAIA_UI_TRANSITIONS_ONLY === '1') {
+    report.startupFrames = await evaluate(async () => {
+      const frames = [];
+      let frame;
+      const sample = () => {
+        const splash = document.getElementById('splash-view');
+        const home = document.getElementById('home-view');
+        frames.push({ splashHidden: splash.hidden, opacity: Number(getComputedStyle(splash).opacity),
+          homeVisible: !home.hidden, homeOpacity: getComputedStyle(home).opacity,
+          homeSize: [home.clientWidth, home.clientHeight], viewport: [innerWidth, innerHeight] });
+        frame = requestAnimationFrame(sample);
+      };
+      sample();
+      await __gaiaDebug.waitHome();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      cancelAnimationFrame(frame);
+      return frames;
+    });
+    const fading = report.startupFrames.filter((f) => !f.splashHidden && f.opacity < 1);
+    check('startup fades onto the opaque full-size home without an empty frame', fading.length > 1 &&
+      fading.every((f) => f.homeVisible && f.homeOpacity === '1' && f.homeSize.join() === f.viewport.join()));
+  }
   await evaluate(async () => { await window.__gaiaDebug.waitHome(); });
   await evaluate(() => {
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

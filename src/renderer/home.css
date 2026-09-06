@@ -195,6 +195,5 @@
 #home-view button:focus-visible, #home-view input:focus-visible, #home-view a:focus-visible { outline: calc(2 * var(--home-unit)) solid var(--focus); outline-offset: calc(4 * var(--home-unit)); }
 
 @media (prefers-reduced-motion: reduce) {
-  #home-view.view-fade { animation: none; }
   #home-view .bgm-capsule, #home-view .bgm-capsule .bgm-btn { transition: none; }
 }

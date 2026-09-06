@@ -396,6 +396,7 @@ function createWindow() {
     minHeight: 600,
     title: 'Gaia Reading',
     show: false,
+    backgroundColor: '#111419',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

@@ -264,12 +264,11 @@ function animateViewEntry(from, name) {
     viewEntryAnimation.cancel();
     viewEntryAnimation = null;
   }
-  const homeNavigation = (from === 'home' && (name === 'library' || name === 'ai')) ||
-    (name === 'home' && (from === 'library' || from === 'ai'));
-  if (!homeNavigation) return false;
+  if (!from || from === 'splash' || from === name) return;
 
   // Keep the opaque page, music header and independent pet outside the effect.
-  const content = views[name].querySelector({ home: '.study-layout', library: '.library-body', ai: '.ai-center-layout' }[name]);
+  const selector = { home: '.study-layout', library: '.library-body', ai: '.ai-center-layout', stats: '.stats-scroll', reader: '#reader-body' }[name];
+  const content = selector && views[name].querySelector(selector);
   if (content && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const animation = content.animate([
       { opacity: 0, transform: 'translateY(8px)' },
@@ -282,27 +281,22 @@ function animateViewEntry(from, name) {
       animation.cancel();
     };
   }
-  return true;
 }
 
 function showView(name) {
   const previous = Object.keys(views).find((key) => !views[key].hidden);
   if (name !== 'reader') stopHeldPageKey();
+  if (name === 'reader') applyThemeClass();
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   for (const key of Object.keys(views)) {
     views[key].hidden = key !== name;
-  }
-  const el = views[name];
-  el.classList.remove('view-fade');
-  if (!animateViewEntry(previous, name)) {
-    void el.offsetWidth;
-    el.classList.add('view-fade');
   }
   const fxCanvas = $('fx-canvas');
   fxCanvas.hidden = !(name === 'home' || name === 'library');
   if (name !== 'home' && name !== 'library') clearFx();
   if (name === 'stats') renderReadingStats();
   if (window.GaiaBgm && window.GaiaBgm.positionBgm) window.GaiaBgm.positionBgm(name);
+  animateViewEntry(previous, name);
   updateTocEdgeAvailability();
   window.GaiaPet.init().then(() => {
     window.GaiaPet.setView(name);
@@ -332,6 +326,8 @@ function closeAiCenter() {
 
 function finishSplash() {
   const splash = views.splash;
+  // Paint the real home behind the departing splash, never an empty body.
+  views.home.hidden = false;
   splash.classList.add('fade-out');
   setTimeout(() => {
     splash.hidden = true;
