@@ -184,7 +184,7 @@ test('1.0.3 Release 说明覆盖阅读修复、有珠交互和校验值', () => 
 
 test('1.1.0 Release 说明覆盖相较 1.0.3 的变更与发行校验值', () => {
   const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.1.0.md'), 'utf8');
-  for (const section of ['与 1.0.3 相比的主要变化', '累计阅读计时器', '翻页与桌宠修复', 'GPT-6 模型 ID', '发布文件']) {
+  for (const section of ['2026-09-06 同版本更新', '与 1.0.3 相比的主要变化', '累计阅读计时器', '翻页与桌宠修复', 'GPT-6 模型 ID', '发布文件']) {
     assert.ok(notes.includes(section), `1.1.0 Release 说明缺少 ${section}`);
   }
   assert.ok(notes.includes('Gaia.Reading.1.1.0.exe'));
@@ -192,11 +192,17 @@ test('1.1.0 Release 说明覆盖相较 1.0.3 的变更与发行校验值', () =>
   assert.match(notes, /文件大小：[\d,]+ 字节/);
   assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
   assert.doesNotMatch(notes, /\{\{SHA256\}\}|\{\{FILE_SIZE\}\}/);
+  const buildSource = notes.match(/本次构建源码：\[[a-f0-9]+\]\(https:\/\/github\.com\/YangGaia\/GaiaReading\/commit\/([a-f0-9]{40})\)/);
+  assert.ok(buildSource, '同版本替换必须记录 exe 对应的源码 commit');
+  assert.ok(notes.includes(`compare/v1.0.3...${buildSource[1]}`), '代码差异链接应包含本次重打包的修复');
+  assert.ok(notes.includes('版本号仍为 1.1.0') && notes.includes('请重新下载'), '同版本替换应提示旧文件用户重新下载');
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
   assert.ok(readme.includes('RELEASE_NOTES_1.1.0.md'));
   assert.ok(readme.includes('Gaia.Reading.1.1.0.exe'));
   assert.ok(readme.includes('长按 `←` / `→`'));
+  assert.ok(readme.includes('连续的页面过场') && readme.includes('已替换同版本 exe'));
   assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').startsWith('## 1.1.0'));
+  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').includes('2026-09-06 同版本更新'));
 });
 
 test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => {
