@@ -793,7 +793,14 @@ function isSettingsOpen() {
 
 function updateSettingsValues() {
   const c = state.current;
-  els.fontValue.textContent = c && c.format === 'pdf' ? pdfZoomLabel(c) : (c && c.paginator ? state.fontSize + '%' : state.fontSize + '%');
+  const fixedEpub = isFixedEpubContent();
+  els.fontValue.textContent = fixedEpub ? '固定版式' : (c && c.format === 'pdf' ? pdfZoomLabel(c) : state.fontSize + '%');
+  const fontHint = fixedEpub ? '固定版式 EPUB 保留原始排版，页面随阅读窗口大小缩放。' : '';
+  els.fontValue.title = fontHint;
+  for (const id of ['btn-font-minus', 'btn-font-plus']) {
+    $(id).disabled = fixedEpub;
+    $(id).title = fontHint;
+  }
   els.lineHeightValue.textContent = state.lineHeight.toFixed(1);
   els.marginValue.textContent = (state.prefs.marginPct != null ? state.prefs.marginPct : 8) + '%';
   els.textContrastValue.textContent = window.GaiaReaderContrast.readerTextContrastLabel(state.prefs.readerTextContrast);
@@ -915,6 +922,7 @@ async function openEpub(book) {
   });
   rendition.on('rendered', () => {
     bindEpubWheel();
+    if (isSettingsOpen()) updateSettingsValues();
     window.setTimeout(restoreBookSearchHighlight, 0);
   });
   rendition.on('selected', (cfiRange, contents) => captureEpubSelection(cfiRange, contents));
@@ -1127,11 +1135,25 @@ function toggleSpread() {
   rememberSettings();
 }
 
+function isFixedEpubContent(contents) {
+  const c = state.current;
+  if (!c || c.format !== 'epub' || !c.rendition) return false;
+  const rendition = c.rendition;
+  const layout = rendition.manager && rendition.manager.layout;
+  let section;
+  try {
+    const location = contents ? null : rendition.currentLocation();
+    const index = contents ? contents.sectionIndex : location && location.start && location.start.index;
+    if (index != null && c.epub && c.epub.spine) section = c.epub.spine.get(index);
+  } catch (error) {}
+  return window.GaiaEpubTypography.isFixedLayout(layout && layout.name, section && section.properties);
+}
+
 function applyEpubTypography() {
   const c = state.current;
   if (!c || !c.rendition) return;
-  c.rendition.themes.fontSize(state.fontSize + '%');
   c.rendition.themes.default({ body: { 'line-height': String(state.lineHeight) } });
+  c.rendition.getContents().forEach((contents) => applyReaderStyles(contents));
 }
 
 async function openPdf(book) {
@@ -1539,6 +1561,7 @@ async function refreshReaderLayout(anchor, options) {
   if (!opts.force && size.width === anchor.width && size.height === anchor.height) return true;
   if (c.format === 'epub' && c.rendition) {
     c.rendition.resize(size.width, size.height, anchor.cfi || undefined);
+    applyEpubTypography();
     if (anchor.cfi) await c.rendition.display(anchor.cfi);
     return true;
   }
@@ -2149,8 +2172,27 @@ function adjustFont(delta) {
   const c = state.current;
   if (!c) return;
   if (c.format === 'epub') {
-    state.fontSize = Math.min(200, Math.max(80, state.fontSize + delta * 10));
+    if (isFixedEpubContent()) return;
+    const nextSize = window.GaiaEpubTypography.normalizePercent(state.fontSize + delta * 10);
+    if (nextSize === state.fontSize) return;
+    cancelPageTurns();
+    // Consecutive clicks retain the first text anchor until the latest reflow
+    // finishes, rather than anchoring to an intermediate page layout.
+    const anchor = c.fontResizeAnchor || captureReaderLayoutAnchor();
+    c.fontResizeAnchor = anchor;
+    const version = (c.fontResizeVersion || 0) + 1;
+    c.fontResizeVersion = version;
+    state.fontSize = nextSize;
     applyEpubTypography();
+    scheduleReaderLayoutRefresh(anchor, { force: true }).then(() => {
+      if (state.current !== c || c.fontResizeVersion !== version) return;
+      c.fontResizeAnchor = null;
+      // Search marks split text nodes. Resolve the original annotation CFIs
+      // against clean text before putting the temporary search marks back.
+      clearBookSearchHighlights();
+      restoreEpubAnnotations();
+      restoreBookSearchHighlight();
+    });
   } else if (c.format === 'pdf') {
     adjustPdfZoom(delta * 0.2);
     if (isSettingsOpen()) updateSettingsValues();
@@ -3830,6 +3872,7 @@ function applyReaderStyles(contents) {
   style.id = 'gaia-reader-style';
   (doc.head || doc.documentElement).appendChild(style);
   style.textContent = css;
+  window.GaiaEpubTypography.apply(doc, state.fontSize, { fixedLayout: isFixedEpubContent(contents) });
 }
 
 function isThemeInjected() {

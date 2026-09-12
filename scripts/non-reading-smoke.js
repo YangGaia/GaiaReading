@@ -159,6 +159,14 @@ async function run(win) {
         return { view, width: innerWidth, height: innerHeight, cards: root.querySelectorAll('.book-card').length };
       },
       async controls(view) {
+        // Pet interaction checks can leave a dismissible speech bubble open.
+        // Close it through the real click handler before testing the page's
+        // persistent controls; keep all hit-testing assertions intact.
+        const bubble = document.querySelector('.gaia-pet-bubble.show');
+        if (bubble) {
+          bubble.click();
+          await wait(220);
+        }
         const root = document.getElementById(view + '-view');
         const scrollPositions = [root, ...root.querySelectorAll('*')]
           .filter((el) => el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth)
