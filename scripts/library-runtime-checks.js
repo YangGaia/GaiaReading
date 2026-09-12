@@ -135,7 +135,7 @@ module.exports = async ({ win, report, check, capture, books }) => {
   await resize(800, 600);
   check('compact reader keeps all four music buttons and volume reachable', await evaluate(() => {
     const player = document.getElementById('bgm-capsule');
-    return player.getBoundingClientRect().height === 52 && player.scrollWidth <= player.clientWidth && [...player.querySelectorAll('button, input')].every((el) => {
+    return player.getBoundingClientRect().height === 56 && player.scrollWidth <= player.clientWidth && [...player.querySelectorAll('button, input')].every((el) => {
       const r = el.getBoundingClientRect();
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return r.width >= 24 && r.height >= 24 && r.left >= 0 && r.right <= innerWidth && (hit === el || el.contains(hit));

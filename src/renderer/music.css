@@ -67,9 +67,14 @@
 #bgm-capsule button:focus-visible, #bgm-capsule input:focus-visible { outline: calc(2 * var(--music-unit)) solid #b6c8f0; outline-offset: calc(3 * var(--music-unit)); }
 #bgm-capsule[data-view="reader"][data-settings-open="0"] { margin-left: 0; }
 #bgm-capsule[data-settings-open="1"] { position: fixed; z-index: 9201; top: 16px; right: calc(var(--settings-drawer-width) + 24px); bottom: auto; left: auto; margin: 0; }
-#bgm-capsule[data-view="reader"] { --music-unit: 1px; width: 304px; }
-@media (max-width: 1040px) {
-  #bgm-capsule[data-view="reader"] .bgm-cover { display: none; }
+/* Give book readers a full title column. Group playback buttons together and
+   separate the volume controls without scaling the text, cover or icons. */
+#bgm-capsule[data-view="reader"] { --music-unit: 1px; width: 396px; min-height: 56px; gap: 0; padding: 10px; }
+#bgm-capsule[data-view="reader"] .bgm-title-wrap { min-width: 156px; max-width: none; margin: 0 12px 0 10px; }
+#bgm-capsule[data-view="reader"] .bgm-btn[data-action="mute"] { margin-left: 8px; }
+#bgm-capsule[data-view="reader"] .bgm-volume { flex-basis: 40px; width: 40px; margin-left: 2px; }
+@media (max-width: 780px) {
+  #bgm-capsule[data-view="reader"][data-settings-open="1"] { visibility: hidden; opacity: 0; pointer-events: none; }
 }
 @media (max-width: 760px) {
   #bgm-capsule[data-settings-open="1"] { visibility: hidden; opacity: 0; pointer-events: none; }

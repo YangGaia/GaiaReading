@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { ipcMain } = require('electron');
+const { BGM_TRACKS } = require('../src/shared/bgm');
 
 module.exports = async ({ win, report, check, capture }) => {
   const evaluate = (fn, arg) => win.webContents.executeJavaScript(`(${fn.toString()})(${JSON.stringify(arg)})`);
@@ -88,9 +89,31 @@ module.exports = async ({ win, report, check, capture }) => {
       if (nav.width && Math.abs(nav.x + nav.width / 2 - innerWidth / 2) > 1) fail('page navigation is not centered');
       const status = document.getElementById('reader-status');
       if (contrast(getComputedStyle(status).color, getComputedStyle(bars[1]).backgroundColor) < 4.5) fail('progress text contrast');
-      return { viewport: [innerWidth, innerHeight], controls: count, minContrast, paint: bars.map(el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]) };
+      const player = document.getElementById('bgm-capsule');
+      const title = player.querySelector('.bgm-title');
+      const cover = player.querySelector('.bgm-cover').getBoundingClientRect();
+      const pr = player.getBoundingClientRect();
+      if (pr.width !== 396 || pr.height !== 56 || getComputedStyle(player).transform !== 'none') fail('reader music proportions changed');
+      if (title.clientWidth < 156 || title.scrollWidth > title.clientWidth) fail(`music title is truncated: ${title.textContent} (${title.scrollWidth}/${title.clientWidth})`);
+      if (cover.width !== 32 || cover.height !== 32) fail('music cover is hidden or distorted');
+      for (const b of player.querySelectorAll('button')) {
+        const r = b.getBoundingClientRect();
+        if (r.width !== 28 || r.height !== 28) fail('music button proportions changed');
+      }
+      return { viewport: [innerWidth, innerHeight], controls: count, minContrast, musicTitleWidth: title.clientWidth, paint: bars.map(el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]) };
     };
   });
+
+  // Verify the real four-track cycle and each visible name before keeping the
+  // longest title selected for all subsequent format/viewport checks.
+  const initialMusic = await evaluate(() => GaiaBgm.getState());
+  for (let i = 0; i < BGM_TRACKS.length; i++) {
+    const current = await evaluate(() => ({ state: GaiaBgm.getState(), title: document.querySelector('#bgm-capsule .bgm-title').textContent, layout: __checkReaderChrome() }));
+    check(`music ${current.state.trackId}: full title and normal proportions`, current.title === BGM_TRACKS.find(t => t.id === current.state.trackId).title);
+    await click('#bgm-capsule [data-action="next"]');
+  }
+  assert.deepEqual(await evaluate(() => GaiaBgm.getState()), initialMusic, 'Full track cycle preserves playback and volume');
+  for (let i = 0; i < BGM_TRACKS.length && (await evaluate(() => GaiaBgm.getState().trackId)) !== 'main-theme'; i++) await click('#bgm-capsule [data-action="next"]');
 
   let palette;
   for (const theme of ['light', 'eye', 'dark']) {
@@ -148,8 +171,22 @@ module.exports = async ({ win, report, check, capture }) => {
   await click('#bgm-capsule [data-action="mute"]');
   check('music mute button keeps working', (await evaluate(() => GaiaBgm.getState().muted)) !== beforeMuted);
   await click('#bgm-capsule [data-action="mute"]');
+  const playing = await evaluate(() => GaiaBgm.getState().on);
+  await click('#bgm-capsule [data-action="play"]');
+  check('resized music play button toggles playback', (await evaluate(() => GaiaBgm.getState().on)) !== playing);
+  await click('#bgm-capsule [data-action="play"]');
+  const volume = await evaluate(() => GaiaBgm.getState().volume);
+  await click('#bgm-capsule .bgm-volume');
+  win.webContents.focus();
+  await key('Right');
+  check('resized music volume slider remains adjustable', (await evaluate(() => GaiaBgm.getState().volume)) !== volume);
+  await evaluate(volume => GaiaBgm.setVolume(volume), volume);
   await click('#btn-settings-reader');
   check('settings button opens its drawer and relocates the player', await evaluate(() => __gaiaDebug.isSettingsOpen() && document.getElementById('bgm-capsule').dataset.settingsOpen === '1'));
+  check('settings keeps the full music title and native capsule size', await evaluate(() => {
+    const player = document.getElementById('bgm-capsule'), title = player.querySelector('.bgm-title'), r = player.getBoundingClientRect();
+    return r.width === 396 && r.height === 56 && title.clientWidth >= 156 && title.scrollWidth <= title.clientWidth;
+  }));
   await click('#btn-settings-close');
   check('closing settings restores every toolbar control', (await evaluate(() => __checkReaderChrome())).controls > 10);
 
@@ -198,7 +235,7 @@ module.exports = async ({ win, report, check, capture }) => {
     await wait(450);
     for (const spread of [false, true]) {
       await evaluate(async spread => { if ((state.readMode === 'spread') !== spread) await __gaiaDebug.toggleSpread(); }, spread);
-      for (const [width, height] of [[800, 600], [960, 700], [1100, 760], [1600, 1000]]) {
+      for (const [width, height] of [[800, 600], [960, 700], [1041, 760], [1100, 760], [1101, 760], [1181, 760], [1281, 760], [1600, 1000]]) {
         win.setContentSize(width, height);
         win.webContents.sendInputEvent({ type: 'mouseMove', x: 400, y: 300 });
         await wait(500);
