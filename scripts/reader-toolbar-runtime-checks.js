@@ -93,8 +93,10 @@ module.exports = async ({ win, report, check, capture }) => {
       const title = player.querySelector('.bgm-title');
       const cover = player.querySelector('.bgm-cover').getBoundingClientRect();
       const pr = player.getBoundingClientRect();
-      if (pr.width !== 396 || pr.height !== 56 || getComputedStyle(player).transform !== 'none') fail('reader music proportions changed');
-      if (title.clientWidth < 156 || title.scrollWidth > title.clientWidth) fail(`music title is truncated: ${title.textContent} (${title.scrollWidth}/${title.clientWidth})`);
+      if (pr.width !== 336 || pr.height !== 52 || getComputedStyle(player).transform !== 'none') fail('reader music proportions changed');
+      const original = player.querySelector('.bgm-title-text');
+      if (title.clientWidth < 96 || (original.offsetWidth > title.clientWidth && title.dataset.scrolling !== 'true')) fail('long music title must scroll inside its compact viewport');
+      if (state.current.format !== 'pdf' && innerWidth >= 800 && bars[0].getBoundingClientRect().height > 72) fail('ordinary reader toolbar must stay in one row');
       if (cover.width !== 32 || cover.height !== 32) fail('music cover is hidden or distorted');
       for (const b of player.querySelectorAll('button')) {
         const r = b.getBoundingClientRect();
@@ -108,12 +110,13 @@ module.exports = async ({ win, report, check, capture }) => {
   // longest title selected for all subsequent format/viewport checks.
   const initialMusic = await evaluate(() => GaiaBgm.getState());
   for (let i = 0; i < BGM_TRACKS.length; i++) {
-    const current = await evaluate(() => ({ state: GaiaBgm.getState(), title: document.querySelector('#bgm-capsule .bgm-title').textContent, layout: __checkReaderChrome() }));
-    check(`music ${current.state.trackId}: full title and normal proportions`, current.title === BGM_TRACKS.find(t => t.id === current.state.trackId).title);
+    const current = await evaluate(() => ({ state: GaiaBgm.getState(), title: document.querySelector('#bgm-capsule .bgm-title-text').textContent, layout: __checkReaderChrome() }));
+    check(`music ${current.state.trackId}: original title and normal proportions`, current.title === BGM_TRACKS.find(t => t.id === current.state.trackId).title);
     await click('#bgm-capsule [data-action="next"]');
   }
   assert.deepEqual(await evaluate(() => GaiaBgm.getState()), initialMusic, 'Full track cycle preserves playback and volume');
   for (let i = 0; i < BGM_TRACKS.length && (await evaluate(() => GaiaBgm.getState().trackId)) !== 'main-theme'; i++) await click('#bgm-capsule [data-action="next"]');
+  await require('./music-marquee-runtime-checks')({ win, report, check, capture, click });
 
   let palette;
   for (const theme of ['light', 'eye', 'dark']) {
@@ -183,9 +186,9 @@ module.exports = async ({ win, report, check, capture }) => {
   await evaluate(volume => GaiaBgm.setVolume(volume), volume);
   await click('#btn-settings-reader');
   check('settings button opens its drawer and relocates the player', await evaluate(() => __gaiaDebug.isSettingsOpen() && document.getElementById('bgm-capsule').dataset.settingsOpen === '1'));
-  check('settings keeps the full music title and native capsule size', await evaluate(() => {
+  check('settings keeps the scrolling title and native capsule size', await evaluate(() => {
     const player = document.getElementById('bgm-capsule'), title = player.querySelector('.bgm-title'), r = player.getBoundingClientRect();
-    return r.width === 396 && r.height === 56 && title.clientWidth >= 156 && title.scrollWidth <= title.clientWidth;
+    return r.width === 336 && r.height === 52 && title.clientWidth >= 96 && title.dataset.scrolling === 'true';
   }));
   await click('#btn-settings-close');
   check('closing settings restores every toolbar control', (await evaluate(() => __checkReaderChrome())).controls > 10);

@@ -35,7 +35,10 @@
 #bgm-capsule .bgm-title-wrap { flex: 1; min-width: calc(72 * var(--music-unit)); max-width: calc(138 * var(--music-unit)); margin-inline: calc(4 * var(--music-unit)); }
 #bgm-capsule .bgm-title { display: block; padding: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); font: 500 calc(12 * var(--music-unit))/1.5 "Gaia Home Noto", "Noto Sans SC", sans-serif; }
 #bgm-capsule .bgm-title-wrap::after { display: block; content: "魔法使之夜"; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--secondary); font-size: calc(10 * var(--music-unit)); line-height: 1.5; }
-#bgm-capsule .bgm-char { animation: none; }
+#bgm-capsule .bgm-title-copy[hidden] { display: none; }
+#bgm-capsule .bgm-title[data-scrolling="true"] { text-overflow: clip; }
+#bgm-capsule .bgm-title[data-scrolling="true"] .bgm-title-track { display: inline-flex; width: max-content; gap: 24px; }
+#bgm-capsule .bgm-title:focus-visible { outline: 1px solid #b6c8f0; outline-offset: 2px; border-radius: 2px; }
 #bgm-capsule .bgm-btn {
   display: grid; place-items: center; flex: 0 0 calc(28 * var(--music-unit)); width: calc(28 * var(--music-unit)); height: calc(28 * var(--music-unit));
   padding: calc(5 * var(--music-unit)); border: 0; border-radius: calc(7 * var(--music-unit)); background: transparent;
@@ -67,15 +70,12 @@
 #bgm-capsule button:focus-visible, #bgm-capsule input:focus-visible { outline: calc(2 * var(--music-unit)) solid #b6c8f0; outline-offset: calc(3 * var(--music-unit)); }
 #bgm-capsule[data-view="reader"][data-settings-open="0"] { margin-left: 0; }
 #bgm-capsule[data-settings-open="1"] { position: fixed; z-index: 9201; top: 16px; right: calc(var(--settings-drawer-width) + 24px); bottom: auto; left: auto; margin: 0; }
-/* Give book readers a full title column. Group playback buttons together and
-   separate the volume controls without scaling the text, cover or icons. */
-#bgm-capsule[data-view="reader"] { --music-unit: 1px; width: 396px; min-height: 56px; gap: 0; padding: 10px; }
-#bgm-capsule[data-view="reader"] .bgm-title-wrap { min-width: 156px; max-width: none; margin: 0 12px 0 10px; }
+/* A compact reader player with a 98px title viewport; long titles scroll within
+   that viewport while the cover and controls retain their native proportions. */
+#bgm-capsule[data-view="reader"] { --music-unit: 1px; width: 336px; min-height: 52px; gap: 0; padding: 8px 10px; }
+#bgm-capsule[data-view="reader"] .bgm-title-wrap { min-width: 0; max-width: none; margin: 0 12px 0 10px; }
 #bgm-capsule[data-view="reader"] .bgm-btn[data-action="mute"] { margin-left: 8px; }
 #bgm-capsule[data-view="reader"] .bgm-volume { flex-basis: 40px; width: 40px; margin-left: 2px; }
-@media (max-width: 780px) {
-  #bgm-capsule[data-view="reader"][data-settings-open="1"] { visibility: hidden; opacity: 0; pointer-events: none; }
-}
 @media (max-width: 760px) {
   #bgm-capsule[data-settings-open="1"] { visibility: hidden; opacity: 0; pointer-events: none; }
 }

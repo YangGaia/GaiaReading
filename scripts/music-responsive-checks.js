@@ -18,12 +18,13 @@ module.exports = async ({ win, report, check, capture }) => {
     const fail = (ok, message) => { if (!ok) throw new Error(`${player.dataset.view} ${innerWidth}×${innerHeight}: ${message}`); };
     fail(style.transform === 'none' && style.filter === 'none' && style.backdropFilter === 'none', 'music must paint at native resolution');
     fail(player.scrollWidth <= player.clientWidth + 1 && rect.left >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight, 'capsule must fit on screen');
-    fail(Math.abs(rect.width - (player.dataset.view === 'reader' ? 396 : 336 * scale)) < .1, 'capsule width must follow its view scale');
-    fail(Math.abs(rect.height - (player.dataset.view === 'reader' ? 56 : 52 * scale)) < 1.1, 'capsule height must follow its view scale');
+    fail(Math.abs(rect.width - 336 * scale) < .1, 'capsule width must follow its view scale');
+    fail(Math.abs(rect.height - 52 * scale) < 1.1, 'capsule height must follow its view scale');
     if (player.dataset.view === 'reader') {
       const title = player.querySelector('.bgm-title');
       const cover = player.querySelector('.bgm-cover').getBoundingClientRect();
-      fail(title.clientWidth >= 156 && title.scrollWidth <= title.clientWidth, 'reader title must have room to display in full');
+      const original = player.querySelector('.bgm-title-text');
+      fail(title.clientWidth >= 96 && (original.offsetWidth <= title.clientWidth || title.dataset.scrolling === 'true'), 'reader title must fit or scroll in its compact viewport');
       fail(cover.width === 32 && cover.height === 32, 'reader cover must remain a visible square');
     }
     const text = getComputedStyle(player.querySelector('.bgm-title'));

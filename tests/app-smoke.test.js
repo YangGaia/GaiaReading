@@ -546,8 +546,8 @@ test('BGM 胶囊封面与阅读进度条细节', () => {
   assert.ok(bgm.includes("settingsAnimation.id = 'bgm-settings-entry-flip'"), '打开设置应使用真实位置间的 FLIP 动画');
   assert.ok(bgm.includes('function animateSettingsRestore(fromRect)'), '关闭设置时胶囊应平滑返回原位');
   assert.ok(bgm.includes("matchMedia('(prefers-reduced-motion: reduce)')"), '胶囊动画应尊重系统减少动态效果设置');
-  assert.match(music, /\.bgm-char\s*\{\s*animation:\s*none/, '共享播放器使用首页稳定清晰的曲名样式');
-  assert.ok(bgm.includes("s.className = 'bgm-char'"), '歌名应逐字渲染以支持波浪动画');
+  assert.ok(bgm.includes("titleCopy.setAttribute('aria-hidden', 'true')"), '循环副本不能让屏幕阅读器重复朗读曲名');
+  assert.ok(bgm.includes('ui.titleText.textContent = text'), '曲名必须通过纯文本显示');
   const topIdx = html.indexOf('id="progress-track"');
   const footerIdx = html.indexOf('<footer class="statusbar">');
   assert.ok(topIdx >= 0 && footerIdx >= 0 && footerIdx < topIdx, '进度条应位于底部状态栏（footer 内）');

@@ -30,6 +30,14 @@
   let settingsOpen = false;
   let settingsAnimation = null;
   let restoreHomeClip = () => {};
+  const TITLE_GAP = 24;
+  const TITLE_SPEED = 22;
+  const TITLE_DELAY = 1000;
+  let renderedTitle = null;
+  let titleAnimation = null;
+  let titleDistance = 0;
+  let titleFrame = 0;
+  let titleMotion;
 
   function srcFor(track) {
     return 'bgm://local/' + encodeURIComponent(track.file);
@@ -44,18 +52,75 @@
     });
   }
 
-  /** 歌名逐字渲染：每个字一个 span，播放时带波浪形动画（--i 控制相位差）。 */
-  function renderTitle(title) {
+  function stopTitleScroll() {
+    if (titleAnimation) titleAnimation.cancel();
+    titleAnimation = null;
+    titleDistance = 0;
+    ui.title.removeAttribute('data-scrolling');
+    ui.title.removeAttribute('tabindex');
+    ui.titleCopy.hidden = true;
+  }
+
+  function updateTitlePlayback() {
+    if (!titleAnimation) return;
+    const paused = document.hidden || ui.title.matches(':hover, :focus-within');
+    if (paused) titleAnimation.pause();
+    else if (titleAnimation.playState === 'paused') titleAnimation.play();
+  }
+
+  function syncTitleScroll() {
     if (!ui.title) return;
-    ui.title.textContent = '';
-    const chars = String(title || '');
-    for (let i = 0; i < chars.length; i++) {
-      const s = document.createElement('span');
-      s.className = 'bgm-char';
-      s.style.setProperty('--i', String(i));
-      s.textContent = chars[i] === ' ' ? '\\u00A0' : chars[i];
-      ui.title.appendChild(s);
+    const style = getComputedStyle(ui.root);
+    if (currentView !== 'reader' || ui.root.hidden || !ui.title.clientWidth ||
+        style.visibility === 'hidden' || titleMotion.matches) {
+      stopTitleScroll();
+      return;
     }
+    // Account for a settings FLIP transform while measuring CSS-pixel text.
+    const scale = ui.root.getBoundingClientRect().width / ui.root.offsetWidth || 1;
+    const width = ui.titleText.getBoundingClientRect().width / scale;
+    if (width <= ui.title.clientWidth + .5) {
+      stopTitleScroll();
+      return;
+    }
+    const distance = width + TITLE_GAP;
+    if (!titleAnimation || Math.abs(distance - titleDistance) > .1) {
+      const previousTime = titleAnimation && titleAnimation.currentTime;
+      const previousDuration = titleDistance / TITLE_SPEED * 1000;
+      stopTitleScroll();
+      ui.titleCopy.hidden = false;
+      ui.title.dataset.scrolling = 'true';
+      ui.title.tabIndex = 0;
+      titleDistance = distance;
+      titleAnimation = ui.titleTrack.animate([
+        { transform: 'translateX(0)' },
+        { transform: `translateX(-${distance}px)` },
+      ], { delay: TITLE_DELAY, duration: distance / TITLE_SPEED * 1000, iterations: Infinity, easing: 'linear', fill: 'backwards' });
+      titleAnimation.id = 'bgm-title-marquee';
+      // Font loading can change the measured length. Preserve the current
+      // cycle position instead of restarting the initial delay on a resize.
+      if (previousTime != null && previousDuration > 0) {
+        titleAnimation.currentTime = previousTime < TITLE_DELAY ? previousTime :
+          TITLE_DELAY + ((previousTime - TITLE_DELAY) % previousDuration) / previousDuration * (distance / TITLE_SPEED * 1000);
+      }
+    }
+    updateTitlePlayback();
+  }
+
+  function scheduleTitleScroll() {
+    if (titleFrame) return;
+    titleFrame = requestAnimationFrame(() => { titleFrame = 0; syncTitleScroll(); });
+  }
+
+  /** Only a new title rebuilds text; volume/mute/play updates retain its phase. */
+  function renderTitle(title) {
+    const text = String(title || '');
+    if (!ui.title || renderedTitle === text) return;
+    stopTitleScroll();
+    renderedTitle = text;
+    ui.titleText.textContent = text;
+    ui.titleCopy.textContent = text;
+    scheduleTitleScroll();
   }
 
   function updateUi() {
@@ -136,6 +201,7 @@
     if (settingsOpen && currentView !== 'splash') {
       ui.root.classList.remove('in-topbar');
       if (ui.root.parentElement !== document.body) document.body.appendChild(ui.root);
+      scheduleTitleScroll();
       return;
     }
     const topbarSelector = currentView === 'home' ? '#home-bgm-slot' : currentView === 'reader'
@@ -149,6 +215,7 @@
       ui.root.classList.remove('in-topbar');
       if (ui.root.parentElement !== document.body) document.body.appendChild(ui.root);
     }
+    scheduleTitleScroll();
   }
 
   function cancelSettingsAnimation() {
@@ -243,6 +310,16 @@
     titleWrap.className = 'bgm-title-wrap';
     const title = document.createElement('span');
     title.className = 'bgm-title';
+    const titleTrack = document.createElement('span');
+    titleTrack.className = 'bgm-title-track';
+    const titleText = document.createElement('span');
+    titleText.className = 'bgm-title-text';
+    const titleCopy = document.createElement('span');
+    titleCopy.className = 'bgm-title-copy';
+    titleCopy.hidden = true;
+    titleCopy.setAttribute('aria-hidden', 'true');
+    titleTrack.append(titleText, titleCopy);
+    title.appendChild(titleTrack);
     titleWrap.appendChild(title);
 
     const prev = mkBtn('⏮', '上一首', 'prev');
@@ -268,8 +345,20 @@
     mute.addEventListener('click', toggleMute);
     volume.addEventListener('input', () => setVolume(parseInt(volume.value, 10) / 100));
 
-    ui = { root, cover, title, titleWrap, prev, play, nxt, mute, volume };
+    ui = { root, cover, title, titleWrap, titleTrack, titleText, titleCopy, prev, play, nxt, mute, volume };
     document.body.appendChild(root);
+    titleMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    titleMotion.addEventListener('change', syncTitleScroll);
+    const titleObserver = new ResizeObserver(scheduleTitleScroll);
+    titleObserver.observe(title);
+    titleObserver.observe(titleText);
+    document.fonts.ready.then(scheduleTitleScroll);
+    document.fonts.addEventListener('loadingdone', scheduleTitleScroll);
+    for (const event of ['pointerenter', 'pointerleave', 'focusin', 'focusout']) title.addEventListener(event, updateTitlePlayback);
+    document.addEventListener('visibilitychange', () => {
+      updateTitlePlayback();
+      if (!document.hidden) scheduleTitleScroll();
+    });
   }
 
   async function initBgm() {
@@ -305,17 +394,21 @@
 
   function marqueeInfo() {
     if (!ui.title) return null;
-    const firstChar = ui.title.querySelector('.bgm-char');
-    const cs = firstChar ? getComputedStyle(firstChar) : null;
     return {
-      charCount: ui.title.children.length,
+      charCount: Array.from(renderedTitle || '').length,
       on: state.on,
       track: state.trackId,
-      textLen: ui.title.textContent.length,
+      text: renderedTitle,
+      textLen: (renderedTitle || '').length,
       wrapW: ui.titleWrap ? ui.titleWrap.clientWidth : 0,
-      scrollW: ui.title.scrollWidth,
-      animName: cs.animationName,
-      transform: cs.transform,
+      scrollW: ui.titleText.offsetWidth,
+      animName: titleAnimation ? titleAnimation.id : 'none',
+      transform: getComputedStyle(ui.titleTrack).transform,
+      playState: titleAnimation ? titleAnimation.playState : 'idle',
+      currentTime: titleAnimation ? titleAnimation.currentTime : null,
+      distance: titleDistance,
+      duration: titleDistance / TITLE_SPEED * 1000,
+      delay: TITLE_DELAY,
       playingAttr: ui.root ? ui.root.dataset.playing : '',
     };
   }
