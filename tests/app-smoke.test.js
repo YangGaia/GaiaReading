@@ -130,15 +130,15 @@ test('侧栏尺寸变化统一刷新全部阅读格式并保留阅读锚点', ()
   assert.ok(app.includes("firstMark && c && c.format === 'pdf'"), '仅 PDF 搜索高亮可以在页内滚动到命中文字');
 });
 
-test('版本号为 1.1.0，依赖锁和界面同步', () => {
+test('版本号为 1.1.1，依赖锁和界面同步', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.1.0');
+  assert.strictEqual(pkg.version, '1.1.1');
   assert.strictEqual(lock.version, pkg.version);
   assert.strictEqual(lock.packages[''].version, pkg.version);
   assert.strictEqual(pkg.build.win.artifactName, 'Gaia.Reading.${version}.${ext}', '发行文件名应与 GitHub Release 保持一致');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.match(html, /class="drawer-about"[^>]*>[\s\S]*?Gaia Reading[\s\S]*?1\.1\.0[\s\S]*?<\/footer>/, '关于面板版本号未同步');
+  assert.match(html, /class="drawer-about"[^>]*>[\s\S]*?Gaia Reading[\s\S]*?1\.1\.1[\s\S]*?<\/footer>/, '关于面板版本号未同步');
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
   assert.ok(html.includes('reader-theme-options'), '缺少主题切换');
   assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
@@ -198,11 +198,24 @@ test('1.1.0 Release 说明覆盖相较 1.0.3 的变更与发行校验值', () =>
   assert.ok(notes.includes('版本号仍为 1.1.0') && notes.includes('请重新下载'), '同版本替换应提示旧文件用户重新下载');
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
   assert.ok(readme.includes('RELEASE_NOTES_1.1.0.md'));
-  assert.ok(readme.includes('Gaia.Reading.1.1.0.exe'));
   assert.ok(readme.includes('长按 `←` / `→`'));
-  assert.ok(readme.includes('连续的页面过场') && readme.includes('已替换同版本 exe'));
-  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').startsWith('## 1.1.0'));
   assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').includes('2026-09-06 同版本更新'));
+});
+
+test('1.1.1 发行信息同步并覆盖 EPUB 字号、阅读上下栏和曲名滚播', () => {
+  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.1.1.md'), 'utf8');
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  for (const section of ['EPUB 字号调节', '阅读上下栏', '音乐曲名滚播', '升级与运行', '发布文件', '验证情况']) {
+    assert.ok(notes.includes(section), `1.1.1 Release 说明缺少 ${section}`);
+  }
+  assert.ok(notes.includes('Gaia.Reading.1.1.1.exe') && readme.includes('Gaia.Reading.1.1.1.exe'));
+  assert.match(notes, /文件大小：[\d,]+ 字节/);
+  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
+  assert.doesNotMatch(notes, /\{\{SHA256\}\}|\{\{FILE_SIZE\}\}/);
+  assert.ok(notes.includes('compare/v1.1.0...v1.1.1'));
+  assert.ok(readme.includes('RELEASE_NOTES_1.1.1.md'));
+  assert.ok(readme.includes('## 1.1.1 更新亮点'));
+  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').startsWith('## 1.1.1'));
 });
 
 test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => {
@@ -307,28 +320,29 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(pet.includes('function speak(text, duration)'), '桌宠应公开受长度限制的 AI 台词入口');
 });
 
-test('README 按拍摄时间引用当前全部界面截图', () => {
+test('README 展示新版阅读截图并替换旧的阅读设置截图', () => {
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
   const shots = [
     'PixPin_2026-09-01_20-10-31.png',
     'PixPin_2026-09-06_04-05-26.png',
     'PixPin_2026-09-06_04-05-36.png',
-    'PixPin_2026-09-06_04-06-39.png',
+    '阅读界面新.png',
+    '阅读设置界面.png',
     'PixPin_2026-09-06_04-06-52.png',
     'PixPin_2026-09-06_04-07-33.png',
   ];
   const referenced = Array.from(readme.matchAll(/docs\/screenshots\/([^\s)]+\.png)/g), (match) => match[1]);
-  assert.deepStrictEqual(referenced, shots, 'README 截图必须按拍摄时间从早到晚排列且不引用旧图');
+  assert.deepStrictEqual(referenced, shots, 'README 应保留原有页面顺序，在书架后展示新版阅读和阅读设置截图');
   const screenshotSection = readme.slice(readme.indexOf('## 界面截图'), readme.indexOf('## 主要功能'));
   assert.ok(!/^###\s+\d{4}-\d{2}-\d{2}/m.test(screenshotSection), '截图标题不应显示拍摄日期或时间');
-  const currentFiles = fs.readdirSync(path.join(root, 'docs', 'screenshots')).filter((name) => name.toLowerCase().endsWith('.png')).sort();
-  assert.deepStrictEqual(currentFiles, shots, 'README 必须展示 screenshots 目录中的全部 PNG');
+  assert.ok(!screenshotSection.includes('PixPin_2026-09-06_04-06-39.png'), '旧的阅读设置截图应被替换');
+  assert.ok(screenshotSection.includes('### 阅读界面') && screenshotSection.includes('### 阅读设置界面'), '新截图应有对应标题');
   for (const shot of shots) {
     const file = path.join(root, 'docs', 'screenshots', shot);
     assert.ok(fs.statSync(file).size > 5000, shot + ' 异常过小');
   }
-  assert.ok(readme.includes('当前稳定版本：**1.1.0**'), 'README 应明确当前稳定版本');
-  assert.ok(readme.includes('releases/tag/v1.1.0'), 'README 应提供正式版下载入口');
+  assert.ok(readme.includes('当前稳定版本：**1.1.1**'), 'README 应明确当前稳定版本');
+  assert.ok(readme.includes('releases/tag/v1.1.1'), 'README 应提供正式版下载入口');
 });
 
 test('主题/排版/翻页动画/菜单相关配置存在', () => {
