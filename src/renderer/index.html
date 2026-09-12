@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="library.css">
   <link rel="stylesheet" href="stats.css">
   <link rel="stylesheet" href="ai-center.css">
+  <link rel="stylesheet" href="reader-chrome.css">
 </head>
 <body>
   <canvas id="fx-canvas" hidden></canvas>
@@ -302,27 +303,35 @@
 
   <div id="reader-view" hidden>
     <header class="topbar reader-topbar">
-      <button id="btn-back" class="btn">← 书架</button>
+      <button id="btn-back" class="btn reader-tool reader-back" type="button" title="返回书架" aria-label="返回书架">
+        <svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4-6 6 6 6M2 10h15"/></svg><span class="reader-label-compact">书架</span>
+      </button>
       <span id="reader-title" class="reader-title"></span>
+      <div id="pdf-zoom-controls" class="pdf-zoom-controls" aria-label="PDF 缩放" hidden>
+          <button id="btn-pdf-zoom-out" class="reader-tool" type="button" title="缩小 PDF" aria-label="缩小 PDF"><svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12"/></svg></button>
+          <button id="btn-pdf-zoom-reset" class="reader-tool" type="button" title="切换 PDF 适配方式" aria-label="切换 PDF 适配方式"><span id="pdf-zoom-value">适合页面</span></button>
+          <button id="btn-pdf-zoom-in" class="reader-tool" type="button" title="放大 PDF" aria-label="放大 PDF"><svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M10 4v12"/></svg></button>
+          <button id="btn-pdf-pairing" class="reader-tool" type="button" title="切换 PDF 双页配对" aria-label="切换 PDF 双页配对" hidden>1–2</button>
+      </div>
       <div class="actions reader-actions">
-        <div id="pdf-zoom-controls" class="pdf-zoom-controls" aria-label="PDF 缩放" hidden>
-          <button id="btn-pdf-zoom-out" type="button" title="缩小 PDF" aria-label="缩小 PDF">−</button>
-          <button id="btn-pdf-zoom-reset" type="button" title="切换 PDF 适配方式" aria-label="切换 PDF 适配方式"><span id="pdf-zoom-value">适合页面</span></button>
-          <button id="btn-pdf-zoom-in" type="button" title="放大 PDF" aria-label="放大 PDF">＋</button>
-          <button id="btn-pdf-pairing" type="button" title="切换 PDF 双页配对" aria-label="切换 PDF 双页配对" hidden>1–2</button>
-        </div>
         <div id="reader-bgm-slot" class="reader-bgm-slot" aria-label="阅读音乐"></div>
         <div class="alice-reader-actions" role="group" aria-label="有珠快捷操作">
-          <button id="btn-alice-summary" class="alice-reader-action alice-reader-summary" type="button" data-ai-alice="summary" title="让有珠总结当前章节">
-            <span class="alice-action-mark" aria-hidden="true">◆</span><span class="alice-action-prefix">有珠</span><span class="alice-action-text">总结</span>
+          <button id="btn-alice-summary" class="alice-reader-action alice-reader-summary reader-tool" type="button" data-ai-alice="summary" title="让有珠总结当前章节" aria-label="让有珠总结当前章节">
+            <svg class="reader-icon alice-action-mark" viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 6 8-6 8-6-8Z"/><path d="M7 10h6"/></svg><span class="alice-action-prefix">有珠</span><span class="alice-action-text">总结</span>
           </button>
-          <button id="btn-alice-comment" class="alice-reader-action alice-reader-comment" type="button" data-ai-alice="comment" title="让有珠吐槽当前章节">
-            <span class="alice-action-mark" aria-hidden="true">◇</span><span class="alice-action-prefix">有珠</span><span class="alice-action-text">吐槽</span>
+          <button id="btn-alice-comment" class="alice-reader-action alice-reader-comment reader-tool" type="button" data-ai-alice="comment" title="让有珠吐槽当前章节" aria-label="让有珠吐槽当前章节">
+            <svg class="reader-icon alice-action-mark" viewBox="0 0 20 20" aria-hidden="true"><path d="M16 11.5a6.5 6.5 0 1 0-11 3L3 18l5-1.6A6.5 6.5 0 0 0 16 11.5Z"/><path d="M6 9h5M6 12h3"/></svg><span class="alice-action-prefix">有珠</span><span class="alice-action-text">吐槽</span>
           </button>
         </div>
-        <button id="btn-ai-reader" class="btn ai-reader-trigger"><span>✦</span> 对话</button>
-        <button id="btn-book-search" class="btn reader-search-trigger" type="button" title="全文搜索当前书籍（Ctrl+F）" aria-controls="book-search-panel" aria-expanded="false">⌕ 全文搜索</button>
-        <button id="btn-settings-reader" class="btn">设置</button>
+        <button id="btn-ai-reader" class="btn ai-reader-trigger reader-tool" type="button" title="打开 AI 对话" aria-label="打开 AI 对话" aria-controls="ai-summary-panel">
+          <svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M17 9a7 7 0 0 1-7 7H6l-4 2V9a7 7 0 0 1 14-3"/><path d="m15 1 1 3 3 1-3 1-1 3-1-3-3-1 3-1Z"/></svg><span class="reader-label-compact">对话</span>
+        </button>
+        <button id="btn-book-search" class="btn reader-search-trigger reader-tool" type="button" title="全文搜索当前书籍（Ctrl+F）" aria-label="全文搜索当前书籍" aria-controls="book-search-panel" aria-expanded="false">
+          <svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><span class="reader-label-compact">全文搜索</span>
+        </button>
+        <button id="btn-settings-reader" class="btn reader-tool" type="button" title="阅读设置" aria-label="阅读设置" aria-controls="settings-drawer">
+          <svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h3m4 0h7M3 15h7m4 0h3"/><circle cx="8" cy="5" r="2"/><circle cx="12" cy="15" r="2"/></svg><span class="reader-label-compact">设置</span>
+        </button>
       </div>
     </header>
     <div id="reader-body">
@@ -394,10 +403,12 @@
     </div>
     <footer class="statusbar">
       <div id="progress-track"><div id="progress-fill"></div></div>
-      <button id="btn-reader-toc" class="reader-toc-button" type="button" aria-controls="toc-panel" aria-expanded="false" title="打开目录"><span aria-hidden="true">☰</span>目录</button>
-      <div id="page-nav" hidden>
-        <button id="btn-prev-page" class="btn">上一页</button>
-        <button id="btn-next-page" class="btn">下一页</button>
+      <button id="btn-reader-toc" class="reader-toc-button reader-tool" type="button" aria-controls="toc-panel" aria-expanded="false" title="打开目录">
+        <svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5h10M7 10h10M7 15h10M3 5h.01M3 10h.01M3 15h.01"/></svg><span>目录</span>
+      </button>
+      <div id="page-nav" role="group" aria-label="翻页" hidden>
+        <button id="btn-prev-page" class="btn reader-tool" type="button" title="上一页"><svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6"/></svg><span>上一页</span></button>
+        <button id="btn-next-page" class="btn reader-tool" type="button" title="下一页"><span>下一页</span><svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6"/></svg></button>
       </div>
       <span id="reader-status"></span>
     </footer>

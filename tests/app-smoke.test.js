@@ -240,15 +240,16 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   const readerHeaderStart = html.indexOf('<header class="topbar reader-topbar">');
   const readerHeader = html.slice(readerHeaderStart, html.indexOf('</header>', readerHeaderStart));
   assert.ok(readerHeader.indexOf('id="btn-ai-reader"') < readerHeader.indexOf('id="btn-book-search"'), '阅读顶栏中 AI 对话按钮应位于全文搜索按钮左侧');
-  assert.ok(readerHeader.includes('title="全文搜索当前书籍（Ctrl+F）"') && readerHeader.includes('>⌕ 全文搜索</button>'), '书内检索按钮必须明确标为全文搜索');
+  assert.ok(readerHeader.includes('title="全文搜索当前书籍（Ctrl+F）"') && readerHeader.includes('aria-label="全文搜索当前书籍"') && readerHeader.includes('>全文搜索</span>'), '书内检索按钮必须明确标为全文搜索，收起文字时仍有可访问名称');
   assert.ok(html.includes('data-selection-action="search" title="使用 Google 搜索">搜索</button>'), '互联网搜索按钮应保持原有名称与功能');
   const aiPanelStart = html.indexOf('id="ai-summary-panel"');
   const aiPanel = html.slice(aiPanelStart, html.indexOf('</aside>', aiPanelStart));
   assert.ok(readerHeader.includes('data-ai-alice="summary"') && readerHeader.includes('data-ai-alice="comment"'), '有珠总结与吐槽应位于阅读顶栏');
   assert.ok(!aiPanel.includes('data-ai-alice='), 'AI 对话框内不应重复显示有珠快捷操作');
   assert.ok(aiPanel.includes('id="ai-reader-profile"'), 'AI 接口选择器应移入对话框以释放顶栏空间');
-  assert.ok(css.includes('.alice-reader-summary') && css.includes('#342653') && css.includes('#5b4a82'), '有珠总结应使用月光紫配色');
-  assert.ok(css.includes('.alice-reader-comment') && css.includes('#40203a') && css.includes('#713851'), '有珠吐槽应使用暗红紫配色');
+  for (const id of ['btn-alice-summary', 'btn-alice-comment']) {
+    assert.match(readerHeader, new RegExp(`<button[^>]*id="${id}"[^>]*aria-label="[^"]+"`), '有珠操作在紧凑布局下仍可识别');
+  }
   assert.ok(app.includes("state.aiAliceKind === 'summary' ? '总结中' : '构思中'"), '顶栏快捷操作应显示独立加载状态');
   assert.ok(app.includes('new ResizeObserver'), 'AI 悬浮窗应记忆缩放后的尺寸');
   assert.ok(app.includes('saveAiPanelGeometry'), 'AI 悬浮窗应保存位置和大小');

@@ -13,6 +13,7 @@
     "smoke:pdf": "electron . --smoke-test --debug-open tests/fixtures/sample.pdf",
     "smoke:epub-font": "electron scripts/epub-typography-smoke.js",
     "smoke:ui": "electron scripts/non-reading-smoke.js",
+    "smoke:reader-ui": "electron scripts/non-reading-smoke.js --reader-toolbar",
     "dist": "electron-builder --win",
     "shot": "electron . --shot-dir docs/screenshots --debug-open tests/fixtures/sample.epub"
   },

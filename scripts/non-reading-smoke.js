@@ -17,7 +17,7 @@ let windowsCreated = 0;
 app.on('browser-window-created', () => { windowsCreated += 1; });
 
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'gaia-ui-smoke-'));
-const outputDir = path.resolve(process.env.GAIA_UI_OUTPUT_DIR || path.join(sandbox, 'screenshots'));
+const outputDir = path.resolve(process.env.GAIA_UI_OUTPUT_DIR || (process.argv.includes('--reader-toolbar') ? path.join(__dirname, '../dist/reader-ui-smoke') : path.join(sandbox, 'screenshots')));
 fs.mkdirSync(outputDir, { recursive: true });
 app.setPath('userData', sandbox);
 app.setPath('sessionData', path.join(sandbox, 'session'));
@@ -287,6 +287,11 @@ async function run(win) {
     };
   });
 
+  if (process.argv.includes('--reader-toolbar')) {
+    await require('./reader-toolbar-runtime-checks')({ win, report, check, capture });
+    check('no reader renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);
+    return;
+  }
   if (process.env.GAIA_UI_TRANSITIONS_ONLY === '1') {
     await require('./view-transition-checks')({ win, report, check, books });
     check('no renderer exceptions', report.consoleErrors.filter((message) => /(?:Uncaught|ReferenceError|TypeError|SyntaxError)/.test(message)).length === 0);

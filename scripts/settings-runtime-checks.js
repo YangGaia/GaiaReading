@@ -218,7 +218,7 @@ module.exports = async ({ win, report, check, capture, book }) => {
       assert.equal(paint, paints.get(selector), `Shared overlay colors must remain fixed: ${selector}`);
     }
   }
-  check('reader toolbar retains three distinct reading palettes', new Set(readerPaints).size === 3);
+  check('reader toolbar keeps its graphite surface across reading palettes', new Set(readerPaints).size === 1 && readerPaints[0] === 'rgb(25, 30, 37)');
   await evaluate(() => { __gaiaDebug.showView('reader'); __gaiaDebug.openSettings(); });
   await wait(260);
   for (const [selector, setting] of [['#btn-font-plus', 'fontSize'], ['#btn-font-minus', 'fontSize'], ['#btn-line-height', 'lineHeight'], ['#btn-margin', 'marginPct'], ['#btn-text-contrast', 'readerTextContrast'], ['#btn-spread', 'spread']]) {
