@@ -154,6 +154,8 @@ npm run smoke:epub-font # EPUB 固定字号、嵌套样式与排版回归验证
 npm run dist        # 生成 Windows 绿色版 exe
 ```
 
+本地最新版 exe 位于 `dist/Gaia.Reading.1.1.1.exe`；上一版保存在 `dist/archive/`，验证记录与预览分别放在 `dist/reports/` 和 `dist/previews/`。目录约定与校验命令见 [构建产物目录](docs/build-output.md)。
+
 ## 项目结构
 
 ```text
