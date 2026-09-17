@@ -37,3 +37,11 @@ test('无 OPF 的 zip 返回空元数据', async () => {
 test('非法数据应抛出异常', async () => {
   await assert.rejects(() => parseEpub(Buffer.from('not a zip')));
 });
+
+test('封面超过限制时仍可导入书名，XML 超过限制时明确报错', async () => {
+  const buffer = await makeEpub();
+  const meta = await parseEpub(buffer, { maxCoverBytes: 1 });
+  assert.strictEqual(meta.title, '测试图书');
+  assert.strictEqual(meta.cover, null);
+  await assert.rejects(parseEpub(buffer, { maxXmlBytes: 16 }), (error) => error.code === 'EPUB_METADATA_LIMIT');
+});

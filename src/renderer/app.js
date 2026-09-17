@@ -76,6 +76,7 @@ let readerLayoutSyncVersion = 0;
 let readerLayoutSyncPromise = Promise.resolve(false);
 let bookImportFromHome = false;
 let bookImportReturnFocus = null;
+let bookImportPickerBusy = false;
 
 const FONTS = {
   default: '',
@@ -440,6 +441,8 @@ function renderLibrary() {
       const img = document.createElement('img');
       img.className = 'book-cover';
       img.src = book.cover;
+      img.loading = 'lazy';
+      img.decoding = 'async';
       img.alt = book.title;
       jacket.appendChild(img);
     } else {
@@ -515,47 +518,63 @@ async function addToLibrary(meta) {
   renderLibrary();
 }
 
-async function importPaths(paths) {
-  const existing = new Set(state.library.map((b) => b.path));
-  let added = 0;
-  let recovered = 0;
-  let skipped = 0;
-  const failures = [];
-  for (const p of paths) {
-    if (existing.has(p)) {
-      skipped += 1;
-      continue;
+const bookImporter = window.GaiaBookImport.createBookImporter({
+  getLibrary: () => state.library,
+  metadata: (filePath) => window.api.metadata(filePath),
+  cancelMetadata: () => window.api.cancelBookImport(),
+  commit: async (meta) => {
+    state.library.push(meta);
+    try { await saveLibrary(); }
+    catch (error) {
+      state.library = state.library.filter((book) => book !== meta);
+      throw error;
     }
-    try {
-      const meta = await window.api.metadata(p);
-      if (!meta || !meta.path || !meta.format) throw new Error('无法读取图书信息');
-      state.library.push(meta);
-      existing.add(p);
-      added += 1;
-      if (meta.recovered) recovered += 1;
-    } catch (error) {
-      failures.push({ path: p, message: error && error.message ? error.message : '未知错误' });
-      console.error('导入失败', p, error);
-    }
+  },
+  onProgress: ({ index, total, path: filePath, added }) => {
+    const name = filePath.split(/[\\/]/).pop();
+    els.importStatus.textContent = '正在导入 ' + index + '/' + total + ' · 已保存 ' + added + ' 本 · ' + name.slice(0, 36) + (name.length > 36 ? '…' : '');
+    els.importStatus.title = name;
+  },
+});
+
+function setBookImportBusy(busy, cancellable = false) {
+  for (const id of ['btn-add-books', 'btn-home-add-books', 'btn-manage', 'btn-remove-selected', 'btn-import-folder', 'btn-import-file-picker']) {
+    const button = $(id);
+    if (button) button.disabled = busy;
   }
-  if (added) {
-    await saveLibrary();
+  $('btn-cancel-import').hidden = !cancellable;
+  els.importStatus.setAttribute('aria-busy', String(busy));
+}
+
+async function importPaths(paths) {
+  if (bookImporter.busy) return { added: 0, recovered: 0, skipped: 0, failures: [], busy: true };
+  setBookImportBusy(true, true);
+  els.importStatus.classList.remove('error');
+  let result;
+  try { result = await bookImporter.run(paths); }
+  finally {
+    setBookImportBusy(false);
     renderLibrary();
   }
+  const { added, recovered, skipped, failures } = result;
   if (els.importStatus) {
     els.importStatus.classList.toggle('error', failures.length > 0);
     const parts = [];
+    if (result.cancelled) parts.push('已取消导入');
+    if (result.stopped) parts.push('导入已停止');
     if (added) parts.push('已导入 ' + added + ' 本');
     if (recovered) parts.push('自动恢复 ' + recovered + ' 本损坏的 EPUB');
     if (skipped) parts.push('已跳过 ' + skipped + ' 本重复图书');
-    if (failures.length) parts.push(failures.length + ' 本失败：' + failures.map((item) => item.path.split(/[\\/]/).pop()).join('、'));
+    if (failures.length) parts.push(failures.length + ' 本失败：' + failures.slice(0, 3).map((item) => item.path.split(/[\\/]/).pop()).join('、') + (failures.length > 3 ? '…' : ''));
     if (!parts.length) parts.push('没有可导入的图书');
     els.importStatus.textContent = parts.join(' · ');
+    els.importStatus.title = failures.map((item) => item.path.split(/[\\/]/).pop() + '：' + item.message).join('\n');
   }
-  return { added, recovered, skipped, failures };
+  return result;
 }
 
 function openBookImportChooser(fromHome) {
+  if (bookImportPickerBusy || bookImporter.busy) return;
   bookImportFromHome = !!fromHome;
   bookImportReturnFocus = document.activeElement;
   els.bookImportOverlay.hidden = false;
@@ -573,26 +592,34 @@ function closeBookImportChooser(options) {
 }
 
 async function chooseBookImportSource(source) {
-  const fromHome = bookImportFromHome;
-  const returnFocus = bookImportReturnFocus;
-  closeBookImportChooser({ restoreFocus: false });
-  let paths;
+  if (bookImportPickerBusy || bookImporter.busy) return null;
+  bookImportPickerBusy = true;
+  setBookImportBusy(true);
   try {
-    paths = source === 'folder' ? await window.api.openFolder() : await window.api.openFiles();
-  } catch (error) {
+    const fromHome = bookImportFromHome;
+    const returnFocus = bookImportReturnFocus;
+    closeBookImportChooser({ restoreFocus: false });
+    let paths;
+    try {
+      paths = source === 'folder' ? await window.api.openFolder() : await window.api.openFiles();
+    } catch (error) {
+      if (fromHome) showView('library');
+      els.importStatus.classList.add('error');
+      els.importStatus.textContent = '无法选择或扫描图书：' + (error && error.message ? error.message : '未知错误');
+      return { added: 0, recovered: 0, skipped: 0, failures: [] };
+    }
+    if (!paths.length) {
+      if (returnFocus && returnFocus.isConnected && typeof returnFocus.focus === 'function') returnFocus.focus();
+      return null;
+    }
     if (fromHome) showView('library');
-    els.importStatus.classList.add('error');
-    els.importStatus.textContent = '无法打开文件选择器：' + (error && error.message ? error.message : '未知错误');
-    return { added: 0, recovered: 0, skipped: 0, failures: [] };
+    els.importStatus.classList.remove('error');
+    els.importStatus.textContent = '正在导入 ' + paths.length + ' 个文件…';
+    return await importPaths(paths);
+  } finally {
+    bookImportPickerBusy = false;
+    setBookImportBusy(false);
   }
-  if (!paths.length) {
-    if (returnFocus && returnFocus.isConnected && typeof returnFocus.focus === 'function') returnFocus.focus();
-    return null;
-  }
-  if (fromHome) showView('library');
-  els.importStatus.classList.remove('error');
-  els.importStatus.textContent = '正在导入 ' + paths.length + ' 个文件…';
-  return importPaths(paths);
 }
 
 function removeAiChatsForPaths(paths) {
@@ -5212,6 +5239,7 @@ function bindEvents() {
   $('btn-book-import-close').addEventListener('click', () => closeBookImportChooser());
   els.bookImportFolder.addEventListener('click', () => chooseBookImportSource('folder'));
   els.bookImportFiles.addEventListener('click', () => chooseBookImportSource('files'));
+  $('btn-cancel-import').addEventListener('click', () => bookImporter.cancel());
   els.bookImportOverlay.addEventListener('click', (event) => {
     if (event.target === els.bookImportOverlay) closeBookImportChooser();
   });

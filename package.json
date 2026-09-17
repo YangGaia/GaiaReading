@@ -14,6 +14,7 @@
     "smoke:epub-font": "electron scripts/epub-typography-smoke.js",
     "smoke:ui": "electron scripts/non-reading-smoke.js",
     "smoke:reader-ui": "electron scripts/non-reading-smoke.js --reader-toolbar",
+    "smoke:import": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import-smoke.ps1",
     "dist": "electron-builder --win",
     "shot": "electron . --shot-dir docs/screenshots --debug-open tests/fixtures/sample.epub"
   },

@@ -25,13 +25,34 @@ function textOf(node) {
   return '';
 }
 
-async function findOpfPath(zip) {
+function readEntry(entry, limit) {
+  return new Promise((resolve, reject) => {
+    const stream = entry.nodeStream('nodebuffer');
+    const chunks = [];
+    let size = 0;
+    let failed = false;
+    stream.on('data', (chunk) => {
+      if (failed) return;
+      size += chunk.length;
+      if (size > limit) {
+        failed = true;
+        reject(Object.assign(new Error('EPUB 元数据超过大小限制'), { code: 'EPUB_METADATA_LIMIT' }));
+        stream.destroy();
+      } else chunks.push(chunk);
+    });
+    stream.once('error', reject);
+    stream.once('end', () => { if (!failed) resolve(Buffer.concat(chunks)); });
+  });
+}
+
+async function findOpfPath(zip, limit) {
   const entry = zip.file('META-INF/container.xml');
   if (!entry) return null;
   let doc;
   try {
-    doc = new XMLParser(PARSER_OPTS).parse(await entry.async('string'));
-  } catch {
+    doc = new XMLParser(PARSER_OPTS).parse((await readEntry(entry, limit)).toString('utf8'));
+  } catch (error) {
+    if (error.code === 'EPUB_METADATA_LIMIT') throw error;
     return null;
   }
   const rootfile = doc && doc.container && doc.container.rootfiles
@@ -70,15 +91,15 @@ function guessMime(href) {
   return map[ext] || 'application/octet-stream';
 }
 
-async function parseEpub(buffer) {
+async function parseEpub(buffer, { maxXmlBytes = 8 * 1024 * 1024, maxCoverBytes = 4 * 1024 * 1024 } = {}) {
   const result = { title: '', author: '', cover: null };
   const zip = await JSZip.loadAsync(buffer);
-  const opfRel = (await findOpfPath(zip)) || 'content.opf';
+  const opfRel = (await findOpfPath(zip, maxXmlBytes)) || 'content.opf';
   const opfEntry = zip.file(opfRel);
   if (!opfEntry) return result;
 
   const opfDir = opfRel.includes('/') ? opfRel.slice(0, opfRel.lastIndexOf('/')) : '';
-  const opf = new XMLParser(PARSER_OPTS).parse(await opfEntry.async('string'));
+  const opf = new XMLParser(PARSER_OPTS).parse((await readEntry(opfEntry, maxXmlBytes)).toString('utf8'));
   const pkg = (opf && opf.package) || {};
   const metadata = pkg.metadata || {};
   const manifest = pkg.manifest || {};
@@ -91,10 +112,12 @@ async function parseEpub(buffer) {
     const coverPath = opfDir ? `${opfDir}/${href}` : href;
     const coverEntry = zip.file(coverPath);
     if (coverEntry) {
-      result.cover = {
-        mime: guessMime(href),
-        base64: await coverEntry.async('base64'),
-      };
+      try {
+        result.cover = { mime: guessMime(href), base64: (await readEntry(coverEntry, maxCoverBytes)).toString('base64') };
+      } catch (error) {
+        // A broken/oversized cover must not prevent importing a readable book.
+        result.cover = null;
+      }
     }
   }
   return result;

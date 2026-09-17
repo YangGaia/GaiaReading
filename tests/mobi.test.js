@@ -9,6 +9,29 @@ const { detectKind, openMobi, loadChapter, cleanupMobi, planChapterMerge, chapte
 
 const ROOT = path.join(__dirname, '..');
 
+test('只导入元数据时不解析目录正文位置，阅读模式仍保留目录定位', async () => {
+  const vm = require('vm');
+  let locations = 0;
+  const book = {
+    getMetadata: () => ({ title: '合集', author: ['作者'] }),
+    getSpine: () => [], getToc: () => [{ label: '正文', href: 'kindle:pos:fid:0:off:0' }], getCoverImage: () => null,
+    chapters: [{ id: '0', length: 12, frags: [{ index: 0 }] }],
+    resolveHref: () => { locations += 1; return { id: '0', selector: '[id="chapter"]' }; },
+  };
+  const context = {
+    module: { exports: {} }, Buffer,
+    parser: { initMobiFile: async () => book },
+    require: (name) => name === 'fs' ? { readFileSync: () => Buffer.alloc(128), existsSync: () => false } : require(name),
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'src/shared/mobi.js'), 'utf8') + '\nloadParser = async () => parser;', context);
+  const metadata = await context.module.exports.openMobi('book.mobi', 'resources', { metadataOnly: true });
+  assert.equal(metadata.title, '合集');
+  assert.equal(locations, 0);
+  const reading = await context.module.exports.openMobi('book.mobi', 'resources');
+  assert.equal(reading.toc[0].index, 0);
+  assert.equal(locations, 1);
+});
+
 function sampleFiles() {
   return fs
     .readdirSync(ROOT)

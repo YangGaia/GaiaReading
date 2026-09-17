@@ -44,6 +44,9 @@
 #library-view .library-title-rule { flex: 1; height: 1px; background: linear-gradient(90deg, #a4b5d0 0 40px, #3c4654 40px); }
 #library-view .import-status { max-width: 60%; font-size: 11px; }
 #library-view .import-status:empty { display: none; }
+#library-view .import-status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#library-view .import-cancel { flex: 0 0 auto; min-height: 28px; padding: 4px 10px; margin-left: 12px; font-size: 11px; }
+#library-view .import-cancel[hidden] { display: none; }
 #library-view .manage-bar { margin: 0 8px 14px; padding: 8px 12px; gap: 10px; border-radius: 8px; background: #1d2530; font-size: 12px; }
 #library-view .manage-bar[hidden] { display: none; }
 #library-view .bookshelf { flex: 1; width: 100%; max-width: none; min-height: 0; margin: 0; padding: 10px 8px 32px; grid-template-columns: repeat(auto-fill, minmax(174px, 1fr)); gap: 26px 22px; align-content: start; align-items: start; overflow-y: auto; scrollbar-color: #566275 transparent; }

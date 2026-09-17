@@ -300,7 +300,7 @@ function planChapterMerge(rawChapters, kind) {
   return mergeTarget;
 }
 
-async function openMobi(filePath, resourceSaveDir) {
+async function openMobi(filePath, resourceSaveDir, options = {}) {
   const buf = fs.readFileSync(filePath);
   const kind = detectKind(buf);
   const parser = await loadParser();
@@ -334,6 +334,12 @@ async function openMobi(filePath, resourceSaveDir) {
     }
   } catch {
     // 无封面不阻塞
+  }
+
+  // Shelf import needs no chapter/footnote anchors. Resolving every TOC entry can
+  // synchronously decompress an entire large KF8 anthology before import returns.
+  if (options.metadataOnly) {
+    return { kind, title: meta.title || '', author: Array.isArray(meta.author) ? meta.author.join('、') : (meta.author || ''), cover, book };
   }
 
     // 把 TOC 条目映射到章节序号（快速路径：直接匹配 frag index）

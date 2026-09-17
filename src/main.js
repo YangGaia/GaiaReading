@@ -1,13 +1,14 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net, safeStorage, screen, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net, safeStorage, screen, shell, utilityProcess } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const JSZip = require('jszip');
 const { pathToFileURL } = require('url');
-const { parseEpub } = require('./shared/epub-meta');
-const { decodeTxt, titleFromFilename } = require('./shared/txt-utils');
+const { ImportQueue } = require('./shared/import-queue');
+const { scanBookFolder } = require('./shared/book-metadata');
+const { decodeTxt } = require('./shared/txt-utils');
 const { JsonStore } = require('./shared/store');
 const { prepareDataFile } = require('./shared/data-upgrade');
 const { openMobi, loadChapter, cleanupMobi, resolveMobiHref } = require('./shared/mobi');
@@ -46,6 +47,7 @@ let mainWindow = null;
 let dictionaryWindow = null;
 let dictionarySessionSecured = false;
 let store = null;
+let importQueue = null;
 const repairedEpubCache = new Map();
 const aiChatRequests = new Map();
 
@@ -303,60 +305,16 @@ function formatOf(filePath) {
   return SUPPORTED_EXT.includes(ext) ? ext.slice(1) : null;
 }
 
-function scanFolder(dir, out, depth) {
-  if (depth <= 0) return;
-  let entries;
+function logImport(event, details = {}) {
   try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) scanFolder(full, out, depth - 1);
-    else if (entry.isFile() && formatOf(full)) out.push(full);
-  }
-}
-
-async function metaFor(filePath) {
-  const format = formatOf(filePath);
-  const fallbackTitle = titleFromFilename(path.basename(filePath));
-  if (format === 'epub') {
-    try {
-      const readable = await readableEpub(filePath, fs.readFileSync(filePath));
-      const meta = await parseEpub(readable.buffer);
-      return {
-        path: filePath,
-        format,
-        title: meta.title || fallbackTitle,
-        author: meta.author || '',
-        cover: meta.cover ? `data:${meta.cover.mime};base64,${meta.cover.base64}` : null,
-        recovered: readable.recovered,
-        recoveredEntries: readable.failures.map((item) => item.fileName),
-      };
-    } catch (error) {
-      throw new Error('EPUB 文件损坏且无法自动恢复：' + (error && error.message ? error.message : '未知错误'));
+    const file = path.join(app.getPath('userData'), 'book-import.log');
+    if (fs.existsSync(file) && fs.statSync(file).size > 256 * 1024) {
+      const previous = file + '.previous';
+      if (fs.existsSync(previous)) fs.unlinkSync(previous);
+      fs.renameSync(file, previous);
     }
-  } else if (format === 'mobi' || format === 'azw3') {
-    const resDir = path.join(app.getPath('temp'), 'gaia-mobi-meta-' + process.pid);
-    let opened = null;
-    try {
-      opened = await openMobi(filePath, resDir);
-      return {
-        path: filePath,
-        format,
-        title: opened.title || fallbackTitle,
-        author: opened.author || '',
-        cover: opened.cover || null,
-      };
-    } catch {
-      // 解析失败时退回文件名标题
-    } finally {
-      cleanupMobi(opened);
-    }
-  }
-  return { path: filePath, format, title: fallbackTitle, author: '', cover: null };
+    fs.appendFileSync(file, JSON.stringify({ time: new Date().toISOString(), event, ...details }) + '\n');
+  } catch (error) { console.warn('IMPORT_LOG_FAILED', error.message); }
 }
 
 /** 解析 bgm://local/<file> 到磁盘上的音频文件（兼容开发目录与打包后的 app.asar.unpacked）。 */
@@ -407,6 +365,13 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  const importOwner = mainWindow.webContents.id;
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    logImport('renderer-exit', details);
+    if (importQueue) importQueue.cancel(importOwner);
+  });
+  mainWindow.webContents.on('destroyed', () => { if (importQueue) importQueue.cancel(importOwner); });
+  mainWindow.on('unresponsive', () => logImport('window-unresponsive'));
   let displayUpdateTimer = null;
   const sendDisplayFrequency = () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -735,8 +700,10 @@ function createWindow() {
               await new Promise((r) => setTimeout(r, 400));
               const pctBefore = __gaiaDebug.getPercent();
               const locBefore = __gaiaDebug.getLoc();
+              const pageTurnMotionExpected = !document.hidden && !matchMedia('(prefers-reduced-motion: reduce)').matches;
               await __gaiaDebug.nextPage();
-              const pagingClass = __gaiaDebug.getPagingClass();
+              const pageTurnAnimationReady = !pageTurnMotionExpected || document.getAnimations().some((animation) =>
+                animation.id === 'reader-page-turn' && animation.playState === 'running');
               await new Promise((r) => setTimeout(r, 800));
               const pctAfter = __gaiaDebug.getPercent();
               const locAfter = __gaiaDebug.getLoc();
@@ -749,7 +716,8 @@ function createWindow() {
               const aliceQuickActionsReady = !!aliceSummaryAction && !!aliceCommentAction &&
                 aliceSummaryAction.closest('.reader-topbar') && aliceCommentAction.closest('.reader-topbar') &&
                 aliceSummaryAction.offsetHeight === aliceCommentAction.offsetHeight && aliceSummaryAction.offsetHeight >= 30 &&
-                getComputedStyle(aliceSummaryAction).backgroundImage !== getComputedStyle(aliceCommentAction).backgroundImage &&
+                aliceSummaryAction.dataset.aiAlice === 'summary' && aliceCommentAction.dataset.aiAlice === 'comment' &&
+                aliceSummaryAction.getAttribute('aria-label') !== aliceCommentAction.getAttribute('aria-label') &&
                 document.getElementById('ai-summary-panel').contains(document.getElementById('ai-reader-profile'));
               const progTrack = document.getElementById("progress-track");
               const progressVisible = !!progTrack && progTrack.offsetHeight > 0 && !!document.getElementById("progress-fill");
@@ -920,7 +888,7 @@ function createWindow() {
               const particleCountLibrary = __gaiaDebug.getParticleCount();
               console.log('DEBUG_VIEW', viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epSize.w, epSize.h);
               console.log('DEBUG_FX', fxOnHome, particleCount, fxInReader, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, diamondCount);
-              console.log('DEBUG_NIGHT', nightBefore, nightAfter, readerDark, darkInjected, eyeTheme, readerEye, fontInjected, pagingClass);
+              console.log('DEBUG_NIGHT', nightBefore, nightAfter, readerDark, darkInjected, eyeTheme, readerEye, fontInjected, pageTurnAnimationReady);
               console.log('DEBUG_REOPEN', reopenStatus, reopenPct, memOk, shelfOrderAfterRead, shelfProgressCount);
               console.log('DEBUG_SPREAD', spreadBefore, spreadAfter, epSizeAfterSpread.w);
               console.log('DEBUG_PROGRESS', pctBefore, pctAfter);
@@ -929,7 +897,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, highlightSaved, highlightPanelOpen, highlightCardLocated, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, readingThemeControlsReady, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, readerDark, darkInjected, eyeTheme, readerEye, fontInjected, pagingClass, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, settingsOpenBeforeBookmark, bookmarkActionClosedImmediately, bookmarkActionOpenedImmediately, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocWithEntriesHasNoEmptyMessage, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, edgeTocDisabledSetting, edgeTocDisabledBlocksHover, edgeTocDisabledKeepsManual, edgeTocReenabled, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, highlightSaved, highlightPanelOpen, highlightCardLocated, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, readingThemeControlsReady, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, readerDark, darkInjected, eyeTheme, readerEye, fontInjected, pageTurnAnimationReady, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, settingsOpenBeforeBookmark, bookmarkActionClosedImmediately, bookmarkActionOpenedImmediately, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocWithEntriesHasNoEmptyMessage, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, edgeTocDisabledSetting, edgeTocDisabledBlocksHover, edgeTocDisabledKeepsManual, edgeTocReenabled, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -995,7 +963,7 @@ function createWindow() {
               parsed.pctAfter != null &&
               parsed.progressWidth !== '' &&
               parseFloat(parsed.progressWidth) > 0 && parsed.wheelsAfterNav >= 1 &&
-              parsed.pagingClass.indexOf('paging-next') >= 0 &&
+              parsed.pageTurnAnimationReady === true &&
               parsed.reopenPct > 0 &&
               parsed.memOk === true &&
               parsed.shelfOrderAfterRead[0] === DEBUG_OPEN_PATH &&
@@ -1521,24 +1489,27 @@ function createWindow() {
 }
 
 ipcMain.handle('dialog:openFiles', async () => {
+  logImport('file-picker-open');
   const res = await dialog.showOpenDialog(mainWindow, {
     title: '选择电子书文件',
     filters: [{ name: '电子书', extensions: ['epub', 'pdf', 'txt', 'mobi', 'azw3'] }],
     properties: ['openFile', 'multiSelections'],
   });
   if (res.canceled) return [];
+  logImport('file-picker-selected', { count: res.filePaths.length });
   return res.filePaths.filter((p) => formatOf(p));
 });
 
 ipcMain.handle('dialog:openFolder', async () => {
+  logImport('folder-picker-open');
   const res = await dialog.showOpenDialog(mainWindow, {
     title: '选择电子书文件夹',
     properties: ['openDirectory'],
   });
   if (res.canceled) return [];
-  const out = [];
-  scanFolder(res.filePaths[0], out, 8);
-  return out;
+  const files = await scanBookFolder(res.filePaths[0], 8);
+  logImport('folder-scanned', { count: files.length });
+  return files;
 });
 
 ipcMain.handle('book:read', async (event, filePath) => {
@@ -1556,7 +1527,8 @@ ipcMain.handle('book:read', async (event, filePath) => {
   return { format, data: buf };
 });
 
-ipcMain.handle('book:metadata', async (event, filePath) => metaFor(filePath));
+ipcMain.handle('book:metadata', (event, filePath) => importQueue.read(filePath, event.sender.id));
+ipcMain.handle('book:metadata:cancel', (event) => { importQueue.cancel(event.sender.id); return true; });
 
 const mobiSessions = new Map();
 let mobiSessionSeq = 0;
@@ -1756,6 +1728,13 @@ app.whenReady().then(() => {
     return;
   }
   store = new JsonStore(storePath);
+  importQueue = new ImportQueue({
+    fork: () => utilityProcess.fork(path.join(__dirname, 'import-worker.js'), [], {
+      serviceName: 'Gaia Reading 图书导入', execArgv: ['--max-old-space-size=256'], stdio: 'ignore',
+    }),
+    tempRoot: path.join(app.getPath('temp'), 'gaia-book-import-' + process.pid),
+    log: logImport,
+  });
   registerBgmProtocol();
   setupMenu();
   createWindow();
@@ -1767,6 +1746,8 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+app.on('before-quit', () => { if (importQueue) importQueue.close(); });
 
 
 

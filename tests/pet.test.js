@@ -287,7 +287,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("triggerAction('perk')"), '鼠标移入时的一怔动作应保留');
   assert.ok(renderer.includes("playPerformance('yawn'"), '打哈欠应使用头和身体协同的专用动画');
   assert.ok(renderer.includes("{ at: 260, expression: '打哈欠' }"), '打哈欠张嘴表情应与动作阶段同步');
-  assert.ok(renderer.includes("hideBubble(true);\n      applyExpression('眼睛微张')"), '打哈欠开始前应清除上一条气泡');
+  assert.match(renderer, /hideBubble\(true\);\r?\n\s+applyExpression\('眼睛微张'\)/, '打哈欠开始前应清除上一条气泡');
   assert.ok(renderer.includes("showBubble(lineFor('yawn'), 1300)"), '打哈欠张嘴阶段应显示与动作同步收尾的文字');
   assert.ok(renderer.includes("drowse: 2200"), '困倦点头动作应有足够缓慢的节奏');
   assert.ok(renderer.includes("{ at: 620, expression: '安心' }"), '困倦低头阶段应闭眼');

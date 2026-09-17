@@ -53,6 +53,7 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 
 - 支持 EPUB、PDF、TXT、MOBI、AZW3，保留书架、目录、进度和断点续读。
 - 首页与书架均可通过“添加图书”选择文件夹、单个文件或一次多选文件；重复图书会自动跳过。
+- 源码开发版的批量导入显示当前书籍与已保存数量，支持取消；解析在独立进程中逐本执行，单本超时或异常会跳过，每本成功后保存书架。
 - EPUB、MOBI、AZW3 支持目录跳转；MOBI/AZW3 尾注可在应用内往返定位，TXT 可识别常见中英文章节标题。
 - 阅读页左下角可随时打开目录；鼠标触碰阅读区最左侧时，目录会自动滑出并在离开后收回，也可在设置中单独关闭触边展开。
 - 支持单页、双页、日间、护眼和夜间模式，并可调整字体、字号、行距与页边距。
@@ -151,8 +152,11 @@ npm run smoke:open  # 打开测试 EPUB 的综合冒烟验证
 npm run smoke:ui    # 非阅读页面、设置侧栏的尺寸/交互，以及阅读配色隔离验证（独立临时数据）
 npm run smoke:reader-ui # 阅读上下栏、音乐滚播、EPUB/PDF 与键盘鼠标交互验证
 npm run smoke:epub-font # EPUB 固定字号、嵌套样式与排版回归验证
+npm run smoke:import # 真实 Windows 文件选择器、两组三本 EPUB、文件夹、重复导入与取消验证
 npm run dist        # 生成 Windows 绿色版 exe
 ```
+
+`smoke:import` 会显示测试窗口并操作系统文件选择器，默认使用临时生成的书籍和独立数据目录；测试期间请让该窗口保持可见。设置 `GAIA_IMPORT_BOOKS_DIR` 可使用本机书籍目录，设置 `GAIA_IMPORT_COPY_USER_DATA=1` 可在现有书架数据的副本上验证。原始数据与原始书籍不会被测试修改，报告及预览默认保存在 `dist/previews/import-smoke/`。
 
 本地最新版 exe 位于 `dist/Gaia.Reading.1.1.1.exe`；上一版保存在 `dist/archive/`，验证记录与预览分别放在 `dist/reports/` 和 `dist/previews/`。目录约定与校验命令见 [构建产物目录](docs/build-output.md)。
 

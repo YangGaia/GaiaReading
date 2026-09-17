@@ -25,11 +25,10 @@ test('添加图书支持文件夹扫描、单文件与文件多选', () => {
   assert.ok(app.includes("source === 'folder' ? await window.api.openFolder() : await window.api.openFiles()"), '两种选择方式应进入各自系统选择器');
   assert.ok(main.includes("properties: ['openFile', 'multiSelections']"), '文件选择器必须支持多选');
   assert.ok(main.includes("properties: ['openDirectory']"), '文件夹选择器必须支持目录选择');
-  assert.ok(main.includes('scanFolder(res.filePaths[0], out, 8)'), '文件夹应递归扫描受支持的电子书');
+  assert.ok(main.includes('await scanBookFolder(res.filePaths[0], 8)'), '文件夹应异步递归扫描受支持的电子书');
 });
 
 test('统一导入流程反馈重复文件并只在实际选择后切换页面', () => {
-  assert.ok(app.includes("skipped += 1"), '重复图书应被计数');
   assert.ok(app.includes("已跳过 ' + skipped + ' 本重复图书"), '导入状态应反馈重复图书数量');
   const cancelCheck = app.indexOf('if (!paths.length)');
   const librarySwitch = app.indexOf("if (fromHome) showView('library');", cancelCheck);

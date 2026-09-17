@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
   openFolder: () => ipcRenderer.invoke('dialog:openFolder'),
   readBook: (filePath) => ipcRenderer.invoke('book:read', filePath),
   metadata: (filePath) => ipcRenderer.invoke('book:metadata', filePath),
+  cancelBookImport: () => ipcRenderer.invoke('book:metadata:cancel'),
   mobiOpen: (filePath) => ipcRenderer.invoke('mobi:open', filePath),
   mobiChapter: (sessionId, index) => ipcRenderer.invoke('mobi:chapter', { sessionId, index }),
   mobiResolveHref: (sessionId, href) => ipcRenderer.invoke('mobi:resolve-href', { sessionId, href }),
