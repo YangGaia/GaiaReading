@@ -1,5 +1,6 @@
 param(
-    [string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot)
+    [string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot),
+    [switch]$SkipPublishedCheck
 )
 
 # Read-only local verification. Release binaries and reports are not stored in Git.
@@ -48,7 +49,7 @@ foreach ($file in $archive) {
 }
 
 $reportRoot = Join-Path $dist "reports\$version"
-foreach ($suite in @('reader', 'ui', 'epub-font')) {
+foreach ($suite in @('import')) {
     $suiteRoot = Join-Path $reportRoot $suite
     $report = Get-Content -LiteralPath (Join-Path $suiteRoot 'report.json') -Raw | ConvertFrom-Json
     Assert-Dist ($report.passed -eq $true) "Archived $suite checks did not pass"
@@ -57,11 +58,18 @@ foreach ($suite in @('reader', 'ui', 'epub-font')) {
         Assert-Dist (Test-Path -LiteralPath (Join-Path $suiteRoot ([IO.Path]::GetFileName($shot))) -PathType Leaf) "Missing archived screenshot: $shot"
     }
 }
-$releaseReport = Get-Content -LiteralPath (Join-Path $reportRoot 'release\published-check.json') -Raw | ConvertFrom-Json
-Assert-Dist ($releaseReport.passed -eq $true -and $releaseReport.tag -eq "v$version") 'Missing successful publication verification'
-Assert-Dist ((Get-FileHash -LiteralPath $executable).Hash -eq $releaseReport.sha256) 'Local exe differs from the published release'
-$preview = Join-Path $dist "previews\$version\music-marquee.gif"
-Assert-Dist ((Test-Path -LiteralPath $preview -PathType Leaf) -and (Get-Item -LiteralPath $preview).Length -gt 0) 'Missing music marquee preview'
+$payloadReport = Get-Content -LiteralPath (Join-Path $reportRoot 'release\payload-check.json') -Raw | ConvertFrom-Json
+Assert-Dist ($payloadReport.passed -eq $true -and $payloadReport.version -eq $version) 'Packaged source verification failed'
+$portableReport = Get-Content -LiteralPath (Join-Path $reportRoot 'release\portable-check.json') -Raw | ConvertFrom-Json
+Assert-Dist ($portableReport.passed -eq $true -and $portableReport.runtime.version -eq $version -and $portableReport.runtime.packaged -eq $true) 'Portable executable smoke did not pass'
+Assert-Dist ($portableReport.runtime.asarSha256 -eq $payloadReport.asarSha256) 'Running portable source differs from the verified package'
+if (-not $SkipPublishedCheck) {
+    $releaseReport = Get-Content -LiteralPath (Join-Path $reportRoot 'release\published-check.json') -Raw | ConvertFrom-Json
+    Assert-Dist ($releaseReport.passed -eq $true -and $releaseReport.tag -eq "v$version") 'Missing successful publication verification'
+    Assert-Dist ((Get-FileHash -LiteralPath $executable).Hash -eq $releaseReport.sha256) 'Local exe differs from the published release'
+}
+$preview = Join-Path $dist "previews\$version\import-progress.png"
+Assert-Dist ((Test-Path -LiteralPath $preview -PathType Leaf) -and (Get-Item -LiteralPath $preview).Length -gt 0) 'Missing import progress preview'
 
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) "Gaia.Reading.$version.lnk"
 Assert-Dist (Test-Path -LiteralPath $shortcutPath -PathType Leaf) 'Desktop shortcut is missing'
@@ -75,6 +83,7 @@ Assert-Dist ($shortcut.IconLocation -eq ($executable + ',0')) 'Desktop shortcut 
     Passed = $true
     Checks = $script:distChecks
     Version = $version
+    PublicationVerified = -not $SkipPublishedCheck
     Executable = $executable
     Shortcut = $shortcutPath
     TopLevelEntries = $actualEntries
