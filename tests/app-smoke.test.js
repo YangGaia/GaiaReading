@@ -130,15 +130,15 @@ test('侧栏尺寸变化统一刷新全部阅读格式并保留阅读锚点', ()
   assert.ok(app.includes("firstMark && c && c.format === 'pdf'"), '仅 PDF 搜索高亮可以在页内滚动到命中文字');
 });
 
-test('版本号为 1.1.2，依赖锁和界面同步', () => {
+test('版本号为 1.1.3，依赖锁和界面同步', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.1.2');
+  assert.strictEqual(pkg.version, '1.1.3');
   assert.strictEqual(lock.version, pkg.version);
   assert.strictEqual(lock.packages[''].version, pkg.version);
   assert.strictEqual(pkg.build.win.artifactName, 'Gaia.Reading.${version}.${ext}', '发行文件名应与 GitHub Release 保持一致');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.match(html, /class="drawer-about"[^>]*>[\s\S]*?Gaia Reading[\s\S]*?1\.1\.2[\s\S]*?<\/footer>/, '关于面板版本号未同步');
+  assert.match(html, /class="drawer-about"[^>]*>[\s\S]*?Gaia Reading[\s\S]*?1\.1\.3[\s\S]*?<\/footer>/, '关于面板版本号未同步');
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
   assert.ok(html.includes('reader-theme-options'), '缺少主题切换');
   assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
@@ -217,19 +217,36 @@ test('1.1.1 历史发行说明保留 EPUB 字号、阅读上下栏和曲名滚�
   assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').includes('## 1.1.1'));
 });
 
-test('1.1.2 发行说明、下载入口与批量导入修复保持一致', () => {
+test('1.1.2 历史发行说明保留批量导入修复与校验值', () => {
   const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.1.2.md'), 'utf8');
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
   for (const section of ['批量导入稳定性', '进度、取消与逐本保存', '升级与运行', '发布文件', '验证情况']) {
     assert.ok(notes.includes(section), `1.1.2 Release 说明缺少 ${section}`);
   }
-  assert.ok(notes.includes('Gaia.Reading.1.1.2.exe') && readme.includes('Gaia.Reading.1.1.2.exe'));
+  assert.ok(notes.includes('Gaia.Reading.1.1.2.exe'));
   assert.match(notes, /文件大小：[\d,]+ 字节/);
   assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
   assert.doesNotMatch(notes, /\{\{SHA256\}\}|\{\{FILE_SIZE\}\}/);
   assert.ok(notes.includes('compare/v1.1.1...v1.1.2'));
-  assert.ok(readme.includes('RELEASE_NOTES_1.1.2.md') && readme.includes('## 1.1.2 更新亮点'));
-  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').startsWith('## 1.1.2'));
+  assert.ok(readme.includes('RELEASE_NOTES_1.1.2.md'));
+  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').includes('## 1.1.2'));
+});
+
+test('1.1.3 发行说明、下载入口与 MOBI 图片修复保持一致', () => {
+  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.1.3.md'), 'utf8');
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  for (const section of ['MOBI/AZW3 图片解析', '长图缩放与分页', '升级与运行', '发布文件', '验证情况']) {
+    assert.ok(notes.includes(section), `1.1.3 Release 说明缺少 ${section}`);
+  }
+  assert.ok(notes.includes('Gaia.Reading.1.1.3.exe') && readme.includes('Gaia.Reading.1.1.3.exe'));
+  assert.match(notes, /文件大小：[\d,]+ 字节/);
+  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
+  assert.doesNotMatch(notes, /\{\{SHA256\}\}|\{\{FILE_SIZE\}\}/);
+  assert.ok(notes.includes('compare/v1.1.2...v1.1.3'));
+  assert.ok(readme.includes('RELEASE_NOTES_1.1.3.md') && readme.includes('## 1.1.3 更新亮点'));
+  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').startsWith('## 1.1.3'));
+  assert.ok(fs.readFileSync(path.join(root, 'scripts/verify-dist-layout.ps1'), 'utf8').includes("@('mobi-images', 'epub-font')"));
+  assert.ok(fs.readFileSync(path.join(root, 'scripts/verify-dist-layout.ps1'), 'utf8').includes('portable-mobi-check.json'));
 });
 
 test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => {
@@ -355,8 +372,8 @@ test('README 展示新版阅读截图并替换旧的阅读设置截图', () => {
     const file = path.join(root, 'docs', 'screenshots', shot);
     assert.ok(fs.statSync(file).size > 5000, shot + ' 异常过小');
   }
-  assert.ok(readme.includes('当前稳定版本：**1.1.2**'), 'README 应明确当前稳定版本');
-  assert.ok(readme.includes('releases/tag/v1.1.2'), 'README 应提供正式版下载入口');
+  assert.ok(readme.includes('当前稳定版本：**1.1.3**'), 'README 应明确当前稳定版本');
+  assert.ok(readme.includes('releases/tag/v1.1.3'), 'README 应提供正式版下载入口');
 });
 
 test('主题/排版/翻页动画/菜单相关配置存在', () => {

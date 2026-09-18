@@ -2,18 +2,18 @@
 
 Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB、PDF、TXT、MOBI 和 AZW3。它把多格式阅读、章节级 AI 对话、划线笔记、阅读统计和桌面角色「久远寺有珠」放在同一个应用中。
 
-当前稳定版本：**1.1.2**
+当前稳定版本：**1.1.3**
 
-[下载 1.1.2](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.2) · [查看本版说明](RELEASE_NOTES_1.1.2.md) · [版本记录](CHANGELOG.md)
+[下载 1.1.3](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.3) · [查看本版说明](RELEASE_NOTES_1.1.3.md) · [版本记录](CHANGELOG.md)
 
-## 1.1.2 更新亮点
+## 1.1.3 更新亮点
 
-本版集中修复批量导入和文件夹导入的稳定性问题，已通过用户验收。
+本版修复 MOBI/AZW3 的部分图片缺失和长图底部裁切问题，已通过用户验收。
 
-- **独立解析进程**：逐本读取图书信息，单本解析超过 15 秒或异常退出时跳过并继续。
-- **逐本保存**：每本成功后立即保存书架，取消或后续书籍失败时保留已经导入的结果。
-- **进度与取消**：显示当前文件、导入进度和已保存数量，支持取消，并防止重复触发导入。
-- **大型合集与文件夹**：导入 MOBI/AZW3 时省去不必要的目录正文定位；文件夹异步扫描，重复文件自动跳过，超大或损坏封面可降级处理。
+- **图片解析**：纠正 KF8 图片和样式资源编号，恢复此前读到错误记录的图片。
+- **长图完整显示**：图片根据单页宽高等比缩放，适配单页、双页和窗口调整，保留行内小图尺寸。
+- **嵌套资源**：补齐 SVG 内嵌图片、独立样式表和背景图，兼容本地资源路径与图片格式识别。
+- **慢加载重排**：图片较晚加载完成时仍会更新分页，并保留文字或插图阅读位置。
 
 ## 界面截图
 
@@ -92,8 +92,8 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 
 ## 下载与运行
 
-1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.2)。
-2. 下载 `Gaia.Reading.1.1.2.exe`。
+1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.3)。
+2. 下载 `Gaia.Reading.1.1.3.exe`。
 3. 双击运行，无需安装 Node.js，也无需执行安装程序。
 
 系统要求：Windows 10/11 x64。当前发行文件未购买商业代码签名证书，Windows 首次运行时可能显示 SmartScreen 提示；请确认下载来源并核对 Release 中公布的 SHA-256。
@@ -158,7 +158,7 @@ npm run dist        # 生成 Windows 绿色版 exe
 
 `smoke:import` 会显示测试窗口并操作系统文件选择器，默认使用临时生成的书籍和独立数据目录；测试期间请让该窗口保持可见。设置 `GAIA_IMPORT_BOOKS_DIR` 可使用本机书籍目录，设置 `GAIA_IMPORT_COPY_USER_DATA=1` 可在现有书架数据的副本上验证。原始数据与原始书籍不会被测试修改，报告及预览默认保存在 `dist/previews/import-smoke/`。
 
-本地最新版 exe 位于 `dist/Gaia.Reading.1.1.2.exe`；上一版保存在 `dist/archive/`，验证记录与预览分别放在 `dist/reports/` 和 `dist/previews/`。目录约定与校验命令见 [构建产物目录](docs/build-output.md)。
+本地最新版 exe 位于 `dist/Gaia.Reading.1.1.3.exe`；上一版保存在 `dist/archive/`，验证记录与预览分别放在 `dist/reports/` 和 `dist/previews/`。目录约定与校验命令见 [构建产物目录](docs/build-output.md)。
 
 ## 项目结构
 
@@ -171,4 +171,4 @@ tests/               自动化测试和测试用电子书
 assets/bgm/          内置音乐资源
 ```
 
-本次更新详情请阅读 [RELEASE_NOTES_1.1.2.md](RELEASE_NOTES_1.1.2.md)；上一版本说明见 [RELEASE_NOTES_1.1.1.md](RELEASE_NOTES_1.1.1.md)，更早的 [1.1.0 说明](RELEASE_NOTES_1.1.0.md) 也予以保留。
+本次更新详情请阅读 [RELEASE_NOTES_1.1.3.md](RELEASE_NOTES_1.1.3.md)；上一版本说明见 [RELEASE_NOTES_1.1.2.md](RELEASE_NOTES_1.1.2.md)；更早的 [1.1.1 说明](RELEASE_NOTES_1.1.1.md) 与 [1.1.0 说明](RELEASE_NOTES_1.1.0.md) 也予以保留。

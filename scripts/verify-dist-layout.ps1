@@ -49,7 +49,7 @@ foreach ($file in $archive) {
 }
 
 $reportRoot = Join-Path $dist "reports\$version"
-foreach ($suite in @('import')) {
+foreach ($suite in @('mobi-images', 'epub-font')) {
     $suiteRoot = Join-Path $reportRoot $suite
     $report = Get-Content -LiteralPath (Join-Path $suiteRoot 'report.json') -Raw | ConvertFrom-Json
     Assert-Dist ($report.passed -eq $true) "Archived $suite checks did not pass"
@@ -63,13 +63,17 @@ Assert-Dist ($payloadReport.passed -eq $true -and $payloadReport.version -eq $ve
 $portableReport = Get-Content -LiteralPath (Join-Path $reportRoot 'release\portable-check.json') -Raw | ConvertFrom-Json
 Assert-Dist ($portableReport.passed -eq $true -and $portableReport.runtime.version -eq $version -and $portableReport.runtime.packaged -eq $true) 'Portable executable smoke did not pass'
 Assert-Dist ($portableReport.runtime.asarSha256 -eq $payloadReport.asarSha256) 'Running portable source differs from the verified package'
+$mobiReport = Get-Content -LiteralPath (Join-Path $reportRoot 'release\portable-mobi-check.json') -Raw | ConvertFrom-Json
+Assert-Dist ($mobiReport.passed -eq $true -and $mobiReport.runtime.version -eq $version -and $mobiReport.runtime.packaged -eq $true) 'Packaged MOBI image checks did not pass'
+Assert-Dist ($mobiReport.runtime.asarSha256 -eq $payloadReport.asarSha256) 'Packaged MOBI checks used a different payload'
+Assert-Dist ($mobiReport.realBook.images -gt 0 -and @($mobiReport.realBook.failures).Count -eq 0) 'Packaged reader has failed MOBI images'
 if (-not $SkipPublishedCheck) {
     $releaseReport = Get-Content -LiteralPath (Join-Path $reportRoot 'release\published-check.json') -Raw | ConvertFrom-Json
     Assert-Dist ($releaseReport.passed -eq $true -and $releaseReport.tag -eq "v$version") 'Missing successful publication verification'
     Assert-Dist ((Get-FileHash -LiteralPath $executable).Hash -eq $releaseReport.sha256) 'Local exe differs from the published release'
 }
-$preview = Join-Path $dist "previews\$version\import-progress.png"
-Assert-Dist ((Test-Path -LiteralPath $preview -PathType Leaf) -and (Get-Item -LiteralPath $preview).Length -gt 0) 'Missing import progress preview'
+$preview = Join-Path $dist "previews\$version\long-single.png"
+Assert-Dist ((Test-Path -LiteralPath $preview -PathType Leaf) -and (Get-Item -LiteralPath $preview).Length -gt 0) 'Missing long image preview'
 
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) "Gaia.Reading.$version.lnk"
 Assert-Dist (Test-Path -LiteralPath $shortcutPath -PathType Leaf) 'Desktop shortcut is missing'
