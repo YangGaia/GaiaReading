@@ -15,7 +15,7 @@
  */
 
 const fs = require('fs');
-const path = require('path');
+const { fixKf8ResourceIds, toDataUrl, inlineChapterResources } = require('./mobi-resources');
 
 let parserPromise = null;
 
@@ -89,67 +89,6 @@ function detectKind(buf) {
   } catch {
     return 'unknown';
   }
-}
-
-function mimeOf(buf, fallback) {
-  if (!buf || !buf.length) return fallback || 'application/octet-stream';
-  if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg';
-  if (buf[0] === 0x89 && buf[1] === 0x50) return 'image/png';
-  if (buf[0] === 0x47 && buf[1] === 0x49) return 'image/gif';
-  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/webp';
-  return fallback || 'application/octet-stream';
-}
-
-/** 读取资源文件为 data URL。 */
-function toDataUrl(filePath) {
-  try {
-    const buf = fs.readFileSync(filePath);
-    const mime = mimeOf(buf, 'application/octet-stream');
-    return 'data:' + mime + ';base64,' + buf.toString('base64');
-  } catch {
-    return null;
-  }
-}
-
-/**
- * 把章节 HTML 中引用本地资源（图片/CSS）的绝对路径替换为内联内容。
- * 返回 { html, cssText }：html 为自包含片段，cssText 为可注入的样式。
- */
-function inlineChapterResources(chapterHtml, resourceSaveDir) {
-  let html = chapterHtml || '';
-  const cssText = [];
-
-  // CSS 文件引用：<link rel="stylesheet" href="...">
-  html = html.replace(/<link[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/gi, (match, href) => {
-    if (/^(https?:|data:)/i.test(href)) return match;
-    const p = path.isAbsolute(href) ? href : path.join(resourceSaveDir, href);
-    try {
-      cssText.push(fs.readFileSync(p, 'utf8'));
-      return '';
-    } catch {
-      return match;
-    }
-  });
-
-  // 图片引用：src="..." 或 srcset
-  html = html.replace(/(<img[^>]*src=["'])([^"']+)(["'])/gi, (match, pre, src, post) => {
-    if (/^(https?:|data:|blob:)/i.test(src)) return match;
-    const p = path.isAbsolute(src) ? src : path.join(resourceSaveDir, src);
-    const dataUrl = toDataUrl(p);
-    if (dataUrl) return pre + dataUrl + post;
-    return match;
-  });
-
-  // CSS url(...) 引用（背景图等）
-  html = html.replace(/url\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, ref) => {
-    if (/^(https?:|data:)/i.test(ref)) return match;
-    const p = path.isAbsolute(ref) ? ref : path.join(resourceSaveDir, ref);
-    const dataUrl = toDataUrl(p);
-    if (dataUrl) return 'url(' + dataUrl + ')';
-    return match;
-  });
-
-  return { html, cssText: cssText.join('\n') };
 }
 
 /**
@@ -302,19 +241,20 @@ function planChapterMerge(rawChapters, kind) {
 
 async function openMobi(filePath, resourceSaveDir, options = {}) {
   const buf = fs.readFileSync(filePath);
-  const kind = detectKind(buf);
+  let kind = detectKind(buf);
   const parser = await loadParser();
 
   let book;
   if (kind === 'kf8') {
-    book = await parser.initKf8File(filePath, resourceSaveDir);
+    book = fixKf8ResourceIds(await parser.initKf8File(filePath, resourceSaveDir));
   } else {
     // mobi7 或 unknown：先尝试 MOBI，若解析器内部识别为 KF8 兼容文件则回退 KF8
     try {
       book = await parser.initMobiFile(filePath, resourceSaveDir);
     } catch (errMobi) {
       try {
-        book = await parser.initKf8File(filePath, resourceSaveDir);
+        book = fixKf8ResourceIds(await parser.initKf8File(filePath, resourceSaveDir));
+        kind = 'kf8';
       } catch (errKf8) {
         throw new Error('无法解析 MOBI 文件：' + errMobi.message + ' / ' + errKf8.message);
       }
@@ -454,7 +394,7 @@ async function loadChapter(opened, chapterIndex, resourceSaveDir) {
     if (processed) parts.push(processed);
   }
   if (!parts.length) throw new Error('章节加载失败: ' + chapterIndex);
-  const inlinedList = parts.map((p) => inlineChapterResources(p.html, resourceSaveDir));
+  const inlinedList = parts.map((p) => inlineChapterResources(p.html, resourceSaveDir, p.css));
   return {
     index: chapterIndex,
     html: inlinedList.map((x) => x.html).join(''),

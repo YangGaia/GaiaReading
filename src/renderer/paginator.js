@@ -41,6 +41,8 @@ class Paginator {
     this._boundResize = () => this.reflow();
     this._renderVersion = 0;
     this._pendingFrame = null;
+    this._imageWaitCleanup = null;
+    this._imageLoadAnchor = null;
   }
 
   /** 列步进宽度：下一页/上一页的滚动距离（含列间距）。 */
@@ -97,6 +99,7 @@ class Paginator {
       if (options.beforeCommit) options.beforeCommit();
       this.applyTypography();
       this.applyTheme();
+      this.prepareImageContainers();
       this.applyLayout();
       // Swap only after typography, theme and pagination are ready to paint.
       frame.classList.remove('paginator-pending');
@@ -114,31 +117,69 @@ class Paginator {
     }
   }
 
-  /** 等待图片加载完成后重排（保证页数准确）。 */
-  waitImages() {
-    if (!this.doc) return;
-    const version = this._renderVersion;
-    const imgs = Array.from(this.doc.images || []);
-    if (!imgs.length) return;
-    let pending = imgs.length;
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      if (version === this._renderVersion && this.doc) this.reflow();
-    };
-    const check = () => {
-      pending -= 1;
-      if (pending <= 0) finish();
-    };
-    for (const img of imgs) {
-      if (img.complete) check();
-      else {
-        img.addEventListener('load', check, { once: true });
-        img.addEventListener('error', check, { once: true });
+  /** 纯插图容器不应继承正文缩进、行框或固定高度，否则长图底部仍会被裁切。 */
+  prepareImageContainers() {
+    for (const image of this.doc.querySelectorAll('img, svg')) {
+      let parent = image.parentElement;
+      while (parent && parent !== this.doc.body && !parent.textContent.trim() && parent.querySelectorAll('img, svg').length === 1) {
+        parent.classList.add('paginator-image-container');
+        parent = parent.parentElement;
       }
     }
-    setTimeout(finish, 2500);
+  }
+
+  /** 每批图片完成后重排；慢于旧的 2.5 秒超时的图片也必须更新页数。 */
+  waitImages() {
+    if (this._imageWaitCleanup) this._imageWaitCleanup();
+    if (!this.doc) return;
+    const doc = this.doc;
+    const pending = new Set(Array.from(doc.images || []).filter(img => !img.complete));
+    if (!pending.size) return;
+    let scheduled = null;
+    const detach = img => {
+      img.removeEventListener('load', settled);
+      img.removeEventListener('error', settled);
+    };
+    const cleanup = () => {
+      for (const img of pending) detach(img);
+      if (scheduled != null) window.cancelAnimationFrame(scheduled);
+      this._imageWaitCleanup = null;
+      this._imageLoadAnchor = null;
+    };
+    const settled = event => {
+      detach(event.target);
+      pending.delete(event.target);
+      if (scheduled != null) return;
+      scheduled = window.requestAnimationFrame(() => {
+        scheduled = null;
+        if (this.doc !== doc) return cleanup();
+        const anchor = this._imageLoadAnchor;
+        this.applyLayout();
+        if (anchor && anchor.image && anchor.image.isConnected) {
+          this._scrollTo(0);
+          this.showPage(Math.floor(anchor.image.getBoundingClientRect().left / this.colStep));
+        } else if (anchor && anchor.text) {
+          const page = this.locate(anchor.text.off);
+          if (page >= 0) this.showPage(page);
+        }
+        if (!pending.size) cleanup();
+      });
+    };
+    this._imageWaitCleanup = cleanup;
+    this.rememberImageLoadAnchor();
+    for (const img of pending) {
+      img.addEventListener('load', settled);
+      img.addEventListener('error', settled);
+    }
+  }
+
+  rememberImageLoadAnchor() {
+    if (!this._imageWaitCleanup || !this.doc) return;
+    const image = Array.from(this.doc.querySelectorAll('img, svg')).find(el => {
+      const rect = el.getBoundingClientRect();
+      return rect.left >= 0 && rect.left < this.pageWidth && rect.top >= 0 && rect.height > 64 && rect.top < this.verticalPadding + 32;
+    });
+    this._imageLoadAnchor = { image, text: image ? null : this.anchor() };
   }
 
   /** 设置阅读模式：single | spread */
@@ -252,6 +293,7 @@ class Paginator {
     this.frame.style.visibility = 'visible';
 
     const pagePad = Math.max(12, Math.round(this.pageWidth * this.marginPct / 100)); // 页边距按百分比随版心缩放
+    const imageHeight = Math.max(1, hostH - this.verticalPadding * 2);
     base.textContent =
       'html, body { margin: 0; padding: 0; }' +
       'body { column-width: ' + this.pageWidth + 'px; column-gap: ' + gap + 'px; ' +
@@ -260,13 +302,31 @@ class Paginator {
     base.textContent +=
       'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; max-width: ' + (this.pageWidth - pagePad * 2) + 'px !important; box-sizing: border-box !important; }' +
       'img, svg { max-width: 100% !important; height: auto !important; box-sizing: border-box !important; object-fit: contain; }' +
+      'img, svg { min-width: 0 !important; min-height: 0 !important; max-height: max(1px, calc(' + imageHeight + 'px - 2em)) !important; break-inside: avoid !important; }' +
       'body > img, body > svg { max-width: ' + (this.pageWidth - pagePad * 2) + 'px !important; }' +
+      '.paginator-image-container { height: auto !important; min-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; margin-top: 0 !important; margin-bottom: 0 !important; text-indent: 0 !important; line-height: 0 !important; overflow: visible !important; break-inside: avoid !important; }' +
+      'body > img, body > svg, .paginator-image-container img, .paginator-image-container svg { display: block !important; max-height: ' + imageHeight + 'px !important; margin: 0 auto !important; }' +
       'body > a:has(> img), body > a:has(> svg) { display: block !important; }' +
       'table { max-width: ' + (this.pageWidth - pagePad * 2) + 'px; }';
     // 双页模式中间书缝：列间细线模拟书脊
     if (spread) {
       base.textContent +=
         'body { column-rule: 1px solid rgba(0,0,0,.12); }';
+    }
+
+    // A fixed book width together with max-height otherwise creates a wide,
+    // short image box. Bound the width by the same intrinsic aspect ratio;
+    // authored small widths remain intact and pictures are never enlarged.
+    for (const image of doc.querySelectorAll('img, svg')) {
+      const viewBox = image.viewBox && image.viewBox.baseVal;
+      const width = image.naturalWidth || (viewBox && viewBox.width);
+      const height = image.naturalHeight || (viewBox && viewBox.height);
+      if (!width || !height) continue;
+      const style = doc.defaultView.getComputedStyle(image);
+      const standalone = image.parentElement === doc.body || image.closest('.paginator-image-container');
+      const maxHeight = Math.max(1, imageHeight - (standalone ? 0 : (parseFloat(style.fontSize) || 16) * 2));
+      const maxWidth = Math.min(this.pageWidth - pagePad * 2, maxHeight * width / height);
+      image.style.setProperty('max-width', 'min(100%, ' + maxWidth + 'px)', 'important');
     }
 
     this.measure();
@@ -288,6 +348,7 @@ class Paginator {
     this.currentPage = Math.max(0, Math.min(this.totalPages - 1, page));
     const el = this.doc.documentElement;
     this._scrollTo(this.currentPage * this.colStep);
+    this.rememberImageLoadAnchor();
     if (this.onChange) this.onChange();
   }
 
@@ -452,6 +513,7 @@ class Paginator {
 
   destroy() {
     this.cancelPendingRender();
+    if (this._imageWaitCleanup) this._imageWaitCleanup();
     window.removeEventListener('resize', this._boundResize);
     if (this.frame) {
       try {

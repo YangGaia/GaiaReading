@@ -21,7 +21,7 @@ test('只导入元数据时不解析目录正文位置，阅读模式仍保留�
   const context = {
     module: { exports: {} }, Buffer,
     parser: { initMobiFile: async () => book },
-    require: (name) => name === 'fs' ? { readFileSync: () => Buffer.alloc(128), existsSync: () => false } : require(name),
+    require: (name) => name === 'fs' ? { readFileSync: () => Buffer.alloc(128), existsSync: () => false } : require('module').createRequire(path.join(ROOT, 'src/shared/mobi.js'))(name),
   };
   vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'src/shared/mobi.js'), 'utf8') + '\nloadParser = async () => parser;', context);
   const metadata = await context.module.exports.openMobi('book.mobi', 'resources', { metadataOnly: true });

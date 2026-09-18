@@ -12,6 +12,7 @@
     "smoke:open": "electron . --smoke-test --debug-open tests/fixtures/sample.epub",
     "smoke:pdf": "electron . --smoke-test --debug-open tests/fixtures/sample.pdf",
     "smoke:epub-font": "electron scripts/epub-typography-smoke.js",
+    "smoke:mobi-images": "electron scripts/mobi-image-smoke.js",
     "smoke:ui": "electron scripts/non-reading-smoke.js",
     "smoke:reader-ui": "electron scripts/non-reading-smoke.js --reader-toolbar",
     "smoke:import": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import-smoke.ps1",
@@ -24,7 +25,7 @@
     "electron-builder": "^26.15.3"
   },
   "dependencies": {
-    "@lingo-reader/mobi-parser": "^0.4.6",
+    "@lingo-reader/mobi-parser": "0.4.6",
     "epubjs": "^0.3.93",
     "fast-xml-parser": "^4.5.0",
     "iconv-lite": "^0.6.3",
