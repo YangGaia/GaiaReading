@@ -10,8 +10,9 @@ module.exports = async ({ win, report, check, books }) => {
   const evaluate = (fn, arg) => win.webContents.executeJavaScript(`(${fn.toString()})(${JSON.stringify(arg)})`);
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const routes = [
-    ['library', { click: 'btn-home-shelf' }], ['stats', { click: 'btn-reading-stats' }],
-    ['ai', { ai: 'stats' }], ['stats', { click: 'btn-ai-back' }], ['library', { click: 'btn-stats-back' }],
+    ['stats', { click: 'btn-home-reading-stats' }],
+    ['ai', { ai: 'stats' }], ['stats', { click: 'btn-ai-back' }], ['home', { click: 'btn-stats-back' }],
+    ['library', { click: 'btn-home-shelf' }],
     ['ai', { ai: 'library' }], ['library', { click: 'btn-ai-back' }],
     ['reader', { book: books[0] }], ['stats', { stats: 'reader' }], ['reader', { click: 'btn-stats-back' }],
     ['ai', { ai: 'reader' }], ['reader', { click: 'btn-ai-back' }], ['library', { back: true }],

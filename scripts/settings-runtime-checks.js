@@ -18,7 +18,7 @@ module.exports = async ({ win, report, check, capture, book }) => {
     for (let i = 0; i < 100; i += 1) { if (await evaluate(fn, ...args)) return; await wait(30); }
     throw new Error(`UI state did not settle: ${fn}`);
   };
-  const click = async (selector) => {
+  const click = async (selector, button = 'left') => {
     const point = await evaluate(async (selector) => {
       const el = document.querySelector(selector);
       el.scrollIntoView({ block: 'nearest' });
@@ -30,7 +30,7 @@ module.exports = async ({ win, report, check, capture, book }) => {
       if (hit !== el && !el.contains(hit)) throw new Error(`${selector} is covered by ${hit && hit.id}`);
       return { x, y };
     }, selector);
-    for (const type of ['mouseMove', 'mouseDown', 'mouseUp']) win.webContents.sendInputEvent({ type, ...point, button: 'left', clickCount: 1 });
+    for (const type of ['mouseMove', 'mouseDown', 'mouseUp']) win.webContents.sendInputEvent({ type, ...point, button, clickCount: 1 });
     await wait(45);
   };
   const key = async (keyCode, modifiers = []) => {
@@ -150,9 +150,11 @@ module.exports = async ({ win, report, check, capture, book }) => {
   report.checks.push({ settingsCustomSearch: await evaluate(() => __checkSettingsLayout()) });
   await capture(win, 'settings-custom-search-1100x760');
   await evaluate(() => { const select = document.getElementById('search-engine'); select.value = 'google'; select.dispatchEvent(new Event('change', { bubbles: true })); });
-  await click('#btn-pet-console');
+  check('pet console entry is a compact hint in settings', await evaluate(() => !document.getElementById('btn-pet-console') && document.querySelector('#drawer-appearance .drawer-hint').textContent.includes('右键')));
+  await click('#btn-settings-close');
+  await click('#gaia-pet', 'right');
   await until(() => !__gaiaDebug.isSettingsOpen() && !document.querySelector('.gaia-pet-console').hidden);
-  check('pet console entry still opens the existing console', true);
+  check('right-clicking Alice opens her console', true);
   await evaluate(() => window.GaiaPet.closeConsole());
   await click('#btn-home-settings');
   await wait(250);
@@ -227,6 +229,10 @@ module.exports = async ({ win, report, check, capture, book }) => {
     await until((setting, before) => __gaiaDebug.getCurrentSettings()[setting] !== before, setting, before);
     check(`reading setting still works: ${setting} ${selector}`, true);
   }
+  const beforeMargins = await evaluate(async () => { const prefs = await window.api.stateGet('prefs'); return { horizontal: prefs.marginPct, vertical: prefs.verticalMarginPx }; });
+  await click('#btn-vertical-margin');
+  await until(async (before) => { const prefs = await window.api.stateGet('prefs'); return prefs.verticalMarginPx !== before.vertical && prefs.marginPct === before.horizontal; }, beforeMargins);
+  check('vertical margin changes and persists independently from horizontal margin', true);
   await click('#btn-edge-toc');
   const edgeEnabled = await evaluate(() => document.getElementById('btn-edge-toc').getAttribute('aria-pressed') === 'true');
   await until(async (enabled) => (await window.api.stateGet('prefs')).edgeTocEnabled === enabled, edgeEnabled);

@@ -1,0 +1,41 @@
+/* A brief reading confirmation, outside the book's iframe and color palette. */
+#reader-body > .reader-feedback {
+  position: absolute;
+  z-index: 1400;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 11px 17px;
+  border: 1px solid #596b80;
+  border-radius: 9px;
+  background: #232d3bf5;
+  box-shadow: 0 8px 26px #00000038, inset 0 1px 0 #ffffff0a;
+  color: #eef3fa;
+  font: 13px/1.6 "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  letter-spacing: .025em;
+  pointer-events: none;
+  user-select: none;
+}
+#reader-body > .reader-feedback[hidden] { display: none; }
+#reader-body > .reader-feedback .reader-feedback-mark {
+  display: grid;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid #a6c7b675;
+  border-radius: 50%;
+  color: #b7dbc7;
+  font-size: 12px;
+  line-height: 1;
+}
+#reader-body > .reader-feedback[data-kind="error"] { border-color: #a47b79; }
+#reader-body > .reader-feedback[data-kind="error"] .reader-feedback-mark { color: #f1bcb5; border-color: #dba59d90; }
+#reader-body > .reader-feedback[data-kind="info"] .reader-feedback-mark { color: #b9cce5; border-color: #9aafca75; }
+#reader-body > .reader-feedback .reader-feedback-message { min-width: 0; overflow-wrap: anywhere; }

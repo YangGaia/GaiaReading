@@ -2,7 +2,23 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizePercent, isFixedLayout, apply, restore } = require('../src/shared/epub-typography');
+const { normalizePercent, normalizeMargins, verticalPadding, isFixedLayout, apply, restore } = require('../src/shared/epub-typography');
+
+test('横纵边距独立规范化，旧设置继承左右边距并保留默认上下留白', () => {
+  assert.deepEqual(normalizeMargins(), { horizontalPct: 8, verticalPx: 28 });
+  assert.deepEqual(normalizeMargins({ marginPct: 12 }), { horizontalPct: 12, verticalPx: 28 });
+  assert.deepEqual(normalizeMargins({ horizontalPct: 0, verticalPx: 0 }), { horizontalPct: 0, verticalPx: 0 });
+  assert.deepEqual(normalizeMargins({ marginPct: 12, verticalMarginPx: 80 }), { horizontalPct: 12, verticalPx: 80 });
+  assert.deepEqual(normalizeMargins({ horizontalPct: 100, verticalPx: -3 }), { horizontalPct: 24, verticalPx: 0 });
+  assert.deepEqual(normalizeMargins({ horizontalPct: NaN, verticalPx: Infinity }), { horizontalPct: 8, verticalPx: 28 });
+});
+
+test('小窗口内上下边距不挤掉最后一行和插图可用高度', () => {
+  assert.equal(verticalPadding(100, 600), 100);
+  assert.equal(verticalPadding(100, 180), 66);
+  assert.equal(verticalPadding(100, 30), 0);
+  assert.equal(verticalPadding(undefined, 600), 28);
+});
 
 test('EPUB 字号限制在阅读器范围内，非法输入回到默认比例', () => {
   assert.deepEqual([80, 100, 150, 200, 500, -1, '120', NaN, undefined].map(normalizePercent), [80, 100, 150, 200, 200, 80, 120, 100, 100]);

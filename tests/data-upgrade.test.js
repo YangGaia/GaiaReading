@@ -5,11 +5,11 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { CURRENT_SCHEMA_VERSION, prepareDataFile, backupFiles } = require('../src/shared/data-upgrade');
+const { CURRENT_SCHEMA_VERSION, prepareDataFile, backupFiles, pruneBackups } = require('../src/shared/data-upgrade');
 
 function tempDataFile() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gaia-upgrade-'));
-  return { dir, file: path.join(dir, 'gaia-reading.json') };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'GaiaReading_Lucky-upgrade-'));
+  return { dir, file: path.join(dir, 'GaiaReading_Lucky.json') };
 }
 
 test('首次运行创建带版本标记的数据文件且不生成无意义备份', () => {
@@ -68,4 +68,27 @@ test('损坏或更高版本数据不会被覆盖', () => {
   assert.throws(() => prepareDataFile(future.file, { appVersion: '1.0.0' }), /高于当前程序支持/);
   assert.strictEqual(fs.readFileSync(future.file, 'utf8'), text);
   fs.rmSync(future.dir, { recursive: true, force: true });
+});
+
+
+test('新备份使用新品牌前缀，旧前缀仍参与识别与保留策略', () => {
+  const { dir, file } = tempDataFile();
+  try {
+    fs.writeFileSync(file, JSON.stringify({ library: ['unchanged'] }));
+    const result = prepareDataFile(file, { appVersion: '1.1.1', now: 2000 });
+    assert.ok(path.basename(result.backupPath).startsWith('GaiaReading_Lucky-before-'));
+    const backupDir = path.join(dir, 'backups');
+    const legacy = path.join(backupDir, 'gaia-reading-before-1.0.0-old.json');
+    const unrelated = path.join(backupDir, 'manual-archive.json');
+    fs.writeFileSync(legacy, 'legacy backup');
+    fs.writeFileSync(unrelated, 'keep manual archive');
+    fs.utimesSync(legacy, 1, 1);
+    fs.utimesSync(result.backupPath, 2, 2);
+    assert.strictEqual(backupFiles(backupDir).length, 2);
+    assert.ok(backupFiles(backupDir).some((entry) => entry.path === legacy));
+    pruneBackups(backupDir, 1);
+    assert.strictEqual(fs.existsSync(result.backupPath), true);
+    assert.strictEqual(fs.existsSync(legacy), false);
+    assert.strictEqual(fs.readFileSync(unrelated, 'utf8'), 'keep manual archive');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

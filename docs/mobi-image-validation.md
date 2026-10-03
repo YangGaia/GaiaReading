@@ -1,5 +1,7 @@
 # MOBI / AZW3 图片修复验证
 
+> **上游历史记录：** 以下保留的是 Gaia Reading 1.1.3 的验证记录，其中脚本名称和依赖声明不适用于当前 Lucky 定制版。当前验证方式请查看 [开发说明](DEVELOPMENT.md)；MOBI 与图片检查使用 `npm run smoke:mobi` 和 `npm run smoke:images`。
+
 ## 问题与修复
 
 - KF8 的 `kindle:embed` 和 `kindle:flow` 编号使用 32 进制；`mobi-parser 0.4.6` 分别按 36 进制和十进制读取，可能取到 `RESC`、`FLIS` 等非图片记录。兼容层在解析入口转换编号，保留原解析器的递归处理、缓存和清理机制。依赖固定为 0.4.6，升级时需要一起检查兼容层。

@@ -58,3 +58,22 @@ test('非阅读样式没有日间夜间护眼覆盖，设置样式只影响侧�
   assert.match(app, /const inReader = !views\.reader\.hidden && state\.current != null/);
   assert.match(html, /id="settings-drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title"/);
 });
+
+test('设置分别调节横纵边距，控制台和右键书签用提示文字说明', () => {
+  const html = read('index.html');
+  assert.match(html, /id="margin-label">左右边距/);
+  assert.match(html, /id="vertical-margin-label">上下边距/);
+  for (const id of ['btn-margin', 'margin-value', 'btn-vertical-margin', 'vertical-margin-value']) assert.equal((html.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1);
+  assert.match(app, /\$\('btn-margin'\)\.addEventListener\('click', cycleMargin\)/);
+  assert.match(app, /\$\('btn-vertical-margin'\)\.addEventListener\('click', cycleVerticalMargin\)/);
+  const settings = app.slice(app.indexOf('function rememberSettings()'), app.indexOf('function rememberSettings()') + 950);
+  assert.match(settings, /Object\.assign\(\{\}, state\.prefs/);
+  assert.match(settings, /stateSet\('prefs', state\.prefs\)/);
+  const companion = html.slice(html.indexOf('id="drawer-appearance"'), html.indexOf('id="drawer-lookup"'));
+  assert.doesNotMatch(companion, /id="btn-pet-console"/);
+  assert.match(companion, /class="drawer-hint">右键点击有珠，可打开有珠控制台/);
+  const tools = html.slice(html.indexOf('id="drawer-funcs"'), html.indexOf('id="drawer-appearance"'));
+  assert.match(tools, /id="btn-simplified"/);
+  assert.match(tools, /仅改变正文显示，不影响目录、笔记、书签等中的汉字/);
+  assert.match(tools, /class="drawer-hint">在阅读正文任意位置右键/);
+});

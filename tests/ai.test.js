@@ -49,6 +49,16 @@ test('AI 服务配置支持 OpenAI、DeepSeek、本地与自定义接口', () =>
   assert.strictEqual(modelsEndpoint('https://relay.example/v1/chat/completions'), 'https://relay.example/v1/models');
 });
 
+test('无章节的 12 页上下文保持全文，并以页面范围作为稳定对话标识', () => {
+  const source = { bookPath: 'book.txt', chapterId: 'txt:window:0:10:layout', chapterTitle: '第 7–18 页', pageWindow: true, content: '甲'.repeat(32000) + '中间的重要内容' + '乙'.repeat(9000) };
+  const messages = chatMessages(source, '总结这段内容', []);
+  assert.ok(messages[0].content.includes('前 4 页和后 7 页'));
+  assert.ok(messages[1].content.includes(source.content));
+  assert.ok(aliceCommentMessages(source, 'comment')[1].content.includes(source.content));
+  assert.strictEqual(chapterSourceKey(source), chapterSourceKey({ ...source, content: '异步补齐后的内容' }));
+  assert.notStrictEqual(chapterSourceKey(source), chapterSourceKey({ ...source, chapterId: 'txt:window:0:11:layout' }));
+});
+
 test('API Key 与总结缓存按服务商和 Base URL 隔离', () => {
   const deepseek = { provider: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat' };
   const relay = { provider: 'custom', baseUrl: 'https://relay.example/v1', model: 'deepseek-chat' };
@@ -535,4 +545,19 @@ test('超长章节合并请求失败时保留已完成的分段摘要', async ()
   assert.match(result, /^【分段摘要】/);
   assert.match(result, /分段1/);
   assert.match(result, /分段2/);
+});
+
+
+test('新品牌用于 AI 系统提示，原书名和章节内容保持原样', () => {
+  const source = { bookTitle: 'Gaia Reading 原版说明', chapterTitle: '旧版名称', content: '原文中的 Gaia Reading 不应被改写。' };
+  for (const messages of [
+    chunkMessages(source.bookTitle, source.chapterTitle, source.content, 0, 1),
+    chatMessages(source, '请解释', []),
+    aliceCommentMessages(source, 'comment'),
+  ]) {
+    assert.match(messages[0].content, /GaiaReading_Lucky/);
+    assert.doesNotMatch(messages[0].content, /Gaia Reading/);
+    assert.ok(messages.some((message) => message.content.includes(source.bookTitle)));
+    assert.ok(messages.some((message) => message.content.includes(source.content)));
+  }
 });

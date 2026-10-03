@@ -58,7 +58,7 @@ test('五种格式共用的划线工具栏、笔记侧栏和定位入口均已�
   assert.ok(css.includes('.gaia-highlight-yellow') && css.includes('.gaia-highlight-green') && css.includes('.gaia-highlight-pink'), '缺少三种高亮色');
 });
 
-test('笔记按钮使用应用内编辑器并在保存后定位侧栏条目', () => {
+test('染色摘录在合并笔记页编辑并保存，保留原有笔记编辑支持', () => {
   const root = path.join(__dirname, '..');
   const app = fs.readFileSync(path.join(root, 'src/renderer/app.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'src/renderer/index.html'), 'utf8');
@@ -74,7 +74,7 @@ test('笔记按钮使用应用内编辑器并在保存后定位侧栏条目', ()
   assert.ok(css.includes('.note-editor-dialog'), '缺少笔记编辑器样式');
   assert.ok(css.includes('.annotation-card.is-target'), '缺少保存后定位反馈');
   const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8');
-  assert.ok(main.includes("document.querySelector('[data-selection-action=\"note\"]')"), '烟雾测试应真实点击笔记按钮');
+  assert.ok(main.includes("noteInput.dispatchEvent(new Event('change'"), '烟雾测试应在染色摘录的笔记框中编辑并保存');
   assert.ok(main.includes("item.note === '烟雾测试笔记'"), '烟雾测试应验证笔记成功保存');
   assert.ok(main.includes('parsed.highlightPanelOpen === true') && main.includes('parsed.highlightCardLocated === true'), '烟雾测试应验证高光后打开并定位侧栏');
   assert.ok(main.includes('parsed.annotationJumpOk === true'), 'MOBI/AZW3 烟雾测试应验证批注跳转不被侧栏重排覆盖');

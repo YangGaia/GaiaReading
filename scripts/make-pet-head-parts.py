@@ -6,11 +6,14 @@
 """
 
 import os
+from pathlib import Path
 import numpy as np
 from PIL import Image
 
-SRC = r"D:\Codex_project\Gaia_Reading\src\renderer\images\pet\cells\半身照.png"
-OUT = r"D:\Codex_project\Gaia_Reading\src\renderer\images\pet\parts"
+ROOT = Path(__file__).resolve().parents[1]
+PET_ROOT = ROOT / "src" / "renderer" / "images" / "pet"
+SRC = PET_ROOT / "cells/半身照.png"
+OUT = PET_ROOT / "parts"
 HEAD = (88, 0, 268, 235)
 BOTTOM_OVERLAP = 12
 

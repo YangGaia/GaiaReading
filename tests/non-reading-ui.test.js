@@ -9,18 +9,36 @@ const renderer = path.join(__dirname, '..', 'src', 'renderer');
 const html = fs.readFileSync(path.join(renderer, 'index.html'), 'utf8');
 const sheets = ['non-reading.css', 'library-stats.css', 'home.css', 'library.css', 'stats.css'];
 const viewControls = {
-  home: ['btn-home-shelf', 'btn-home-add-books', 'btn-home-ai', 'btn-home-settings', 'home-img'],
-  library: ['btn-back-home', 'btn-settings', 'btn-add-books', 'btn-manage', 'btn-reading-stats', 'import-status', 'manage-bar', 'manage-count', 'btn-select-all', 'btn-remove-selected', 'btn-exit-manage', 'library-hint', 'bookshelf'],
+  home: ['btn-home-shelf', 'btn-home-reading-stats', 'btn-home-ai', 'btn-home-settings', 'home-img'],
+  library: ['btn-back-home', 'btn-settings', 'btn-add-books', 'btn-manage', 'import-status', 'manage-bar', 'manage-count', 'btn-select-all', 'btn-remove-selected', 'btn-exit-manage', 'library-hint', 'bookshelf'],
   stats: ['btn-stats-back', 'stats-today', 'stats-goal-copy', 'stats-alice-line', 'stats-alice', 'stats-alice-zzz', 'stats-ring', 'stats-ring-percent', 'stats-week-total', 'stats-week-chart', 'stats-current-streak', 'stats-longest-streak', 'stats-goal-options', 'stats-finished-count', 'stats-finished-books'],
 };
 
-test('软件和首页预览不包含第三方推广署名、样式或专用外链处理', () => {
-  const files = ['src/renderer/index.html', 'src/renderer/home.css', 'src/renderer/non-reading.css', 'src/renderer/library.css', 'src/renderer/stats.css', 'src/renderer/ai-center.css', 'src/renderer/stats-presentation.js', 'src/renderer/music.css', 'src/main.js', 'docs/design/home/index.html', 'docs/design/home/home.css'];
+test('软件不包含第三方推广署名、样式或专用外链处理', () => {
+  const files = ['src/renderer/index.html', 'src/renderer/home.css', 'src/renderer/non-reading.css', 'src/renderer/library.css', 'src/renderer/stats.css', 'src/renderer/ai-center.css', 'src/renderer/stats-presentation.js', 'src/renderer/music.css', 'src/main.js'];
   for (const file of files) {
     const source = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
     assert.doesNotMatch(source, /deerflow|design-credit/i, file);
   }
-  assert.match(html, /<title>Gaia Reading<\/title>/);
+  assert.match(html, /<title>GaiaReading_Lucky<\/title>/);
+});
+
+test('所有可见品牌统一显示 GaiaReading_Lucky', () => {
+  const brand = 'GaiaReading_Lucky';
+  const labels = [
+    /<title>([^<]+)<\/title>/,
+    /class="splash-name">([^<]+)</,
+    /id="home-title">([^<]+)</,
+    /class="ai-footer-mark"[^>]*>([^<]+)</,
+    /class="stats-dial-brand"[^>]*>([^<]+)</,
+    /class="drawer-about"><span>([^<]+)</,
+    /class="library-footer"><span>([^<]+)</,
+    /class="stats-footer"><span>([^<]+)</,
+  ];
+  for (const label of labels) assert.equal(html.match(label)?.[1], brand, String(label));
+  for (const label of html.matchAll(/class="page-title">([^<]+)</g)) assert.equal(label[1], brand);
+  assert.match(html, /id="splash-img"[^>]*alt="GaiaReading_Lucky"/);
+  assert.doesNotMatch(html, /Gaia Reading|>Gaia<|GAIA · READING COMPANION/);
 });
 
 // Walk nested blocks without treating braces inside CSS strings as structure.
@@ -132,7 +150,7 @@ test('正式首页包含线条构图、原首页素材和可打包的轮廓蒙�
   assert.match(css, /mask-image:\s*url\("images\/home\/alice-matte\.png"\)/);
   assert.doesNotMatch(css, /mask-image:\s*(?:radial|linear)-gradient/);
   const bundled = fs.readFileSync(path.join(renderer, 'images/home/alice-matte.png'));
-  assert.deepEqual(bundled, fs.readFileSync(path.join(renderer, '../../docs/design/home/assets/alice-matte.png')));
+  assert.deepEqual(bundled.subarray(0, 8), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), '生产首页的轮廓蒙版应是有效 PNG 资源');
   assert.match(html, /<script src="home-layout\.js"><\/script>/);
 });
 
@@ -143,7 +161,7 @@ test('首页按实际尺寸绘制等比例构图，不放大已合成的页面�
     const rule = css.match(new RegExp(`\\.${selector}\\s*\\{([^}]+)\\}`))[1];
     assert.doesNotMatch(rule, /transform:|zoom:|filter:/);
   }
-  assert.match(css, /font-size:\s*calc\(46 \* var\(--home-unit\)\)/);
+  assert.match(css, /font-size:\s*calc\(38 \* var\(--home-unit\)\)/);
   assert.match(fs.readFileSync(path.join(renderer, 'music.css'), 'utf8'), /backdrop-filter:\s*none/);
   assert.doesNotMatch(css, /\b\d*(?:vw|vh|svh|dvh)\b|@media[^\{]*(?:width|height)|--home-pet-space/);
   assert.match(html, /class="home-stage"/);
@@ -160,12 +178,14 @@ test('首页字标字体随软件离线分发，控件保持 Noto Sans SC', () =
   assert.match(html, /rel="preload" href="fonts\/cormorant-garamond-latin-500\.woff2"/);
 });
 
-test('首页光感反馈不接管点击或存储，离页与减少动态效果会清理动画', () => {
+test('首页入场与全局按钮光感不接管点击或存储，离页与减少动态效果会清理动画', () => {
   const script = fs.readFileSync(path.join(renderer, 'home-interactions.js'), 'utf8');
+  const light = fs.readFileSync(path.join(renderer, 'button-interactions.js'), 'utf8');
   assert.match(html, /<script src="home-interactions\.js"><\/script>/);
-  assert.doesNotMatch(script, /window\.api|stateSet|localStorage|preventDefault|stopPropagation|addEventListener\(['"]click/);
-  assert.match(script, /event\.pointerType === 'touch' \|\| event\.buttons/);
-  assert.match(script, /cancelAnimationFrame\(frame\)/);
+  assert.match(html, /<script src="button-interactions\.js"><\/script>/);
+  assert.doesNotMatch(script + light, /window\.api|stateSet|localStorage|preventDefault|stopPropagation|addEventListener\(['"]click/);
+  assert.match(light, /event\.pointerType === 'touch' \|\| event\.buttons/);
+  assert.match(light, /cancelAnimationFrame\(frame\)/);
   assert.match(script, /reducedMotion\.addEventListener\('change', syncVisibility\)/);
   assert.match(script, /document\.addEventListener\('visibilitychange', syncVisibility\)/);
   assert.match(script, /animation\.onfinish = .*animation\.cancel\(\)/);
@@ -184,6 +204,8 @@ test('桌宠不依赖首页画布大小和坐标系，只使用原有窗口位�
 });
 
 test('首页、书架与目标页保留既有操作控件及动态内容挂载点', () => {
+  assert.doesNotMatch(html, /id="(?:btn-home-add-books|btn-reading-stats)"/);
+  assert.match(html, /id="btn-home-reading-stats"[^>]*>[\s\S]*?<span>阅读目标<\/span>/);
   for (const [view, ids] of Object.entries(viewControls)) {
     const start = html.indexOf(`id="${view}-view"`);
     assert.ok(start >= 0, `${view} view missing`);

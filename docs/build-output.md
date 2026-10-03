@@ -1,5 +1,7 @@
 # 构建产物目录
 
+> **上游历史记录：** 以下保留的是 Gaia Reading 1.1.3 的构建记录，其中命令和产物路径不适用于当前 Lucky 定制版。当前构建与发布方式请查看 [开发说明](DEVELOPMENT.md) 和 [GitHub 发布规则](GITHUB_RELEASE.md)。
+
 `dist` 不纳入 Git。最新版绿色 exe 直接放在根目录，桌面同名快捷方式指向它。
 
 ```text

@@ -2,9 +2,9 @@
 
 /**
  * 内置 BGM 模块：
- * - 单个全局 <audio>，通过主进程注册的 bgm:// 协议播放 assets/bgm 下的 MP3
+ * - 单个全局 <audio>，通过主进程注册的 bgm:// 协议播放 assets/bgm 下的音频
  * - 悬浮胶囊 UI（首页顶部 / 书架左下 / 阅读左下），支持播放暂停、上一首/下一首、音量、静音
- * - 播放规则：自动播完只在默认两首（久遠寺有珠 / 静希草十郎）循环；手动切换遍历全部 4 首
+ * - 播放规则：自动播完在默认两首（久遠寺有珠 / 静希草十郎）循环；手动切换或列表可选专辑全部曲目
  * - 状态持久化到 bgm 键（音量/静音/当前曲目/开关）
  */
 
@@ -57,7 +57,6 @@
     titleAnimation = null;
     titleDistance = 0;
     ui.title.removeAttribute('data-scrolling');
-    ui.title.removeAttribute('tabindex');
     ui.titleCopy.hidden = true;
   }
 
@@ -139,6 +138,12 @@
     ui.volume.value = String(Math.round(state.volume * 100));
     ui.cover.classList.toggle('playing', state.on);
     ui.root.title = t ? (t.title + ' · ' + t.artist) : '背景音乐';
+    ui.title.setAttribute('aria-label', (t ? t.title + '，' : '') + '打开音乐列表');
+    for (const row of ui.playlist.querySelectorAll('[data-track-id]')) {
+      const selected = row.dataset.trackId === state.trackId;
+      row.setAttribute('aria-current', selected ? 'true' : 'false');
+      row.querySelector('.bgm-track-state').textContent = selected ? '当前' : '';
+    }
   }
 
   function applyVolume() {
@@ -193,8 +198,106 @@
     save();
   }
 
+  function closePlaylist() {
+    if (ui.playlist && ui.playlist.matches(':popover-open')) ui.playlist.hidePopover();
+  }
+
+  function positionPlaylist() {
+    if (!ui.playlist || !ui.playlist.matches(':popover-open')) return;
+    const rect = ui.root.getBoundingClientRect();
+    const margin = 16;
+    const width = Math.min(420, innerWidth - margin * 2);
+    const desiredHeight = Math.min(430, innerHeight - margin * 2);
+    const below = innerHeight - rect.bottom - margin - 8;
+    const above = rect.top - margin - 8;
+    const useBelow = below >= desiredHeight || below >= above;
+    const height = Math.min(desiredHeight, Math.max(120, useBelow ? below : above));
+    ui.playlist.style.width = `${width}px`;
+    ui.playlist.style.maxHeight = `${height}px`;
+    ui.playlist.style.left = `${Math.max(margin, Math.min(innerWidth - width - margin, rect.right - width))}px`;
+    ui.playlist.style.top = `${Math.max(margin, useBelow ? rect.bottom + 8 : rect.top - height - 8)}px`;
+  }
+
+  function togglePlaylist() {
+    if (ui.playlist.matches(':popover-open')) { closePlaylist(); return; }
+    ui.playlist.showPopover();
+    positionPlaylist();
+    const current = [...ui.playlist.querySelectorAll('[data-track-id]')].find(row => row.dataset.trackId === state.trackId);
+    if (current) {
+      current.focus({ preventScroll: true });
+      current.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function buildPlaylist() {
+    const panel = document.createElement('section');
+    panel.id = 'bgm-playlist';
+    panel.className = 'bgm-playlist';
+    panel.setAttribute('popover', 'auto');
+    panel.setAttribute('aria-label', '音乐列表');
+    const header = document.createElement('div');
+    header.className = 'bgm-playlist-header';
+    const heading = document.createElement('strong');
+    heading.textContent = `音乐列表 · ${BGM_TRACKS.length} 首`;
+    const close = mkBtn('×', '关闭音乐列表', 'close-playlist');
+    close.addEventListener('click', () => { closePlaylist(); ui.title.focus(); });
+    header.append(heading, close);
+    const list = document.createElement('div');
+    list.className = 'bgm-playlist-tracks';
+    let disc = 0;
+    for (const track of BGM_TRACKS) {
+      if (track.disc !== disc) {
+        disc = track.disc;
+        const label = document.createElement('div');
+        label.className = 'bgm-disc-label';
+        label.textContent = `Disc ${disc}`;
+        list.appendChild(label);
+      }
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'bgm-track-row';
+      row.dataset.trackId = track.id;
+      const number = document.createElement('span');
+      number.className = 'bgm-track-number';
+      number.textContent = String(track.number).padStart(2, '0');
+      const info = document.createElement('span');
+      info.className = 'bgm-track-info';
+      const title = document.createElement('span');
+      title.className = 'bgm-track-name';
+      title.textContent = track.title;
+      const artist = document.createElement('span');
+      artist.className = 'bgm-track-artist';
+      artist.textContent = track.artist;
+      info.append(title, artist);
+      const marker = document.createElement('span');
+      marker.className = 'bgm-track-state';
+      marker.setAttribute('aria-hidden', 'true');
+      row.append(number, info, marker);
+      row.addEventListener('click', () => {
+        state.on = true;
+        loadTrack(track.id, true);
+        closePlaylist();
+        ui.title.focus({ preventScroll: true });
+      });
+      list.appendChild(row);
+    }
+    panel.append(header, list);
+    panel.addEventListener('toggle', () => ui.title.setAttribute('aria-expanded', String(panel.matches(':popover-open'))));
+    panel.addEventListener('keydown', event => {
+      const rows = [...list.querySelectorAll('button')];
+      const index = rows.indexOf(document.activeElement);
+      if (index < 0 || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 :
+        (index + (event.key === 'ArrowUp' ? -1 : 1) + rows.length) % rows.length;
+      rows[next].focus();
+    });
+    return panel;
+  }
+
   function positionBgm(name) {
     if (!ui.root) return;
+    closePlaylist();
     currentView = name || 'home';
     ui.root.dataset.view = currentView;
     ui.root.hidden = currentView === 'splash';
@@ -308,8 +411,12 @@
 
     const titleWrap = document.createElement('div');
     titleWrap.className = 'bgm-title-wrap';
-    const title = document.createElement('span');
+    const title = document.createElement('button');
+    title.type = 'button';
     title.className = 'bgm-title';
+    title.setAttribute('aria-haspopup', 'true');
+    title.setAttribute('aria-controls', 'bgm-playlist');
+    title.setAttribute('aria-expanded', 'false');
     const titleTrack = document.createElement('span');
     titleTrack.className = 'bgm-title-track';
     const titleText = document.createElement('span');
@@ -336,25 +443,34 @@
     volume.title = '音量';
     volume.setAttribute('aria-label', '音量');
 
-    root.append(cover, titleWrap, prev, play, nxt, mute, volume);
+    const playlist = buildPlaylist();
+    root.append(cover, titleWrap, prev, play, nxt, mute, volume, playlist);
 
     cover.addEventListener('click', toggle);
+    title.addEventListener('click', togglePlaylist);
     prev.addEventListener('click', () => next(-1));
     play.addEventListener('click', toggle);
     nxt.addEventListener('click', () => next(1));
     mute.addEventListener('click', toggleMute);
     volume.addEventListener('input', () => setVolume(parseInt(volume.value, 10) / 100));
 
-    ui = { root, cover, title, titleWrap, titleTrack, titleText, titleCopy, prev, play, nxt, mute, volume };
+    ui = { root, cover, title, titleWrap, titleTrack, titleText, titleCopy, prev, play, nxt, mute, volume, playlist };
     document.body.appendChild(root);
     titleMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     titleMotion.addEventListener('change', syncTitleScroll);
     const titleObserver = new ResizeObserver(scheduleTitleScroll);
     titleObserver.observe(title);
     titleObserver.observe(titleText);
+    window.addEventListener('resize', positionPlaylist);
     document.fonts.ready.then(scheduleTitleScroll);
     document.fonts.addEventListener('loadingdone', scheduleTitleScroll);
-    for (const event of ['pointerenter', 'pointerleave', 'focusin', 'focusout']) title.addEventListener(event, updateTitlePlayback);
+    for (const event of ['pointerenter', 'pointerleave', 'focusin', 'focusout']) title.addEventListener(event, () => {
+      updateTitlePlayback();
+      queueMicrotask(updateTitlePlayback);
+      // Focus pseudo-classes can settle after focusout dispatch; recheck next
+      // frame so returning from the playlist cannot leave the title paused.
+      scheduleTitleScroll();
+    });
     document.addEventListener('visibilitychange', () => {
       updateTitlePlayback();
       if (!document.hidden) scheduleTitleScroll();
@@ -388,6 +504,7 @@
       state.on = saved.on !== false;
       state.trackId = trackById(saved.trackId) ? saved.trackId : 'alice';
     }
+    applyVolume();
     loadTrack(state.trackId, state.on);
     updateUi();
   }

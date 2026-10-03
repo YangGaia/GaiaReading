@@ -1,23 +1,32 @@
 {
-  "name": "gaia-reading",
-  "version": "1.1.3",
-  "description": "电子书阅读器（Electron + epub.js）",
+  "name": "gaiareading_lucky",
+  "version": "1.2.7",
+  "description": "GaiaReading_Lucky 本地电子书阅读器",
   "main": "src/main.js",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "start": "electron .",
     "smoke": "electron . --smoke-test",
     "test": "node --test tests/*.test.js",
+    "check": "node scripts/check-project.js && npm test",
+    "doctor": "node scripts/check-runtime.js",
     "copy-vendor": "node scripts/copy-vendor.js",
     "postinstall": "node scripts/copy-vendor.js",
     "smoke:open": "electron . --smoke-test --debug-open tests/fixtures/sample.epub",
     "smoke:pdf": "electron . --smoke-test --debug-open tests/fixtures/sample.pdf",
     "smoke:epub-font": "electron scripts/epub-typography-smoke.js",
-    "smoke:mobi-images": "electron scripts/mobi-image-smoke.js",
     "smoke:ui": "electron scripts/non-reading-smoke.js",
     "smoke:reader-ui": "electron scripts/non-reading-smoke.js --reader-toolbar",
-    "smoke:import": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import-smoke.ps1",
-    "dist": "electron-builder --win",
-    "shot": "electron . --shot-dir docs/screenshots --debug-open tests/fixtures/sample.epub"
+    "smoke:images": "electron scripts/paginator-images-smoke.js --screenshots",
+    "fixture:mobi": "node scripts/make-mobi-fixtures.js",
+    "smoke:mobi": "electron scripts/mobi-books-smoke.js",
+    "dist": "electron-builder --win --x64 --dir --publish never",
+    "dist:portable": "node scripts/build-portable.js --edition=all",
+    "shot": "electron . --shot-dir .tmp/app-shots --debug-open tests/fixtures/sample.epub",
+    "clean:cache": "node scripts/clean-cache.js",
+    "smoke:import": "electron scripts/import-smoke.js"
   },
   "license": "MIT",
   "devDependencies": {
@@ -25,7 +34,7 @@
     "electron-builder": "^26.15.3"
   },
   "dependencies": {
-    "@lingo-reader/mobi-parser": "0.4.6",
+    "@lingo-reader/mobi-parser": "^0.4.6",
     "epubjs": "^0.3.93",
     "fast-xml-parser": "^4.5.0",
     "iconv-lite": "^0.6.3",
@@ -34,12 +43,17 @@
     "yauzl": "^2.10.0"
   },
   "build": {
-    "appId": "com.gaia.reading",
-    "productName": "Gaia Reading",
+    "appId": "com.gaiareading.lucky",
+    "productName": "GaiaReading_Lucky",
+    "electronDist": "node_modules/electron/dist",
+    "npmRebuild": false,
     "files": [
       "src/**/*",
       "assets/bgm/**",
-      "package.json"
+      "assets/icon.png",
+      "package.json",
+      "!**/*.baiduyun.uploading.cfg",
+      "!node_modules/canvas{,/**/*}"
     ],
     "directories": {
       "output": "dist",
@@ -49,11 +63,17 @@
       "assets/bgm/**"
     ],
     "win": {
-      "artifactName": "Gaia.Reading.${version}.${ext}",
+      "artifactName": "GaiaReading_Lucky.${version}.${ext}",
       "target": [
-        "portable"
+        "dir"
       ],
-      "icon": "build/icon.png"
-    }
-  }
+      "icon": "build/icon.ico"
+    },
+    "publish": null
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  },
+  "productName": "GaiaReading_Lucky",
+  "private": true
 }

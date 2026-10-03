@@ -34,10 +34,21 @@ module.exports = async ({ win, report, check, capture }) => {
   const resize = async (width, height, zoom = 1) => {
     win.setContentSize(width, height);
     win.webContents.setZoomFactor(zoom);
-    await wait(60);
-    await settle();
-    const size = await evaluate(() => [innerWidth, innerHeight]);
-    assert.ok(Math.abs(size[0] - width / zoom) <= 1 && Math.abs(size[1] - height / zoom) <= 1, 'Actual application viewport must resize');
+    let size;
+    const matches = () => Math.abs(size[0] - width / zoom) <= 1 && Math.abs(size[1] - height / zoom) <= 1;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      size = await evaluate(() => [innerWidth, innerHeight]);
+      if (matches()) {
+        await settle();
+        size = await evaluate(() => [innerWidth, innerHeight]);
+        if (matches()) return;
+      }
+      await wait(50);
+    }
+    assert.ok(matches(), 'Actual application viewport must resize: ' + JSON.stringify({
+      requested: { width, height, zoom, viewport: [width / zoom, height / zoom] },
+      actual: { viewport: size, nativeContentSize: win.getContentSize(), nativeBounds: win.getBounds(), zoom: win.webContents.getZoomFactor() },
+    }));
   };
   const captureMusic = async (name) => {
     const clip = await evaluate(() => {
@@ -77,8 +88,8 @@ module.exports = async ({ win, report, check, capture }) => {
   try {
     await evaluate(async () => {
       await GaiaPet.whenReady();
-      await document.fonts.load('500 36px "Gaia Home Noto"', 'Gaia Reading 进入书架');
-      await document.fonts.load('500 46px "Gaia Wordmark"', 'Gaia Reading');
+      await document.fonts.load('500 36px "Gaia Home Noto"', 'GaiaReading_Lucky 进入书架');
+      await document.fonts.load('500 38px "Gaia Wordmark"', 'GaiaReading_Lucky');
       await document.fonts.ready;
       await document.getElementById('home-img').decode();
       await Promise.allSettled(document.getAnimations().filter((animation) => animation.id.startsWith('home-entry-')).map((animation) => animation.finished));
@@ -91,6 +102,9 @@ module.exports = async ({ win, report, check, capture }) => {
     check('home runs in the real renderer with preload and shared music instance', await evaluate(() =>
       typeof window.api.stateGet === 'function' && __gaiaDebug.getView() === 'home' &&
       document.querySelectorAll('#bgm-capsule').length === 1 && !!document.querySelector('#home-bgm-slot #bgm-capsule')
+    ));
+    check('runtime window and homepage display GaiaReading_Lucky', await evaluate(() =>
+      document.title === 'GaiaReading_Lucky' && document.getElementById('home-title').textContent === 'GaiaReading_Lucky'
     ));
     const petScale = await evaluate(() => GaiaPet.getState().scale);
     check('runtime home uses the original homepage art with its packaged silhouette', await evaluate(async () => {
@@ -139,7 +153,7 @@ module.exports = async ({ win, report, check, capture }) => {
         fail(art.width > 0 && Math.abs(art.width - art.height) < 1, 'Home art must retain its original aspect ratio');
         fail(!overlaps(art, copy), 'Home art must not cover the entry controls');
         fail(pet.width === 150 * GaiaPet.getState().scale, 'Pet size must be independent of the home scale');
-        for (const [selector, base] of [['#home-title', 46], ['#btn-home-shelf', 14], ['#home-bgm-slot .bgm-title', 12]]) {
+        for (const [selector, base] of [['#home-title', 38], ['#btn-home-shelf', 14], ['#home-bgm-slot .bgm-title', 12]]) {
           const el = document.querySelector(selector);
           fail(Math.abs(parseFloat(getComputedStyle(el).fontSize) - base * scale) < .01, `${selector} must paint text at its final font size`);
           for (let node = el; node; node = node.parentElement) {
@@ -147,7 +161,7 @@ module.exports = async ({ win, report, check, capture }) => {
             fail(style.transform === 'none' && style.zoom === '1' && style.filter === 'none' && style.backdropFilter === 'none', `${selector} is raster-scaled or filtered by ${node.id || node.className}`);
           }
         }
-        const selectors = ['#home-title', '.app-mark', '.header-rule', '.copy-rule', '#btn-home-shelf', '#btn-home-add-books', '#btn-home-ai', '.study-divider', '.portrait-lines', '#home-img', '#home-bgm-slot', '.bgm-cover', '.bgm-volume', '#btn-home-settings', '.footer-rule'];
+        const selectors = ['#home-title', '.app-mark', '.header-rule', '.copy-rule', '#btn-home-shelf', '#btn-home-reading-stats', '#btn-home-ai', '.study-divider', '.portrait-lines', '#home-img', '#home-bgm-slot', '.bgm-cover', '.bgm-volume', '#btn-home-settings', '.footer-rule'];
         const normalized = selectors.map((selector) => {
           const r = document.querySelector(selector).getBoundingClientRect();
           return [(r.left - canvas.left) / scale, (r.top - canvas.top) / scale, r.width / scale, r.height / scale];
@@ -155,15 +169,27 @@ module.exports = async ({ win, report, check, capture }) => {
         if (!reference) reference = normalized;
         // Chromium snaps CSS borders to device pixels when page zoom changes.
         normalized.forEach((rect, i) => rect.forEach((value, axis) => fail(Math.abs(value - reference[i][axis]) < 1.5, `${selectors[i]} changes composition at ${innerWidth}×${innerHeight}: ${rect} vs ${reference[i]}`)));
-        const controls = [...home.querySelectorAll('button, input, a')];
-        fail(controls.length === 9, 'All original entries, live music buttons and volume must remain present');
+        const controls = [...home.querySelectorAll('button, input, a')].filter((el) => el.getClientRects().length);
+        const requiredControls = ['#btn-home-shelf', '#btn-home-reading-stats', '#btn-home-ai', '#btn-home-settings',
+          '.bgm-title', '.bgm-volume', '[data-action="prev"]', '[data-action="play"]', '[data-action="next"]', '[data-action="mute"]'];
+        fail(controls.length === requiredControls.length && requiredControls.every((selector) => controls.includes(home.querySelector(selector))),
+          'Home entries, music title/list button, playback buttons and volume must remain visible');
         for (const el of controls) {
           const r = el.getBoundingClientRect();
           const name = el.id || el.getAttribute('aria-label') || el.textContent.trim();
           fail(r.width / scale >= 24 && r.height / scale >= 24, `Small or hidden home target in design coordinates: ${name}`);
           fail(r.left >= 0 && r.right <= home.clientWidth && r.top >= 0 && r.bottom <= innerHeight, `Home target cannot be reached: ${name}`);
           for (const [x, y] of [[r.left + 8 * scale, r.top + 8 * scale], [r.right - 8 * scale, r.bottom - 8 * scale], [r.left + r.width / 2, r.top + r.height / 2]]) {
-            const hit = document.elementFromPoint(x, y);
+            let hit = document.elementFromPoint(x, y);
+            // A freely dragged pet can cover any page control. Inspect page
+            // layout independently; home-pet-checks exercises the pet itself.
+            if (hit && hit.closest('#gaia-pet')) {
+              const petLayer = document.getElementById('gaia-pet');
+              const visibility = petLayer.style.visibility;
+              petLayer.style.visibility = 'hidden';
+              try { hit = document.elementFromPoint(x, y); }
+              finally { petLayer.style.visibility = visibility; }
+            }
             fail(hit === el || el.contains(hit), `Home target ${name} is covered by ${hit && (hit.id || hit.className)}`);
           }
         }
@@ -231,7 +257,7 @@ module.exports = async ({ win, report, check, capture }) => {
       home.scrollTop = 0;
       document.body.tabIndex = -1;
       document.body.focus();
-      return [...home.querySelectorAll('button, input, a')].map((el) => el.id || el.getAttribute('aria-label') || el.textContent.trim());
+      return [...home.querySelectorAll('button, input, a')].filter((el) => el.getClientRects().length).map((el) => el.id || el.getAttribute('aria-label') || el.textContent.trim());
     });
     for (const label of order) {
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
@@ -422,7 +448,7 @@ module.exports = async ({ win, report, check, capture }) => {
     await setPetScale(petScale);
     await resize(1100, 760);
     await evaluate(() => document.activeElement.blur());
-    await require('./home-pet-checks')({ win, evaluate, resize, setPetScale, check });
+    await require('./home-pet-checks')({ win, evaluate, resize, setPetScale, check, capture });
     await require('./home-interaction-checks')({ win, evaluate, resize, check, capture });
   } catch (error) {
     await capture(win, 'home-runtime-failure');

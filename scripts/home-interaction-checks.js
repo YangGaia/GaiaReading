@@ -69,7 +69,7 @@ module.exports = async ({ win, evaluate, resize, check, capture }) => {
       mouse('mouseUp', 1, 1);
       await wait(300);
       check(`cancelled press preserves home navigation at ${width}`, await evaluate(() => __gaiaDebug.getView() === 'home' && !document.getElementById('btn-home-shelf').style.getPropertyValue('--hover-x')));
-      for (const selector of ['#btn-home-add-books', '#btn-home-ai']) {
+      for (const selector of ['#btn-home-reading-stats', '#btn-home-ai']) {
         const p = await point(selector);
         mouse('mouseMove', p.x, p.y);
         await until((selector) => document.querySelector(selector).matches(':hover'), selector);
@@ -93,11 +93,13 @@ module.exports = async ({ win, evaluate, resize, check, capture }) => {
     check('Enter activates the original shelf handler exactly once', await evaluate(() => __homeActionClicks['btn-home-shelf'] === 1));
     await evaluate(() => document.getElementById('btn-back-home').click());
     await wait(500);
-    await evaluate(() => document.getElementById('btn-home-add-books').focus());
+    await evaluate(() => document.getElementById('btn-home-reading-stats').focus());
     await key('Space');
-    await until(() => !document.getElementById('book-import-overlay').hidden);
-    check('Space activates the original import dialog exactly once', await evaluate(() => __homeActionClicks['btn-home-add-books'] === 1));
-    await evaluate(() => document.getElementById('btn-book-import-close').click());
+    await until(() => __gaiaDebug.getView() === 'stats');
+    check('Space activates the home reading goal exactly once', await evaluate(() => __homeActionClicks['btn-home-reading-stats'] === 1));
+    await evaluate(() => document.getElementById('btn-stats-back').click());
+    await until(() => __gaiaDebug.getView() === 'home');
+    await wait(350);
     await evaluate(() => document.getElementById('btn-home-ai').focus());
     await key('Enter');
     await until(() => __gaiaDebug.getView() === 'ai');

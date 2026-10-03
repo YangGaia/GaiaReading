@@ -24,9 +24,9 @@ const {
   pick,
   pickIdleExpression,
   pokeLineKey,
-  formatReadingDuration,
   hasPrimaryPointerButton,
   petOpacityForState,
+  placePetOverlays,
 } = pet;
 
 test('初始大脑为待机状态', () => {
@@ -82,13 +82,6 @@ test('连续点击台词从普通回应升级为警告和不耐烦', () => {
   assert.ok(pet.LINES.pokeAgain.length >= 6);
 });
 
-test('阅读计时格式可用于控制台实时验收', () => {
-  assert.strictEqual(formatReadingDuration(0), '00:00');
-  assert.strictEqual(formatReadingDuration(61_999), '01:01');
-  assert.strictEqual(formatReadingDuration(45 * 60 * 1000), '45:00');
-  assert.strictEqual(TIMERS.READER_CARE_AFTER, 45 * 60 * 1000);
-});
-
 test('拖拽仅在主按钮仍按下时继续', () => {
   assert.strictEqual(hasPrimaryPointerButton(1), true);
   assert.strictEqual(hasPrimaryPointerButton(3), true);
@@ -98,28 +91,71 @@ test('拖拽仅在主按钮仍按下时继续', () => {
 });
 
 test('透明桌宠悬停时完全显现，离开后恢复设置值', () => {
-  assert.strictEqual(petOpacityForState(0.4, false, false), 0.4);
-  assert.strictEqual(petOpacityForState(0.4, false, true), 1);
-  assert.strictEqual(petOpacityForState(1, true, false), 0.55);
-  assert.strictEqual(petOpacityForState(1, true, true), 1);
-  assert.strictEqual(petOpacityForState(1, false, true), 1);
+  assert.strictEqual(petOpacityForState(0.4, false), 0.4);
+  assert.strictEqual(petOpacityForState(0.4, true), 1);
+  assert.strictEqual(petOpacityForState(1, false), 1);
+  assert.strictEqual(petOpacityForState(1, true), 1);
 });
 
-test('默认自动时间轴为 15 秒无聊、25 秒困倦、35 秒睡觉', () => {
-  assert.deepStrictEqual(autoTimeline(TIMERS.SLEEP_AFTER), {
-    bored: 15000,
-    sleepy: 25000,
-    sleeping: 35000,
-  });
-  assert.strictEqual(inactivityState(0, 14999), PET_STATES.IDLE);
-  assert.strictEqual(inactivityState(0, 15000), PET_STATES.BORED);
-  assert.strictEqual(inactivityState(0, 25000), PET_STATES.SLEEPY);
-  assert.strictEqual(inactivityState(0, 35000), PET_STATES.SLEEPING);
+test('默认三分钟入睡，三个选项保持同一条线性时间轴', () => {
+  assert.strictEqual(TIMERS.SLEEP_AFTER, 180000);
+  for (const duration of [60000, 180000, 600000]) {
+    const timeline = autoTimeline(duration);
+    assert.deepStrictEqual(timeline, { bored: Math.round(duration * 3 / 7), sleepy: Math.round(duration * 5 / 7), sleeping: duration });
+    assert.strictEqual(inactivityState(0, timeline.bored - 1, duration), PET_STATES.IDLE);
+    assert.strictEqual(inactivityState(0, timeline.bored, duration), PET_STATES.BORED);
+    assert.strictEqual(inactivityState(0, timeline.sleepy, duration), PET_STATES.SLEEPY);
+    assert.strictEqual(inactivityState(0, timeline.sleeping, duration), PET_STATES.SLEEPING);
+  }
 });
 
-test('快速和舒缓入睡选项保持同一条线性时间轴', () => {
-  assert.deepStrictEqual(autoTimeline(20000), { bored: 8571, sleepy: 14286, sleeping: 20000 });
-  assert.deepStrictEqual(autoTimeline(60000), { bored: 25714, sleepy: 42857, sleeping: 60000 });
+test('控制台和台词在各窗口边角、尺寸下保持可见且互不遮挡', () => {
+  for (const [width, height] of [[800, 600], [1100, 760], [2560, 1080], [320, 480]]) {
+    for (const scale of [.75, 1, 1.5]) {
+      const petWidth = 150 * scale;
+      const petHeight = Math.min(height, 290 * scale);
+      for (const left of [0, (width - petWidth) / 2, width - petWidth]) {
+        for (const top of [0, (height - petHeight) / 2, height - petHeight]) {
+          const rect = { left, top, width: petWidth, height: petHeight, right: left + petWidth, bottom: top + petHeight };
+          for (const bubbleWidth of [60, 230]) {
+            const layout = placePetOverlays({ width, height }, rect, { width: 240, height: 420 }, { width: bubbleWidth, height: 70 });
+            const panel = layout.console;
+            const bubble = layout.bubble;
+            const natural = placePetOverlays({ width, height }, rect, null, { width: bubbleWidth, height: 70 });
+            assert.deepStrictEqual(bubble, natural.bubble, '控制台开关不能改变台词的自然位置');
+            for (const r of [panel, bubble]) {
+              assert.ok(r.left >= 8 && r.top >= 8 && r.left + r.width <= width - 8 && r.top + r.height <= height - 8, JSON.stringify({ width, height, scale, rect, layout }));
+            }
+            assert.ok(panel.left + panel.width <= bubble.left || bubble.left + bubble.width <= panel.left || panel.top + panel.height <= bubble.top || bubble.top + bubble.height <= panel.top, JSON.stringify(layout));
+          }
+        }
+      }
+    }
+  }
+});
+
+test('气泡出现时控制台主动移开，优先保留完整高度', () => {
+  const viewport = { width: 800, height: 600 };
+  const rect = { left: 0, top: 0, width: 150, height: 290, right: 150, bottom: 290 };
+  const size = { width: 240, height: 420 };
+  const initial = placePetOverlays(viewport, rect, size, null).console;
+  const withSpeech = placePetOverlays(viewport, rect, size, { width: 230, height: 70 });
+  assert.notDeepStrictEqual(withSpeech.console, initial);
+  assert.strictEqual(withSpeech.console.height, size.height);
+  assert.strictEqual(withSpeech.bubble.left, 162);
+  assert.ok(Math.abs(withSpeech.bubble.top - 40.4) < .001, '台词应保持在有珠脸侧');
+  assert.ok(withSpeech.console.top >= withSpeech.bubble.top + withSpeech.bubble.height + 12);
+});
+
+test('窄窗口只缩短控制台，气泡继续保持原位置', () => {
+  const viewport = { width: 320, height: 480 };
+  const rect = { left: 0, top: 0, width: 150, height: 290, right: 150, bottom: 290 };
+  const bubbleSize = { width: 230, height: 70 };
+  const layout = placePetOverlays(viewport, rect, { width: 240, height: 420 }, bubbleSize);
+  assert.deepStrictEqual(layout.bubble, placePetOverlays(viewport, rect, null, bubbleSize).bubble);
+  assert.ok(layout.console.height < 420 && layout.console.height >= 100);
+  assert.strictEqual(layout.console.width, 240);
+  assert.ok(layout.console.top + layout.console.height + 12 <= layout.bubble.top || layout.console.top >= layout.bubble.top + layout.bubble.height + 12);
 });
 
 test('超时迁移只沿时间轴向前并为每个阶段提供表情', () => {
@@ -212,7 +248,7 @@ test('表情清单覆盖映射表中的全部表情', () => {
 
 test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () => {
   const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'pet.js'), 'utf8');
-  const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'styles.css'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'styles.css'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'pet-console.css'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'app.js'), 'utf8');
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
   const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
@@ -222,15 +258,18 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes('updatePositionRatios()'), '桌宠位置应使用窗口比例保存');
   assert.ok(renderer.includes("readerMode: 'normal'"), '桌宠应支持阅读页显示策略');
   assert.ok(renderer.includes("['hidden', '自动隐藏']"), '桌宠应支持阅读时自动隐藏');
-  assert.ok(renderer.includes("['dim', '半透明']"), '桌宠应支持阅读时半透明');
   assert.ok(renderer.includes("scale = makeSelectRow('尺寸'"), '控制台应提供尺寸设置');
   assert.ok(renderer.includes("opacity = makeSelectRow('透明度'"), '控制台应提供透明度设置');
   assert.ok(renderer.includes("speechHistory = [text"), '控制台应记录最近台词');
   assert.ok(renderer.includes('whenReady:'), '桌宠初始化应提供可等待的就绪状态');
   assert.ok(renderer.includes("key === 'sleeping'"), '控制台应能手动睡觉');
-  assert.ok(renderer.includes('saved.autoSpeech'), '控制台应能关闭自动说话');
   assert.ok(renderer.includes('saved.autoSleep'), '控制台应能关闭自动睡觉');
-  assert.ok(renderer.includes("makeToggle('连续阅读提醒'"), '控制台应提供阅读关怀独立开关');
+  assert.ok(!renderer.includes('saved.autoSpeech') && !renderer.includes('saved.auto ='), '自主活动与台词始终开启，不读取旧开关');
+  assert.ok(!renderer.includes('readerCare') && !renderer.includes('ReadingCare'), '完整移除阅读关怀功能');
+  assert.ok(!renderer.includes("['dim', '半透明']"), '阅读页不再提供半透明选项');
+  assert.ok(renderer.includes("makeToggle('自主休息'"), '自主行为只保留自主休息选项');
+  assert.ok(renderer.includes("if (ev.stopPropagation) ev.stopPropagation()"), '有珠右键不能传给阅读页书签处理');
+  assert.ok(css.includes('--surface: #20262e;') && css.includes('--accent: #d6deeb;'), '控制台使用统一石墨银灰配色');
   assert.ok(renderer.includes("makeToggle('显示界面帧率'"), '控制台应提供帧率显示开关');
   assert.ok(renderer.includes('showFps: true'), '帧率显示应默认开启');
   assert.ok(renderer.includes('showFps: saved.showFps'), '帧率显示开关应持久化');
@@ -246,17 +285,12 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes("screen.on('display-metrics-changed', scheduleDisplayFrequency)"), '显示器配置变化后应刷新目标值');
   assert.ok(preload.includes("ipcRenderer.invoke('display:frequency')"), '预加载层应安全提供刷新率读取接口');
   assert.ok(preload.includes("ipcRenderer.on('display:frequency-changed'"), '预加载层应转发刷新率变化');
-  assert.ok(renderer.includes("[60000, '测试 · 1分钟']"), '控制台应提供一分钟验收间隔');
-  assert.ok(renderer.includes("makeButton('立即测试提醒'"), '控制台应支持立即测试关怀台词');
   assert.ok(main.includes("mainWindow.webContents.send('window:focus-changed', !!focused)"), '主进程应报告应用窗口的真实焦点状态');
   assert.ok(preload.includes("ipcRenderer.invoke('window:is-focused')") && preload.includes("ipcRenderer.on('window:focus-changed'"), '预加载层应安全转发应用窗口焦点');
-  assert.ok(renderer.includes('window.api.onWindowFocusChanged(handleAppWindowFocus)'), '阅读计时应监听应用窗口焦点，而不是正文 iframe 焦点');
-  assert.ok(renderer.includes('!document.hidden && appWindowFocused'), '阅读计时条件应允许焦点停留在正文 iframe');
+  assert.ok(renderer.includes('window.api.onWindowFocusChanged(handleAppWindowFocus)'), '帧率与拖拽状态应监听应用窗口焦点');
   assert.ok(!renderer.includes("window.addEventListener('blur'"), '不能把主页面到正文 iframe 的焦点切换误判为切出程序');
-  assert.ok(main.includes('GaiaPet.setWindowFocusedForTest(false)'), '冒烟测试应验证应用窗口真正失焦后计时仍会清零');
-  assert.ok(renderer.includes("document.addEventListener('visibilitychange'"), '最小化窗口时应清零连续阅读计时');
-  assert.ok(renderer.includes("if (nextView !== currentView) resetReadingSession()"), '离开阅读页时应清零连续阅读计时');
-  assert.ok(renderer.includes("showBubble(lineFor('readingCare'), 4200)"), '阅读超时后应显示关怀台词');
+  assert.ok(main.includes('GaiaPet.setWindowFocusedForTest(false)'), '冒烟测试应验证应用窗口真正失焦后的状态');
+  assert.ok(renderer.includes("document.addEventListener('visibilitychange'"), '最小化窗口时应重置帧率和拖拽状态');
   assert.ok(renderer.includes("showBubble(lineFor('sleepTransition'), 2600)"), '进入睡眠时应显示状态过渡台词');
   assert.ok(renderer.includes('showBubble(lineFor(d.pokeLine))'), '连续点击应使用逐级变化的台词');
   assert.ok(renderer.includes("PART_IMG + 'body.png'"), '桌宠身体应使用挖空头部的分层素材');
@@ -266,7 +300,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes('target.setPointerCapture(ev.pointerId)'), '桌宠拖拽应捕获当前指针，避免窗口边缘丢失释放事件');
   assert.ok(renderer.includes('!hasPrimaryPointerButton(ev.buttons)'), '移动时发现主按钮已松开应立即结束拖拽');
   assert.ok(renderer.includes('cancelActiveDrag();'), '应用失焦或隐藏时应清理残留拖拽状态');
-  assert.ok(renderer.includes('petOpacityForState(saved.opacity, dimmed, pointerInside || dragging)'), '透明桌宠悬停或拖动时应完全显现');
+  assert.ok(renderer.includes('petOpacityForState(saved.opacity, pointerInside || dragging)'), '透明桌宠悬停或拖动时应完全显现');
   assert.ok(renderer.includes('wasTranslucent && wakeUp(now)'), '碰到透明且休眠的桌宠时应复用既有唤醒流程');
   assert.ok(!css.includes('.gaia-pet-gaze-frame'), '桌宠不应保留鼠标跟随图层');
   assert.ok(renderer.includes('gaia-pet-blink-face'), '眨眼应使用闭眼脸部贴片');
@@ -287,7 +321,7 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("triggerAction('perk')"), '鼠标移入时的一怔动作应保留');
   assert.ok(renderer.includes("playPerformance('yawn'"), '打哈欠应使用头和身体协同的专用动画');
   assert.ok(renderer.includes("{ at: 260, expression: '打哈欠' }"), '打哈欠张嘴表情应与动作阶段同步');
-  assert.match(renderer, /hideBubble\(true\);\r?\n\s+applyExpression\('眼睛微张'\)/, '打哈欠开始前应清除上一条气泡');
+  assert.match(renderer, /hideBubble\(true\);\r?\n {6}applyExpression\('眼睛微张'\)/, '打哈欠开始前应清除上一条气泡');
   assert.ok(renderer.includes("showBubble(lineFor('yawn'), 1300)"), '打哈欠张嘴阶段应显示与动作同步收尾的文字');
   assert.ok(renderer.includes("drowse: 2200"), '困倦点头动作应有足够缓慢的节奏');
   assert.ok(renderer.includes("{ at: 620, expression: '安心' }"), '困倦低头阶段应闭眼');
@@ -305,8 +339,6 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes('lockedMood: lockedEmotion'), '情绪锁定应保存明确的情绪键');
   assert.match(renderer, /if \(key === 'idle'\) \{\s+returnToIdle\(now\);\s+save\(\);/, '手动回到待机时应持久化解除锁定');
   assert.ok(renderer.includes("const LOCKABLE_EMOTIONS = ['thinking', 'shy', 'angry', 'sleepy']"), '只能锁定稳定手动情绪');
-  assert.ok(renderer.includes("makeToggle('自主活动总开关'"), '自动模式应使用明确的总开关名称');
-  assert.ok(renderer.includes('ui.speechToggle.disabled = !saved.auto'), '关闭自主活动后应禁用子选项');
   assert.match(renderer, /if \(saved\.autoSleep\) \{[\s\S]*?timeoutState\(brain, now, saved\.sleepAfter\)[\s\S]*?\}\s+if \(consoleOpen\) return;/, '控制台打开时仍应先执行自动休息和入睡时间轴');
   assert.ok(!renderer.includes("['stretch', '伸懒腰']"), '不应保留失败的伸懒腰入口');
   assert.ok(renderer.includes("ui.body.classList.remove(cls, 'no-breathe')"), '动作结束后应恢复呼吸');
@@ -345,7 +377,6 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(renderer.includes("const embeddedInStats = currentView === 'stats'"), '统计页展示完整单图有珠时应隐藏分层悬浮桌宠');
   assert.ok(main.includes('statsUsesWholeImage') && main.includes('statsBlinkStarted') && main.includes('statsYawnStarted') && main.includes('statsSleepStarted') && main.includes('statsHasNoDialogue'), '冒烟测试应验证统计页完整单图的眨眼、哈欠、睡觉与无对话互动');
   assert.ok(main.includes('parseFloat(getComputedStyle(statsAlice).height)'), '统计页立绘固定尺寸应读取布局高度，避免呼吸缩放动画造成冒烟误报');
-  assert.ok(app.includes("$('btn-pet-console').addEventListener('click', openPetConsole)"), '设置页应能打开有珠控制台');
   assert.ok(main.includes('petStatus.headCutoutClean === true'), '冒烟测试应逐像素验证身体层没有旧头部残影');
   assert.ok(main.includes("petRoot.style.pointerEvents = 'none'"), '桌宠冒烟测试应隔离真实鼠标输入');
   assert.ok(main.includes('petStatus.yawnStarted === true'), '冒烟测试应验证打哈欠动画已启动');
@@ -355,7 +386,6 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes('petStatus.actionStateRestored === true'), '冒烟测试应验证单独动作恢复原状态');
   assert.ok(main.includes('petStatus.autoRestWhileConsoleOpen === true'), '冒烟测试应验证控制台打开时仍会自动休息');
   assert.ok(main.includes('petStatus.autoSleepWhileConsoleOpen === true'), '冒烟测试应验证控制台打开时仍会自动入睡');
-  assert.ok(main.includes('petStatus.immediateCareTest === true'), '冒烟测试应验证阅读关怀可立即试播');
   assert.ok(main.includes('petStatus.panelCompact === true'), '冒烟测试应验证控制台尺寸已经缩小');
   assert.ok(main.includes('petStatus.panelScrollable === true'), '冒烟测试应验证控制台内容可以滚动');
   assert.ok(main.includes('petStatus.panelWheelIsolated === true'), '冒烟测试应验证控制台滚轮不会穿透');
@@ -363,10 +393,6 @@ test('渲染层包含分层专用动画、无黑线眨眼和动作收尾', () =>
   assert.ok(main.includes('petStatus.fpsMeasured === true'), '冒烟测试应验证帧率能够实际测量');
   assert.ok(main.includes('petStatus.fpsTargetMatchesDisplay === true'), '冒烟测试应验证目标刷新率与系统报告值一致');
   assert.ok(main.includes('petStatus.fpsUnavailableOnBlur === true'), '冒烟测试应验证失焦时不显示错误低帧率');
-  assert.ok(main.includes('petStatus.readingTimerAdvanced === true'), '冒烟测试应验证连续阅读计时会推进');
-  assert.ok(main.includes('petStatus.readingTimerResetOnBlur === true'), '冒烟测试应验证失焦会清零连续阅读计时');
-  assert.ok(main.includes('petStatus.readingTimerResetOnLeave === true'), '冒烟测试应验证离开阅读页会清零连续阅读计时');
-  assert.ok(main.includes('petStatus.readingCareReminderTriggered === true'), '冒烟测试应验证到达间隔会显示关怀台词');
   assert.ok(main.includes('petStatus.blinkInterruptedYawn === true'), '冒烟测试应验证眨眼可打断打哈欠闭眼阶段');
   assert.ok(main.includes('petStatus.blinkInterruptedDrowse === true'), '冒烟测试应验证眨眼可打断困倦闭眼阶段');
   assert.ok(main.includes('petStatus.repeatedBlinkCleaned === true'), '冒烟测试应验证连续眨眼可以正常清理');

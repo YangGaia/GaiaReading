@@ -85,7 +85,7 @@
 #ai-view .ai-model-row .btn { min-width: 0; }
 #ai-view .ai-model-menu-button svg { transition: transform .18s ease; }
 #ai-view .ai-model-menu-button[aria-expanded="true"] svg { transform: rotate(180deg); }
-#ai-view .ai-model-options { position: static; display: grid; gap: 3px; max-height: 216px; margin-top: 8px; padding: 6px; border: 1px solid #536780; border-radius: 7px; background: #17202c; box-shadow: inset 0 1px 0 #ffffff06, 0 5px 14px #00000025; scrollbar-color: #60718b transparent; }
+#ai-view .ai-model-options { position: absolute; z-index: 30; top: calc(100% + 7px); left: 0; right: 0; display: grid; gap: 3px; max-height: 216px; margin: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px; border: 1px solid #536780; border-radius: 7px; background: #17202c; box-shadow: inset 0 1px 0 #ffffff06, 0 5px 14px #00000025; scrollbar-width: thin; scrollbar-color: #60718b transparent; }
 #ai-view .ai-model-options[hidden] { display: none; }
 #ai-view .ai-model-option { min-width: 0; min-height: 38px; padding: 9px 10px; border: 1px solid transparent; border-radius: 4px; color: #e0e8f4; transition: background .15s ease, border-color .15s ease; }
 #ai-view .ai-model-option strong { font: 400 13px/1.5 "Gaia Home Noto", "Noto Sans SC", sans-serif; }
@@ -132,7 +132,7 @@
 #ai-view .ai-capability h3 { margin: 0 0 4px; color: #d8e1ee; font-size: 13px; font-weight: 500; letter-spacing: .055em; }
 #ai-view .ai-capability p { margin: 0; color: #a8b5c9; font-size: 11px; }
 #ai-view .ai-center-footer { display: flex; align-items: center; gap: 18px; padding: 17px 0 4px; }
-#ai-view .ai-footer-mark { color: #a8b8ce; font: 500 22px/1 "Gaia Wordmark", serif; }
+#ai-view .ai-footer-mark { color: #a8b8ce; flex: 0 0 auto; font: 500 18px/1.2 "Gaia Wordmark", serif; white-space: nowrap; }
 #ai-view .ai-center-footer p { margin: 0; color: #9faec3; font-size: 11px; line-height: 1.6; }
 #ai-view .ai-footer-rule { flex: 1; height: 1px; background: #35404f; }
 

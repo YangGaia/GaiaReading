@@ -14,6 +14,22 @@
     return Number.isFinite(number) ? Math.max(80, Math.min(200, number)) : 100;
   }
 
+  function normalizeMargins(value = {}) {
+    const horizontal = Number(value.horizontalPct == null ? value.marginPct : value.horizontalPct);
+    const vertical = Number(value.verticalPx == null ? value.verticalMarginPx : value.verticalPx);
+    return {
+      horizontalPct: Number.isFinite(horizontal) ? Math.max(0, Math.min(24, horizontal)) : 8,
+      verticalPx: Number.isFinite(vertical) ? Math.max(0, Math.min(160, vertical)) : 28,
+    };
+  }
+
+  /** Leave enough room for a line or illustration even in a very short window. */
+  function verticalPadding(value, viewportHeight) {
+    const requested = normalizeMargins({ verticalPx: value }).verticalPx;
+    const height = Number(viewportHeight);
+    return Number.isFinite(height) && height > 0 ? Math.min(requested, Math.max(0, Math.floor((height - 48) / 2))) : requested;
+  }
+
   function isFixedLayout(layout, properties) {
     const flags = Array.isArray(properties) ? properties : String(properties || '').split(/\s+/);
     if (flags.includes('rendition:layout-pre-paginated')) return true;
@@ -71,5 +87,5 @@
     }
   }
 
-  return { normalizePercent, isFixedLayout, apply, restore };
+  return { normalizePercent, normalizeMargins, verticalPadding, isFixedLayout, apply, restore };
 });

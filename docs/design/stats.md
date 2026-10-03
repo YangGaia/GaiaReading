@@ -12,9 +12,12 @@
 
 ## 验证
 
+在项目目录执行：
+
 ```powershell
+. ./scripts/dev-env.ps1
 npm test
-$env:GAIA_UI_OUTPUT_DIR = 'D:\Codex_project\Gaia_Reading\dist\stats-ui-regression'
+$env:GAIA_UI_OUTPUT_DIR = (Join-Path $env:TEMP 'stats-ui-regression')
 npm run smoke:ui
 ```
 

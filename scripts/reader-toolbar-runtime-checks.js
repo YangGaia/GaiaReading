@@ -11,6 +11,12 @@ const { BGM_TRACKS } = require('../src/shared/bgm');
 module.exports = async ({ win, report, check, capture }) => {
   const evaluate = (fn, arg) => win.webContents.executeJavaScript(`(${fn.toString()})(${JSON.stringify(arg)})`);
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  // Windows may retain an occluded surface even when JS timers are enabled.
+  // Raise without activation before checking actual animation/presentation.
+  win.showInactive();
+  win.moveTop();
+  win.webContents.invalidate();
+  await wait(300);
   const until = async (fn, arg) => {
     for (let i = 0; i < 80; i++) { if (await evaluate(fn, arg)) return; await wait(75); }
     throw new Error(`Timed out: ${fn}`);
@@ -71,7 +77,7 @@ module.exports = async ({ win, report, check, capture }) => {
           if (r.width < 27 || r.height < 27) fail(`small pointer target: ${el.id}`);
           if (!el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))) fail(`covered control: ${el.id || el.className}`);
           if (!(el.getAttribute('aria-label') || el.title || el.textContent.trim())) fail(`unnamed control: ${el.id}`);
-          if (el.scrollWidth > el.clientWidth + 1) fail(`clipped button label: ${el.id}`);
+          if (!el.classList.contains('bgm-title') && el.scrollWidth > el.clientWidth + 1) fail(`clipped button label: ${el.id}`);
           if (el.matches('.reader-tool') && !el.disabled) {
             const ratio = contrast(s.color, s.backgroundColor === 'rgba(0, 0, 0, 0)' ? getComputedStyle(bar).backgroundColor : s.backgroundColor);
             minContrast = Math.min(minContrast, ratio);
@@ -96,9 +102,17 @@ module.exports = async ({ win, report, check, capture }) => {
       if (pr.width !== 336 || pr.height !== 52 || getComputedStyle(player).transform !== 'none') fail('reader music proportions changed');
       const original = player.querySelector('.bgm-title-text');
       if (title.clientWidth < 96 || (original.offsetWidth > title.clientWidth && title.dataset.scrolling !== 'true')) fail('long music title must scroll inside its compact viewport');
-      if (state.current.format !== 'pdf' && innerWidth >= 800 && bars[0].getBoundingClientRect().height > 72) fail('ordinary reader toolbar must stay in one row');
+      if (state.current.format !== 'pdf' && innerWidth > 960 && bars[0].getBoundingClientRect().height > 72) fail('wide reader toolbar must stay in one row');
+      const quickTools = [...document.querySelectorAll('.reader-quick-tools .reader-tool')];
+      const firstTool = quickTools[0].getBoundingClientRect();
+      for (const tool of quickTools) {
+        const r = tool.getBoundingClientRect();
+        if (r.width !== firstTool.width || r.height !== firstTool.height || r.top !== firstTool.top) fail('quick tools must stay equally sized and aligned');
+        const label = tool.querySelector('.reader-label-compact, .alice-action-text');
+        if (!label?.getClientRects().length) fail('quick tool label disappeared at narrow width');
+      }
       if (cover.width !== 32 || cover.height !== 32) fail('music cover is hidden or distorted');
-      for (const b of player.querySelectorAll('button')) {
+      for (const b of [...player.querySelectorAll('.bgm-btn')].filter(el => el.getClientRects().length)) {
         const r = b.getBoundingClientRect();
         if (r.width !== 28 || r.height !== 28) fail('music button proportions changed');
       }
@@ -106,16 +120,18 @@ module.exports = async ({ win, report, check, capture }) => {
     };
   });
 
-  // Verify the real four-track cycle and each visible name before keeping the
-  // longest title selected for all subsequent format/viewport checks.
+  // Unit/media checks cover the entire album; sample native previous/next here
+  // and choose a long title for the following layout checks.
   const initialMusic = await evaluate(() => GaiaBgm.getState());
-  for (let i = 0; i < BGM_TRACKS.length; i++) {
-    const current = await evaluate(() => ({ state: GaiaBgm.getState(), title: document.querySelector('#bgm-capsule .bgm-title-text').textContent, layout: __checkReaderChrome() }));
-    check(`music ${current.state.trackId}: original title and normal proportions`, current.title === BGM_TRACKS.find(t => t.id === current.state.trackId).title);
-    await click('#bgm-capsule [data-action="next"]');
-  }
-  assert.deepEqual(await evaluate(() => GaiaBgm.getState()), initialMusic, 'Full track cycle preserves playback and volume');
-  for (let i = 0; i < BGM_TRACKS.length && (await evaluate(() => GaiaBgm.getState().trackId)) !== 'main-theme'; i++) await click('#bgm-capsule [data-action="next"]');
+  await click('#bgm-capsule [data-action="next"]');
+  const current = await evaluate(() => ({ state: GaiaBgm.getState(), title: document.querySelector('#bgm-capsule .bgm-title-text').textContent, layout: __checkReaderChrome() }));
+  const expectedTrack = BGM_TRACKS[(BGM_TRACKS.findIndex(t => t.id === initialMusic.trackId) + 1) % BGM_TRACKS.length];
+  check('native next switches to the next album track with its tagged title', current.state.trackId === expectedTrack.id && current.title === expectedTrack.title);
+  await click('#bgm-capsule [data-action="prev"]');
+  assert.deepEqual(await evaluate(() => GaiaBgm.getState()), initialMusic, 'Previous restores the track and preserves playback and volume');
+  await click('#bgm-capsule .bgm-title');
+  await evaluate(() => document.querySelector('#bgm-playlist [data-track-id="main-theme"]').scrollIntoView({ block: 'nearest' }));
+  await click('#bgm-playlist [data-track-id="main-theme"]');
   await require('./music-marquee-runtime-checks')({ win, report, check, capture, click });
 
   let palette;
@@ -200,15 +216,32 @@ module.exports = async ({ win, report, check, capture }) => {
   const focus = await evaluate(() => ({ id: document.activeElement.id, outline: getComputedStyle(document.activeElement).outlineStyle, focused: document.hasFocus() }));
   report.keyboardFocus = focus;
   check('keyboard focus reaches previous page with a visible ring: ' + JSON.stringify(focus), focus.id === 'btn-prev-page' && focus.outline === 'solid');
-  const rest = await evaluate(() => getComputedStyle(document.getElementById('btn-next-page')).backgroundColor);
+  // Gradient surfaces can keep a transparent backgroundColor in every state.
+  // Compare the visible paint layers, not only the color behind those layers.
+  const readButtonPaint = () => evaluate(() => {
+    const style = getComputedStyle(document.getElementById('btn-next-page'));
+    return {
+      color: style.color,
+      backgroundColor: style.backgroundColor,
+      backgroundImage: style.backgroundImage,
+      backgroundPosition: style.backgroundPosition,
+      backgroundSize: style.backgroundSize,
+      borderColor: style.borderColor,
+      boxShadow: style.boxShadow,
+      opacity: style.opacity,
+    };
+  });
+  const rest = await readButtonPaint();
   const point = await moveTo('#btn-next-page');
   await wait(200);
-  const hover = await evaluate(() => getComputedStyle(document.getElementById('btn-next-page')).backgroundColor);
+  const hover = await readButtonPaint();
   win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point });
   await wait(200);
-  const pressed = await evaluate(() => getComputedStyle(document.getElementById('btn-next-page')).backgroundColor);
+  const pressed = await readButtonPaint();
   win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point });
-  check('hover and pressed feedback are distinct', rest !== hover && hover !== pressed);
+  report.buttonFeedback = { selector: '#btn-next-page', rest, hover, pressed };
+  const paintChanged = (before, after) => Object.keys(before).some(key => before[key] !== after[key]);
+  check('hover and pressed feedback are distinct', paintChanged(rest, hover) && paintChanged(hover, pressed));
   await wait(350);
 
   // Keep real button handlers and chapter extraction, without model/network use.
@@ -217,7 +250,8 @@ module.exports = async ({ win, report, check, capture }) => {
   ipcMain.removeHandler('ai:alice-comment');
   ipcMain.handle('ai:alice-comment', (_event, payload) => { requests.push(payload); return new Promise(resolve => { resolveAlice = resolve; }); });
   await evaluate(() => acceptAiProfiles({ activeId: 'toolbar-fixture', items: [{ id: 'toolbar-fixture', name: '离线验证', provider: 'ollama', model: 'fixture', baseUrl: 'http://127.0.0.1' }] }));
-  for (const kind of ['summary', 'comment']) {
+  check('reader top bar has only the Alice comment shortcut', await evaluate(() => !document.getElementById('btn-alice-summary') && !!document.getElementById('btn-alice-comment')));
+  for (const kind of ['comment']) {
     await click(`#btn-alice-${kind}`);
     await until(() => state.aiAliceLoading);
     check(`Alice ${kind}: click carries the current chapter to IPC`, requests.at(-1).kind === kind && requests.at(-1).source.content.includes('书页'));
@@ -233,6 +267,42 @@ module.exports = async ({ win, report, check, capture }) => {
     await wait(250);
   }
 
+  // Fast task verification covers changed controls above; the regular runner
+  // also checks all legacy format/viewport combinations below.
+  if (process.env.GAIA_UI_TOOLBAR_FOCUSED === '1') return;
+  const navigationPosition = () => evaluate(() => {
+    const current = state.current;
+    const rendition = current.rendition;
+    const manager = rendition && rendition.manager;
+    const container = manager && manager.container;
+    return {
+      format: current.format,
+      mode: state.readMode,
+      viewport: [innerWidth, innerHeight],
+      page: current.page,
+      location: rendition ? rendition.currentLocation() : null,
+      scroll: container ? [container.scrollLeft, container.scrollTop, container.scrollWidth, container.clientWidth] : null,
+      layout: manager ? { delta: manager.layout.delta, divisor: manager.layout.divisor, width: manager.layout.width, height: manager.layout.height } : null,
+      pendingTurns: pendingPageTurns,
+      resizePending: Boolean(epubWindowResizeTimer),
+      renditionBusy: Boolean(rendition && rendition.q.running),
+      animationRunning: Boolean(activePageAnimation && activePageAnimation.playState === 'running'),
+    };
+  });
+  const stableNavigationPosition = async () => {
+    let previous = '', stableSamples = 0;
+    for (let i = 0; i < 40; i++) {
+      const snapshot = await navigationPosition();
+      const signature = JSON.stringify(snapshot);
+      const idle = !snapshot.pendingTurns && !snapshot.resizePending && !snapshot.renditionBusy && !snapshot.animationRunning;
+      stableSamples = idle && signature === previous ? stableSamples + 1 : 0;
+      if (stableSamples >= 3) return snapshot;
+      previous = signature;
+      await wait(100);
+    }
+    throw new Error('Reader navigation did not settle: ' + previous);
+  };
+  report.navigationPositions = [];
   for (const format of ['epub', 'pdf']) {
     await evaluate(book => __gaiaDebug.openBook(book), { path: path.resolve(__dirname, `../tests/fixtures/sample.${format}`), title: `${format.toUpperCase()} 阅读验证`, format });
     await wait(450);
@@ -248,12 +318,18 @@ module.exports = async ({ win, report, check, capture }) => {
     }
     win.setContentSize(1100, 760);
     await wait(400);
-    const position = () => evaluate(() => state.current.format === 'pdf' ? state.current.page : state.current.rendition.currentLocation().start.cfi);
-    const before = await position();
+    const navigation = { format, beforeRaw: await navigationPosition() };
+    report.navigationPositions.push(navigation);
+    const position = snapshot => snapshot.format === 'pdf' ? snapshot.page : snapshot.location.start.cfi;
+    navigation.before = await stableNavigationPosition();
     await click('#btn-next-page');
-    check(`${format}: next-page button moves the actual renderer`, await position() !== before);
+    navigation.nextRaw = await navigationPosition();
+    navigation.next = await stableNavigationPosition();
+    check(`${format}: next-page button moves the actual renderer`, position(navigation.next) !== position(navigation.before));
     await click('#btn-prev-page');
-    check(`${format}: previous-page button returns`, await position() === before);
+    navigation.previousRaw = await navigationPosition();
+    navigation.previous = await stableNavigationPosition();
+    check(`${format}: previous-page button returns`, position(navigation.previous) === position(navigation.before));
     if (format === 'pdf') {
       const zoom = await evaluate(() => document.getElementById('pdf-zoom-value').textContent);
       await click('#btn-pdf-zoom-in');

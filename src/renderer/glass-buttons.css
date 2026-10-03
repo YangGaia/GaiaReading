@@ -1,0 +1,144 @@
+/* M01 deep teal glass, shared by the application's native buttons.
+   Source styles keep all geometry, typography, icons and control behaviour.
+   Music, settings, collection cards, AI typography, selection tools and the
+   pet console keep ordinary controls; collection tabs use glass.
+   Statistics only accents goal choices; the AI centre
+   only keeps glass on its four save/maintenance actions. */
+:root {
+  --glass-teal-surface:
+    radial-gradient(ellipse at 78% 120%, #35d0be30, transparent 61%),
+    linear-gradient(112deg, transparent 28%, #d7fff71c 45%, transparent 58%),
+    linear-gradient(164deg, #2b737b 0%, #1b5662 43%, #103943 47%, #184953 100%);
+  --glass-teal-hover:
+    radial-gradient(ellipse at 76% 115%, #4ce2d33c, transparent 62%),
+    linear-gradient(112deg, transparent 25%, #e4fff729 44%, transparent 59%),
+    linear-gradient(164deg, #33878b 0%, #226775 43%, #164651 47%, #1d5960 100%);
+  --glass-teal-selected:
+    radial-gradient(ellipse at 78% 115%, #62e8d34a, transparent 63%),
+    linear-gradient(112deg, transparent 28%, #e3fff72e 45%, transparent 58%),
+    linear-gradient(164deg, #357d80 0%, #246670 43%, #16434e 47%, #23585f 100%);
+  --glass-teal-selected-hover:
+    radial-gradient(ellipse at 76% 115%, #75f1dd50, transparent 63%),
+    linear-gradient(112deg, transparent 25%, #effff738 44%, transparent 59%),
+    linear-gradient(164deg, #3c8c8c 0%, #2b757c 43%, #1c5058 47%, #29696b 100%);
+  --glass-teal-pressed:
+    radial-gradient(ellipse at 78% 120%, #35d0be24, transparent 61%),
+    linear-gradient(164deg, #225c64 0%, #164852 43%, #10333d 47%, #18434b 100%);
+}
+
+/* Low specificity lets the two reader AI actions supply their own glass.
+   The inset rim also reaches border:0 controls without changing their size. */
+body button:not(:where(#reader-content *, #bgm-capsule *, #pdf-zoom-controls *, #drawer-reading *, #btn-home-settings, #btn-settings, #btn-settings-reader, .drawer-switch, .tool-close, [role="switch"], .highlight-dot, .gaia-pet-console *, #bookmarks-panel button:not(.collection-tabs button), #annotations-panel button:not(.collection-tabs button), #ai-appearance-popover *, #note-editor-overlay *, #selection-toolbar *, #stats-view button:not(#stats-goal-options *), #ai-view button:not(.ai-config-actions *))) {
+  --glass-button-surface: var(--glass-teal-surface);
+  --glass-button-hover-surface: var(--glass-teal-hover);
+  --glass-button-selected-surface: var(--glass-teal-selected);
+  --glass-button-selected-hover-surface: var(--glass-teal-selected-hover);
+  --glass-button-pressed-surface: var(--glass-teal-pressed);
+  --glass-button-border: #99ded5b8 #59a7a4ad #337778;
+  --glass-button-hover-border: #b3eee0 #76c1b8 #4c9693;
+  --glass-button-selected-border: #baf4e5 #80cdbf #58a799;
+  --glass-button-rim: #b6f4e035;
+  --glass-button-edge: #e4fff759;
+  --glass-button-light: #d2fff63b;
+  --glass-button-mark: #9cebd3b8;
+  --glass-button-ink: #edfffa;
+  --glass-button-icon: #c9f5ed;
+  --glass-button-focus: #a5e2d9;
+  --glass-button-shadow:
+    inset 0 0 0 1px var(--glass-button-rim),
+    inset 0 1px 0 var(--glass-button-edge),
+    inset 0 -1px 0 #061c2b8a,
+    0 3px 8px #00000038;
+  --glass-button-rest-surface: var(--glass-button-surface);
+  --glass-button-rest-border: var(--glass-button-border);
+  --glass-button-rest-shadow: var(--glass-button-shadow);
+  --glass-button-current-hover: var(--glass-button-hover-surface);
+  color: var(--glass-button-ink) !important;
+  border-color: var(--glass-button-rest-border) !important;
+  background: var(--glass-button-rest-surface) !important;
+  box-shadow: var(--glass-button-rest-shadow) !important;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, color .18s ease;
+}
+
+/* Primary actions retain a slightly stronger edge; smaller actions use the
+   very same visible glass layers, including the internal diagonal facet. */
+body button:not(:where(#reader-content *, #bgm-capsule *, #pdf-zoom-controls *, #drawer-reading *, #btn-home-settings, #btn-settings, #btn-settings-reader, .drawer-switch, .tool-close, [role="switch"], .highlight-dot, .gaia-pet-console *, #bookmarks-panel button:not(.collection-tabs button), #annotations-panel button:not(.collection-tabs button), #ai-appearance-popover *, #note-editor-overlay *, #selection-toolbar *, #stats-view button:not(#stats-goal-options *), #ai-view button:not(.ai-config-actions *))):where(.primary, .primary-action) {
+  --glass-button-rim: #c6ffe448;
+  --glass-button-edge: #effff77a;
+}
+
+/* Keep destructive actions recognisable in every interaction state. */
+body button:not(:where(#reader-content *, #bgm-capsule *, #pdf-zoom-controls *, #drawer-reading *, #btn-home-settings, #btn-settings, #btn-settings-reader, .drawer-switch, .tool-close, [role="switch"], .highlight-dot, .gaia-pet-console *, #bookmarks-panel button:not(.collection-tabs button), #annotations-panel button:not(.collection-tabs button), #ai-appearance-popover *, #note-editor-overlay *, #selection-toolbar *, #stats-view button:not(#stats-goal-options *), #ai-view button:not(.ai-config-actions *))):where(.danger, .bookmark-delete, .selection-delete, [data-selection-action="delete"]) {
+  --glass-button-surface:
+    radial-gradient(ellipse at 78% 120%, #e3779230, transparent 61%),
+    linear-gradient(112deg, transparent 28%, #ffe7eb1c 45%, transparent 58%),
+    linear-gradient(164deg, #794957 0%, #5b3447 43%, #3b2436 47%, #4c2b3c 100%);
+  --glass-button-hover-surface:
+    radial-gradient(ellipse at 76% 115%, #ee94a63c, transparent 62%),
+    linear-gradient(112deg, transparent 25%, #fff1ed29 44%, transparent 59%),
+    linear-gradient(164deg, #8a5966 0%, #714253 43%, #4c2e3d 47%, #643949 100%);
+  --glass-button-selected-surface: var(--glass-button-hover-surface);
+  --glass-button-selected-hover-surface: var(--glass-button-hover-surface);
+  --glass-button-pressed-surface: linear-gradient(164deg, #5f3746, #392232 48%, #482a38);
+  --glass-button-border: #dfaab5b8 #af7482ad #87525e;
+  --glass-button-hover-border: #f1bdc5 #ce939f #a96c7a;
+  --glass-button-selected-border: #ffd1d5 #d799a4 #b77b84;
+  --glass-button-rim: #ffd8df35;
+  --glass-button-edge: #ffe8ec59;
+  --glass-button-light: #ffe2e93b;
+  --glass-button-mark: #f5b9c6b8;
+  --glass-button-ink: #ffe5e8;
+  --glass-button-icon: #ffd3dc;
+  --glass-button-focus: #efb6c2;
+}
+
+/* These are the application's existing selected/open state hooks.
+   State variables retain the destructive-action palette automatically. */
+body button:not(:where(#reader-content *, #bgm-capsule *, #pdf-zoom-controls *, #drawer-reading *, #btn-home-settings, #btn-settings, #btn-settings-reader, .drawer-switch, .tool-close, [role="switch"], .highlight-dot, .gaia-pet-console *, #bookmarks-panel button:not(.collection-tabs button), #annotations-panel button:not(.collection-tabs button), #ai-appearance-popover *, #note-editor-overlay *, #selection-toolbar *, #stats-view button:not(#stats-goal-options *), #ai-view button:not(.ai-config-actions *))):where(.active, .selected, .open, .locked, [aria-pressed="true"], [aria-checked="true"], [aria-selected="true"], [aria-current="true"], [aria-expanded="true"]) {
+  --glass-button-rest-surface: var(--glass-button-selected-surface);
+  --glass-button-rest-border: var(--glass-button-selected-border);
+  --glass-button-rest-shadow: inset 0 -2px 0 var(--glass-button-mark), var(--glass-button-shadow);
+  --glass-button-current-hover: var(--glass-button-selected-hover-surface);
+}
+
+/* A single internal light follows the pointer. Dynamic controls receive the
+   same variables through delegated pointer handling; keyboard focus centres it. */
+body button:not(:where(#reader-content *, #bgm-capsule *, #pdf-zoom-controls *, #drawer-reading *, #btn-home-settings, #btn-settings, #btn-settings-reader, .drawer-switch, .tool-close, [role="switch"], .highlight-dot, .gaia-pet-console *, #bookmarks-panel button:not(.collection-tabs button), #annotations-panel button:not(.collection-tabs button), #ai-appearance-popover *, #note-editor-overlay *, #selection-toolbar *, #stats-view button:not(#stats-goal-options *), #ai-view button:not(.ai-config-actions *))):not(:where(:disabled, [aria-disabled="true"], .loading, [aria-busy="true"])):where(:hover, :focus-visible) {
+  border-color: var(--glass-button-hover-border) !important;
+  background:
+    radial-gradient(ellipse at var(--hover-x, 50%) var(--hover-y, 50%), var(--glass-button-light), transparent 72%),
+    var(--glass-button-current-hover) !important;
+  box-shadow: var(--glass-button-rest-shadow), inset 0 1px 0 #ffffff1c !important;
+}
+body button:not(:where(#reader-content *, #bgm-capsule *, #pdf-zoom-controls *, #drawer-reading *, #btn-home-settings, #btn-settings, #btn-settings-reader, .drawer-switch, .tool-close, [role="switch"], .highlight-dot, .gaia-pet-console *, #bookmarks-panel button:not(.collection-tabs button), #annotations-panel button:not(.collection-tabs button), #ai-appearance-popover *, #note-editor-overlay *, #selection-toolbar *, #stats-view button:not(#stats-goal-options *), #ai-view button:not(.ai-config-actions *))):not(:where(:disabled, [aria-disabled="true"], .loading, [aria-busy="true"])):active {
+  border-color: var(--glass-button-rest-border) !important;
+  background: var(--glass-button-pressed-surface) !important;
+  box-shadow: inset 0 2px 5px #06182375, inset 0 0 0 1px var(--glass-button-rim) !important;
+}
+body button:not(:where(#reader-content *, #bgm-capsule *, #pdf-zoom-controls *, #drawer-reading *, #btn-home-settings, #btn-settings, #btn-settings-reader, .drawer-switch, .tool-close, [role="switch"], .highlight-dot, .gaia-pet-console *, #bookmarks-panel button:not(.collection-tabs button), #annotations-panel button:not(.collection-tabs button), #ai-appearance-popover *, #note-editor-overlay *, #selection-toolbar *, #stats-view button:not(#stats-goal-options *), #ai-view button:not(.ai-config-actions *))):focus-visible {
+  outline-color: var(--glass-button-focus) !important;
+}
+body button:not(:where(#reader-content *, #bgm-capsule *, #pdf-zoom-controls *, #drawer-reading *, #btn-home-settings, #btn-settings, #btn-settings-reader, .drawer-switch, .tool-close, [role="switch"], .highlight-dot, .gaia-pet-console *, #bookmarks-panel button:not(.collection-tabs button), #annotations-panel button:not(.collection-tabs button), #ai-appearance-popover *, #note-editor-overlay *, #selection-toolbar *, #stats-view button:not(#stats-goal-options *), #ai-view button:not(.ai-config-actions *))):where(:disabled, [aria-disabled="true"]):not(:where(.loading, [aria-busy="true"])) {
+  opacity: .45 !important;
+}
+
+/* Recolour icon foregrounds only. SVG paths, strokes, masks and semantic
+   badges keep their original shapes. */
+body button:not(:where(#reader-content *, #bgm-capsule *, #pdf-zoom-controls *, #drawer-reading *, #btn-home-settings, #btn-settings, #btn-settings-reader, .drawer-switch, .tool-close, [role="switch"], .highlight-dot, .gaia-pet-console *, #bookmarks-panel button:not(.collection-tabs button), #annotations-panel button:not(.collection-tabs button), #ai-appearance-popover *, #note-editor-overlay *, #selection-toolbar *, #stats-view button:not(#stats-goal-options *), #ai-view button:not(.ai-config-actions *))) :where(.action-icon, .forward-icon, .reader-icon, .alice-action-mark, .book-import-icon, svg) {
+  color: var(--glass-button-icon) !important;
+}
+
+/* Home already owns decorative pseudo-elements. Repaint its fine edge and
+   suppress its old hover overlay so the shared internal light appears once. */
+body :where(#home-view) button.action-button::before {
+  background: linear-gradient(90deg, transparent, #d2fff294 28%, #d2fff242 72%, transparent) !important;
+}
+body :where(#home-view) button.action-button::after {
+  opacity: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body button:not(:where(#reader-content *, #bgm-capsule *, #pdf-zoom-controls *, #drawer-reading *, #btn-home-settings, #btn-settings, #btn-settings-reader, .drawer-switch, .tool-close, [role="switch"], .highlight-dot, .gaia-pet-console *, #bookmarks-panel button:not(.collection-tabs button), #annotations-panel button:not(.collection-tabs button), #ai-appearance-popover *, #note-editor-overlay *, #selection-toolbar *, #stats-view button:not(#stats-goal-options *), #ai-view button:not(.ai-config-actions *))) {
+    transition: none;
+  }
+}

@@ -5,7 +5,8 @@ const path = require('path');
 
 const CURRENT_SCHEMA_VERSION = 1;
 const DEFAULT_BACKUP_LIMIT = 5;
-const BACKUP_PREFIX = 'gaia-reading-before-';
+const BACKUP_PREFIX = 'GaiaReading_Lucky-before-';
+const LEGACY_BACKUP_PREFIX = 'gaia-reading-before-';
 
 const MIGRATIONS = {
   0(data) {
@@ -57,7 +58,7 @@ function timestampForFile(now) {
 function backupFiles(backupDir) {
   if (!fs.existsSync(backupDir)) return [];
   return fs.readdirSync(backupDir)
-    .filter((name) => name.startsWith(BACKUP_PREFIX) && name.endsWith('.json'))
+    .filter((name) => (name.startsWith(BACKUP_PREFIX) || name.startsWith(LEGACY_BACKUP_PREFIX)) && name.endsWith('.json'))
     .map((name) => {
       const filePath = path.join(backupDir, name);
       return { name, path: filePath, mtimeMs: fs.statSync(filePath).mtimeMs };

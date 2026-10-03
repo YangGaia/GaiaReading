@@ -44,7 +44,10 @@ test('损坏单个正文记录时恢复其余 EPUB 内容并生成占位页', as
   assert.match(goodPage, /中文正文/);
   assert.doesNotMatch(goodPage, /<svg[^>]*>\s*<img/i, '恢复时应纠正 SVG 中的非法 img 封面结构');
   assert.doesNotMatch(await zip.file('OEBPS/Styles/fonts.css').async('string'), /res:\/\//, '恢复时应移除设备专用字体地址');
-  assert.match(await zip.file('OEBPS/Text/bad.xhtml').async('string'), /源 EPUB 中已经损坏/);
+  const restoredPage = await zip.file('OEBPS/Text/bad.xhtml').async('string');
+  assert.match(restoredPage, /源 EPUB 中已经损坏/);
+  assert.match(restoredPage, /GaiaReading_Lucky 已跳过损坏内容/);
+  assert.doesNotMatch(restoredPage, /Gaia Reading/);
 });
 
 test('关键 OPF 记录损坏时拒绝伪恢复', async () => {

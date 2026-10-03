@@ -6,12 +6,15 @@
 """
 
 import os
+from pathlib import Path
 import numpy as np
 from PIL import Image
 from scipy import ndimage
 
-CELLS = r"D:\Codex_project\Gaia_Reading\src\renderer\images\pet\cells"
-OUT = r"D:\Codex_project\Gaia_Reading\src\renderer\images\pet\faces"
+ROOT = Path(__file__).resolve().parents[1]
+PET_ROOT = ROOT / "src" / "renderer" / "images" / "pet"
+CELLS = PET_ROOT / "cells"
+OUT = PET_ROOT / "faces"
 CANVAS = 100
 PAD = 4
 
