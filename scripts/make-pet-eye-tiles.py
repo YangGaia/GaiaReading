@@ -6,11 +6,14 @@
 """
 
 import os
+from pathlib import Path
 import numpy as np
 from PIL import Image, ImageFilter
 
-CELLS = r"D:\Codex_project\Gaia_Reading\src\renderer\images\pet\cells"
-OUT = r"D:\Codex_project\Gaia_Reading\src\renderer\images\pet\eyes"
+ROOT = Path(__file__).resolve().parents[1]
+PET_ROOT = ROOT / "src" / "renderer" / "images" / "pet"
+CELLS = PET_ROOT / "cells"
+OUT = PET_ROOT / "eyes"
 
 BOX = (82, 105, 170, 131)  # x0, y0, x1, y1
 

@@ -40,12 +40,14 @@
       : [{ width: 1, height: 1 }];
     const gap = Math.max(0, Number(opts.gap) || 0);
     const padding = Math.max(0, Number(opts.padding) || 0);
+    const paddingX = opts.paddingX == null ? padding : Math.max(0, Number(opts.paddingX) || 0);
+    const paddingY = opts.paddingY == null ? padding : Math.max(0, Number(opts.paddingY) || 0);
     const pagesWidth = sizes.reduce((sum, size) => sum + Math.max(1, Number(size.width) || 1), 0);
     const gapsWidth = gap * Math.max(0, sizes.length - 1);
     const contentWidth = pagesWidth + gapsWidth;
     const contentHeight = sizes.reduce((max, size) => Math.max(max, Math.max(1, Number(size.height) || 1)), 1);
-    const availableWidth = Math.max(1, (Number(opts.viewportWidth) || 1) - padding * 2);
-    const availableHeight = Math.max(1, (Number(opts.viewportHeight) || 1) - padding * 2);
+    const availableWidth = Math.max(1, (Number(opts.viewportWidth) || 1) - paddingX * 2);
+    const availableHeight = Math.max(1, (Number(opts.viewportHeight) || 1) - paddingY * 2);
     const fitWidthScale = Math.max(1, availableWidth - gapsWidth) / pagesWidth;
     const fitPageScale = Math.min(fitWidthScale, availableHeight / contentHeight);
     const mode = normalizeZoomMode(opts.mode);

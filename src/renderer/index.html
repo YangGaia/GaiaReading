@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: bgm:; style-src 'self' 'unsafe-inline' blob:; script-src 'self' 'unsafe-eval'; font-src 'self' data:; media-src 'self' bgm: blob: data:; frame-src 'self' blob: data:; connect-src 'self' blob: data:;">
-<title>Gaia Reading</title>
+<title>GaiaReading_Lucky</title>
 <link rel="preload" href="fonts/cormorant-garamond-latin-500.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="non-reading.css">
@@ -15,18 +15,25 @@
   <link rel="stylesheet" href="stats.css">
   <link rel="stylesheet" href="ai-center.css">
   <link rel="stylesheet" href="reader-chrome.css">
+  <link rel="stylesheet" href="tool-surfaces.css">
+  <link rel="stylesheet" href="pet-console.css">
+  <link rel="stylesheet" href="glass-buttons.css">
+  <link rel="stylesheet" href="ai-button-glow.css">
+  <link rel="stylesheet" href="ai-center-controls.css">
+  <link rel="stylesheet" href="button-alignment.css">
+  <link rel="stylesheet" href="reader-feedback.css">
 </head>
 <body>
-  <canvas id="fx-canvas" hidden></canvas>
+  <canvas id="fx-canvas" hidden aria-hidden="true"></canvas>
   <div id="splash-view">
-    <img id="splash-img" src="images/2.jpeg" alt="Gaia Reading">
-    <div class="splash-name">Gaia Reading</div>
+    <img id="splash-img" src="images/2.jpeg" alt="GaiaReading_Lucky">
+    <div class="splash-name">GaiaReading_Lucky</div>
     <div class="splash-bar"><div class="splash-bar-fill"></div></div>
   </div>
 
   <div id="home-view" hidden>
     <div class="home-stage">
-    <main class="home-surface" aria-label="Gaia Reading 首页">
+    <main class="home-surface" aria-label="GaiaReading_Lucky 首页">
       <header class="page-header">
         <div class="app-mark" aria-hidden="true">
           <svg viewBox="0 0 32 32" fill="none"><path d="M6 6.5c4.5-1 7.4-.1 10 2.1 2.6-2.2 5.5-3.1 10-2.1v18c-4.3-1-7.3-.2-10 1.6-2.7-1.8-5.7-2.6-10-1.6v-18Z"/><path d="M16 8.6v17.5M10 11.5c1.1 0 2.1.3 3 .8M10 15.5c1.1 0 2.1.3 3 .8"/></svg>
@@ -37,7 +44,7 @@
 
       <div class="study-layout">
         <section class="home-copy" aria-labelledby="home-title">
-          <h1 id="home-title">Gaia Reading</h1>
+          <h1 id="home-title">GaiaReading_Lucky</h1>
           <div class="copy-rule" aria-hidden="true"><span></span></div>
           <nav class="home-actions" aria-label="首页入口">
             <button id="btn-home-shelf" class="action-button primary-action" type="button">
@@ -46,17 +53,17 @@
               <svg class="forward-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
             </button>
             <div class="secondary-actions">
-              <button id="btn-home-add-books" class="action-button secondary-action" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path class="add-frame" d="M8 3H4v4m12 14h4v-4"/><path class="add-stroke" d="M12 7v10M7 12h10"/></svg><span>添加图书</span></button>
+              <button id="btn-home-reading-stats" class="action-button secondary-action" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="add-frame" cx="12" cy="12" r="8"/><path class="add-stroke" d="M12 7v5l3 2"/></svg><span>阅读目标</span></button>
               <button id="btn-home-ai" class="action-button secondary-action" type="button"><svg class="action-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path class="ai-star" d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6L12 3Z"/><circle class="ai-core" cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg><span>AI 助手</span></button>
             </div>
           </nav>
         </section>
 
-        <div class="study-divider" aria-hidden="true"><span></span></div>
+        <div class="study-divider" aria-hidden="true"></div>
 
         <figure class="portrait" aria-label="久远寺有珠">
           <div class="portrait-mount">
-            <svg class="portrait-lines" viewBox="0 0 1200 1200" fill="none" aria-hidden="true"><path d="M326 78H76V710M76 922V1132H208M1020 78H1115V1132H1068"/></svg>
+            <svg class="portrait-lines" viewBox="0 0 1200 1200" fill="none" aria-hidden="true"><path d="M326 78H76V1132H208M1020 78H1115V1132H1068"/></svg>
             <img id="home-img" src="images/1.jpg" alt="戴着帽子、手指轻抵唇边的久远寺有珠" draggable="false">
           </div>
         </figure>
@@ -74,13 +81,13 @@
   <div id="ai-view" hidden>
     <header class="topbar ai-center-topbar">
       <button id="btn-ai-back" class="btn" type="button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg>返回</button>
-      <span class="page-title">Gaia Reading</span>
+      <span class="page-title">GaiaReading_Lucky</span>
       <span class="ai-header-rule" aria-hidden="true"></span>
     </header>
     <main class="ai-center-scroll" aria-labelledby="ai-center-title">
       <div class="ai-center-layout">
         <section class="ai-center-heading">
-          <div><h1 id="ai-center-title">AI 阅读中心</h1><p>管理接口，在阅读时总结章节、继续追问。</p></div>
+          <div><h1 id="ai-center-title">AI 阅读中心</h1><p>管理接口，总结章节或当前页附近的内容、继续追问。</p></div>
           <span id="ai-center-top-state" class="ai-center-top-state" role="status">等待配置</span>
         </section>
         <div class="ai-center-grid">
@@ -143,7 +150,7 @@
           <div class="ai-capability"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4.5h14v12H9l-4 3v-15ZM8 8.5h8m-8 4h5"/></svg><div><h3>连续追问</h3><p>围绕当前已读正文展开</p></div></div>
           <div class="ai-capability"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/></svg><div><h3>有珠短评</h3><p>一句回应，留在她的气泡里</p></div></div>
         </aside>
-        <footer class="ai-center-footer"><span class="ai-footer-mark" aria-hidden="true">Gaia</span><p>正文直接发送到所选接口。连接测试与对话按服务商规则计费。</p><span class="ai-footer-rule" aria-hidden="true"></span></footer>
+        <footer class="ai-center-footer"><span class="ai-footer-mark" aria-hidden="true">GaiaReading_Lucky</span><p>正文直接发送到所选接口。连接测试与对话按服务商规则计费。</p><span class="ai-footer-rule" aria-hidden="true"></span></footer>
       </div>
     </main>
   </div>
@@ -151,7 +158,7 @@
   <div id="library-view" hidden>
     <header class="topbar">
       <button id="btn-back-home" class="btn">← 首页</button>
-      <span class="page-title">Gaia Reading</span>
+      <span class="page-title">GaiaReading_Lucky</span>
       <span class="library-header-rule" aria-hidden="true"></span>
       <div class="actions">
         <button id="btn-settings" class="btn">设置</button>
@@ -169,10 +176,19 @@
       <div class="shelf-toolbar">
         <button id="btn-add-books" class="btn primary"><span aria-hidden="true">＋</span> 添加图书</button>
         <button id="btn-manage" class="btn">批量管理</button>
-        <button id="btn-reading-stats" class="btn">阅读目标 <span aria-hidden="true">↗</span></button>
       </div>
     </div>
-    <div class="library-status"><span class="library-title-rule" aria-hidden="true"></span><span id="import-status" class="import-status" role="status" aria-live="polite"></span><button id="btn-cancel-import" class="btn import-cancel" type="button" hidden>取消导入</button></div>
+    <div class="library-status">
+      <span class="library-title-rule" aria-hidden="true"></span>
+      <div class="import-feedback">
+        <span id="import-status" class="import-status" role="status" aria-live="polite"></span>
+        <div id="import-progress" class="import-progress" hidden>
+          <div class="import-current"><span id="import-current-file" class="import-current-file"></span><span id="import-counts" class="import-counts"></span></div>
+          <progress id="import-progress-bar" max="1" value="0" aria-label="图书导入进度"></progress>
+        </div>
+      </div>
+      <button id="btn-cancel-import" class="btn" type="button" hidden>取消导入</button>
+    </div>
     <div id="manage-bar" class="manage-bar" hidden>
       <span>已选 <b id="manage-count">0</b> 本</span>
       <button id="btn-select-all" class="btn">全选</button>
@@ -188,13 +204,13 @@
         <span class="library-orbit"></span>
       </aside>
     </div>
-    <footer class="library-footer"><span>Gaia Reading</span><span class="library-footer-rule" aria-hidden="true"></span></footer>
+    <footer class="library-footer"><span>GaiaReading_Lucky</span><span class="library-footer-rule" aria-hidden="true"></span></footer>
   </div>
 
   <div id="stats-view" aria-label="有珠的阅读记录" hidden>
     <header class="topbar">
       <button id="btn-stats-back" class="btn">← 返回</button>
-      <span class="page-title">Gaia Reading</span>
+      <span class="page-title">GaiaReading_Lucky</span>
       <span class="stats-header-rule" aria-hidden="true"></span>
     </header>
     <main class="stats-scroll">
@@ -238,7 +254,7 @@
                 <text data-minute="50" class="stats-minute-label" x="76.94" y="120.5">50</text>
                 <text data-minute="55" class="stats-minute-label" x="120.5" y="76.94">55</text>
               </g>
-              <text class="stats-dial-brand" x="180" y="108" text-anchor="middle">Gaia</text>
+              <text class="stats-dial-brand" x="180" y="108" text-anchor="middle">GaiaReading_Lucky</text>
               <text class="stats-dial-caption" x="180" y="244" text-anchor="middle">分钟</text>
               <circle class="stats-clock-track" cx="180" cy="180" r="174" pathLength="100"/>
               <circle id="stats-clock-progress" class="stats-clock-progress" cx="180" cy="180" r="174" pathLength="100" transform="rotate(-90 180 180)" stroke-dasharray="0 100"/>
@@ -297,7 +313,7 @@
         <div class="stats-section-head"><h2>今年读完的书</h2><strong id="stats-finished-count">0 本</strong></div>
         <div id="stats-finished-books" class="stats-finished-books"><p class="stats-empty">读完一本书后，它会出现在这里。</p></div>
       </section>
-      <footer class="stats-footer"><span>Gaia Reading</span><span class="stats-footer-rule" aria-hidden="true"></span></footer>
+      <footer class="stats-footer"><span>GaiaReading_Lucky</span><span class="stats-footer-rule" aria-hidden="true"></span></footer>
     </main>
   </div>
 
@@ -315,23 +331,20 @@
       </div>
       <div class="actions reader-actions">
         <div id="reader-bgm-slot" class="reader-bgm-slot" aria-label="阅读音乐"></div>
-        <div class="alice-reader-actions" role="group" aria-label="有珠快捷操作">
-          <button id="btn-alice-summary" class="alice-reader-action alice-reader-summary reader-tool" type="button" data-ai-alice="summary" title="让有珠总结当前章节" aria-label="让有珠总结当前章节">
-            <svg class="reader-icon alice-action-mark" viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 6 8-6 8-6-8Z"/><path d="M7 10h6"/></svg><span class="alice-action-prefix">有珠</span><span class="alice-action-text">总结</span>
+        <div class="reader-quick-tools" role="group" aria-label="阅读快捷工具">
+          <button id="btn-alice-comment" class="alice-reader-action alice-reader-comment reader-tool" type="button" data-ai-alice="comment" title="让有珠吐槽当前阅读内容" aria-label="让有珠吐槽当前阅读内容">
+            <svg class="reader-icon alice-action-mark" viewBox="0 0 20 20" aria-hidden="true"><path d="M16 11.5a6.5 6.5 0 1 0-11 3L3 18l5-1.6A6.5 6.5 0 0 0 16 11.5Z"/><path d="M6 9h5M6 12h3"/></svg><span class="alice-action-text">有珠吐槽</span>
           </button>
-          <button id="btn-alice-comment" class="alice-reader-action alice-reader-comment reader-tool" type="button" data-ai-alice="comment" title="让有珠吐槽当前章节" aria-label="让有珠吐槽当前章节">
-            <svg class="reader-icon alice-action-mark" viewBox="0 0 20 20" aria-hidden="true"><path d="M16 11.5a6.5 6.5 0 1 0-11 3L3 18l5-1.6A6.5 6.5 0 0 0 16 11.5Z"/><path d="M6 9h5M6 12h3"/></svg><span class="alice-action-prefix">有珠</span><span class="alice-action-text">吐槽</span>
+          <button id="btn-ai-reader" class="btn ai-reader-trigger reader-tool" type="button" title="打开 AI 对话" aria-label="打开 AI 对话" aria-controls="ai-summary-panel">
+            <svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M17 9a7 7 0 0 1-7 7H6l-4 2V9a7 7 0 0 1 14-3"/><path d="m15 1 1 3 3 1-3 1-1 3-1-3-3-1 3-1Z"/></svg><span class="reader-label-compact">AI对话</span>
+          </button>
+          <button id="btn-book-search" class="btn reader-search-trigger reader-tool" type="button" title="全文搜索当前书籍（Ctrl+F）" aria-label="全文搜索当前书籍" aria-controls="book-search-panel" aria-expanded="false">
+            <svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><span class="reader-label-compact">全文搜索</span>
+          </button>
+          <button id="btn-settings-reader" class="btn reader-tool" type="button" title="阅读设置" aria-label="阅读设置" aria-controls="settings-drawer">
+            <svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h3m4 0h7M3 15h7m4 0h3"/><circle cx="8" cy="5" r="2"/><circle cx="12" cy="15" r="2"/></svg><span class="reader-label-compact">设置</span>
           </button>
         </div>
-        <button id="btn-ai-reader" class="btn ai-reader-trigger reader-tool" type="button" title="打开 AI 对话" aria-label="打开 AI 对话" aria-controls="ai-summary-panel">
-          <svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M17 9a7 7 0 0 1-7 7H6l-4 2V9a7 7 0 0 1 14-3"/><path d="m15 1 1 3 3 1-3 1-1 3-1-3-3-1 3-1Z"/></svg><span class="reader-label-compact">对话</span>
-        </button>
-        <button id="btn-book-search" class="btn reader-search-trigger reader-tool" type="button" title="全文搜索当前书籍（Ctrl+F）" aria-label="全文搜索当前书籍" aria-controls="book-search-panel" aria-expanded="false">
-          <svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><span class="reader-label-compact">全文搜索</span>
-        </button>
-        <button id="btn-settings-reader" class="btn reader-tool" type="button" title="阅读设置" aria-label="阅读设置" aria-controls="settings-drawer">
-          <svg class="reader-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h3m4 0h7M3 15h7m4 0h3"/><circle cx="8" cy="5" r="2"/><circle cx="12" cy="15" r="2"/></svg><span class="reader-label-compact">设置</span>
-        </button>
       </div>
     </header>
     <div id="reader-body">
@@ -341,9 +354,9 @@
       <nav id="bookmarks-panel" class="side-panel" hidden></nav>
       <aside id="annotations-panel" class="side-panel annotations-panel" hidden></aside>
       <aside id="book-search-panel" class="book-search-panel" aria-label="书内全文搜索" hidden>
-        <header class="book-search-head">
-          <div><small>FIND IN BOOK</small><strong>书内全文搜索</strong></div>
-          <button id="btn-book-search-close" class="btn" type="button" aria-label="关闭书内搜索">×</button>
+        <header class="book-search-head collection-head">
+          <strong>书内全文搜索</strong>
+          <button id="btn-book-search-close" class="btn tool-close" type="button" aria-label="关闭书内搜索"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button>
         </header>
         <div class="book-search-box">
           <input id="book-search-input" type="search" maxlength="200" autocomplete="off" spellcheck="false" placeholder="输入人名、地名或句子…" aria-label="搜索当前书籍">
@@ -352,17 +365,17 @@
             <button id="btn-book-search-next" class="btn" type="button" title="下一个结果（Enter）" disabled>↓</button>
           </div>
         </div>
-        <p id="book-search-status" class="book-search-status" role="status" aria-live="polite">输入关键词后搜索当前书籍。</p>
+        <div class="collection-summary"><strong>搜索结果</strong><span id="book-search-count">0 条</span></div>
+        <p id="book-search-status" class="book-search-status" role="status" aria-live="polite" hidden></p>
         <div id="book-search-results" class="book-search-results"></div>
       </aside>
-      <aside id="ai-summary-panel" class="ai-summary-panel" role="dialog" aria-label="AI 阅读助手" hidden>
+      <aside id="ai-summary-panel" class="ai-summary-panel" role="dialog" aria-label="AI对话" hidden>
         <div id="ai-panel-drag-handle" class="ai-summary-head">
-          <div><small>GAIA · READING COMPANION</small><h2>AI 阅读助手</h2></div>
+          <h2>AI对话</h2>
           <div class="ai-panel-head-actions">
             <button id="btn-ai-chat-clear" class="btn" type="button">清空</button>
             <button id="btn-ai-appearance" class="btn" type="button" aria-expanded="false" aria-controls="ai-appearance-popover">Aa</button>
-            <button id="btn-ai-summary-minimize" class="btn" type="button" aria-label="最小化 AI 阅读助手">—</button>
-            <button id="btn-ai-summary-close" class="btn" type="button" aria-label="关闭 AI 阅读助手">×</button>
+            <button id="btn-ai-summary-close" class="btn" type="button" aria-label="关闭 AI对话">×</button>
           </div>
         </div>
         <div id="ai-appearance-popover" class="ai-appearance-popover" aria-label="AI 窗口排版" hidden>
@@ -378,10 +391,11 @@
         <p id="ai-summary-chapter" class="ai-summary-chapter">当前章节</p>
         <p id="ai-summary-target" class="ai-summary-target"></p>
         <div class="ai-panel-profile-row">
-          <label for="ai-reader-profile">当前接口</label>
-          <select id="ai-reader-profile" class="reader-ai-profile" aria-label="当前 AI 接口"></select>
+          <span>当前模型</span>
+          <span id="ai-reader-model" class="reader-ai-model">尚未配置</span>
+          <button id="btn-ai-chat-center" class="btn" type="button">打开 AI 中心</button>
         </div>
-        <div id="ai-summary-status" class="ai-summary-status" role="status" aria-live="polite">可以直接提问，或先选择一条快捷指令。</div>
+        <div id="ai-summary-status" class="ai-summary-status" role="status" aria-live="polite"></div>
         <div class="ai-content-stage">
           <section id="ai-chat-pane" class="ai-content-pane ai-chat-pane">
             <div id="ai-chat-messages" class="ai-chat-messages" aria-live="polite"></div>
@@ -392,7 +406,7 @@
                 <button id="btn-ai-foreshadow-prompt" type="button" data-ai-prompt="总结本章伏笔">伏笔</button>
               </div>
               <div class="ai-chat-compose-row">
-                <textarea id="ai-chat-input" maxlength="2000" rows="3" placeholder="问问当前章节，Ctrl + Enter 发送…"></textarea>
+                <textarea id="ai-chat-input" maxlength="2000" rows="1" placeholder="问问当前章节，Ctrl + Enter 发送…"></textarea>
                 <button id="btn-ai-chat-send" class="btn primary" type="button">发送</button>
               </div>
             </div>
@@ -425,11 +439,10 @@
     <button class="highlight-dot pink" data-highlight-color="pink" title="粉色划线" aria-label="粉色划线"></button>
     <span class="selection-toolbar-divider"></span>
     <button data-selection-action="ai-analyze" title="让 AI 直接分析选中文字">AI 解读</button>
-    <button data-selection-action="ai-ask" title="引用选中文字向 AI 提问">问 AI</button>
     <button data-selection-action="dictionary" title="在应用内词典窗口查询">字典</button>
-    <button data-selection-action="search" title="使用 Google 搜索">搜索</button>
+    <button data-selection-action="web-search" title="使用 Google 联网搜索">联网搜索</button>
+    <button data-selection-action="book-search" title="在当前书中搜索所选文字">全文搜索</button>
     <span class="selection-toolbar-divider"></span>
-    <button data-selection-action="note">笔记</button>
     <button data-selection-action="copy">复制</button>
     <button data-selection-action="delete" class="selection-delete" hidden>删除</button>
   </div>
@@ -441,15 +454,15 @@
           <h2 id="book-import-title">添加图书</h2>
           <p id="book-import-description">从电脑中选择一种导入方式</p>
         </div>
-        <button id="btn-book-import-close" class="book-import-close" type="button" aria-label="关闭添加图书窗口">×</button>
+        <button id="btn-book-import-close" class="book-import-close tool-close" type="button" aria-label="关闭添加图书窗口"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button>
       </header>
       <div class="book-import-options">
         <button id="btn-import-folder" class="book-import-option" type="button">
-          <span class="book-import-icon" aria-hidden="true">📂</span>
+          <span class="book-import-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 6h7l2 3h9v11H3V6Z"/></svg></span>
           <span><strong>选择文件夹</strong><small>自动扫描文件夹及其子文件夹中的电子书</small></span>
         </button>
         <button id="btn-import-file-picker" class="book-import-option" type="button">
-          <span class="book-import-icon" aria-hidden="true">📄</span>
+          <span class="book-import-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 3h8l4 4v14H6V3Zm8 0v5h4M9 12h6m-6 4h6"/></svg></span>
           <span><strong>选择文件</strong><small>可以选择单个文件，也可以一次选择多个文件</small></span>
         </button>
       </div>
@@ -482,7 +495,7 @@
     <section id="settings-drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <header class="drawer-head">
         <h2 id="settings-title" class="drawer-title">设置</h2>
-        <button id="btn-settings-close" class="btn" type="button" aria-label="关闭设置"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button>
+        <button id="btn-settings-close" class="btn tool-close" type="button" aria-label="关闭设置"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button>
       </header>
       <div class="drawer-scroll">
       <div id="drawer-reading" hidden>
@@ -507,8 +520,12 @@
           <button id="btn-line-height" class="btn drawer-cycle" type="button" aria-labelledby="line-height-label line-height-value" title="点击切换行距"><span id="line-height-value">1.8</span></button>
         </div>
         <div class="drawer-row">
-          <span class="drawer-label" id="margin-label">边距</span>
-          <button id="btn-margin" class="btn drawer-cycle" type="button" aria-labelledby="margin-label margin-value" title="点击切换边距"><span id="margin-value">8%</span></button>
+          <span class="drawer-label" id="margin-label">左右边距</span>
+          <button id="btn-margin" class="btn drawer-cycle" type="button" aria-labelledby="margin-label margin-value" title="点击切换左右边距"><span id="margin-value">8%</span></button>
+        </div>
+        <div class="drawer-row">
+          <span class="drawer-label" id="vertical-margin-label">上下边距</span>
+          <button id="btn-vertical-margin" class="btn drawer-cycle" type="button" aria-labelledby="vertical-margin-label vertical-margin-value" title="点击切换上下边距"><span id="vertical-margin-value">28px</span></button>
         </div>
         <div class="drawer-row">
           <label class="drawer-label" for="font-select">字体</label>
@@ -540,14 +557,12 @@
       <div id="drawer-funcs" hidden>
         <h3>阅读工具</h3>
         <div class="drawer-tools">
-        <button id="btn-toc" class="btn block">目录</button>
-        <button id="btn-bookmarks" class="btn block">书签</button>
-        <button id="btn-add-bookmark" class="btn block" type="button">添加书签</button>
-        <button id="btn-reading-stats-reader" class="btn block">阅读目标</button>
-        <button id="btn-annotations" class="btn block">划线与笔记</button>
-        <button id="btn-book-search-drawer" class="btn block">书内全文搜索</button>
-        <button id="btn-ai-assistant" class="btn block">AI 阅读助手</button>
+          <button id="btn-bookmarks" class="btn block" type="button">书签和笔记</button>
+          <button id="btn-reading-stats-reader" class="btn block" type="button">阅读目标</button>
+          <button id="btn-simplified" class="btn block" type="button" aria-pressed="false">繁体转简体 · 关闭</button>
         </div>
+        <p id="simplified-hint" class="drawer-hint">繁体转简体仅改变正文显示，不影响目录、笔记、书签等中的汉字；图片中的文字保持原样。</p>
+        <p class="drawer-hint">在阅读正文任意位置右键，即可添加当前页书签；右键有珠打开控制台。</p>
       </div>
       <div id="drawer-appearance">
         <h3>桌面伙伴</h3>
@@ -555,7 +570,7 @@
           <span class="drawer-label" id="pet-label">显示桌宠</span>
           <button id="btn-pet-toggle" class="btn drawer-switch" type="button" role="switch" aria-checked="true" aria-labelledby="pet-label"><span id="pet-value" class="drawer-sr-only">开</span></button>
         </div>
-        <button id="btn-pet-console" class="btn drawer-link" type="button">有珠控制台<span aria-hidden="true">↗</span></button>
+        <p class="drawer-hint">右键点击有珠，可打开有珠控制台。</p>
       </div>
       <div id="drawer-lookup">
         <h3>查词与搜索</h3>
@@ -582,13 +597,17 @@
         </div>
       </div>
       </div>
-      <footer class="drawer-about"><span>Gaia Reading</span><span>1.1.3</span></footer>
+      <footer class="drawer-about"><span>GaiaReading_Lucky</span><span>1.2.7</span></footer>
     </section>
   </div>
 
   <script src="vendor/jszip.min.js"></script>
   <script src="vendor/epub.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
+  <script src="../shared/chinese-display-data.js"></script>
+  <script src="../shared/chinese-display.js"></script>
+  <script src="../shared/page-window.js"></script>
+  <script src="../shared/page-text-range.js"></script>
   <script src="paginator.js"></script>
   <script src="../shared/flow.js"></script>
   <script src="../shared/bookmarks.js"></script>
@@ -614,8 +633,13 @@
   <script src="pet.js"></script>
   <script src="home-layout.js"></script>
   <script src="home-interactions.js"></script>
+  <script src="button-interactions.js"></script>
   <script src="stats-presentation.js"></script>
   <script src="ai-center-layout.js"></script>
+  <script src="mouse-effects.js"></script>
+  <script src="../shared/mouse-effects-scope.js"></script>
+  <script src="reader-feedback.js"></script>
+  <script src="ai-provider-control.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

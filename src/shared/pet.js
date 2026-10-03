@@ -35,19 +35,16 @@
     INTERACT: 'interact',
   };
 
-  /** 默认自动时间轴：15 秒无聊、25 秒困倦、35 秒睡觉。 */
+  /** 默认三分钟入睡，按统一比例经过无聊和困倦阶段。 */
   const TIMERS = {
     AUTO_MIN: 6 * 1000,
     AUTO_MAX: 10 * 1000,
-    BORED_AFTER: 15 * 1000,
-    SLEEPY_AFTER: 25 * 1000,
-    SLEEP_AFTER: 35 * 1000,
+    SLEEP_AFTER: 3 * 60 * 1000,
     TRANSIENT_AFTER: 1200,
     MANUAL_AFTER: 8 * 1000,
     DREAM_MIN: 6 * 1000,
     DREAM_MAX: 10 * 1000,
     DREAM_CHANCE: 0.8,
-    READER_CARE_AFTER: 45 * 60 * 1000,
   };
 
   const AUTO_BEHAVIORS = {
@@ -191,14 +188,6 @@
       '唔……有点困。',
       '再眯一会儿……',
     ],
-    readingCare: [
-      '已经看很久了。看看远处吧。',
-      '先喝点水，书又不会逃走。',
-      '坐姿变差了吧。起来活动一下。',
-      '眼睛也需要休息。几分钟就好。',
-      '先合上书吧。我可以等你。',
-      '休息一下再继续，效率反而会更高。',
-    ],
     idle: [
       '……红茶，一天七次是理想。',
       '书页的声音，不错。',
@@ -244,24 +233,72 @@
     return 'poke';
   }
 
-  function formatReadingDuration(ms) {
-    const totalSeconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
-  }
-
   /** PointerEvent.buttons 中是否仍包含主按钮，避免丢失 pointerup 后拖拽粘住。 */
   function hasPrimaryPointerButton(buttons) {
     return (Number(buttons) & 1) === 1;
   }
 
-  /** 根据用户透明度、阅读页淡化和临时显现状态计算最终透明度。 */
-  function petOpacityForState(opacity, dimmed, revealed) {
+  /** 根据用户透明度和临时显现状态计算最终透明度。 */
+  function petOpacityForState(opacity, revealed) {
     const numeric = Number(opacity);
     const configured = Number.isFinite(numeric) ? Math.max(0, Math.min(1, numeric)) : 1;
-    const resting = configured * (dimmed ? 0.55 : 1);
-    return revealed && resting < 1 ? 1 : resting;
+    return revealed && configured < 1 ? 1 : configured;
+  }
+
+  /** Speech stays beside the pet; the console yields when their bounds conflict. */
+  function placePetOverlays(viewport, pet, panelSize, bubbleSize) {
+    const edge = 8;
+    const gap = 12;
+    const width = Math.max(edge * 2 + 1, Number(viewport.width) || 0);
+    const height = Math.max(edge * 2 + 1, Number(viewport.height) || 0);
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const fits = (rect) => rect.left >= edge && rect.top >= edge &&
+      rect.left + rect.width <= width - edge && rect.top + rect.height <= height - edge;
+    const separate = (a, b) => !b || a.left + a.width + gap <= b.left ||
+      b.left + b.width + gap <= a.left || a.top + a.height + gap <= b.top ||
+      b.top + b.height + gap <= a.top;
+    let panel = null;
+    let bubble = null;
+    if (bubbleSize) {
+      const w = Math.min(bubbleSize.width, width - edge * 2);
+      const h = Math.min(bubbleSize.height, height - edge * 2);
+      const nearFace = clamp(pet.top + pet.height * .26 - h / 2, edge, height - h - edge);
+      const centered = clamp(pet.left + (pet.width - w) / 2, edge, width - w - edge);
+      const sides = [[pet.left - w - gap, nearFace], [pet.right + gap, nearFace]];
+      if (pet.left < w + gap + edge) sides.reverse();
+      const candidates = [...sides, [centered, pet.top - h - gap], [centered, pet.bottom + gap]];
+      candidates.push([edge, edge], [width - w - edge, edge], [edge, height - h - edge], [width - w - edge, height - h - edge]);
+      bubble = candidates.map(([left, top]) => ({ left, top, width: w, height: h })).find(fits);
+    }
+    if (panelSize) {
+      const w = Math.min(panelSize.width, width - edge * 2);
+      const h = Math.min(panelSize.height, height - edge * 2);
+      let x = pet.right + gap;
+      if (x + w > width - edge) x = pet.left - w - gap;
+      const preferred = { left: clamp(x, edge, width - w - edge), top: clamp(pet.top, edge, height - h - edge), width: w, height: h };
+      panel = preferred;
+      if (!separate(panel, bubble)) {
+        const xs = [preferred.left, pet.right + gap, pet.left - w - gap, bubble.left - w - gap, bubble.left + bubble.width + gap, edge, width - w - edge];
+        const ys = [preferred.top, pet.top - h - gap, pet.bottom + gap, bubble.top - h - gap, bubble.top + bubble.height + gap, edge, height - h - edge];
+        const distance = (rect) => (rect.left - preferred.left) ** 2 + (rect.top - preferred.top) ** 2;
+        const candidates = xs.flatMap((left) => ys.map((top) => ({
+          left: clamp(left, edge, width - w - edge),
+          top: clamp(top, edge, height - h - edge), width: w, height: h,
+        }))).filter((rect) => separate(rect, bubble)).sort((a, b) => distance(a) - distance(b));
+        panel = candidates.find((rect) => separate(rect, pet)) || candidates[0];
+        if (!panel) {
+          // A narrow window can scroll the console in the larger free row,
+          // without relocating speech or changing its natural attachment point.
+          const above = bubble.top - gap - edge;
+          const below = height - edge - bubble.top - bubble.height - gap;
+          const available = Math.max(1, above, below);
+          const panelHeight = Math.min(h, available);
+          panel = { ...preferred, height: panelHeight, top: below >= above
+            ? bubble.top + bubble.height + gap : bubble.top - gap - panelHeight };
+        }
+      }
+    }
+    return { console: panel, bubble };
   }
 
   /** 事件驱动迁移：返回 { state, expression, ... }，无迁移返回 null。 */
@@ -366,9 +403,9 @@
     createBrain,
     pick,
     pokeLineKey,
-    formatReadingDuration,
     hasPrimaryPointerButton,
     petOpacityForState,
+    placePetOverlays,
     decideState,
     timeoutState,
     lineFor,

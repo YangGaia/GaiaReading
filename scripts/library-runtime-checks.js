@@ -108,7 +108,11 @@ module.exports = async ({ win, report, check, capture, books }) => {
       const p = getComputedStyle(player);
       const title = getComputedStyle(player.querySelector('.bgm-title'));
       if (p.backdropFilter !== 'none' || p.transform !== 'none' || player.scrollWidth > player.clientWidth) throw new Error('Music must render sharply and fit its capsule');
-      for (const el of player.querySelectorAll('button, input')) {
+      // The track-list popover is tested separately; only the capsule's title,
+      // four playback buttons and volume slider are present in this surface.
+      const controls = [...player.querySelectorAll(':scope > .bgm-btn, :scope > .bgm-volume, :scope > .bgm-title-wrap > .bgm-title')].filter(el => el.getClientRects().length);
+      if (controls.length !== 6) throw new Error(`Music ${player.dataset.view} must expose all six capsule controls; found ${controls.length}`);
+      for (const el of controls) {
         const r = el.getBoundingClientRect();
         const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         if (r.width < 24 || r.height < 24 || r.right > innerWidth || !(hit === el || el.contains(hit))) throw new Error(`Music ${player.dataset.view}/${el.dataset.action || 'volume'} at ${JSON.stringify(r.toJSON())} is clipped or covered by ${hit && (hit.id || hit.className)}`);
@@ -133,9 +137,10 @@ module.exports = async ({ win, report, check, capture, books }) => {
   await evaluate(() => __gaiaDebug.closeSettings());
   await settle();
   await resize(800, 600);
-  check('compact reader keeps all four music buttons and volume reachable', await evaluate(() => {
+  check('compact reader keeps the music title, four playback buttons and volume reachable', await evaluate(() => {
     const player = document.getElementById('bgm-capsule');
-    return player.getBoundingClientRect().height === 52 && player.scrollWidth <= player.clientWidth && [...player.querySelectorAll('button, input')].every((el) => {
+    const controls = [...player.querySelectorAll(':scope > .bgm-btn, :scope > .bgm-volume, :scope > .bgm-title-wrap > .bgm-title')].filter(el => el.getClientRects().length);
+    return controls.length === 6 && player.getBoundingClientRect().height === 52 && player.scrollWidth <= player.clientWidth && controls.every((el) => {
       const r = el.getBoundingClientRect();
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return r.width >= 24 && r.height >= 24 && r.left >= 0 && r.right <= innerWidth && (hit === el || el.contains(hit));

@@ -33,9 +33,9 @@
     pickAutoBehavior,
     nextDreamDelay,
     shouldDream,
-    formatReadingDuration,
     hasPrimaryPointerButton,
     petOpacityForState,
+    placePetOverlays,
   } = shared;
 
   const FACE_IMG = 'images/pet/faces/';
@@ -46,12 +46,8 @@
     y: null,
     xRatio: null,
     yRatio: null,
-    auto: true,
-    autoSpeech: true,
     autoSleep: true,
     sleepAfter: TIMERS.SLEEP_AFTER,
-    readerCare: true,
-    readerCareAfter: TIMERS.READER_CARE_AFTER,
     showFps: true,
     lockedMood: null,
     scale: 1,
@@ -67,7 +63,6 @@
   const ACTION_CLASSES = ['poke', 'drop', 'perk', 'recoil', 'shiver', 'lean', 'drowse', 'wake'];
   const PERFORMANCE_CLASSES = ['performance-tilt', 'performance-thinking', 'performance-peek', 'performance-listen', 'performance-shy', 'performance-angry', 'performance-bored', 'performance-drowse', 'performance-wake', 'performance-yawn'];
   const ACTION_MS = { poke: 350, tilt: 1100, drop: 400, perk: 500, recoil: 360, shiver: 420, yawn: 1700, lean: 600, drowse: 2200, wake: 900 };
-  const READER_CARE_INTERVALS = [60 * 1000, 30 * 60 * 1000, 45 * 60 * 1000, 60 * 60 * 1000];
   const STATE_LABELS = {
     idle: '待机', hover: '注视', poke: '被戳', bored: '无聊', sleepy: '困倦',
     sleeping: '睡觉', wake: '唤醒', manual: '手动',
@@ -101,7 +96,6 @@
   let speechHistory = [];
   let effectVersion = 0;
   let activePerformance = null;
-  let readingStartedAt = 0;
   let appWindowFocused = true;
   let fpsRafId = 0;
   let fpsSampleStarted = 0;
@@ -121,12 +115,8 @@
       y: Number.isFinite(saved.y) ? saved.y : null,
       xRatio: Number.isFinite(saved.xRatio) ? saved.xRatio : null,
       yRatio: Number.isFinite(saved.yRatio) ? saved.yRatio : null,
-      auto: saved.auto,
-      autoSpeech: saved.autoSpeech,
       autoSleep: saved.autoSleep,
       sleepAfter: saved.sleepAfter,
-      readerCare: saved.readerCare,
-      readerCareAfter: saved.readerCareAfter,
       showFps: saved.showFps,
       lockedMood: lockedEmotion,
       scale: saved.scale,
@@ -140,9 +130,7 @@
     const hiddenInReader = currentView === 'reader' && saved.readerMode === 'hidden';
     const embeddedInStats = currentView === 'stats';
     ui.root.hidden = !saved.on || hiddenInReader || embeddedInStats;
-    const dimmed = currentView === 'reader' && saved.readerMode === 'dim';
-    ui.root.classList.toggle('reader-dim', dimmed);
-    ui.root.style.opacity = String(petOpacityForState(saved.opacity, dimmed, pointerInside || dragging));
+    ui.root.style.opacity = String(petOpacityForState(saved.opacity, pointerInside || dragging));
     syncFpsMeter();
   }
 
@@ -287,8 +275,7 @@
   }
 
   function updateBubbleSide() {
-    if (!ui.bubble) return;
-    ui.bubble.classList.toggle('flip', saved.x < 260);
+    positionConsole();
   }
 
   function hideBubble(immediate) {
@@ -315,6 +302,7 @@
     ui.bubble.classList.remove('show');
     void ui.bubble.offsetWidth;
     ui.bubble.classList.add('show');
+    positionConsole();
     bubbleTimer = window.setTimeout(() => hideBubble(false), duration || 2600);
   }
 
@@ -438,7 +426,7 @@
         { at: 1480, expression: '日常表情' },
       ], restoreExpression);
       window.setTimeout(() => {
-        if (token === effectVersion && (manual || saved.autoSpeech)) showBubble(lineFor('yawn'), 1300);
+        if (token === effectVersion) showBubble(lineFor('yawn'), 1300);
       }, 280);
       return token;
     }
@@ -470,69 +458,10 @@
     ]);
   }
 
-  function canTrackReading() {
-    return saved.on && saved.readerCare && currentView === 'reader' && !document.hidden && appWindowFocused;
-  }
-
-  function readingElapsed(now) {
-    return readingStartedAt ? Math.max(0, now - readingStartedAt) : 0;
-  }
-
-  function updateReadingCareStatus(now) {
-    if (!ui.readingCareStatus) return;
-    if (!saved.readerCare) {
-      ui.readingCareStatus.textContent = '阅读关怀已关闭';
-      return;
-    }
-    if (currentView !== 'reader') {
-      ui.readingCareStatus.textContent = '未在阅读 · 进入阅读页后开始计时';
-      return;
-    }
-    ui.readingCareStatus.textContent = '连续阅读 ' + formatReadingDuration(readingElapsed(now == null ? Date.now() : now)) +
-      ' / ' + formatReadingDuration(saved.readerCareAfter);
-  }
-
-  function resetReadingSession() {
-    readingStartedAt = 0;
-    updateReadingCareStatus(Date.now());
-  }
-
-  function startReadingSession(now) {
-    if (!canTrackReading()) return false;
-    if (!readingStartedAt) readingStartedAt = now == null ? Date.now() : now;
-    updateReadingCareStatus(now);
-    return true;
-  }
-
   function handleAppWindowFocus(focused) {
     appWindowFocused = !!focused;
-    if (appWindowFocused) startReadingSession(Date.now());
-    else {
-      resetReadingSession();
-      cancelActiveDrag();
-    }
+    if (!appWindowFocused) cancelActiveDrag();
     resetFpsSampling(true);
-  }
-
-  function showReadingCareReminder(resetTimer) {
-    showBubble(lineFor('readingCare'), 4200);
-    if (resetTimer) readingStartedAt = Date.now();
-    if (brain.state === PET_STATES.SLEEPING) nextDreamAt = Date.now() + nextDreamDelay();
-    updateReadingCareStatus(Date.now());
-  }
-
-  function updateReadingCare(now) {
-    if (!canTrackReading()) {
-      if (readingStartedAt) resetReadingSession();
-      return false;
-    }
-    if (!readingStartedAt) readingStartedAt = now;
-    if (readingElapsed(now) >= saved.readerCareAfter) {
-      showReadingCareReminder(true);
-      return true;
-    }
-    updateReadingCareStatus(now);
-    return false;
   }
 
   function currentStateLabel() {
@@ -543,27 +472,14 @@
   function updateConsole() {
     if (!ui.console) return;
     if (ui.consoleState) ui.consoleState.textContent = '当前：' + currentStateLabel();
-    if (ui.autoToggle) ui.autoToggle.checked = saved.auto;
-    if (ui.speechToggle) {
-      ui.speechToggle.checked = saved.autoSpeech;
-      ui.speechToggle.disabled = !saved.auto;
-    }
     if (ui.sleepToggle) {
       ui.sleepToggle.checked = saved.autoSleep;
-      ui.sleepToggle.disabled = !saved.auto;
     }
     if (ui.sleepSelect) {
       ui.sleepSelect.value = String(saved.sleepAfter);
-      ui.sleepSelect.disabled = !saved.auto || !saved.autoSleep;
+      ui.sleepSelect.disabled = !saved.autoSleep;
     }
-    if (ui.readingCareToggle) ui.readingCareToggle.checked = saved.readerCare;
-    if (ui.readingCareSelect) {
-      ui.readingCareSelect.value = String(saved.readerCareAfter);
-      ui.readingCareSelect.disabled = !saved.readerCare;
-    }
-    if (ui.readingCareTest) ui.readingCareTest.disabled = !saved.readerCare;
     if (ui.fpsToggle) ui.fpsToggle.checked = saved.showFps;
-    updateReadingCareStatus(Date.now());
     if (ui.scaleSelect) ui.scaleSelect.value = String(saved.scale);
     if (ui.opacitySelect) ui.opacitySelect.value = String(saved.opacity);
     if (ui.readerModeSelect) ui.readerModeSelect.value = saved.readerMode;
@@ -636,16 +552,15 @@
   function enterAutoState(change) {
     if (change.state === PET_STATES.BORED) {
       setState(change.state, change.expression);
-      if (saved.autoSpeech) showBubble(lineFor('bored'));
+      showBubble(lineFor('bored'));
       playPerformance('bored', 900);
     } else if (change.state === PET_STATES.SLEEPY) {
       setState(change.state, '眼睛微张');
-      if (saved.autoSpeech) showBubble(lineFor('sleepy'));
+      showBubble(lineFor('sleepy'));
       playDrowsePerformance();
     } else if (change.state === PET_STATES.SLEEPING) {
       setState(change.state, '安心');
-      if (saved.autoSpeech) showBubble(lineFor('sleepTransition'), 2600);
-      else hideBubble(false);
+      showBubble(lineFor('sleepTransition'), 2600);
     }
   }
 
@@ -653,7 +568,7 @@
     if (!nextDreamAt) nextDreamAt = now + nextDreamDelay();
     if (now < nextDreamAt) return;
     nextDreamAt = now + nextDreamDelay();
-    if (saved.auto && saved.autoSpeech && shouldDream()) showBubble(lineFor('sleeping'), 3200);
+    if (shouldDream()) showBubble(lineFor('sleeping'), 3200);
   }
 
   function runIdleBehavior() {
@@ -664,8 +579,7 @@
       idlePerformance();
     } else if (behavior === AUTO_BEHAVIORS.SPEECH) {
       applyExpression(pickIdleExpression(ui.face && ui.face.dataset.exp));
-      if (saved.autoSpeech) showBubble(lineFor('idle'));
-      else idlePerformance();
+      showBubble(lineFor('idle'));
     }
   }
 
@@ -682,15 +596,13 @@
 
   function tick() {
     const now = Date.now();
-    const careTriggered = updateReadingCare(now);
-    if (!saved.on || dragging || careTriggered) return;
+    if (!saved.on || dragging) return;
     finishTransient(now);
     if (brain.state === PET_STATES.SLEEPING) {
       maybeDream(now);
       return;
     }
     if (pointerInside || lockedEmotion || manualHeld) return;
-    if (!saved.auto) return;
     if (saved.autoSleep) {
       const change = timeoutState(brain, now, saved.sleepAfter);
       if (change) {
@@ -750,20 +662,32 @@
   }
 
   function positionConsole() {
-    if (!ui.console || !ui.root || ui.console.hidden) return;
-    const r = ui.root.getBoundingClientRect();
-    const w = ui.console.offsetWidth || 260;
-    const h = ui.console.offsetHeight || 360;
-    let left = r.right + 12;
-    if (left + w > window.innerWidth - 8) left = r.left - w - 12;
-    left = Math.max(8, Math.min(window.innerWidth - w - 8, left));
-    const top = Math.max(8, Math.min(window.innerHeight - h - 8, r.top));
-    ui.console.style.left = left + 'px';
-    ui.console.style.top = top + 'px';
+    if (!ui.root) return;
+    const panel = ui.console && !ui.console.hidden ? ui.console : null;
+    const bubble = ui.bubble && !ui.bubble.hidden ? ui.bubble : null;
+    if (!panel && !bubble) return;
+    if (panel) panel.style.maxHeight = '';
+    const petBounds = ui.root.getBoundingClientRect();
+    const placement = placePetOverlays(
+      { width: window.innerWidth, height: window.innerHeight },
+      petBounds,
+      panel && { width: panel.offsetWidth, height: panel.offsetHeight },
+      bubble && { width: bubble.offsetWidth, height: bubble.offsetHeight }
+    );
+    if (panel && placement.console) {
+      panel.style.left = placement.console.left + 'px';
+      panel.style.top = placement.console.top + 'px';
+      panel.style.maxHeight = placement.console.height + 'px';
+    }
+    if (bubble && placement.bubble) {
+      bubble.style.left = (placement.bubble.left - petBounds.left) + 'px';
+      bubble.style.top = (placement.bubble.top - petBounds.top) + 'px';
+    }
   }
 
   function openConsole(ev) {
     ev.preventDefault();
+    if (ev.stopPropagation) ev.stopPropagation();
     consoleOpen = true;
     resetActivity(Date.now());
     ui.console.hidden = false;
@@ -775,6 +699,7 @@
     if (!ui.console || ui.console.hidden) return;
     ui.console.hidden = true;
     consoleOpen = false;
+    positionConsole();
   }
 
   function runEmotion(key) {
@@ -948,10 +873,8 @@
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         cancelActiveDrag();
-        resetReadingSession();
         resetFpsSampling(true);
       } else {
-        startReadingSession(Date.now());
         resetFpsSampling(true);
       }
     });
@@ -1038,7 +961,8 @@
     header.className = 'gaia-pet-console-header';
     const title = document.createElement('strong');
     title.textContent = '有珠控制台';
-    const close = makeButton('×', 'gaia-pet-console-close');
+    const close = makeButton('', 'gaia-pet-console-close tool-close');
+    close.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>';
     close.setAttribute('aria-label', '关闭控制台');
     close.addEventListener('click', () => closeConsole(true));
     header.append(title, close);
@@ -1078,19 +1002,7 @@
     const autoTitle = document.createElement('div');
     autoTitle.className = 'gaia-pet-console-label';
     autoTitle.textContent = '自动行为';
-    const autoToggle = makeToggle('自主活动总开关', (checked) => {
-      saved.auto = checked;
-      if (!checked && !manualHeld && !lockedEmotion) returnToIdle(Date.now());
-      else resetActivity(Date.now());
-      save();
-      updateConsole();
-    });
-    const speechToggle = makeToggle('自主台词', (checked) => {
-      saved.autoSpeech = checked;
-      if (!checked) hideBubble(false);
-      save();
-    });
-    const sleepToggle = makeToggle('自动休息', (checked) => {
+    const sleepToggle = makeToggle('自主休息', (checked) => {
       saved.autoSleep = checked;
       if (!checked && !manualHeld && !lockedEmotion && [PET_STATES.BORED, PET_STATES.SLEEPY, PET_STATES.SLEEPING].includes(brain.state)) returnToIdle(Date.now());
       save();
@@ -1102,7 +1014,7 @@
     const sleepLabel = document.createElement('span');
     sleepLabel.textContent = '入睡速度';
     const sleepSelect = document.createElement('select');
-    for (const item of [[20000, '快速 · 20秒'], [35000, '标准 · 35秒'], [60000, '舒缓 · 60秒']]) {
+    for (const item of [[60000, '1 分钟'], [180000, '3 分钟'], [600000, '10 分钟']]) {
       const option = document.createElement('option');
       option.value = String(item[0]);
       option.textContent = item[1];
@@ -1114,43 +1026,6 @@
       save();
     });
     sleepRow.append(sleepLabel, sleepSelect);
-
-    const careTitle = document.createElement('div');
-    careTitle.className = 'gaia-pet-console-label';
-    careTitle.textContent = '阅读关怀';
-    const careToggle = makeToggle('连续阅读提醒', (checked) => {
-      saved.readerCare = checked;
-      resetReadingSession();
-      if (checked) startReadingSession(Date.now());
-      save();
-      updateConsole();
-    });
-    careToggle.input.dataset.readingCareToggle = 'true';
-    const careStatus = document.createElement('div');
-    careStatus.className = 'gaia-pet-console-care-status';
-    const careRow = document.createElement('label');
-    careRow.className = 'gaia-pet-console-select-row';
-    const careLabel = document.createElement('span');
-    careLabel.textContent = '提醒间隔';
-    const careSelect = document.createElement('select');
-    careSelect.dataset.readingCareInterval = 'true';
-    for (const item of [[60000, '测试 · 1分钟'], [1800000, '30分钟'], [2700000, '45分钟'], [3600000, '60分钟']]) {
-      const option = document.createElement('option');
-      option.value = String(item[0]);
-      option.textContent = item[1];
-      careSelect.appendChild(option);
-    }
-    careSelect.addEventListener('change', () => {
-      saved.readerCareAfter = Number(careSelect.value) || TIMERS.READER_CARE_AFTER;
-      resetReadingSession();
-      startReadingSession(Date.now());
-      save();
-      updateConsole();
-    });
-    careRow.append(careLabel, careSelect);
-    const careTest = makeButton('立即测试提醒', 'gaia-pet-console-button gaia-pet-console-care-test');
-    careTest.dataset.readingCareTest = 'true';
-    careTest.addEventListener('click', () => showReadingCareReminder(false));
 
     const displayTitle = document.createElement('div');
     displayTitle.className = 'gaia-pet-console-label';
@@ -1192,8 +1067,8 @@
       updateVisibility();
       save();
     });
-    const readerMode = makeSelectRow('阅读页', [['normal', '正常显示'], ['dim', '半透明'], ['hidden', '自动隐藏']], (value) => {
-      saved.readerMode = ['normal', 'dim', 'hidden'].includes(value) ? value : 'normal';
+    const readerMode = makeSelectRow('阅读页', [['normal', '正常显示'], ['hidden', '自动隐藏']], (value) => {
+      saved.readerMode = ['normal', 'hidden'].includes(value) ? value : 'normal';
       updateVisibility();
       save();
     });
@@ -1214,22 +1089,16 @@
     const lock = makeButton('锁定当前情绪', 'gaia-pet-console-lock');
     lock.addEventListener('click', toggleEmotionLock);
     panel.append(consoleTop, emotionTitle, emotions, actionTitle, actions, autoTitle,
-      autoToggle.row, speechToggle.row, sleepToggle.row, sleepRow, careTitle, careToggle.row,
-      careStatus, careRow, careTest, lock, displayTitle,
+      sleepToggle.row, sleepRow, lock, displayTitle,
       fpsToggle.row, scale.row, opacity.row, readerMode.row, historyTitle, history);
     panel.addEventListener('wheel', (ev) => ev.stopPropagation(), { passive: true });
+    panel.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); });
     document.body.appendChild(panel);
     ui.console = panel;
     ui.consoleState = state;
     ui.emotionButtons = emotionButtons;
-    ui.autoToggle = autoToggle.input;
-    ui.speechToggle = speechToggle.input;
     ui.sleepToggle = sleepToggle.input;
     ui.sleepSelect = sleepSelect;
-    ui.readingCareToggle = careToggle.input;
-    ui.readingCareStatus = careStatus;
-    ui.readingCareSelect = careSelect;
-    ui.readingCareTest = careTest;
     ui.fpsToggle = fpsToggle.input;
     ui.lockButton = lock;
     ui.scaleSelect = scale.select;
@@ -1305,17 +1174,13 @@
     const savedState = await window.api.stateGet('pet');
     if (savedState && typeof savedState === 'object') {
       saved.on = savedState.on !== false;
-      saved.auto = savedState.auto !== false;
-      saved.autoSpeech = savedState.autoSpeech !== false;
       saved.autoSleep = savedState.autoSleep !== false;
-      saved.readerCare = savedState.readerCare !== false;
       saved.showFps = savedState.showFps !== false;
       if (LOCKABLE_EMOTIONS.includes(savedState.lockedMood)) saved.lockedMood = savedState.lockedMood;
-      if ([20000, 35000, 60000].includes(savedState.sleepAfter)) saved.sleepAfter = savedState.sleepAfter;
-      if (READER_CARE_INTERVALS.includes(savedState.readerCareAfter)) saved.readerCareAfter = savedState.readerCareAfter;
+      if ([60000, 180000, 600000].includes(savedState.sleepAfter)) saved.sleepAfter = savedState.sleepAfter;
       if ([0.75, 1, 1.25, 1.5].includes(savedState.scale)) saved.scale = savedState.scale;
       if ([0.4, 0.6, 0.8, 1].includes(savedState.opacity)) saved.opacity = savedState.opacity;
-      if (['normal', 'dim', 'hidden'].includes(savedState.readerMode)) saved.readerMode = savedState.readerMode;
+      if (['normal', 'hidden'].includes(savedState.readerMode)) saved.readerMode = savedState.readerMode;
       if (Number.isFinite(savedState.xRatio) && Number.isFinite(savedState.yRatio)) {
         saved.xRatio = Math.max(0, Math.min(1, savedState.xRatio));
         saved.yRatio = Math.max(0, Math.min(1, savedState.yRatio));
@@ -1370,7 +1235,6 @@
     saved.on = !!on;
     updateVisibility();
     if (!saved.on) {
-      resetReadingSession();
       closeConsole(false);
       hideBubble(true);
     } else if (ui.root) {
@@ -1380,14 +1244,12 @@
       lockedEmotion = null;
       manualEmotionKey = null;
       returnToIdle(Date.now());
-      startReadingSession(Date.now());
     }
     save();
   }
 
   function setView(view) {
     const nextView = view || 'home';
-    if (nextView !== currentView) resetReadingSession();
     if (nextView !== currentView) cancelActiveDrag();
     currentView = nextView;
     updateVisibility();
@@ -1396,8 +1258,6 @@
       clampPosition();
       positionConsole();
     }
-    startReadingSession(Date.now());
-    updateReadingCareStatus(Date.now());
   }
 
   function speak(text, duration) {
@@ -1414,12 +1274,6 @@
     setView,
     getState: () => Object.assign({}, saved),
     getBrain: () => Object.assign({}, brain),
-    getReadingCareState: () => ({
-      startedAt: readingStartedAt,
-      elapsed: readingElapsed(Date.now()),
-      windowFocused: appWindowFocused,
-      tracking: canTrackReading(),
-    }),
     setWindowFocusedForTest: handleAppWindowFocus,
     openConsole: () => openConsole({ preventDefault() {} }),
     closeConsole: () => closeConsole(true),

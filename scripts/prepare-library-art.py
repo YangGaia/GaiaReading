@@ -1,17 +1,26 @@
 """Extract the user's robin illustration without changing the original photo.
 
 Run manually with Python, Pillow, NumPy and SciPy:
-  python scripts/prepare-library-art.py IMG_3370.jpeg
-"""
-from pathlib import Path
-import sys
+  python scripts/prepare-library-art.py "<original-photo-path>"
 
+The original photo must be provided explicitly; it is not bundled with the app.
+"""
+import argparse
+from pathlib import Path
+
+root = Path(__file__).resolve().parents[1]
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("source", type=Path, help="原始照片的文件路径（必填）")
+args = parser.parse_args()
+source = args.source
+if not source.is_file():
+    parser.error(f"输入文件不存在: {source}")
+
+# Parse and validate the input before loading optional image dependencies.
 import numpy as np
 from PIL import Image
 from scipy import ndimage
 
-root = Path(__file__).resolve().parents[1]
-source = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "IMG_3370.jpeg"
 image = Image.open(source).convert("RGB")
 pixels = np.asarray(image).astype(float)
 border = np.concatenate((pixels[0], pixels[-1], pixels[:, 0], pixels[:, -1]))

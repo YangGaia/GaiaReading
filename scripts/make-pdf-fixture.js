@@ -18,7 +18,7 @@ for (let index = 0; index < pageIds.length; index += 1) {
   objects.set(contentId, '<< /Length ' + Buffer.byteLength(text, 'ascii') + ' >>\nstream\n' + text + '\nendstream');
 }
 
-let pdf = '%PDF-1.4\n%Gaia Reading fixture\n';
+let pdf = '%PDF-1.4\n%GaiaReading_Lucky fixture\n';
 const offsets = [0];
 for (let id = 1; id <= 13; id += 1) {
   offsets[id] = Buffer.byteLength(pdf, 'ascii');

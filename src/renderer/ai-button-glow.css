@@ -1,0 +1,109 @@
+/* Reader AI actions and the chat prompt shortcuts share a coloured glass rim.
+   Source styles still own bounds, typography, focus and busy states. */
+#reader-view :is(#btn-ai-reader, .ai-chat-input-shortcuts button) {
+  --ai-glow-ink: #f0f8ff;
+  --ai-glow-icon: #cdeaff;
+  --ai-glow-focus: #bceeff;
+  --ai-glow-reflection: radial-gradient(ellipse at 18% -45%, #7be4ed57, transparent 70%);
+  --ai-glow-surface: linear-gradient(135deg, #173746, #222a46 55%, #30233f);
+  --ai-glow-rim: linear-gradient(110deg, #75e3d3 0%, #80b7ff 22%, #b598f5 43%, #ed9edd 64%, #9ca5fa 83%, #75e3d3 100%);
+  --ai-glow-near: #4bdaca26;
+  --ai-glow-far: #ad7ce52e;
+  --ai-glow-near-strong: #5de4de42;
+  --ai-glow-far-strong: #a887f54d;
+  --glass-button-icon: var(--ai-glow-icon);
+}
+
+#reader-view #btn-alice-comment {
+  --ai-glow-ink: #fff3fb;
+  --ai-glow-icon: #f0d5f5;
+  --ai-glow-focus: #ebccff;
+  --ai-glow-reflection: radial-gradient(ellipse at 20% -45%, #df9aea4a, transparent 70%);
+  --ai-glow-surface: linear-gradient(135deg, #39253f, #292841 55%, #1d3443);
+  --ai-glow-rim: linear-gradient(110deg, #e8a1d5 0%, #bc9af4 22%, #8bacff 43%, #7edfd5 64%, #b494ee 83%, #e8a1d5 100%);
+  --ai-glow-near: #d28dbd2b;
+  --ai-glow-far: #9184ed2b;
+  --ai-glow-near-strong: #ea9bd745;
+  --ai-glow-far-strong: #9f96ff48;
+  --glass-button-icon: var(--ai-glow-icon);
+}
+
+/* An opaque inner surface and reflection cover the gradient at the centre.
+   Keeping the existing one-pixel border transparent reveals only its rim. */
+#reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button) {
+  color: var(--ai-glow-ink) !important;
+  border-color: transparent !important;
+  background:
+    var(--ai-glow-reflection) padding-box,
+    var(--ai-glow-surface) padding-box,
+    var(--ai-glow-rim) border-box !important;
+  background-size: 100% 100%, 100% 100%, 160% 100% !important;
+  background-position: 0 0, 0 0, 0% 50% !important;
+  box-shadow:
+    inset 0 1px 0 #e5efff26,
+    inset 0 -1px 0 #090d236b,
+    -2px 0 10px var(--ai-glow-near),
+    2px 0 12px var(--ai-glow-far),
+    0 2px 6px #080b1752 !important;
+  transition: background-position .48s ease, box-shadow .18s ease, color .18s ease;
+}
+
+#reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button) .reader-icon {
+  color: var(--ai-glow-icon) !important;
+}
+
+/* The older AI shine loops are decorative. The background movement below
+   replaces them without adding overlays over the text or existing SVGs. */
+#reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button)::after {
+  content: none;
+  animation: none;
+}
+
+#reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button):not(:disabled):not(.loading):not([aria-busy="true"]):is(:hover, :focus-visible) {
+  background-position: 0 0, 0 0, 100% 50% !important;
+  box-shadow:
+    inset 0 1px 0 #eef5ff45,
+    inset 0 -1px 0 #090d2352,
+    -2px 0 13px var(--ai-glow-near-strong),
+    2px 0 16px var(--ai-glow-far-strong),
+    0 3px 8px #080b1766 !important;
+}
+
+#reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button):focus-visible {
+  outline-color: var(--ai-glow-focus) !important;
+}
+
+/* Open and busy are steady states; loading retains the source wait cursor
+   and label. Hover never starts a decorative sweep while work is pending. */
+#reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button):is(.open, [aria-expanded="true"], .loading, [aria-busy="true"]) {
+  box-shadow:
+    inset 0 0 0 1px #d7e4ff38,
+    inset 0 1px 0 #f1f6ff38,
+    -2px 0 12px var(--ai-glow-near-strong),
+    2px 0 14px var(--ai-glow-far-strong) !important;
+}
+
+#reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button):not(:disabled):not(.loading):not([aria-busy="true"]):active {
+  box-shadow: inset 0 2px 5px #070b2473, inset 0 0 0 1px #d7e4ff24 !important;
+}
+
+/* Source disabled opacity remains visible; inactive controls lose the halo.
+   An actively loading disabled action keeps its distinct busy treatment. */
+#reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button):disabled:not(.loading):not([aria-busy="true"]) {
+  box-shadow: inset 0 1px 0 #e5efff12 !important;
+}
+
+#reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button):is(.loading, [aria-busy="true"]) {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button),
+  #reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button)::after {
+    animation: none;
+    transition: none;
+  }
+  #reader-view :is(#btn-ai-reader, #btn-alice-comment, .ai-chat-input-shortcuts button):not(:disabled):not(.loading):not([aria-busy="true"]):is(:hover, :focus-visible) {
+    background-position: 0 0, 0 0, 0% 50% !important;
+  }
+}

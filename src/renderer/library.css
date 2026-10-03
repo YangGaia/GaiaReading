@@ -40,13 +40,24 @@
 #library-view .library-heading { max-width: none; gap: 18px; padding: 24px 8px 18px; }
 #library-view .library-heading h1 { font: 500 28px/1.4 var(--paper-font); letter-spacing: .09em; }
 #library-view .shelf-toolbar { gap: 8px; }
-#library-view .library-status { align-items: center; min-height: 24px; padding: 0 8px 19px; gap: 18px; }
+#library-view .library-status { align-items: center; min-height: 24px; padding: 0 8px 19px; gap: 18px; min-width: 0; }
 #library-view .library-title-rule { flex: 1; height: 1px; background: linear-gradient(90deg, #a4b5d0 0 40px, #3c4654 40px); }
-#library-view .import-status { max-width: 60%; font-size: 11px; }
+#library-view .import-feedback { flex: 0 1 72%; min-width: 0; }
+#library-view .import-feedback:has(.import-status:empty):has(.import-progress[hidden]) { display: none; }
+#library-view .import-feedback:has(.import-progress:not([hidden])) { flex: 1 1 72%; }
+#library-view .import-status { display: block; max-width: 100%; margin: 0; font-size: 11px; overflow-wrap: anywhere; }
+#library-view .import-progress { margin-top: 8px; }
+#library-view .import-progress[hidden], #library-view #btn-cancel-import[hidden] { display: none; }
+#library-view .import-current { display: flex; gap: 16px; align-items: baseline; min-width: 0; color: #acb7c9; font-size: 11px; }
+#library-view .import-current-file { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#library-view .import-counts { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+#library-view #import-progress-bar { display: block; width: 100%; height: 4px; margin-top: 8px; border: 0; border-radius: 2px; overflow: hidden; accent-color: #a6bad9; }
+#library-view #import-progress-bar::-webkit-progress-bar { background: #3f4b5e; }
+#library-view #import-progress-bar::-webkit-progress-value { background: #a6bad9; }
+#library-view #import-progress-bar:indeterminate { opacity: .65; }
+#library-view #btn-cancel-import { flex: 0 0 auto; font-size: 11px; }
+#library-view .btn:disabled { cursor: default; opacity: .5; }
 #library-view .import-status:empty { display: none; }
-#library-view .import-status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#library-view .import-cancel { flex: 0 0 auto; min-height: 28px; padding: 4px 10px; margin-left: 12px; font-size: 11px; }
-#library-view .import-cancel[hidden] { display: none; }
 #library-view .manage-bar { margin: 0 8px 14px; padding: 8px 12px; gap: 10px; border-radius: 8px; background: #1d2530; font-size: 12px; }
 #library-view .manage-bar[hidden] { display: none; }
 #library-view .bookshelf { flex: 1; width: 100%; max-width: none; min-height: 0; margin: 0; padding: 10px 8px 32px; grid-template-columns: repeat(auto-fill, minmax(174px, 1fr)); gap: 26px 22px; align-content: start; align-items: start; overflow-y: auto; scrollbar-color: #566275 transparent; }
@@ -119,6 +130,11 @@
 }
 @media (max-width: 640px) {
   #library-view { --page-inset: 14px; --cover-height: 158px; }
+  #library-view .library-status { gap: 10px; padding-inline: 0; }
+  #library-view .library-status:has(.import-progress:not([hidden])) .library-title-rule { display: none; }
+  #library-view .import-current { flex-wrap: wrap; gap: 4px; }
+  #library-view .import-current-file { flex-basis: 100%; }
+  #library-view .import-feedback { flex-basis: 100%; }
   #library-view .topbar { flex-wrap: wrap; gap: 6px 10px; padding-block: 10px; }
   #library-view .library-header-rule { min-width: 10px; }
   #library-view .library-heading { flex-direction: column; align-items: flex-start; gap: 12px; padding-block: 12px; }

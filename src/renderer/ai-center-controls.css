@@ -1,0 +1,197 @@
+/* AI profiles and the model picker echo the reader's coloured AI glass.
+   The remaining AI-centre controls keep ai-center.css's graphite surfaces. */
+#ai-view {
+  --ai-control-ink: #f0f5ff;
+  --ai-control-rim: linear-gradient(110deg, #7bded0 0%, #89b5fc 24%, #bb9aef 47%, #e8a0d5 69%, #96adeb 87%, #7bded0 100%);
+  --ai-control-surface: linear-gradient(135deg, #1b3540, #252b45 55%, #34263f);
+  --ai-control-reflection: radial-gradient(ellipse at 20% -40%, #86dbea2b, transparent 72%);
+}
+
+/* The native select remains the form's state source and a no-script fallback. */
+#ai-view #ai-provider {
+  color-scheme: dark;
+  color: #e5ebf5;
+  background-color: #1c2530;
+  border-color: #48566a;
+  box-shadow: inset 0 1px 0 #ffffff06;
+}
+#ai-view #ai-provider:hover { border-color: #687b96; }
+#ai-view #ai-provider:focus {
+  color: #f0f4fa;
+  background-color: #222e3d;
+  border-color: #a6bbda;
+  box-shadow: 0 0 0 3px #aec3e419;
+}
+#ai-view #ai-provider:focus-visible {
+  outline: 2px solid #b6c8e5;
+  outline-offset: 3px;
+}
+#ai-view #ai-provider option {
+  color-scheme: dark;
+  color: #e5ebf5;
+  background-color: #1c2530;
+}
+#ai-view #ai-provider option:checked {
+  color: #f3f6fc;
+  background-color: #35465e;
+}
+#ai-view #ai-provider option:disabled { color: #8997aa; }
+
+#ai-view #ai-provider[hidden],
+#ai-view .ai-provider-options[hidden],
+#ai-view .ai-provider-option[hidden] { display: none; }
+#ai-view .ai-provider-control { position: relative; min-width: 0; }
+#ai-view #ai-provider-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-right: 12px;
+  text-align: left;
+  cursor: pointer;
+  color: #e5ebf5;
+  background: #1c2530;
+  border-color: #48566a;
+  box-shadow: inset 0 1px 0 #ffffff06;
+}
+#ai-view #ai-provider-trigger:hover,
+#ai-view #ai-provider-trigger[aria-expanded="true"] { background: #263343; border-color: #6b7e99; }
+#ai-view #ai-provider-trigger:focus-visible { outline: 2px solid #b6c8e5; outline-offset: 3px; }
+#ai-view #ai-provider-trigger:disabled { cursor: not-allowed; opacity: .45; }
+#ai-view .ai-provider-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ai-view .ai-provider-chevron {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  margin: -3px 2px 0 0;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(45deg);
+}
+#ai-view #ai-provider-trigger[aria-expanded="true"] .ai-provider-chevron { transform: translateY(3px) rotate(225deg); }
+#ai-view .ai-provider-options {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 7px);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 3px;
+  max-height: 216px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border: 1px solid #536176;
+  border-radius: 7px;
+  color: #e5ebf5;
+  background: #1c2530;
+  box-shadow: inset 0 1px 0 #ffffff08, 0 8px 20px #070c164d;
+  scrollbar-width: thin;
+  scrollbar-color: #60718b transparent;
+}
+#ai-view .ai-provider-control.opens-up .ai-provider-options,
+#ai-view .ai-model-picker.opens-up .ai-model-options { top: auto; bottom: calc(100% + 7px); }
+#ai-view .ai-provider-option {
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #dce5f2;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+#ai-view .ai-provider-option[aria-selected="true"] { color: #f0f4fc; background: #2b394b; }
+#ai-view .ai-provider-option.is-active { color: #f4f7fc; border-color: #657892; background: #36465d; }
+#ai-view .ai-provider-option[aria-disabled="true"] { color: #8592a4; cursor: not-allowed; }
+
+/* Layered backgrounds expose the existing one-pixel border as a colour rim.
+   No dimensions, padding, type, icon geometry or grid tracks change. */
+#ai-view .ai-profile-list .ai-profile-item,
+#ai-view #ai-model,
+#ai-view #btn-ai-model-menu {
+  color: var(--ai-control-ink);
+  border-color: transparent;
+  background:
+    var(--ai-control-reflection) padding-box,
+    var(--ai-control-surface) padding-box,
+    var(--ai-control-rim) border-box;
+  background-size: 100% 100%, 100% 100%, 160% 100%;
+  background-position: 0 0, 0 0, 0% 50%;
+  box-shadow: inset 0 1px 0 #e5efff20, inset 0 -1px 0 #080d2159, 0 2px 9px #8a76cb18;
+  transition: background-position .45s ease, box-shadow .18s ease, transform .15s ease;
+}
+
+#ai-view .ai-profile-list .ai-profile-item {
+  --ai-control-reflection: radial-gradient(ellipse at 16% -20%, #91ded831, transparent 74%);
+}
+#ai-view .ai-profile-list .ai-profile-item small { color: #bdcce2; }
+#ai-view .ai-profile-list .ai-profile-item .ai-profile-active {
+  color: #e7e5fc;
+  border-color: #b1b3e261;
+  background: #3b3b5d;
+}
+#ai-view .ai-profile-list .ai-profile-item::before {
+  background: linear-gradient(#91e5db, #a4b9ff 52%, #e2adea);
+}
+#ai-view .ai-profile-list .ai-profile-item:is(.selected, [aria-pressed="true"]) {
+  --ai-control-reflection: radial-gradient(ellipse at 20% -20%, #9adbe947, transparent 78%);
+  --ai-control-surface: linear-gradient(135deg, #23434c, #2d3552 55%, #3e2c4b);
+  box-shadow: inset 0 1px 0 #e6efff35, inset 0 -1px 0 #080d2159, 0 2px 11px #aa82e32c;
+}
+
+#ai-view #ai-model {
+  --ai-control-reflection: radial-gradient(ellipse at 12% -65%, #9abdfb38, transparent 74%);
+  --ai-control-surface: linear-gradient(110deg, #1d2f40, #262943 65%, #33263f);
+  caret-color: #dcefff;
+}
+#ai-view #ai-model::placeholder { color: #aebfd8; }
+#ai-view #btn-ai-model-menu { color: #dce9ff; }
+#ai-view #btn-ai-model-menu svg { color: inherit; }
+#ai-view #btn-ai-model-menu[aria-expanded="true"] {
+  box-shadow: inset 0 0 0 1px #d9d8ff35, 0 2px 10px #a286df29;
+}
+
+/* A single short shift on entry, with no animation while the control rests. */
+#ai-view .ai-profile-list .ai-profile-item:not(:disabled):is(:hover, :focus-visible),
+#ai-view #ai-model:not(:disabled):is(:hover, :focus),
+#ai-view #btn-ai-model-menu:not(:disabled):is(:hover, :focus-visible) {
+  background-position: 0 0, 0 0, 100% 50%;
+  box-shadow: inset 0 1px 0 #f0f4ff3d, inset 0 -1px 0 #080d2159, -2px 0 10px #78d7d02e, 2px 0 13px #c397e93b;
+}
+#ai-view .ai-profile-list .ai-profile-item:focus-visible,
+#ai-view #btn-ai-model-menu:focus-visible { outline-color: #c8dcff; }
+#ai-view #ai-model:focus-visible { outline: 2px solid #c8dcff; outline-offset: 3px; }
+#ai-view .ai-profile-list .ai-profile-item:not(:disabled):active,
+#ai-view #btn-ai-model-menu:not(:disabled):active {
+  box-shadow: inset 0 2px 5px #070b2473, inset 0 0 0 1px #d7e4ff24;
+}
+#ai-view .ai-profile-list .ai-profile-item:disabled,
+#ai-view #ai-model:disabled,
+#ai-view #btn-ai-model-menu:disabled { box-shadow: inset 0 1px 0 #e5efff10; }
+
+/* The popup is a single quiet dark surface; only the current row is tinted. */
+#ai-view #ai-model-options {
+  border-color: transparent;
+  background: linear-gradient(#182330, #182330) padding-box, var(--ai-control-rim) border-box;
+  box-shadow: inset 0 1px 0 #ffffff08, 0 4px 13px #10152645;
+}
+#ai-view #ai-model-options .ai-model-option:is(:hover, :focus, .active) {
+  color: #f0f3ff;
+  border-color: #a4b4e15c;
+  background: linear-gradient(120deg, #263e4b, #34304f);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #ai-view .ai-profile-list .ai-profile-item,
+  #ai-view #ai-model,
+  #ai-view #btn-ai-model-menu { transition: none; }
+  #ai-view .ai-profile-list .ai-profile-item:not(:disabled):is(:hover, :focus-visible),
+  #ai-view #ai-model:not(:disabled):is(:hover, :focus),
+  #ai-view #btn-ai-model-menu:not(:disabled):is(:hover, :focus-visible) {
+    background-position: 0 0, 0 0, 0% 50%;
+  }
+}

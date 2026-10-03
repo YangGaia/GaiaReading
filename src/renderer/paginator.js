@@ -37,12 +37,19 @@ class Paginator {
     this.textContrast = 'standard';
     this.pageBg = '#fffdf7';
     this.marginPct = 8;
+    this.verticalMarginPx = 28;
     this.verticalPadding = 28;
+    this.simplified = false;
     this._boundResize = () => this.reflow();
     this._renderVersion = 0;
     this._pendingFrame = null;
-    this._imageWaitCleanup = null;
-    this._imageLoadAnchor = null;
+    this._pendingLoadCleanup = null;
+    this._imageListeners = [];
+    this._imageVersion = 0;
+    this._imageReflow = null;
+    this._imageStyles = new Map();
+    this._illustrations = new Set();
+    this._readingPosition = null;
   }
 
   /** 列步进宽度：下一页/上一页的滚动距离（含列间距）。 */
@@ -78,9 +85,11 @@ class Paginator {
       const finish = () => {
         clearTimeout(timer);
         frame.removeEventListener('load', finish);
+        if (this._pendingLoadCleanup === finish) this._pendingLoadCleanup = null;
         resolve();
       };
       const timer = setTimeout(finish, 1500);
+      this._pendingLoadCleanup = finish;
       frame.addEventListener('load', finish, { once: true });
     });
 
@@ -91,15 +100,22 @@ class Paginator {
     }
     const previousFrame = this.frame;
     const previousDoc = this.doc;
+    const previousStyles = this._imageStyles;
+    const previousIllustrations = this._illustrations;
+    const previousPosition = this._readingPosition;
+    this.clearImageListeners();
     this.frame = frame;
     this.doc = doc;
+    this._imageStyles = new Map();
+    this._illustrations = new Set();
+    this._readingPosition = null;
     try {
       // Chapter bookkeeping joins the same synchronous commit as the iframe,
       // so a released hold cannot advance progress for an unseen chapter.
       if (options.beforeCommit) options.beforeCommit();
+      if (window.GaiaChineseDisplay) window.GaiaChineseDisplay.apply(this.doc, this.simplified);
       this.applyTypography();
       this.applyTheme();
-      this.prepareImageContainers();
       this.applyLayout();
       // Swap only after typography, theme and pagination are ready to paint.
       frame.classList.remove('paginator-pending');
@@ -113,85 +129,55 @@ class Paginator {
       this._pendingFrame = null;
       this.frame = previousFrame;
       this.doc = previousDoc;
+      this._imageStyles = previousStyles;
+      this._illustrations = previousIllustrations;
+      this._readingPosition = previousPosition;
+      this.waitImages();
       throw error;
     }
   }
 
-  /** 纯插图容器不应继承正文缩进、行框或固定高度，否则长图底部仍会被裁切。 */
-  prepareImageContainers() {
-    for (const image of this.doc.querySelectorAll('img, svg')) {
-      let parent = image.parentElement;
-      while (parent && parent !== this.doc.body && !parent.textContent.trim() && parent.querySelectorAll('img, svg').length === 1) {
-        parent.classList.add('paginator-image-container');
-        parent = parent.parentElement;
-      }
-    }
-  }
-
-  /** 每批图片完成后重排；慢于旧的 2.5 秒超时的图片也必须更新页数。 */
+  /** 每批图片完成后重排；超时展示章节后仍继续监听迟到的资源。 */
   waitImages() {
-    if (this._imageWaitCleanup) this._imageWaitCleanup();
+    this.clearImageListeners();
     if (!this.doc) return;
     const doc = this.doc;
-    const pending = new Set(Array.from(doc.images || []).filter(img => !img.complete));
-    if (!pending.size) return;
-    let scheduled = null;
-    const detach = img => {
-      img.removeEventListener('load', settled);
-      img.removeEventListener('error', settled);
-    };
-    const cleanup = () => {
-      for (const img of pending) detach(img);
-      if (scheduled != null) window.cancelAnimationFrame(scheduled);
-      this._imageWaitCleanup = null;
-      this._imageLoadAnchor = null;
-    };
-    const settled = event => {
-      detach(event.target);
-      pending.delete(event.target);
-      if (scheduled != null) return;
-      scheduled = window.requestAnimationFrame(() => {
-        scheduled = null;
-        if (this.doc !== doc) return cleanup();
-        const anchor = this._imageLoadAnchor;
-        this.applyLayout();
-        if (anchor && anchor.image && anchor.image.isConnected) {
-          this._scrollTo(0);
-          this.showPage(Math.floor(anchor.image.getBoundingClientRect().left / this.colStep));
-        } else if (anchor && anchor.text) {
-          const page = this.locate(anchor.text.off);
-          if (page >= 0) this.showPage(page);
-        }
-        if (!pending.size) cleanup();
-      });
-    };
-    this._imageWaitCleanup = cleanup;
-    this.rememberImageLoadAnchor();
-    for (const img of pending) {
-      img.addEventListener('load', settled);
-      img.addEventListener('error', settled);
+    const version = this._imageVersion;
+    for (const img of doc.querySelectorAll('img, svg image')) {
+      if (img.complete) continue;
+      const settle = () => {
+        cleanup();
+        if (version !== this._imageVersion || this.doc !== doc || this._imageReflow != null) return;
+        // The browser may already have moved text when load fires. Keep the
+        // position recorded at the last page turn, before that layout shift.
+        this._imageReflow = window.requestAnimationFrame(() => {
+          this._imageReflow = null;
+          if (version === this._imageVersion && this.doc === doc) this.reflow();
+        });
+      };
+      const cleanup = () => {
+        img.removeEventListener('load', settle);
+        img.removeEventListener('error', settle);
+      };
+      img.addEventListener('load', settle);
+      img.addEventListener('error', settle);
+      this._imageListeners.push(cleanup);
     }
   }
 
-  rememberImageLoadAnchor() {
-    if (!this._imageWaitCleanup || !this.doc) return;
-    const image = Array.from(this.doc.querySelectorAll('img, svg')).find(el => {
-      const rect = el.getBoundingClientRect();
-      return rect.left >= 0 && rect.left < this.pageWidth && rect.top >= 0 && rect.height > 64 && rect.top < this.verticalPadding + 32;
-    });
-    this._imageLoadAnchor = { image, text: image ? null : this.anchor() };
+  clearImageListeners() {
+    this._imageVersion += 1;
+    for (const cleanup of this._imageListeners) cleanup();
+    this._imageListeners = [];
+    if (this._imageReflow != null) window.cancelAnimationFrame(this._imageReflow);
+    this._imageReflow = null;
   }
 
   /** 设置阅读模式：single | spread */
   setMode(mode) {
     const next = mode === 'spread' ? 'spread' : 'single';
-    if (next === this.mode) {
-      this.applyLayout();
-      return;
-    }
     this.mode = next;
-    this.currentPage = 0;
-    this.applyLayout();
+    this.reflow();
   }
 
   /** 设置排版：fontSizePct 为百分比，lineHeight，fontFamily 为 CSS 字体栈。 */
@@ -207,15 +193,41 @@ class Paginator {
 
   /** 设置页面左右边距百分比（如 4/8/12/16），立即重新排版。 */
   setMargin(pct) {
-    this.marginPct = typeof pct === 'number' && pct >= 0 ? pct : 8;
-    if (this.doc) this.applyLayout();
+    this.setMargins({ horizontalPct: pct });
   }
 
-  /** 设置双页之间的列间距，并保持当前页索引。 */
+  /** Independent horizontal percentage and vertical pixel margins. */
+  setMargins({ horizontalPct = this.marginPct, verticalPx = this.verticalMarginPx } = {}) {
+    const margins = window.GaiaEpubTypography.normalizeMargins({ horizontalPct, verticalPx });
+    this.marginPct = margins.horizontalPct;
+    this.verticalMarginPx = margins.verticalPx;
+    this.reflow();
+  }
+
+  setSimplified(enabled) {
+    const position = this._readingPosition || (this.doc ? this.capturePosition() : null);
+    this.simplified = !!enabled;
+    if (this.doc && window.GaiaChineseDisplay) window.GaiaChineseDisplay.apply(this.doc, this.simplified);
+    this.reflow(position);
+  }
+
+  sourceText() {
+    if (!this.doc || !this.doc.body) return '';
+    return window.GaiaChineseDisplay ? window.GaiaChineseDisplay.sourceText(this.doc.body) : this.doc.body.textContent || '';
+  }
+
+  pageTextRange(startPage, endPage, { source = true } = {}) {
+    return window.GaiaPageTextRange.read(this.doc, {
+      startPage, endPage, pageWidth: this.pageWidth, gap: this.gap, totalPages: this.totalPages,
+      sourceText: source && window.GaiaChineseDisplay ? window.GaiaChineseDisplay.sourceText : undefined,
+    });
+  }
+
+  /** 设置双页之间的列间距，并保持当前阅读位置。 */
   setGap(px) {
     const gap = Number(px);
     this.gap = Number.isFinite(gap) && gap >= 0 ? gap : 0;
-    if (this.doc) this.applyLayout();
+    this.reflow();
   }
 
   setTheme(theme) {
@@ -235,6 +247,8 @@ class Paginator {
     if (!s) return;
     let css = 'html { font-size: ' + (this.typo.fontSizePct / 100) + 'em !important; }';
     css += 'html, body { line-height: ' + this.typo.lineHeight + ' !important; word-break: break-word !important; overflow-wrap: break-word !important; }';
+    // Avoid moving whole short paragraphs early, preserving explicit book rules.
+    css += ':where(body) { widows: 1; orphans: 1; }';
     // 与 EPUB 阅读一致的排版：段落首行缩进、标题间距、行距
     css += 'p { text-indent: 2em !important; margin-top: 0 !important; margin-bottom: 0.8em !important; line-height: ' + this.typo.lineHeight + ' !important; }';
     css += 'h1, h2, h3, h4 { line-height: 1.4 !important; margin-top: 1.2em !important; margin-bottom: 0.6em !important; text-indent: 0 !important; }';
@@ -270,7 +284,7 @@ class Paginator {
     s.textContent = css;
   }
 
-  applyLayout() {
+  applyLayout(position) {
     if (!this.doc) return;
     const doc = this.doc;
     const base = doc.getElementById('paginator-base');
@@ -292,20 +306,17 @@ class Paginator {
     this.frame.style.height = hostH + 'px';
     this.frame.style.visibility = 'visible';
 
-    const pagePad = Math.max(12, Math.round(this.pageWidth * this.marginPct / 100)); // 页边距按百分比随版心缩放
-    const imageHeight = Math.max(1, hostH - this.verticalPadding * 2);
+    const pagePad = Math.round(this.pageWidth * this.marginPct / 100); // 页边距按百分比随版心缩放
+    this.verticalPadding = window.GaiaEpubTypography.verticalPadding(this.verticalMarginPx, hostH);
     base.textContent =
       'html, body { margin: 0; padding: 0; }' +
       'body { column-width: ' + this.pageWidth + 'px; column-gap: ' + gap + 'px; ' +
-      'height: ' + hostH + 'px; padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box; overflow: hidden; }';
+      'column-fill: auto; height: ' + hostH + 'px; padding: ' + this.verticalPadding + 'px 0; box-sizing: border-box; overflow: hidden; }';
     // 页面内容左右内边距（列内容不贴边，像真实书籍版心）
     base.textContent +=
       'body > * { margin-left: ' + pagePad + 'px !important; margin-right: ' + pagePad + 'px !important; max-width: ' + (this.pageWidth - pagePad * 2) + 'px !important; box-sizing: border-box !important; }' +
-      'img, svg { max-width: 100% !important; height: auto !important; box-sizing: border-box !important; object-fit: contain; }' +
-      'img, svg { min-width: 0 !important; min-height: 0 !important; max-height: max(1px, calc(' + imageHeight + 'px - 2em)) !important; break-inside: avoid !important; }' +
+      'img, svg { max-width: 100% !important; box-sizing: border-box !important; object-fit: contain; }' +
       'body > img, body > svg { max-width: ' + (this.pageWidth - pagePad * 2) + 'px !important; }' +
-      '.paginator-image-container { height: auto !important; min-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; margin-top: 0 !important; margin-bottom: 0 !important; text-indent: 0 !important; line-height: 0 !important; overflow: visible !important; break-inside: avoid !important; }' +
-      'body > img, body > svg, .paginator-image-container img, .paginator-image-container svg { display: block !important; max-height: ' + imageHeight + 'px !important; margin: 0 auto !important; }' +
       'body > a:has(> img), body > a:has(> svg) { display: block !important; }' +
       'table { max-width: ' + (this.pageWidth - pagePad * 2) + 'px; }';
     // 双页模式中间书缝：列间细线模拟书脊
@@ -314,23 +325,105 @@ class Paginator {
         'body { column-rule: 1px solid rgba(0,0,0,.12); }';
     }
 
-    // A fixed book width together with max-height otherwise creates a wide,
-    // short image box. Bound the width by the same intrinsic aspect ratio;
-    // authored small widths remain intact and pictures are never enlarged.
-    for (const image of doc.querySelectorAll('img, svg')) {
-      const viewBox = image.viewBox && image.viewBox.baseVal;
-      const width = image.naturalWidth || (viewBox && viewBox.width);
-      const height = image.naturalHeight || (viewBox && viewBox.height);
-      if (!width || !height) continue;
-      const style = doc.defaultView.getComputedStyle(image);
-      const standalone = image.parentElement === doc.body || image.closest('.paginator-image-container');
-      const maxHeight = Math.max(1, imageHeight - (standalone ? 0 : (parseFloat(style.fontSize) || 16) * 2));
-      const maxWidth = Math.min(this.pageWidth - pagePad * 2, maxHeight * width / height);
-      image.style.setProperty('max-width', 'min(100%, ' + maxWidth + 'px)', 'important');
-    }
-
+    this.fitImages(this.pageWidth - pagePad * 2, Math.max(1, hostH - this.verticalPadding * 2));
     this.measure();
-    this.showPage(this.currentPage);
+    this.restorePosition(position);
+  }
+
+  /** 从原书尺寸重新计算，避免连续缩放累积；正文中的小图保留作者尺寸。 */
+  fitImages(pageWidth, pageHeight) {
+    const doc = this.doc;
+    const view = doc.defaultView;
+    for (const [element, properties] of this._imageStyles) {
+      for (const [name, value, priority] of properties) {
+        if (value) element.style.setProperty(name, value, priority);
+        else element.style.removeProperty(name);
+      }
+    }
+    this._imageStyles.clear();
+    this._illustrations.clear();
+    const override = (element, properties) => {
+      let saved = this._imageStyles.get(element);
+      if (!saved) this._imageStyles.set(element, saved = []);
+      for (const [name, value] of Object.entries(properties)) {
+        if (!saved.some(([key]) => key === name)) saved.push([name, element.style.getPropertyValue(name), element.style.getPropertyPriority(name)]);
+        element.style.setProperty(name, value, 'important');
+      }
+    };
+    // SVG text belongs to the illustration. Text outside images (including
+    // captions) prevents a container from being treated as an illustration.
+    const pure = new Map();
+    const classify = (node) => {
+      if (node.nodeType === 3) return !node.textContent.trim();
+      if (node.nodeType !== 1) return true;
+      if (/^(IMG|svg)$/i.test(node.tagName)) return true;
+      if (/^(SCRIPT|STYLE|BR)$/.test(node.tagName)) return true;
+      let result = true;
+      for (const child of node.childNodes) if (!classify(child)) result = false;
+      pure.set(node, result);
+      return result;
+    };
+    classify(doc.body);
+    const images = Array.from(doc.querySelectorAll('img, svg')).filter((image) => {
+      if (image.parentElement.closest('svg')) return false;
+      for (let element = image; element && element !== doc.body; element = element.parentElement) {
+        if (view.getComputedStyle(element).display === 'none') return false;
+      }
+      return true;
+    });
+    const containers = new Map();
+    for (const image of images) {
+      const parents = [];
+      for (let parent = image.parentElement; parent && parent !== doc.body && pure.get(parent); parent = parent.parentElement) parents.push(parent);
+      const top = parents[parents.length - 1];
+      const standalone = image.parentElement === doc.body || (top && !['inline', 'contents'].includes(view.getComputedStyle(top).display));
+      if (!standalone) continue;
+      this._illustrations.add(image);
+      for (const parent of parents) containers.set(parent, (containers.get(parent) || 0) + 1);
+    }
+    for (const [container, imageCount] of containers) override(container, {
+      display: 'block', height: 'auto', 'min-height': '0', 'max-height': 'none',
+      'text-indent': '0', 'line-height': '0', overflow: 'visible',
+      'break-inside': imageCount === 1 ? 'avoid' : 'auto',
+      'max-width': container.parentElement === doc.body ? pageWidth + 'px' : '100%', 'box-sizing': 'border-box',
+    });
+    const pixels = (style, names) => names.reduce((sum, name) => sum + (parseFloat(style[name]) || 0), 0);
+    for (const image of images) {
+      if (this._illustrations.has(image)) override(image, { display: 'block', 'break-inside': 'avoid' });
+      const style = view.getComputedStyle(image);
+      const svg = image.tagName.toLowerCase() === 'svg';
+      const viewBox = svg && image.viewBox && image.viewBox.baseVal;
+      const naturalW = svg ? ((viewBox && viewBox.width) || (image.hasAttribute('width') && image.width.baseVal.value) || parseFloat(style.width)) : image.naturalWidth;
+      const naturalH = svg ? ((viewBox && viewBox.height) || (image.hasAttribute('height') && image.height.baseVal.value) || parseFloat(style.height)) : image.naturalHeight;
+      if (!(naturalW > 0 && naturalH > 0)) continue;
+      // Without a viewBox, changing the SVG viewport clips its coordinates
+      // instead of scaling the drawing. Retain the original coordinate space.
+      if (svg && !image.hasAttribute('viewBox')) image.setAttribute('viewBox', `0 0 ${naturalW} ${naturalH}`);
+      const horizontal = pixels(style, ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']);
+      const vertical = pixels(style, ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth']);
+      let availableW = pageWidth - pixels(style, ['marginLeft', 'marginRight']);
+      // Direct children already use the page margins from paginator-base.
+      if (image.parentElement === doc.body) availableW = pageWidth;
+      let availableH = pageHeight - pixels(style, ['marginTop', 'marginBottom']);
+      for (let parent = image.parentElement; parent && parent !== doc.body; parent = parent.parentElement) {
+        const parentStyle = view.getComputedStyle(parent);
+        const parentPadding = pixels(parentStyle, ['paddingLeft', 'paddingRight']);
+        if (!['inline', 'contents'].includes(parentStyle.display) && parent.clientWidth) availableW = Math.min(availableW, parent.clientWidth - parentPadding);
+        availableH -= Math.max(0, pixels(parentStyle, ['marginTop', 'marginBottom', 'paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth']));
+      }
+      const authoredW = parseFloat(style.width) || naturalW;
+      const authoredH = parseFloat(style.height) || naturalH;
+      const scale = Math.max(0.0001, Math.min(
+        Math.max(1, authoredW - horizontal) / naturalW,
+        Math.max(1, authoredH - vertical) / naturalH,
+        Math.max(1, availableW - horizontal) / naturalW,
+        Math.max(1, availableH - vertical - 1) / naturalH,
+      ));
+      override(image, {
+        width: (naturalW * scale + horizontal) + 'px', height: (naturalH * scale + vertical) + 'px',
+        'min-width': '0', 'min-height': '0', 'max-height': 'none',
+      });
+    }
   }
 
   measure() {
@@ -339,16 +432,14 @@ class Paginator {
     const w = el.scrollWidth || 1;
     this.totalPages = Math.max(1, Math.ceil(w / this.colStep));
     if (this.onTotalChange) this.onTotalChange(this.totalPages);
-    if (this.onChange) this.onChange();
   }
 
   /** 显示第 page 页（0 起）。单页模式一次一页，双页模式一次两页（相邻列）。 */
   showPage(page) {
     if (!this.doc) return;
     this.currentPage = Math.max(0, Math.min(this.totalPages - 1, page));
-    const el = this.doc.documentElement;
     this._scrollTo(this.currentPage * this.colStep);
-    this.rememberImageLoadAnchor();
+    this._readingPosition = this.capturePosition();
     if (this.onChange) this.onChange();
   }
 
@@ -406,6 +497,42 @@ class Paginator {
     return null;
   }
 
+  /** 重排锚点既可指向文字，也可指向没有文字的插图页。 */
+  capturePosition() {
+    if (!this.doc) return null;
+    const text = this.anchor();
+    let textTop = Infinity;
+    if (text) {
+      const pos = this._nodeAtTextOffset(text.off);
+      if (pos.node) {
+        const range = this.doc.createRange();
+        range.setStart(pos.node, pos.offset);
+        range.setEnd(pos.node, Math.min(pos.offset + 1, pos.node.textContent.length));
+        textTop = range.getBoundingClientRect().top;
+      }
+    }
+    for (const image of this._illustrations) {
+      const rect = image.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.left < this.pageWidth &&
+          rect.bottom > 0 && rect.top < (this.host.clientHeight || 600) && rect.top <= textTop) {
+        return { image, page: this.currentPage };
+      }
+    }
+    return { text, page: this.currentPage };
+  }
+
+  restorePosition(position) {
+    let page = position && Number.isFinite(position.page) ? position.page : this.currentPage;
+    if (position && position.image && position.image.ownerDocument === this.doc && position.image.isConnected) {
+      this._scrollTo(0);
+      page = Math.floor(position.image.getBoundingClientRect().left / this.colStep);
+    } else if (position && position.text) {
+      const located = this.locate(position.text.off);
+      if (located >= 0) page = located;
+    }
+    this.showPage(page);
+  }
+
 
 
   /** 文本节点（含节点内偏移）→ 正文 textContent 全局偏移。 */
@@ -440,7 +567,8 @@ class Paginator {
   _snippetAt(off) {
     const pos = this._nodeAtTextOffset(off);
     if (!pos.node) return "";
-    return String(pos.node.textContent || "").slice(pos.offset, pos.offset + 24).replace(/\s+/g, " ").trim();
+    const text = window.GaiaChineseDisplay ? window.GaiaChineseDisplay.sourceText(pos.node) : pos.node.textContent || '';
+    return String(text).slice(pos.offset, pos.offset + 24).replace(/\s+/g, " ").trim();
   }
 
   /** 定位到包含全局文本偏移 off 的列（页），返回页索引；失败返回 -1。 */
@@ -501,19 +629,22 @@ class Paginator {
     return Array.prototype.indexOf.call(this.doc.body.querySelectorAll("p"), el);
   }
 
-  reflow() {
-    this.applyLayout();
+  reflow(position = this._readingPosition) {
+    this.applyLayout(position);
   }
 
   cancelPendingRender() {
     this._renderVersion += 1;
+    // The committed chapter remains readable while a new one loads. Its
+    // listeners survive a cancelled/failed turn and end at the actual swap.
+    if (this._pendingLoadCleanup) this._pendingLoadCleanup();
     if (this._pendingFrame) this._pendingFrame.remove();
     this._pendingFrame = null;
   }
 
   destroy() {
     this.cancelPendingRender();
-    if (this._imageWaitCleanup) this._imageWaitCleanup();
+    this.clearImageListeners();
     window.removeEventListener('resize', this._boundResize);
     if (this.frame) {
       try {
@@ -524,6 +655,9 @@ class Paginator {
     }
     this.frame = null;
     this.doc = null;
+    this._imageStyles.clear();
+    this._illustrations.clear();
+    this._readingPosition = null;
   }
 }
 

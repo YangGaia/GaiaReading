@@ -3,11 +3,18 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
-  openFiles: () => ipcRenderer.invoke('dialog:openFiles'),
-  openFolder: () => ipcRenderer.invoke('dialog:openFolder'),
+  beginBookImport: (requestId) => ipcRenderer.invoke('book:import:begin', requestId),
+  endBookImport: (requestId) => ipcRenderer.invoke('book:import:end', requestId),
+  cancelBookImport: (requestId) => ipcRenderer.invoke('book:import:cancel', requestId),
+  openFiles: (requestId) => ipcRenderer.invoke('dialog:openFiles', requestId),
+  openFolder: (requestId) => ipcRenderer.invoke('dialog:openFolder', requestId),
+  onBookImportProgress: (callback) => {
+    const listener = (event, progress) => callback(progress);
+    ipcRenderer.on('book:import:progress', listener);
+    return () => ipcRenderer.removeListener('book:import:progress', listener);
+  },
   readBook: (filePath) => ipcRenderer.invoke('book:read', filePath),
-  metadata: (filePath) => ipcRenderer.invoke('book:metadata', filePath),
-  cancelBookImport: () => ipcRenderer.invoke('book:metadata:cancel'),
+  metadata: (filePath, requestId) => ipcRenderer.invoke('book:metadata', filePath, requestId),
   mobiOpen: (filePath) => ipcRenderer.invoke('mobi:open', filePath),
   mobiChapter: (sessionId, index) => ipcRenderer.invoke('mobi:chapter', { sessionId, index }),
   mobiResolveHref: (sessionId, href) => ipcRenderer.invoke('mobi:resolve-href', { sessionId, href }),
@@ -29,6 +36,7 @@ contextBridge.exposeInMainWorld('api', {
   searchWeb: (query, options) => ipcRenderer.invoke('selection:search', { query, ...(options || {}) }),
   exists: (filePath) => ipcRenderer.invoke('file:exists', filePath),
   displayFrequency: () => ipcRenderer.invoke('display:frequency'),
+  softwareRendering: () => ipcRenderer.invoke('graphics:software-rendering'),
   onDisplayFrequencyChanged: (callback) => {
     const listener = (event, frequency) => callback(frequency);
     ipcRenderer.on('display:frequency-changed', listener);

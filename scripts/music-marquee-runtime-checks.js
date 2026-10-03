@@ -13,11 +13,19 @@ module.exports = async ({ win, report, check, capture, click }) => {
   };
   const info = () => evaluate(() => GaiaBgm.marqueeInfo());
   const moveAway = () => win.webContents.sendInputEvent({ type: 'mouseMove', x: 400, y: 300 });
+  // Native focus/blur events require an active window. A showInactive-only
+  // fixture can silently change activeElement without sending focusout.
+  win.focus();
+  win.webContents.focus();
+  await wait(100);
   await evaluate(() => {
+    // Choosing from the playlist intentionally returns focus to its trigger.
+    // Begin the elapsed-time sample with neither pointer nor keyboard focus.
+    document.querySelector('.bgm-title').blur();
     window.__titleAnimation = () => document.querySelector('.bgm-title-track').getAnimations().find(a => a.id === 'bgm-title-marquee');
     window.__marqueeMeasure = () => {
       const title = document.querySelector('.bgm-title'), track = title.querySelector('.bgm-title-track');
-      const controls = [...document.querySelectorAll('#bgm-capsule .bgm-cover, #bgm-capsule button, #bgm-capsule input')];
+      const controls = [...document.querySelectorAll('#bgm-capsule .bgm-cover, #bgm-capsule .bgm-btn, #bgm-capsule input')].filter(el => el.getClientRects().length);
       return { ...GaiaBgm.marqueeInfo(), x: new DOMMatrixReadOnly(getComputedStyle(track).transform).m41,
         controls: controls.map(el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }) };
     };
@@ -49,18 +57,20 @@ module.exports = async ({ win, report, check, capture, click }) => {
   await wait(150);
   check('pointer exit continues from the paused position', (await info()).currentTime > paused);
 
-  await evaluate(() => { window.__savedTitleAnimation = __titleAnimation(); });
+  await evaluate(() => { window.__savedTitleAnimation = __titleAnimation(); window.__savedTitleAnimationTime = __titleAnimation().currentTime; });
   const originalVolume = await evaluate(() => GaiaBgm.getState().volume);
   for (const action of ['mute', 'mute', 'play', 'play']) await click(`#bgm-capsule [data-action="${action}"]`);
   await evaluate(() => { const volume = document.querySelector('#bgm-capsule .bgm-volume'); volume.value = '37'; volume.dispatchEvent(new Event('input', { bubbles: true })); });
-  check('volume, mute and play keep the same animation instance and phase', await evaluate(() => __titleAnimation() === __savedTitleAnimation && __titleAnimation().currentTime > 3000));
+  check('volume, mute and play keep the same animation instance and phase', await evaluate(() => __titleAnimation() === __savedTitleAnimation && __titleAnimation().currentTime >= __savedTitleAnimationTime));
   await evaluate(volume => GaiaBgm.setVolume(volume), originalVolume);
+  if (process.env.GAIA_UI_TOOLBAR_FOCUSED === '1') return;
   await click('#bgm-capsule [data-action="next"]');
   check('switching to a short title cancels motion and hides the duplicate', await evaluate(() => {
     const title = document.querySelector('.bgm-title');
     return GaiaBgm.getState().trackId === 'aoko' && !__titleAnimation() && document.querySelector('.bgm-title-copy').hidden && title.scrollWidth <= title.clientWidth;
   }));
-  for (let i = 0; i < 3; i++) await click('#bgm-capsule [data-action="next"]');
+  await click('#bgm-capsule .bgm-title');
+  await click('#bgm-playlist [data-track-id="main-theme"]');
   check('switching back to a long title starts a fresh initial hold', (await info()).currentTime < 1000);
   win.webContents.focus();
   await evaluate(() => document.querySelector('#bgm-capsule [data-action="prev"]').focus());

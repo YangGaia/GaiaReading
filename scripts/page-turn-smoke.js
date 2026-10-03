@@ -4,19 +4,19 @@
 // Uses isolated preferences and generated books; optional local MOBI/AZW3 files are read only.
 const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs');
-const os = require('node:os');
+const { STATE_FILE_NAME } = require('../src/shared/app-paths');
+const { makeSmokeDirectory, configureSmokePaths, resolveFPath } = require('./smoke-paths');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const JSZip = require('jszip');
 const project = path.join(__dirname, '..');
-const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'gaia-page-turn-'));
-const output = path.resolve(process.env.GAIA_PAGE_TURN_OUTPUT || path.join(project, 'dist/page-turn-smoke'));
+const sandbox = makeSmokeDirectory('gaia-page-turn-');
+const output = resolveFPath(process.env.GAIA_PAGE_TURN_OUTPUT || path.join(sandbox, 'screenshots'));
 fs.mkdirSync(output, { recursive: true });
-app.setPath('userData', sandbox);
-app.setPath('sessionData', path.join(sandbox, 'session'));
+configureSmokePaths(app, { userData: sandbox });
 app.setAppPath(project);
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
-fs.writeFileSync(path.join(sandbox, 'gaia-reading.json'), JSON.stringify({ library: [], prefs: { theme: 'light' }, pet: { auto: false, autoSpeech: false, autoSleep: false } }));
+fs.writeFileSync(path.join(sandbox, STATE_FILE_NAME), JSON.stringify({ library: [], prefs: { theme: 'light' }, pet: { auto: false, autoSpeech: false, autoSleep: false } }));
 BrowserWindow.prototype.show = function () { this.showInactive(); };
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const report = { checks: [], recordings: [], keyboard: [], holdCancellation: [], consoleErrors: [], skipped: [], output, sandbox };

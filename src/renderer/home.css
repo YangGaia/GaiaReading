@@ -70,7 +70,19 @@
   padding-inline: calc(58.4 * var(--home-unit));
 }
 #home-view .home-copy { width: 100%; max-width: calc(336 * var(--home-unit)); min-width: 0; }
-#home-view h1 { margin: 0; font-family: "Gaia Wordmark", "Gaia Home Noto", sans-serif; font-size: calc(46 * var(--home-unit)); font-weight: 500; line-height: 1.06; letter-spacing: -.018em; font-kerning: normal; color: #edf0f6; }
+#home-view h1 { margin: 0; font-family: "Gaia Wordmark", "Gaia Home Noto", sans-serif; font-size: calc(38 * var(--home-unit)); white-space: nowrap; font-weight: 500; line-height: 1.06; letter-spacing: -.018em; font-kerning: normal; color: #edf0f6; }
+#home-view #home-title { position: relative; width: fit-content; max-width: 100%; }
+#home-view #home-title::after {
+  content: "";
+  position: absolute;
+  right: calc(-15 * var(--home-unit));
+  top: calc(-20 * var(--home-unit));
+  width: calc(22 * var(--home-unit));
+  height: calc(29 * var(--home-unit));
+  background: url("images/library/robin.png") center / contain no-repeat;
+  filter: drop-shadow(0 calc(2 * var(--home-unit)) calc(3 * var(--home-unit)) #00000030);
+  pointer-events: none;
+}
 #home-view .copy-rule { position: relative; height: calc(1 * var(--home-unit)); margin-block: calc(26 * var(--home-unit)) calc(32 * var(--home-unit)); background: var(--line); }
 #home-view .copy-rule span { position: absolute; inset: 0 auto auto 0; width: calc(40 * var(--home-unit)); height: calc(2 * var(--home-unit)); background: #9aabc4; transition: width .32s cubic-bezier(.2,.7,.2,1), background .25s ease; }
 #home-view .home-copy:has(.primary-action:hover) .copy-rule span,
@@ -124,11 +136,10 @@
 #home-view .secondary-action:hover .action-icon, #home-view .secondary-action:focus-visible .action-icon { color: #d2e1f7; transform: translateY(calc(-1 * var(--home-unit))); }
 #home-view .secondary-action:active { transform: translateY(calc(1 * var(--home-unit))); background: #1b2432; box-shadow: inset 0 calc(2 * var(--home-unit)) calc(4 * var(--home-unit)) #00000033; }
 #home-view .add-frame { opacity: .55; transition: opacity .24s ease; }
-#home-view #btn-home-add-books:hover .add-frame, #home-view #btn-home-add-books:focus-visible .add-frame { opacity: 1; }
+#home-view #btn-home-reading-stats:hover .add-frame, #home-view #btn-home-reading-stats:focus-visible .add-frame { opacity: 1; }
 #home-view .ai-star { transform-origin: center; transition: transform .32s cubic-bezier(.2,.7,.2,1); }
 #home-view #btn-home-ai:hover .ai-star, #home-view #btn-home-ai:focus-visible .ai-star { transform: rotate(15deg); }
 #home-view .study-divider { position: relative; height: 76%; min-height: calc(200 * var(--home-unit)); background: var(--line); }
-#home-view .study-divider span { position: absolute; inset: auto 0 0; height: calc(32 * var(--home-unit)); background: #8192ab; }
 #home-view .portrait { display: grid; place-items: center; min-width: 0; margin: 0; pointer-events: none; }
 #home-view .portrait-mount { position: relative; width: 100%; aspect-ratio: 1; }
 #home-view .portrait-lines { position: absolute; inset: 0; width: 100%; height: 100%; stroke: #758598; stroke-width: var(--home-unit); }

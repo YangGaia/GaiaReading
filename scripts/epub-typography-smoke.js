@@ -3,19 +3,19 @@
 // Real app + real EPUB renderer, with isolated books/preferences and no AI calls.
 const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs');
-const os = require('node:os');
+const { STATE_FILE_NAME } = require('../src/shared/app-paths');
+const { makeSmokeDirectory, configureSmokePaths, resolveFPath } = require('./smoke-paths');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const makeFixture = require('../tests/fixtures/epub-font-fixture');
 const project = path.join(__dirname, '..');
-const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'gaia-epub-font-'));
-const output = path.resolve(process.env.GAIA_EPUB_FONT_OUTPUT || path.join(project, 'dist/epub-font-smoke'));
+const sandbox = makeSmokeDirectory('gaia-epub-font-');
+const output = resolveFPath(process.env.GAIA_EPUB_FONT_OUTPUT || path.join(sandbox, 'screenshots'));
 fs.mkdirSync(output, { recursive: true });
-app.setPath('userData', sandbox);
-app.setPath('sessionData', path.join(sandbox, 'session'));
+configureSmokePaths(app, { userData: sandbox });
 app.setAppPath(project);
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
-fs.writeFileSync(path.join(sandbox, 'gaia-reading.json'), JSON.stringify({ library: [], prefs: { fontSize: 100, theme: 'light' }, pet: { auto: false, autoSpeech: false, autoSleep: false } }));
+fs.writeFileSync(path.join(sandbox, STATE_FILE_NAME), JSON.stringify({ library: [], prefs: { fontSize: 100, theme: 'light' }, pet: { auto: false, autoSpeech: false, autoSleep: false } }));
 BrowserWindow.prototype.show = function () { this.showInactive(); };
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const report = { checks: [], measurements: [], screenshots: [], errors: [], sandbox, output };

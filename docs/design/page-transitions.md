@@ -16,9 +16,12 @@
 
 ## 验证
 
+在项目目录执行：
+
 ```powershell
+. ./scripts/dev-env.ps1
 npm test
-$env:GAIA_PAGE_TURN_OUTPUT = 'D:\Codex_project\Gaia_Reading\dist\page-hold-motion'
+$env:GAIA_PAGE_TURN_OUTPUT = (Join-Path $env:TEMP 'page-hold-motion')
 & node_modules/.bin/electron.cmd scripts/page-turn-smoke.js
 ```
 

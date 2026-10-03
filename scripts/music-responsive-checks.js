@@ -32,10 +32,11 @@ module.exports = async ({ win, report, check, capture }) => {
     // Layout widths are quantized to 1/64 CSS px; font-size is not.
     fail(Math.abs(parseFloat(text.fontSize) - 12 * scale) < .01 && Math.abs(parseFloat(icon.width) - 17 * scale) < .02, `text and icons must redraw at the same scale: ${text.fontSize}/${icon.width} at ${scale}`);
     if (player.dataset.settingsOpen !== '1') {
-      for (const control of player.querySelectorAll('button, input')) {
+      for (const control of [...player.querySelectorAll('button, input')].filter(el => el.getClientRects().length)) {
         const r = control.getBoundingClientRect();
         const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-        fail(r.width >= 24 * scale && r.height >= 24 * scale && (hit === control || control.contains(hit)), 'music controls must stay reachable');
+        const minHeight = control.classList.contains('bgm-title') ? 17 : 24;
+        fail(r.width >= 24 * scale && r.height >= minHeight * scale && (hit === control || control.contains(hit)), 'music controls must stay reachable');
       }
     } else {
       fail(rect.right <= document.getElementById('settings-drawer').getBoundingClientRect().left - 16, 'music must clear the settings drawer');

@@ -1,0 +1,107 @@
+/* Tool windows share the application palette regardless of the book's paper theme. */
+:is(#book-import-overlay, #note-editor-overlay, #selection-toolbar, #context-menu,
+    #toc-panel, #bookmarks-panel, #annotations-panel, #book-search-panel, #ai-summary-panel) {
+  --bg: #191d24;
+  --surface: #232932;
+  --border: #343c48;
+  --border-strong: #485364;
+  --text: #eceff4;
+  --text-soft: #a9b3c2;
+  --accent: #bdcfee;
+  --accent-soft: #303e54;
+  --danger: #ffafa9;
+  --danger-soft: #382b31;
+  --overlay: rgba(5, 8, 13, .5);
+  --shadow: rgba(0, 0, 0, .3);
+  color: var(--text);
+  color-scheme: dark;
+  font-family: "Gaia Home Noto", "Noto Sans SC", sans-serif;
+}
+:is(#book-import-overlay, #note-editor-overlay) :is(.book-import-dialog, .note-editor-dialog) {
+  border-radius: 12px;
+  background: linear-gradient(150deg, #272f3a, #1e242d);
+}
+#book-import-overlay .book-import-option { border-radius: 8px; background: #1b212a; }
+#book-import-overlay .book-import-option:hover { background: #2c3645; transform: none; }
+#book-import-overlay .book-import-icon { display: grid; place-items: center; color: #c3cee0; }
+#book-import-overlay .book-import-icon svg { width: 32px; height: 32px; stroke: currentColor; stroke-width: 1.2; stroke-linejoin: round; }
+/* Reader sidebars share their width, heading, count row and empty guidance. */
+:is(#bookmarks-panel, #annotations-panel, #book-search-panel) { flex-basis: 340px; width: 340px; padding: 14px; background: #232932; }
+:is(#bookmarks-panel, #annotations-panel) { min-height: 0; overflow: hidden; }
+:is(#bookmarks-panel, #annotations-panel):not([hidden]) { display: flex; flex-direction: column; }
+:is(#bookmarks-panel, #annotations-panel) > .collection-tabs { flex-shrink: 0; }
+:is(#bookmarks-panel, #annotations-panel) > .collection-list { min-width: 0; min-height: 0; flex: 1; overflow-y: auto; }
+:is(#bookmarks-panel, #annotations-panel, #book-search-panel) .collection-head { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 12px; min-height: 32px; margin: 0 0 12px; padding: 0; font-size: 15px; line-height: 1.4; }
+:is(#bookmarks-panel, #annotations-panel, #book-search-panel) .collection-head strong { font-weight: 600; }
+:is(#bookmarks-panel, #annotations-panel) .collection-tabs { display: flex; gap: 4px; padding: 4px; margin: 0 0 14px; border: 1px solid #343c48; border-radius: 8px; background: #191d24; }
+:is(#bookmarks-panel, #annotations-panel) .collection-tabs button { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: 5px; color: #a9b3c2; background: transparent; font-size: 13px; font-weight: 500; line-height: 1.2; cursor: pointer; }
+:is(#bookmarks-panel, #annotations-panel) .collection-tabs button:hover { color: #eceff4; background: #29323f; }
+:is(#bookmarks-panel, #annotations-panel) .collection-tabs button[aria-selected="true"] { color: #edf1f7; border-color: #465369; background: #354155; }
+:is(#bookmarks-panel, #annotations-panel, #book-search-panel) .collection-summary { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; min-height: 35px; gap: 8px; margin: 0 1px; padding-bottom: 14px; color: #a9b3c2; font-size: 12px; line-height: 1.7; }
+:is(#bookmarks-panel, #annotations-panel, #book-search-panel) .collection-summary strong { font-size: inherit; font-weight: 500; }
+#book-search-panel .book-search-box { flex-shrink: 0; min-height: 42px; margin: 0 0 14px; padding: 3px 0; }
+#book-search-panel .book-search-status { min-height: 0; padding: 0 1px 12px; }
+#book-search-panel .book-search-status[hidden] { display: none; }
+#book-search-panel .book-search-results { padding: 0; }
+
+:is(#bookmarks-panel .bookmark-row, #annotations-panel .annotation-card) {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 12px;
+  border: 1px solid #3a4452;
+  border-left: 3px solid var(--annotation-color, #8192aa);
+  border-radius: 8px;
+  background: #1c222b;
+}
+#bookmarks-panel .bookmark-row { grid-template-columns: minmax(0, 1fr) repeat(2, 64px); align-items: start; }
+#bookmarks-panel .bookmark-main { grid-column: 1 / -1; gap: 8px; }
+#bookmarks-panel .bookmark-edit { grid-column: 2; }
+#bookmarks-panel .bookmark-delete { grid-column: 3; }
+:is(#bookmarks-panel .bookmark-title, #annotations-panel .annotation-quote) { display: -webkit-box; min-width: 0; margin: 0; overflow: hidden; color: #eceff4; font-size: 13px; font-weight: 500; line-height: 1.65; white-space: normal; overflow-wrap: anywhere; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+:is(#bookmarks-panel .bookmark-title, #annotations-panel .annotation-quote):hover { color: #cbdaf2; }
+:is(#bookmarks-panel .bookmark-meta, #annotations-panel .annotation-meta) { min-width: 0; margin: 0; color: #a9b3c2; font-size: 11px; font-weight: 400; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; }
+#annotations-panel .annotation-meta { grid-row: 2; flex-wrap: wrap; gap: 3px 8px; }
+#annotations-panel .annotation-meta > span:first-child { min-width: 0; flex: 1 1 100px; }
+#annotations-panel .annotation-meta > span:last-child { flex: 0 0 auto; }
+#annotations-panel .annotation-note { display: block; grid-row: 3; min-height: 72px; padding: 8px 9px; border-color: #3a4452; border-radius: 6px; background: #252d38; color: #eceff4; font-size: 12px; line-height: 1.65; }
+#annotations-panel .annotation-note::placeholder { color: #8f9bad; }
+#bookmarks-panel .bookmark-name-input { width: 100%; min-height: 30px; padding: 4px 7px; border-radius: 5px; border-color: #8499b7; background: #252d38; color: #eceff4; font: inherit; font-size: 13px; line-height: 1.5; }
+:is(#bookmarks-panel .bookmark-name-input, #annotations-panel .annotation-note):focus-visible { outline: 2px solid #bdcfee; outline-offset: 2px; }
+#annotations-panel .annotation-actions { display: grid; grid-template-columns: minmax(0, 1fr) repeat(2, 64px); align-items: center; gap: 8px; margin-top: 0; }
+#annotations-panel .annotation-colors { min-width: 0; flex-wrap: wrap; gap: 5px; }
+#annotations-panel .annotation-colors .highlight-dot { flex: 0 0 22px; width: 22px; height: 22px; min-width: 22px; min-height: 22px; padding: 0; }
+
+:is(#bookmarks-panel, #annotations-panel) .btn { display: inline-flex; align-items: center; justify-content: center; min-width: 0; height: 32px; padding: 0 10px; border: 1px solid #495668; border-radius: 6px; background: #2b3542; color: #dce4ef; box-shadow: none; font-size: 12px; font-weight: 500; line-height: 1.2; }
+:is(#bookmarks-panel, #annotations-panel) .btn:hover { border-color: #6a7b93; background: #354255; color: #f0f3f8; }
+:is(#bookmarks-panel, #annotations-panel) :is(.bookmark-delete, .btn.danger) { border-color: #71505a; background: #30272e; color: #efb2b1; }
+:is(#bookmarks-panel, #annotations-panel) :is(.bookmark-delete, .btn.danger):hover { border-color: #a46e78; background: #43313a; color: #ffd4d0; }
+:is(#bookmarks-panel, #annotations-panel) .btn:active:not(:disabled):not(.tool-close) { background: #1b222d; }
+:is(#bookmarks-panel, #annotations-panel) .btn:disabled { opacity: .45; cursor: default; }
+/* Auxiliary tool windows share a quiet close control. AI and music keep their existing header actions. */
+:is(#bookmarks-panel, #annotations-panel, #book-search-panel, #settings-drawer, #book-import-overlay, .gaia-pet-console) button.tool-close { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 32px; width: 32px; min-width: 32px; height: 32px; min-height: 32px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #a9b3c2; box-shadow: none; line-height: 1; cursor: pointer; transition: background .15s ease, border-color .15s ease, color .15s ease; }
+:is(#bookmarks-panel, #annotations-panel, #book-search-panel, #settings-drawer, #book-import-overlay, .gaia-pet-console) button.tool-close:hover { border-color: #485364; background: #2b3542; color: #eceff4; }
+:is(#bookmarks-panel, #annotations-panel, #book-search-panel, #settings-drawer, #book-import-overlay, .gaia-pet-console) button.tool-close:active { background: #191d24; }
+:is(#bookmarks-panel, #annotations-panel, #book-search-panel, #settings-drawer, #book-import-overlay, .gaia-pet-console) button.tool-close:focus-visible { outline: 2px solid #bdcfee; outline-offset: 2px; }
+:is(#bookmarks-panel, #annotations-panel, #book-search-panel, #settings-drawer, #book-import-overlay, .gaia-pet-console) button.tool-close svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; }
+:is(#bookmarks-panel, #annotations-panel, #book-search-panel) :is(.annotation-empty, .book-search-empty) { margin: 30px 8px; color: #a9b3c2; font-size: 12px; line-height: 1.8; }
+#ai-summary-panel .ai-panel-profile-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+#ai-summary-panel .ai-panel-profile-row > span:first-child { white-space: nowrap; }
+#ai-summary-panel .reader-ai-model { min-width: 0; overflow: hidden; color: #e2e9f4; text-overflow: ellipsis; white-space: nowrap; }
+#ai-summary-panel #btn-ai-chat-center { height: 28px; padding: 0 7px; font-size: 11px; white-space: nowrap; }
+#ai-summary-panel .ai-chat-message.user { background: #36445a; color: #f0f3f8; }
+#ai-summary-panel .ai-panel-head-actions .btn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 32px; padding: 0; font-size: 12px; }
+#ai-summary-panel .ai-chat-input-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; padding-bottom: 0; }
+#ai-summary-panel .ai-chat-input-shortcuts button { min-width: 0; height: 30px; padding: 0 6px; border-radius: 7px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+#ai-summary-panel .ai-chat-input-shortcuts button:hover { color: #191d24; }
+#ai-summary-panel .ai-summary-target:empty { display: none; }
+:is(#ai-summary-panel, #note-editor-overlay, #bookmarks-panel, #annotations-panel) .btn.primary { color: #1c2635; background: #bdcfee; border-color: #bdcfee; }
+:is(#selection-toolbar, #bookmarks-panel, #annotations-panel, #book-search-panel) button:focus-visible { outline: 2px solid #bdcfee; outline-offset: 2px; }
+#selection-toolbar { flex-wrap: wrap; gap: 6px; overflow: visible; }
+#selection-toolbar [data-selection-action] { display: inline-flex; align-items: center; justify-content: center; width: 76px; height: 34px; padding: 0 6px; font: 500 12px/1.2 "Gaia Home Noto", "Noto Sans SC", sans-serif; }
+#selection-toolbar [data-selection-action][hidden] { display: none; }
+:is(#selection-toolbar [data-selection-action], #ai-summary-panel .ai-panel-head-actions .btn, #ai-summary-panel .ai-chat-input-shortcuts button, .collection-tabs button) { transition: background .15s ease, border-color .15s ease; }
+:is(#selection-toolbar [data-selection-action], #ai-summary-panel .ai-panel-head-actions .btn, #ai-summary-panel .ai-chat-input-shortcuts button, .collection-tabs button):active:not(:disabled) { background: #131820; color: #edf1f7; }
+@media (max-width: 760px) {
+  :is(#bookmarks-panel, #annotations-panel, #book-search-panel) { position: absolute; z-index: 45; inset: 0 auto 0 0; width: min(340px, calc(100% - 36px)); }
+}

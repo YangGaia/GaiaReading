@@ -2,66 +2,81 @@
 
 const fs = require('fs');
 const path = require('path');
-const { parseEpub } = require('./epub-meta');
+const JSZip = require('jszip');
+const { inspectEpub, parseEpub, assertRepairBudget } = require('./epub-meta');
 const { repairEpubBuffer } = require('./epub-repair');
-const { openMobi, cleanupMobi } = require('./mobi');
-const { titleFromFilename } = require('./txt-utils');
+const { readMobiMetadata } = require('./mobi');
 
-const SUPPORTED_EXT = new Set(['.epub', '.pdf', '.txt', '.mobi', '.azw3']);
+const MAX_COMPRESSED_BOOK_BYTES = 512 * 1024 * 1024;
+const MAX_REPAIR_SOURCE_BYTES = 128 * 1024 * 1024;
+const FORMATS = new Set(['epub', 'mobi', 'azw3', 'txt', 'pdf']);
 
-async function readBookMetadata(filePath, directory, phase = () => {}) {
-  const extension = path.extname(filePath).toLowerCase();
-  if (!SUPPORTED_EXT.has(extension)) throw new Error('不支持的文件格式');
-  const stat = await fs.promises.stat(filePath);
-  if (!stat.isFile()) throw new Error('请选择电子书文件');
-  const fallback = { path: filePath, format: extension.slice(1), title: titleFromFilename(path.basename(filePath)), author: '', cover: null };
-  if (extension === '.txt' || extension === '.pdf') return fallback;
-  // Metadata extraction must not allocate arbitrarily large compressed books in memory.
-  if (stat.size > 512 * 1024 * 1024) return { ...fallback, metadataWarning: '书籍较大，已使用文件名导入，打开时再读取正文' };
-  phase('读取图书信息');
-  if (extension === '.epub') {
-    const buffer = await fs.promises.readFile(filePath);
-    let meta;
-    let recovered = null;
-    try { meta = await parseEpub(buffer); }
-    catch (error) {
-      if (error.code === 'EPUB_METADATA_LIMIT') throw error;
-      phase('恢复 EPUB');
-      recovered = await repairEpubBuffer(buffer);
-      meta = await parseEpub(recovered.buffer);
+async function epubMetadata(filePath, size) {
+  let inspected;
+  let source;
+  try {
+    inspected = await inspectEpub(filePath);
+    // 小文件保留原有坏章节恢复能力。封面省略后无需为它展开或重写全书。
+    if (size <= MAX_REPAIR_SOURCE_BYTES && !inspected.coverOmitted) {
+      source = await fs.promises.readFile(filePath);
+      await JSZip.loadAsync(source);
     }
+    return { meta: inspected.meta, recovered: false, recoveredEntries: [] };
+  } catch (error) {
+    if (size > MAX_REPAIR_SOURCE_BYTES || error.code === 'EPUB_METADATA_LIMIT') throw error;
+    source = source || await fs.promises.readFile(filePath);
+    await assertRepairBudget(source);
+    const repaired = await repairEpubBuffer(source);
     return {
-      ...fallback, title: meta.title || fallback.title, author: meta.author || '',
-      cover: meta.cover ? `data:${meta.cover.mime};base64,${meta.cover.base64}` : null,
-      recovered: !!recovered, recoveredEntries: recovered ? recovered.failures.map((item) => item.fileName) : [],
+      meta: await parseEpub(repaired.buffer),
+      recovered: true,
+      recoveredEntries: repaired.failures.map((entry) => entry.fileName),
     };
   }
-  let opened;
-  try {
-    opened = await openMobi(filePath, directory, { metadataOnly: true });
-    const cover = opened.cover;
-    return { ...fallback, title: opened.title || fallback.title, author: opened.author || '', cover: cover && cover.length <= 6 * 1024 * 1024 ? cover : null };
-  } finally {
-    cleanupMobi(opened);
-  }
 }
 
-async function scanBookFolder(directory, depth = 8) {
-  const files = [];
-  async function visit(dir, remaining) {
-    if (remaining <= 0) return;
-    let entries;
-    try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); }
-    catch (error) { if (dir === directory) throw error; return; }
-    for (const entry of entries) {
-      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) await visit(full, remaining - 1);
-      else if (entry.isFile() && SUPPORTED_EXT.has(path.extname(entry.name).toLowerCase())) files.push(full);
+// 此模块不依赖 Electron，供独立解析进程调用。当前解析均在内存或文件句柄中完成，
+// temporaryRoot 参数保留给调用方约定；不生成 MOBI 图片目录或其他临时文件。
+async function metaFor(filePath, { temporaryRoot } = {}) {
+  if (typeof filePath !== 'string' || !filePath) throw new Error('图书路径无效');
+  const extension = path.extname(filePath).toLowerCase();
+  const format = extension.slice(1);
+  if (!FORMATS.has(format)) throw new Error('不支持的图书格式：' + extension);
+  const stat = await fs.promises.stat(filePath);
+  if (!stat.isFile()) throw new Error('图书路径不是文件');
+  const result = {
+    path: filePath,
+    format,
+    title: path.basename(filePath, path.extname(filePath)),
+    author: '',
+    cover: null,
+    recovered: false,
+    recoveredEntries: [],
+  };
+  if (format === 'txt' || format === 'pdf' || stat.size > MAX_COMPRESSED_BOOK_BYTES) return result;
+  if (format === 'epub') {
+    try {
+      const parsed = await epubMetadata(filePath, stat.size);
+      result.title = parsed.meta.title || result.title;
+      result.author = parsed.meta.author || '';
+      result.cover = parsed.meta.cover ? `data:${parsed.meta.cover.mime};base64,${parsed.meta.cover.base64}` : null;
+      result.recovered = parsed.recovered;
+      result.recoveredEntries = parsed.recoveredEntries;
+    } catch (error) {
+      throw new Error('EPUB 文件损坏或超过安全解析上限：' + (error.message || '未知错误'));
+    }
+  } else {
+    try {
+      const meta = await readMobiMetadata(filePath);
+      result.title = meta.title || result.title;
+      result.author = meta.author || '';
+      result.cover = meta.cover || null;
+    } catch (error) {
+      // MOBI/AZW3 沿用文件名回退；进程级超时及退出由批量导入调度器计为失败。
+      if (['ENOENT', 'EACCES', 'EPERM'].includes(error.code)) throw error;
     }
   }
-  await visit(directory, depth);
-  return files;
+  return result;
 }
 
-module.exports = { readBookMetadata, scanBookFolder };
+module.exports = { metaFor, MAX_COMPRESSED_BOOK_BYTES, MAX_REPAIR_SOURCE_BYTES };

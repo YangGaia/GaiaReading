@@ -17,7 +17,7 @@ function replacementFor(fileName) {
     return Buffer.from(
       '<?xml version="1.0" encoding="utf-8"?>' +
       '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>页面已恢复</title></head>' +
-      '<body><p>这一页在源 EPUB 中已经损坏，Gaia Reading 已跳过损坏内容，使其余章节可以继续阅读。</p></body></html>',
+      '<body><p>这一页在源 EPUB 中已经损坏，GaiaReading_Lucky 已跳过损坏内容，使其余章节可以继续阅读。</p></body></html>',
       'utf8'
     );
   }

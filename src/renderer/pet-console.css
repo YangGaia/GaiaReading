@@ -1,0 +1,91 @@
+/* Pet controls use the application's graphite and silver palette on every reading theme. */
+.gaia-pet-console {
+  color-scheme: dark;
+  --text: #eceff4;
+  --text-soft: #adb5c3;
+  --surface: #20262e;
+  --bg: #171c23;
+  --border: #353d49;
+  --border-strong: #4a5565;
+  --accent: #d6deeb;
+  --accent-soft: #303946;
+  max-width: calc(100vw - 16px);
+  background: #20262e;
+  border-radius: 12px;
+  box-shadow: 0 16px 42px rgb(0 0 0 / 35%);
+}
+
+.gaia-pet-console-top { background: #20262e; }
+.gaia-pet-console-header { gap: 8px; }
+.gaia-pet-console-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+}
+.gaia-pet-console-close svg { width: 16px; height: 16px; }
+.gaia-pet-console-grid { gap: 6px; align-items: stretch; }
+.gaia-pet-console-button,
+.gaia-pet-console-lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 32px;
+  padding: 0 4px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.gaia-pet-console-toggle,
+.gaia-pet-console-select-row {
+  min-height: 34px;
+  gap: 8px;
+}
+.gaia-pet-console-toggle input {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+.gaia-pet-console-select-row select {
+  box-sizing: border-box;
+  flex: 0 0 104px;
+  width: 104px;
+  height: 28px;
+  padding: 0 6px;
+}
+.gaia-pet-console-history-title { gap: 8px; }
+.gaia-pet-console-history-clear { min-height: 28px; padding: 0 6px; border-radius: 6px; }
+.gaia-pet-console button:focus-visible,
+.gaia-pet-console select:focus-visible,
+.gaia-pet-console input:focus-visible {
+  outline: 2px solid #b6c8f0;
+  outline-offset: 2px;
+}
+
+.gaia-pet-bubble,
+.gaia-pet-bubble.flip {
+  position: absolute;
+  right: auto;
+  max-width: min(230px, calc(100vw - 16px));
+  color: #eceff4;
+  background: #20262e;
+  border-color: #4a5565;
+  border-radius: 10px;
+  transform: translateY(4px);
+  transform-origin: center;
+}
+.gaia-pet-bubble::after { display: none; }
+.gaia-pet-bubble.show,
+.gaia-pet-bubble.flip.show { transform: none; }
+.gaia-pet-fps {
+  background: rgb(23 28 35 / 90%);
+  border-color: #353d49;
+  color: #adb5c3;
+}

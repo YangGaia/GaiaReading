@@ -62,7 +62,50 @@ test('PDF 手动缩放支持 10% 到 400%', () => {
   assert.strictEqual(calculatePdfScale({ pageSizes: [{ width: 1, height: 1 }], mode: ZOOM_MODES.MANUAL, zoom: 8 }).scale, 4);
 });
 
+test('PDF 左右和上下留白独立影响页面适配', () => {
+  const base = { viewportWidth: 1000, viewportHeight: 800, pageSizes: [{ width: 1000, height: 800 }], paddingX: 100, paddingY: 0 };
+  assert.strictEqual(calculatePdfScale({ ...base, mode: ZOOM_MODES.FIT_WIDTH }).scale, 0.8);
+  assert.strictEqual(calculatePdfScale({ ...base, paddingY: 160, mode: ZOOM_MODES.FIT_PAGE }).scale, 0.6);
+  assert.strictEqual(calculatePdfScale({ ...base, paddingX: 0, mode: ZOOM_MODES.FIT_PAGE }).scale, 1);
+});
+
 test('PDF 页码状态能显示单页和跨页', () => {
   assert.strictEqual(pdfPageLabel([1], 10), '第 1 / 10 页');
   assert.strictEqual(pdfPageLabel([2, 3], 10), '第 2–3 / 10 页');
+});
+
+test('PDF 打开入口禁用字体代码动态求值，并保留原阅读位置和缩放', async () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const vm = require('node:vm');
+  const app = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const source = app.slice(app.indexOf('async function openPdf('), app.indexOf('function currentSpreadGap('));
+  assert.strictEqual((app.match(/pdfjsLib\.getDocument\(/g) || []).length, 1, '所有书籍必须走同一个受保护的 PDF 加载入口');
+  const file = 'F:\\fixture.pdf';
+  const bytes = new Uint8Array([37, 80, 68, 70]);
+  const document = { numPages: 6 };
+  let options;
+  let rendered = 0;
+  const state = { current: {}, progress: { [file]: { page: 3, settings: { zoom: 1.4, pdfZoomMode: ZOOM_MODES.FIT_WIDTH, pdfPairing: PAIRINGS.EVEN } } } };
+  const context = vm.createContext({
+    state, toUint8Array: value => value,
+    clampPdfZoom: value => Math.max(.1, Math.min(4, value)),
+    normalizePdfZoomMode: normalizeZoomMode,
+    normalizePdfPairing: normalizePairing,
+    renderPdfPage: async () => { rendered += 1; },
+    window: {
+      api: { readBook: async target => { assert.strictEqual(target, file); return { data: bytes }; } },
+      pdfjsLib: { getDocument: value => { options = value; return { promise: Promise.resolve(document) }; } },
+    },
+  });
+  vm.runInContext(source, context);
+  await context.openPdf({ path: file });
+  assert.strictEqual(options.isEvalSupported, false);
+  assert.strictEqual(options.data, bytes);
+  assert.strictEqual(state.current.pdf, document);
+  assert.strictEqual(state.current.page, 3);
+  assert.strictEqual(state.current.zoom, 1.4);
+  assert.strictEqual(state.current.pdfZoomMode, ZOOM_MODES.FIT_WIDTH);
+  assert.strictEqual(state.current.pdfPairing, PAIRINGS.EVEN);
+  assert.strictEqual(rendered, 1);
 });

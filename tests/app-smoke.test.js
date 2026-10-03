@@ -21,7 +21,7 @@ test('项目关键文件齐全', () => {
   assert.ok(main.includes('const importResult = await __gaiaDebug.importPaths([fixture])'), 'EPUB 烟雾测试应走真实导入流程');
   assert.ok(main.includes('parsed.importSucceeded === true'), 'EPUB 烟雾测试应验证导入成功');
   assert.ok(main.includes('parsed.importChooserReady === true') && main.includes('parsed.importChooserClosed === true'), 'EPUB 烟雾测试应验证添加图书窗口的打开、聚焦与关闭');
-  assert.ok(main.includes("const addBookmarkButton = document.getElementById('btn-add-bookmark')") && main.includes('parsed.bookmarkActionOpenedImmediately === true'), 'EPUB 烟雾测试应验证点击添加书签后立即打开侧栏');
+  assert.ok(main.includes("bookmarkDoc.body.dispatchEvent(bookmarkContextEvent)") && main.includes('parsed.bookmarkActionSaved === true') && main.includes('parsed.collectionTabsWork === true'), 'EPUB 烟雾测试应验证右键添加书签和书签笔记页签切换');
   assert.ok(main.includes("await __gaiaDebug.runBookSearch('测试内容')"), 'EPUB 烟雾测试应执行真实全文搜索');
   assert.ok(main.includes('parsed.bookSearchRuntimeReady === true'), 'EPUB 烟雾测试应验证搜索跳转与正文高亮');
   assert.ok(main.includes('parsed.edgeTocDisabledBlocksHover === true') && main.includes('parsed.edgeTocDisabledKeepsManual === true'), 'EPUB 烟雾测试应验证左缘开关不影响手动目录');
@@ -124,129 +124,29 @@ test('侧栏尺寸变化统一刷新全部阅读格式并保留阅读锚点', ()
   assert.ok(app.includes("c && c.format === 'epub' ? Math.floor(bounds.width"), 'EPUB 重排必须使用不受旧画布滚动条影响的阅读区宽度');
   assert.ok(app.includes('c.rendition.resize(size.width, size.height, anchor.cfi'), 'EPUB 必须按实际阅读区尺寸与 CFI 重排');
   assert.ok(app.includes("c.format === 'pdf' && c.pdf") && app.includes('renderPdfPage({ anchor: pdfAnchor })'), 'PDF 必须随阅读区尺寸重新渲染并保持相对视口锚点');
-  assert.ok(app.includes('c.paginator.reflow()') && app.includes('c.paginator.locate(textOffset)'), 'TXT、MOBI、AZW3 必须重排并恢复正文偏移');
+  assert.ok(app.includes('anchor.position = c.paginator.capturePosition()') && app.includes('c.paginator.reflow(sameChapter ? anchor.position : undefined)'), 'TXT、MOBI、AZW3 必须重排并恢复文字或插图阅读位置');
   assert.ok(app.includes('await waitForReaderLayoutRefresh()'), '搜索结果跳转必须等待侧栏布局稳定');
   assert.ok(!app.includes("firstMark.scrollIntoView({ block: 'center', inline: 'center' })"), '分页搜索高亮不得再次横向滚动到半页位置');
   assert.ok(app.includes("firstMark && c && c.format === 'pdf'"), '仅 PDF 搜索高亮可以在页内滚动到命中文字');
 });
 
-test('版本号为 1.1.3，依赖锁和界面同步', () => {
+test('本地 GaiaReading_Lucky 品牌、版本号、依赖锁和界面同步', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.1.3');
+  assert.strictEqual(pkg.name, 'gaiareading_lucky');
+  assert.strictEqual(pkg.build.productName, 'GaiaReading_Lucky');
+  assert.strictEqual(pkg.build.appId, 'com.gaiareading.lucky');
+  assert.strictEqual(lock.name, pkg.name);
+  assert.strictEqual(lock.packages[''].name, pkg.name);
+  assert.strictEqual(pkg.version, '1.2.7');
   assert.strictEqual(lock.version, pkg.version);
   assert.strictEqual(lock.packages[''].version, pkg.version);
-  assert.strictEqual(pkg.build.win.artifactName, 'Gaia.Reading.${version}.${ext}', '发行文件名应与 GitHub Release 保持一致');
+  assert.strictEqual(pkg.build.win.artifactName, 'GaiaReading_Lucky.${version}.${ext}', '本地构建文件名应与新品牌一致');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.match(html, /class="drawer-about"[^>]*>[\s\S]*?Gaia Reading[\s\S]*?1\.1\.3[\s\S]*?<\/footer>/, '关于面板版本号未同步');
+  assert.match(html, /class="drawer-about"[^>]*>[\s\S]*?GaiaReading_Lucky[\s\S]*?1\.2\.7[\s\S]*?<\/footer>/, '关于面板版本号未同步');
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
   assert.ok(html.includes('reader-theme-options'), '缺少主题切换');
   assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
-});
-
-test('1.0.0 Release 说明完整并包含发行文件校验值', () => {
-  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.0.0.md'), 'utf8');
-  for (const section of ['与 0.5.2 相比的主要变化', 'AI 阅读助手', 'AI 隐私和接口安全', '多格式阅读与章节识别', '阅读统计与数据保护', '赛博桌宠']) {
-    assert.ok(notes.includes(section), `Release 说明缺少 ${section}`);
-  }
-  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/, 'Release 说明缺少 exe 的 SHA-256');
-  assert.ok(!notes.includes('{{SHA256}}'), 'Release 说明不得保留校验值占位符');
-});
-
-test('1.0.1 Release 说明覆盖阅读交互、可读性和校验值', () => {
-  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.0.1.md'), 'utf8');
-  for (const section of ['目录与翻页', '双页与排版', '高对比文字', '有珠交互', '发布文件']) {
-    assert.ok(notes.includes(section), `1.0.1 Release 说明缺少 ${section}`);
-  }
-  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/, '1.0.1 Release 说明缺少 exe 的 SHA-256');
-  assert.ok(!notes.includes('{{SHA256}}'), '1.0.1 Release 说明不得保留校验值占位符');
-});
-
-test('1.0.2 Release 说明覆盖全文搜索、PDF 双页、导入和校验值', () => {
-  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.0.2.md'), 'utf8');
-  for (const section of ['书内全文搜索', 'PDF 双页与缩放', '阅读布局稳定性', '图书导入与书签', '发布文件']) {
-    assert.ok(notes.includes(section), `1.0.2 Release 说明缺少 ${section}`);
-  }
-  assert.ok(notes.includes('Gaia.Reading.1.0.2.exe'), '1.0.2 Release 说明缺少正式 exe 文件名');
-  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/, '1.0.2 Release 说明缺少 exe 的 SHA-256');
-  assert.ok(!notes.includes('{{SHA256}}'), '1.0.2 Release 说明不得保留校验值占位符');
-});
-
-test('1.0.3 Release 说明覆盖阅读修复、有珠交互和校验值', () => {
-  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.0.3.md'), 'utf8');
-  for (const section of ['阅读与目录', 'MOBI/AZW3 尾注与批注', '有珠交互与 AI 风格', '搜索命名', '发布文件']) {
-    assert.ok(notes.includes(section), `1.0.3 Release 说明缺少 ${section}`);
-  }
-  assert.ok(notes.includes('Gaia.Reading.1.0.3.exe'), '1.0.3 Release 说明缺少正式 exe 文件名');
-  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/, '1.0.3 Release 说明缺少 exe 的 SHA-256');
-  assert.ok(!notes.includes('{{SHA256}}') && !notes.includes('{{FILE_SIZE}}'), '1.0.3 Release 说明不得保留发布占位符');
-});
-
-test('1.1.0 Release 说明覆盖相较 1.0.3 的变更与发行校验值', () => {
-  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.1.0.md'), 'utf8');
-  for (const section of ['2026-09-06 同版本更新', '与 1.0.3 相比的主要变化', '累计阅读计时器', '翻页与桌宠修复', 'GPT-6 模型 ID', '发布文件']) {
-    assert.ok(notes.includes(section), `1.1.0 Release 说明缺少 ${section}`);
-  }
-  assert.ok(notes.includes('Gaia.Reading.1.1.0.exe'));
-  assert.ok(notes.includes('gpt-6-astra'));
-  assert.match(notes, /文件大小：[\d,]+ 字节/);
-  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
-  assert.doesNotMatch(notes, /\{\{SHA256\}\}|\{\{FILE_SIZE\}\}/);
-  const buildSource = notes.match(/本次构建源码：\[[a-f0-9]+\]\(https:\/\/github\.com\/YangGaia\/GaiaReading\/commit\/([a-f0-9]{40})\)/);
-  assert.ok(buildSource, '同版本替换必须记录 exe 对应的源码 commit');
-  assert.ok(notes.includes(`compare/v1.0.3...${buildSource[1]}`), '代码差异链接应包含本次重打包的修复');
-  assert.ok(notes.includes('版本号仍为 1.1.0') && notes.includes('请重新下载'), '同版本替换应提示旧文件用户重新下载');
-  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
-  assert.ok(readme.includes('RELEASE_NOTES_1.1.0.md'));
-  assert.ok(readme.includes('长按 `←` / `→`'));
-  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').includes('2026-09-06 同版本更新'));
-});
-
-test('1.1.1 历史发行说明保留 EPUB 字号、阅读上下栏和曲名滚播', () => {
-  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.1.1.md'), 'utf8');
-  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
-  for (const section of ['EPUB 字号调节', '阅读上下栏', '音乐曲名滚播', '升级与运行', '发布文件', '验证情况']) {
-    assert.ok(notes.includes(section), `1.1.1 Release 说明缺少 ${section}`);
-  }
-  assert.ok(notes.includes('Gaia.Reading.1.1.1.exe'));
-  assert.match(notes, /文件大小：[\d,]+ 字节/);
-  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
-  assert.doesNotMatch(notes, /\{\{SHA256\}\}|\{\{FILE_SIZE\}\}/);
-  assert.ok(notes.includes('compare/v1.1.0...v1.1.1'));
-  assert.ok(readme.includes('RELEASE_NOTES_1.1.1.md'));
-  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').includes('## 1.1.1'));
-});
-
-test('1.1.2 历史发行说明保留批量导入修复与校验值', () => {
-  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.1.2.md'), 'utf8');
-  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
-  for (const section of ['批量导入稳定性', '进度、取消与逐本保存', '升级与运行', '发布文件', '验证情况']) {
-    assert.ok(notes.includes(section), `1.1.2 Release 说明缺少 ${section}`);
-  }
-  assert.ok(notes.includes('Gaia.Reading.1.1.2.exe'));
-  assert.match(notes, /文件大小：[\d,]+ 字节/);
-  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
-  assert.doesNotMatch(notes, /\{\{SHA256\}\}|\{\{FILE_SIZE\}\}/);
-  assert.ok(notes.includes('compare/v1.1.1...v1.1.2'));
-  assert.ok(readme.includes('RELEASE_NOTES_1.1.2.md'));
-  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').includes('## 1.1.2'));
-});
-
-test('1.1.3 发行说明、下载入口与 MOBI 图片修复保持一致', () => {
-  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES_1.1.3.md'), 'utf8');
-  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
-  for (const section of ['MOBI/AZW3 图片解析', '长图缩放与分页', '升级与运行', '发布文件', '验证情况']) {
-    assert.ok(notes.includes(section), `1.1.3 Release 说明缺少 ${section}`);
-  }
-  assert.ok(notes.includes('Gaia.Reading.1.1.3.exe') && readme.includes('Gaia.Reading.1.1.3.exe'));
-  assert.match(notes, /文件大小：[\d,]+ 字节/);
-  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
-  assert.doesNotMatch(notes, /\{\{SHA256\}\}|\{\{FILE_SIZE\}\}/);
-  assert.ok(notes.includes('compare/v1.1.2...v1.1.3'));
-  assert.ok(readme.includes('RELEASE_NOTES_1.1.3.md') && readme.includes('## 1.1.3 更新亮点'));
-  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').startsWith('## 1.1.3'));
-  assert.ok(fs.readFileSync(path.join(root, 'scripts/verify-dist-layout.ps1'), 'utf8').includes("@('mobi-images', 'epub-font')"));
-  assert.ok(fs.readFileSync(path.join(root, 'scripts/verify-dist-layout.ps1'), 'utf8').includes('portable-mobi-check.json'));
 });
 
 test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => {
@@ -258,7 +158,7 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   const ai = fs.readFileSync(path.join(root, 'src', 'shared', 'ai.js'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
 
-  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-menu', 'btn-ai-model-refresh', 'reader-bgm-slot', 'btn-alice-summary', 'btn-alice-comment', 'ai-reader-profile', 'btn-ai-reader', 'btn-ai-assistant', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-minimize', 'btn-ai-summary-prompt', 'btn-ai-characters-prompt', 'btn-ai-foreshadow-prompt', 'ai-chat-pane', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input', 'drawer-lookup', 'search-engine', 'search-custom-row', 'search-custom-template']) {
+  for (const id of ['btn-home-ai', 'ai-view', 'btn-ai-back', 'drawer-ai', 'btn-open-ai-center', 'ai-profile-list', 'ai-profile-name', 'btn-ai-profile-new', 'ai-provider', 'ai-base-url', 'ai-api-key', 'btn-ai-key-clear', 'ai-model-options', 'btn-ai-model-menu', 'btn-ai-model-refresh', 'reader-bgm-slot', 'btn-alice-comment', 'ai-reader-model', 'btn-ai-chat-center', 'btn-ai-reader', 'ai-summary-panel', 'ai-panel-drag-handle', 'btn-ai-appearance', 'ai-appearance-popover', 'btn-ai-summary-prompt', 'btn-ai-characters-prompt', 'btn-ai-foreshadow-prompt', 'ai-chat-pane', 'ai-font-select', 'btn-ai-font-minus', 'btn-ai-line-height', 'ai-chat-messages', 'ai-chat-input', 'drawer-lookup', 'search-engine', 'search-custom-row', 'search-custom-template']) {
     assert.ok(html.includes(`id="${id}"`), `AI 界面缺少 ${id}`);
   }
   for (const bridge of ['aiProfilesGet', 'aiProfileSave', 'aiProfileActivate', 'aiProfileDelete', 'aiProfileTest', 'aiProfileModels', 'aiChat', 'aiChatCancel', 'aiAliceComment', 'dictionaryOpen', 'searchWeb']) {
@@ -285,19 +185,19 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   const readerHeader = html.slice(readerHeaderStart, html.indexOf('</header>', readerHeaderStart));
   assert.ok(readerHeader.indexOf('id="btn-ai-reader"') < readerHeader.indexOf('id="btn-book-search"'), '阅读顶栏中 AI 对话按钮应位于全文搜索按钮左侧');
   assert.ok(readerHeader.includes('title="全文搜索当前书籍（Ctrl+F）"') && readerHeader.includes('aria-label="全文搜索当前书籍"') && readerHeader.includes('>全文搜索</span>'), '书内检索按钮必须明确标为全文搜索，收起文字时仍有可访问名称');
-  assert.ok(html.includes('data-selection-action="search" title="使用 Google 搜索">搜索</button>'), '互联网搜索按钮应保持原有名称与功能');
+  assert.ok(html.includes('data-selection-action="web-search" title="使用 Google 联网搜索">联网搜索</button>'), '联网搜索按钮应明确名称与默认引擎');
   const aiPanelStart = html.indexOf('id="ai-summary-panel"');
   const aiPanel = html.slice(aiPanelStart, html.indexOf('</aside>', aiPanelStart));
-  assert.ok(readerHeader.includes('data-ai-alice="summary"') && readerHeader.includes('data-ai-alice="comment"'), '有珠总结与吐槽应位于阅读顶栏');
+  assert.ok(!readerHeader.includes('data-ai-alice="summary"') && readerHeader.includes('data-ai-alice="comment"'), '有珠顶栏只保留吐槽');
   assert.ok(!aiPanel.includes('data-ai-alice='), 'AI 对话框内不应重复显示有珠快捷操作');
-  assert.ok(aiPanel.includes('id="ai-reader-profile"'), 'AI 接口选择器应移入对话框以释放顶栏空间');
-  for (const id of ['btn-alice-summary', 'btn-alice-comment']) {
+  assert.ok(aiPanel.includes('id="ai-reader-model"') && aiPanel.includes('id="btn-ai-chat-center"') && !aiPanel.includes('id="ai-reader-profile"'), 'AI 对话只显示当前模型并可打开 AI 中心');
+  for (const id of ['btn-alice-comment']) {
     assert.match(readerHeader, new RegExp(`<button[^>]*id="${id}"[^>]*aria-label="[^"]+"`), '有珠操作在紧凑布局下仍可识别');
   }
   assert.ok(app.includes("state.aiAliceKind === 'summary' ? '总结中' : '构思中'"), '顶栏快捷操作应显示独立加载状态');
   assert.ok(app.includes('new ResizeObserver'), 'AI 悬浮窗应记忆缩放后的尺寸');
   assert.ok(app.includes('saveAiPanelGeometry'), 'AI 悬浮窗应保存位置和大小');
-  assert.ok(app.includes('setAiPanelMinimized'), 'AI 悬浮窗应统一更新最小化状态和无障碍标签');
+  assert.ok(!html.includes('btn-ai-summary-minimize'), 'AI 对话不再提供最小化操作');
   assert.ok(app.includes('toggleAiAppearanceMenu'), 'AI 排版设置应收进 Aa 弹出菜单');
   assert.ok(app.includes('setAiAppearanceOpen(els.aiAppearancePopover.hidden)'), 'Aa 按钮应能正确切换 AI 排版弹层');
   assert.ok(!html.includes('id="ai-summary-pane"') && !html.includes('id="btn-ai-tab-summary"'), '独立本章总结页签应被移除');
@@ -319,26 +219,26 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(app.includes('resolveAiChapterSource'), 'MOBI/AZW3 烟雾测试应验证总结前的异步章节补全');
   assert.ok(main.includes('当前章节没有可供 AI 阅读的文字'), '无正文页面必须显示明确错误');
   assert.ok(app.includes("semanticChapterEntries(root, chapter, c.format + ':' + chapter"), '目录缺少小章时，MOBI/AZW3 应按正文标题识别章节');
-  assert.ok(app.includes("return holder.textContent || ''"), '章节正文提取不得受 AZW3 排版 CSS 的 innerText 可见性影响');
+  assert.ok(app.includes("return window.GaiaChineseDisplay.sourceRange(range)"), '章节正文提取不得受 AZW3 排版 CSS 的 innerText 可见性影响');
   assert.ok(app.includes("selector: item.selector || ''"), 'MOBI/AZW3 目录跳转应定位到同一底层文档内的小章起点');
-  assert.ok(app.includes('未识别到 TXT 章节标题'), 'TXT 未识别章节时不得把全文发送给 AI');
+  assert.ok(app.includes('window.GaiaPageWindow.pageWindow') && app.includes('resolvePageWindowSource'), '无章节书籍应使用当前页附近 12 页上下文');
   assert.ok(main.includes('parsed.aiContentLen > 100'), 'MOBI/AZW3 冒烟必须在总结前验证 AI 已读到正文，不能只读到空格或页码');
   assert.ok(css.includes('.ai-content-stage { flex: 1; min-height: 0; overflow: hidden; }'), 'AI 对话内容区不得覆盖标题和状态文字');
   assert.ok(css.includes('.ai-chat-input-shortcuts'), '对话输入区应显示快捷指令栏');
-  assert.ok(css.includes('z-index: 9050;'), 'AI 对话框应位于桌宠命中层之上，避免输入框被遮挡');
+  const aiLayer = Number(css.match(/\.ai-summary-panel\s*\{[^}]*z-index:\s*(\d+)/)?.[1]);
+  const petLayer = Number(css.match(/\.gaia-pet\s*\{[^}]*z-index:\s*(\d+)/)?.[1]);
+  assert.ok(aiLayer > 0 && aiLayer < petLayer, 'AI 对话框应位于有珠和气泡下方，保留桌宠交互');
   assert.ok(!css.includes('body.ai-assistant-open .gaia-pet-hitbox'), 'AI 对话框打开时不得全局禁用桌宠拖动');
-  assert.ok(css.includes('min-width: 0 !important; min-height: 0 !important;'), 'AI 最小化时必须覆盖普通窗口的最小尺寸');
-  assert.ok(css.includes('.ai-summary-panel.minimized #btn-ai-chat-clear'), 'AI 最小化时应隐藏清空与排版按钮');
   assert.ok(css.includes('max-height: 220px; overflow-y: auto;'), '模型选择菜单应限制高度并支持纵向滚动');
   assert.ok(!html.includes('ai-auto-summarize') && !app.includes('AI_AUTO_SUMMARY') && !app.includes('autoSummarize'), '打开或切换章节不得自动调用 AI 总结');
   assert.ok(!app.includes('summarizeSource(') && !app.includes('aiSummarize'), '渲染层不得保留独立总结请求');
-  for (const action of ['ai-analyze', 'ai-ask', 'dictionary', 'search']) {
+  for (const action of ['ai-analyze', 'dictionary', 'web-search', 'book-search']) {
     assert.ok(html.includes(`data-selection-action="${action}"`), `选区工具栏缺少 ${action}`);
   }
   assert.ok(app.includes("sourceDoc.addEventListener('selectionchange'"), '取消正文选择时应监听选区变化并隐藏工具栏');
   assert.ok(app.includes("context.origin !== 'selection'"), '已有批注与普通文字选区应使用不同的关闭规则');
   assert.ok(main.includes("ipcMain.handle('dictionary:open'"), '主进程缺少内置词典窗口入口');
-  assert.ok(main.includes("partition: 'gaia-dictionary'"), '内置词典应使用隔离会话');
+  assert.ok(main.includes("partition: 'GaiaReading_Lucky-dictionary'"), '内置词典应使用隔离会话');
   assert.ok(main.includes('nodeIntegration: false') && main.includes('sandbox: true'), '内置词典窗口必须禁用 Node 并启用沙箱');
   assert.ok(main.includes("ipcMain.handle('selection:search'"), '主进程缺少默认浏览器搜索入口');
   assert.ok(main.includes('Lookup.searchUrl(normalized, { engine, customTemplate: input.customTemplate })'), '主进程应根据用户设置生成搜索地址');
@@ -351,29 +251,12 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(pet.includes('function speak(text, duration)'), '桌宠应公开受长度限制的 AI 台词入口');
 });
 
-test('README 展示新版阅读截图并替换旧的阅读设置截图', () => {
+test('README 提供当前品牌、版本和本地启动说明', () => {
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
-  const shots = [
-    'PixPin_2026-09-01_20-10-31.png',
-    'PixPin_2026-09-06_04-05-26.png',
-    'PixPin_2026-09-06_04-05-36.png',
-    '阅读界面新.png',
-    '阅读设置界面.png',
-    'PixPin_2026-09-06_04-06-52.png',
-    'PixPin_2026-09-06_04-07-33.png',
-  ];
-  const referenced = Array.from(readme.matchAll(/docs\/screenshots\/([^\s)]+\.png)/g), (match) => match[1]);
-  assert.deepStrictEqual(referenced, shots, 'README 应保留原有页面顺序，在书架后展示新版阅读和阅读设置截图');
-  const screenshotSection = readme.slice(readme.indexOf('## 界面截图'), readme.indexOf('## 主要功能'));
-  assert.ok(!/^###\s+\d{4}-\d{2}-\d{2}/m.test(screenshotSection), '截图标题不应显示拍摄日期或时间');
-  assert.ok(!screenshotSection.includes('PixPin_2026-09-06_04-06-39.png'), '旧的阅读设置截图应被替换');
-  assert.ok(screenshotSection.includes('### 阅读界面') && screenshotSection.includes('### 阅读设置界面'), '新截图应有对应标题');
-  for (const shot of shots) {
-    const file = path.join(root, 'docs', 'screenshots', shot);
-    assert.ok(fs.statSync(file).size > 5000, shot + ' 异常过小');
-  }
-  assert.ok(readme.includes('当前稳定版本：**1.1.3**'), 'README 应明确当前稳定版本');
-  assert.ok(readme.includes('releases/tag/v1.1.3'), 'README 应提供正式版下载入口');
+  assert.match(readme, /^# GaiaReading_Lucky\r?\n/);
+  assert.ok(readme.includes('当前稳定版本：**1.2.7**'), 'README 应明确当前稳定版本');
+  assert.ok(readme.includes('## 本地运行') && readme.includes('程序\\GaiaReading_Lucky.exe'), 'README 应说明当前 EXE 启动入口');
+  assert.ok(readme.includes('[本地启动说明](docs/LOCAL_SETUP.md)'), 'README 应链接本地部署与维护说明');
 });
 
 test('主题/排版/翻页动画/菜单相关配置存在', () => {
@@ -388,7 +271,7 @@ test('主题/排版/翻页动画/菜单相关配置存在', () => {
   assert.ok(html.includes('font-select'), '缺少字体选择');
   assert.ok(html.includes('btn-text-contrast') && html.includes('text-contrast-value'), '缺少夜间文字对比度控制');
   assert.ok(html.includes('reader-theme-options'), '缺少主题切换');
-  assert.ok(html.includes('btn-pet-console'), '设置页缺少有珠控制台入口');
+  assert.ok(!html.includes('btn-pet-console') && html.includes('右键点击有珠，可打开有珠控制台'), '设置页用小字说明有珠右键入口');
   for (const id of ['pdf-zoom-controls', 'btn-pdf-zoom-out', 'btn-pdf-zoom-reset', 'btn-pdf-zoom-in', 'btn-pdf-pairing', 'pdf-zoom-value']) {
     assert.ok(html.includes(`id="${id}"`), `PDF 阅读器缺少手动缩放控件 ${id}`);
   }
@@ -420,7 +303,7 @@ test('应用图标存在且打包配置已启用', () => {
   assert.ok(fs.statSync(ico).size > 1000, 'icon.ico 异常过小（生成可能失败）');
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.ok(pkg.build && pkg.build.win, '缺少 build.win 配置');
-  assert.strictEqual(pkg.build.win.icon, 'build/icon.png');
+  assert.strictEqual(pkg.build.win.icon, 'build/icon.ico');
 });
 
 
@@ -464,10 +347,10 @@ test('书签支持内容锚点、重命名与 TXT 章节识别', () => {
   assert.ok(app.includes('txtChapters'), '应识别 TXT 章节');
   assert.ok(html.includes('txt-chapters.js'), '应加载 TXT 章节识别模块');
   assert.ok(fs.existsSync(path.join(root, 'src', 'shared', 'txt-chapters.js')), 'txt-chapters 模块缺失');
-  const addBookmarkButton = html.match(/<button id="btn-add-bookmark" class="([^"]+)"/);
-  assert.ok(addBookmarkButton && addBookmarkButton[1] === 'btn block', '添加书签应与功能区同级按钮保持一致的中性样式');
-  assert.ok(app.includes("$('btn-add-bookmark').addEventListener('click', addBookmarkFromSettings)"), '添加书签按钮必须绑定可等待的保存流程');
-  assert.ok(app.indexOf("if (els.bookmarksPanel.hidden) togglePanel('bookmarks')") < app.indexOf('return await pendingBookmark'), '添加书签应先打开侧栏，再等待保存完成');
+  assert.ok(!html.includes('id="btn-add-bookmark"') && !html.includes('id="btn-annotations"'), '设置应合并书签笔记并移除独立添加书签按钮');
+  assert.ok(app.includes('function bindReaderBookmarkContext(sourceDoc)') && app.includes("sourceDoc.addEventListener('contextmenu'"), '正文应绑定右键添加书签');
+  assert.ok(app.includes('event.defaultPrevented') && app.includes('#gaia-pet'), '有珠及已处理右键不应添加书签');
+  assert.ok(app.includes('function appendCollectionHeader(panel, active)') && app.includes("tabs.setAttribute('role', 'tablist')"), '书签和笔记应共用可切换页签');
 });
 
 test('MOBI/AZW3 书内脚注链接由阅读器解析并跳转', () => {
@@ -517,12 +400,13 @@ test('可调节页边距功能接入', () => {
   const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
   assert.ok(html.includes('btn-margin'), '缺少页边距按钮');
-  assert.ok(html.includes('margin-value'), '缺少页边距数值显示');
+  assert.ok(html.includes('margin-value') && html.includes('vertical-margin-value'), '左右与上下边距分别显示当前值');
+  assert.ok(html.includes('btn-vertical-margin') && app.includes('function cycleVerticalMargin()'), '上下边距应独立调节');
   assert.ok(app.includes('const MARGIN_OPTIONS = [4, 8, 12, 16];'), '应提供边距档位');
   assert.ok(app.includes('function cycleMargin()'), '缺少边距循环函数');
-  assert.ok(app.includes('paginator.setMargin('), '应调用分页器边距');
+  assert.ok(app.includes('paginator.setMargins('), '应调用分页器边距');
   assert.ok(app.includes("'body > * { margin-left: ' + marginPct + '% !important;"), 'EPUB 应注入可调边距');
-  assert.ok(app.includes('padding-top: 28px !important; padding-bottom: 28px !important;'), 'EPUB 正文应保留上下留白');
+  assert.ok(app.includes("padding-top: ' + currentVerticalMargin() + 'px !important; padding-bottom: ' + currentVerticalMargin() + 'px !important;"), 'EPUB 正文应保留上下留白');
   assert.ok(pag.includes('setMargin(pct)'), '分页器应支持 setMargin');
   assert.ok(pag.includes('this.marginPct'), '分页器应保存边距档位');
 });
@@ -533,7 +417,7 @@ test('分页图片总宽度不会越过右侧列边界', () => {
   assert.ok(app.includes('img, svg { max-width: 100% !important; height: auto !important; box-sizing: border-box !important;'), 'EPUB 媒体应服从容器宽度并计入边框和内边距');
   assert.ok(app.includes("max-width: calc(100% - ' + (marginPct * 2) + '%) !important; box-sizing: border-box"), 'EPUB 一级内容应扣除左右页边距');
   assert.ok(app.includes("body > img, body > svg { max-width: calc(100% - ' + (marginPct * 2) + '%) !important;"), 'EPUB 一级图片应限制在版心内');
-  assert.ok(pag.includes("'img, svg { max-width: 100% !important; height: auto !important; box-sizing: border-box !important;"), 'MOBI/AZW3 媒体应服从容器宽度');
+  assert.ok(pag.includes("'img, svg { max-width: 100% !important; box-sizing: border-box !important;"), 'MOBI/AZW3 媒体应服从容器宽度并计入边框和内边距');
   assert.ok(pag.includes("'body > img, body > svg { max-width: ' + (this.pageWidth - pagePad * 2) + 'px !important;"), 'MOBI/AZW3 一级图片应限制在版心内');
   const typographyStart = pag.indexOf('  applyTypography() {');
   const themeStart = pag.indexOf('  applyTheme() {', typographyStart);

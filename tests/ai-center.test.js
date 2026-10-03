@@ -21,6 +21,15 @@ test('AI 中心保留全部配置控件、标签、状态与密码保护', () =>
   assert.doesNotMatch(ai, /ai-center-orb|ai-center-hero|deerflow|2\.jpeg/);
 });
 
+test('阅读对话只展示当前模型，通过 AI 中心修改配置，并去掉最小化入口', () => {
+  const panel = html.slice(html.indexOf('id="ai-summary-panel"'), html.indexOf('id="reader-content"'));
+  assert.match(panel, /<span id="ai-reader-model"[^>]*>/);
+  assert.match(panel, /id="btn-ai-chat-center"[^>]*>打开 AI 中心/);
+  assert.doesNotMatch(panel, /id="(?:ai-reader-profile|btn-ai-summary-minimize)"/);
+  assert.match(app, /\$\('btn-ai-chat-center'\)\.addEventListener\('click', \(\) => openAiCenter\('reader'\)\)/);
+  assert.match(app, /els\.aiReaderModel\.textContent = state\.aiConfig && state\.aiConfig\.model/);
+});
+
 test('GPT-6 内置与接口读取结果合并去重，手动输入保持开放', () => {
   const context = vm.createContext({ AI_PROVIDERS: PROVIDERS, els: { aiProvider: { value: 'custom' } }, state: { aiEditingProfileId: 'relay', aiDiscoveredModels: { relay: ['gpt-6-astra', 'relay/private'] } } });
   vm.runInContext(app.slice(app.indexOf('function aiModelChoices()'), app.indexOf('function setAiModelMenuOpen(')), context);

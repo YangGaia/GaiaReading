@@ -1,5 +1,8 @@
 node_modules/
 dist/
+.tmp/
+.cache/
+运行环境/
 __pycache__/
 *.pyc
 *.log
@@ -9,6 +12,8 @@ src/renderer/vendor/
 *.prc
 *.epub
 *.pdf
+!tests/fixtures/sample.epub
+!tests/fixtures/sample.pdf
 *.flac
 .env
 .env.*
@@ -17,3 +22,14 @@ src/renderer/vendor/
 *.key
 user-data/
 .gaia-reading/
+.gaiareading_lucky/
+数据/
+备份/
+release-output/
+*.exe
+*.zip
+*.7z
+*.baiduyun.uploading.cfg
+GaiaReading_Lucky.json
+GaiaReading_Lucky-ai-key.bin
+Local State

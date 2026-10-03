@@ -1,13 +1,45 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net, safeStorage, screen, shell, utilityProcess } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, net, safeStorage, screen, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { APP_NAME, APP_ID, STATE_FILE_NAME, KEY_FILE_NAME, requireFPath, configureDataPaths, existingStateFile, migrateLegacyDataFiles } = require('./shared/app-paths');
+
+const IS_SMOKE = process.argv.includes('--smoke-test');
+const DEBUG_OPEN_INDEX = process.argv.indexOf('--debug-open');
+const DEBUG_OPEN_PATH = DEBUG_OPEN_INDEX >= 0 ? process.argv[DEBUG_OPEN_INDEX + 1] : null;
+const SHOT_DIR_INDEX = process.argv.indexOf('--shot-dir');
+let SHOT_DIR = null;
+let dataPaths;
+try {
+  if (SHOT_DIR_INDEX >= 0) {
+    const output = process.argv[SHOT_DIR_INDEX + 1];
+    if (!output || output.startsWith('--')) throw new Error('--shot-dir 缺少截图目录');
+    SHOT_DIR = requireFPath(output, '截图目录');
+  }
+  dataPaths = configureDataPaths(app, {
+    projectDirectory: path.join(__dirname, '..'),
+    argv: process.argv,
+    portableDirectory: process.env.PORTABLE_EXECUTABLE_DIR,
+    smoke: IS_SMOKE,
+    shot: !!SHOT_DIR,
+  });
+} catch (error) {
+  console.error('DATA_PATH_CONFIGURATION_FAILED:', error.message);
+  // Never continue with Electron's default C-drive profile after an invalid
+  // override or an unavailable F drive. Exit without opening an error window.
+  app.exit(1);
+  process.exit(1);
+}
+const { sourceUserDataDirectory, userDataDirectory } = dataPaths;
+
+// Load parsers and other business modules only after child-process temp/cache
+// environment and every Electron write path use the validated profile root.
 const crypto = require('crypto');
 const JSZip = require('jszip');
 const { pathToFileURL } = require('url');
-const { ImportQueue } = require('./shared/import-queue');
-const { scanBookFolder } = require('./shared/book-metadata');
+const { runMetadataProcess } = require('./shared/metadata-process');
+const { formatOf, scanBookFolder, deduplicateBookPaths, throwIfImportCancelled, BookImportSessions } = require('./shared/book-import-backend');
 const { decodeTxt } = require('./shared/txt-utils');
 const { JsonStore } = require('./shared/store');
 const { prepareDataFile } = require('./shared/data-upgrade');
@@ -16,29 +48,18 @@ const { repairEpubBuffer } = require('./shared/epub-repair');
 const GaiaAi = require('./shared/ai');
 const Lookup = require('./shared/lookup');
 
+const APP_ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.png');
+if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
+
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 protocol.registerSchemesAsPrivileged([
   { scheme: 'bgm', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ]);
 
-const SUPPORTED_EXT = ['.epub', '.pdf', '.txt', '.mobi', '.azw3'];
-const IS_SMOKE = process.argv.includes('--smoke-test');
-const DEBUG_OPEN_INDEX = process.argv.indexOf('--debug-open');
-const DEBUG_OPEN_PATH = DEBUG_OPEN_INDEX >= 0 ? process.argv[DEBUG_OPEN_INDEX + 1] : null;
-const SHOT_DIR_INDEX = process.argv.indexOf('--shot-dir');
-const SHOT_DIR = SHOT_DIR_INDEX >= 0 ? process.argv[SHOT_DIR_INDEX + 1] : null;
-
-if (IS_SMOKE) {
-  app.setPath('userData', path.join(app.getPath('temp'), 'gaia-reading-smoke-' + process.pid));
-}
-
-if (SHOT_DIR) {
-  const shotDataDir = path.join(app.getPath('temp'), 'gaia-reading-shot-' + process.pid);
-  app.setPath('userData', shotDataDir);
-  const realState = path.join(app.getPath('appData'), 'gaia-reading', 'gaia-reading.json');
+if (SHOT_DIR && sourceUserDataDirectory !== userDataDirectory) {
+  const realState = existingStateFile(sourceUserDataDirectory);
   if (fs.existsSync(realState)) {
-    fs.mkdirSync(shotDataDir, { recursive: true });
-    fs.copyFileSync(realState, path.join(shotDataDir, 'gaia-reading.json'));
+    fs.copyFileSync(realState, path.join(userDataDirectory, STATE_FILE_NAME));
     console.log('SHOT_USES_REAL_LIBRARY');
   }
 }
@@ -47,12 +68,12 @@ let mainWindow = null;
 let dictionaryWindow = null;
 let dictionarySessionSecured = false;
 let store = null;
-let importQueue = null;
 const repairedEpubCache = new Map();
 const aiChatRequests = new Map();
+const bookImports = new BookImportSessions();
 
 function aiSecretFile() {
-  return path.join(app.getPath('userData'), 'gaia-ai-key.bin');
+  return path.join(app.getPath('userData'), KEY_FILE_NAME);
 }
 
 function searchIndexCacheFile(filePath) {
@@ -106,10 +127,7 @@ function readAiSecrets() {
 function writeAiSecrets(secrets) {
   const secretPath = aiSecretFile();
   if (!safeStorage.isEncryptionAvailable()) throw new Error('Windows 安全存储当前不可用，API Key 不会以明文保存');
-  if (!Object.keys(secrets).length) {
-    try { if (fs.existsSync(secretPath)) fs.unlinkSync(secretPath); } catch (error) {}
-    return;
-  }
+  // Keep an encrypted empty object so legacy backups cannot restore a cleared key.
   fs.mkdirSync(path.dirname(secretPath), { recursive: true });
   fs.writeFileSync(secretPath, safeStorage.encryptString(JSON.stringify(secrets)));
 }
@@ -251,7 +269,8 @@ function createDictionaryWindow() {
     height: 720,
     minWidth: 420,
     minHeight: 420,
-    title: 'Gaia 字典',
+    title: APP_NAME + ' 字典',
+    icon: APP_ICON_PATH,
     parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
     show: false,
     autoHideMenuBar: true,
@@ -260,7 +279,7 @@ function createDictionaryWindow() {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
-      partition: 'gaia-dictionary',
+      partition: 'GaiaReading_Lucky-dictionary',
     },
   });
   const contents = dictionaryWindow.webContents;
@@ -292,29 +311,12 @@ function openDictionary(query) {
   const normalized = Lookup.normalizeLookupText(query, 80);
   const target = Lookup.dictionaryUrl(normalized);
   const win = createDictionaryWindow();
-  win.setTitle('Gaia 字典 · ' + normalized);
+  win.setTitle(APP_NAME + ' 字典 · ' + normalized);
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
   win.loadURL(target).catch((error) => console.warn('DICTIONARY_LOAD_FAILED', error.message));
   return { ok: true, query: normalized, targetHost: new URL(target).host };
-}
-
-function formatOf(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  return SUPPORTED_EXT.includes(ext) ? ext.slice(1) : null;
-}
-
-function logImport(event, details = {}) {
-  try {
-    const file = path.join(app.getPath('userData'), 'book-import.log');
-    if (fs.existsSync(file) && fs.statSync(file).size > 256 * 1024) {
-      const previous = file + '.previous';
-      if (fs.existsSync(previous)) fs.unlinkSync(previous);
-      fs.renameSync(file, previous);
-    }
-    fs.appendFileSync(file, JSON.stringify({ time: new Date().toISOString(), event, ...details }) + '\n');
-  } catch (error) { console.warn('IMPORT_LOG_FAILED', error.message); }
 }
 
 /** 解析 bgm://local/<file> 到磁盘上的音频文件（兼容开发目录与打包后的 app.asar.unpacked）。 */
@@ -352,7 +354,8 @@ function createWindow() {
     height: 760,
     minWidth: 800,
     minHeight: 600,
-    title: 'Gaia Reading',
+    title: APP_NAME,
+    icon: APP_ICON_PATH,
     show: false,
     backgroundColor: '#111419',
     autoHideMenuBar: true,
@@ -361,17 +364,21 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Reader inputs do not need Windows' native spelling dictionaries.
+      spellcheck: false,
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow.show());
-  const importOwner = mainWindow.webContents.id;
-  mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    logImport('renderer-exit', details);
-    if (importQueue) importQueue.cancel(importOwner);
+  const importSenderId = mainWindow.webContents.id;
+  const cancelWindowImports = () => bookImports.close(importSenderId);
+  mainWindow.webContents.once('destroyed', cancelWindowImports);
+  mainWindow.webContents.on('render-process-gone', cancelWindowImports);
+  mainWindow.webContents.on('did-start-navigation', (event, url, isInPlace, isMainFrame) => {
+    // Reloading replaces the renderer but retains its webContents ID. Its old
+    // batch must not prevent the new page from starting another import.
+    if (isMainFrame && !isInPlace) cancelWindowImports();
   });
-  mainWindow.webContents.on('destroyed', () => { if (importQueue) importQueue.cancel(importOwner); });
-  mainWindow.on('unresponsive', () => logImport('window-unresponsive'));
+  mainWindow.once('ready-to-show', () => mainWindow.show());
   let displayUpdateTimer = null;
   const sendDisplayFrequency = () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -477,15 +484,10 @@ function createWindow() {
               await __gaiaDebug.waitHome();
               const viewAfterSplash = __gaiaDebug.getView();
               const splashHidden = __gaiaDebug.isSplashHidden();
-              const homeAddButton = document.getElementById('btn-home-add-books');
-              homeAddButton.focus();
-              __gaiaDebug.openBookImportChooser(true);
-              await new Promise((resolve) => requestAnimationFrame(resolve));
-              const importChooserState = __gaiaDebug.getBookImportChooserState();
-              const importChooserReady = importChooserState.open === true && importChooserState.fromHome === true &&
-                document.activeElement && document.activeElement.id === 'btn-import-folder';
-              __gaiaDebug.closeBookImportChooser();
-              const importChooserClosed = __gaiaDebug.getBookImportChooserState().open === false && document.activeElement === homeAddButton;
+              document.getElementById('btn-home-reading-stats').click();
+              const homeReadingGoalOpened = __gaiaDebug.getView() === 'stats';
+              document.getElementById('btn-stats-back').click();
+              const homeReadingGoalReturned = __gaiaDebug.getView() === 'home';
               const fxOnHome = __gaiaDebug.isFxActive();
               __gaiaDebug.burst(200, 200);
               await new Promise((r) => setTimeout(r, 60));
@@ -499,7 +501,17 @@ function createWindow() {
               await new Promise((r) => setTimeout(r, 120));
               const trailCount = __gaiaDebug.getParticleCount();
               const trailLoopRunning = __gaiaDebug.isFxLoopRunning();
-              const diamondCount = __gaiaDebug.getDiamondCount();
+              const fxSelection = __gaiaDebug.getFxState();
+              document.getElementById('btn-home-shelf').click();
+              const shelfImportButton = document.getElementById('btn-add-books');
+              shelfImportButton.focus();
+              shelfImportButton.click();
+              await new Promise((resolve) => requestAnimationFrame(resolve));
+              const importChooserState = __gaiaDebug.getBookImportChooserState();
+              const importChooserReady = importChooserState.open === true && importChooserState.fromHome === false &&
+                document.activeElement && document.activeElement.id === 'btn-import-folder';
+              __gaiaDebug.closeBookImportChooser();
+              const importChooserClosed = __gaiaDebug.getBookImportChooserState().open === false && document.activeElement === shelfImportButton;
               const importResult = await __gaiaDebug.importPaths([fixture]);
               const importedBook = __gaiaDebug.getLibrary().find((book) => book.path === fixture);
               const importSucceeded = importResult.added === 1 && importResult.failures.length === 0 && !!importedBook;
@@ -556,23 +568,6 @@ function createWindow() {
               await new Promise((r) => setTimeout(r, 400));
               await GaiaPet.whenReady();
               GaiaPet.setWindowFocusedForTest(true);
-              const readingCareBefore = GaiaPet.getReadingCareState();
-              GaiaPet.openConsole();
-              const petHitbox = document.querySelector('.gaia-pet-hitbox');
-              if (petHitbox) {
-                petHitbox.focus();
-                petHitbox.click();
-              }
-              const readingFrame = document.querySelector('#reader-content iframe');
-              if (readingFrame && readingFrame.contentWindow) readingFrame.contentWindow.focus();
-              await new Promise((r) => setTimeout(r, 650));
-              const readingCareAfter = GaiaPet.getReadingCareState();
-              const petReadingTimerSurvivesIframeFocus = readingCareBefore.tracking === true &&
-                readingCareAfter.tracking === true && readingCareBefore.startedAt > 0 &&
-                readingCareAfter.startedAt === readingCareBefore.startedAt &&
-                readingCareAfter.elapsed > readingCareBefore.elapsed;
-              GaiaPet.closeConsole();
-              window.focus();
               const aiUi = __gaiaDebug.getAiUiState();
               const aiSource = __gaiaDebug.getAiChapterSource();
               __gaiaDebug.openAiCenter('reader');
@@ -637,21 +632,19 @@ function createWindow() {
                 return document.getElementById('ai-chat-input').value === expected;
               }) &&
                 !document.getElementById('ai-chat-pane').hidden && __gaiaDebug.getAiChatState().messages === promptMessagesBefore;
-              document.getElementById('btn-ai-summary-minimize').click();
-              const minimizedPanel = document.getElementById('ai-summary-panel');
-              const minimizedRect = minimizedPanel.getBoundingClientRect();
-              const aiMinimizedLayout = minimizedPanel.classList.contains('minimized') && minimizedRect.width <= 280 && minimizedRect.height === 50 &&
-                getComputedStyle(document.getElementById('btn-ai-chat-clear')).display === 'none' &&
-                getComputedStyle(document.getElementById('btn-ai-appearance')).display === 'none' &&
-                document.getElementById('btn-ai-summary-minimize').getAttribute('aria-label') === '还原 AI 阅读助手';
-              document.getElementById('btn-ai-summary-minimize').click();
-              const aiRestoredLayout = !minimizedPanel.classList.contains('minimized') && minimizedPanel.getBoundingClientRect().width >= 340 &&
-                document.getElementById('btn-ai-summary-minimize').getAttribute('aria-label') === '最小化 AI 阅读助手';
-              const selectionAiTools = ['ai-analyze', 'ai-ask', 'dictionary', 'search'].every((action) => !!document.querySelector('[data-selection-action="' + action + '"]'));
+              const readerModel = document.getElementById('ai-reader-model');
+              const aiPanelControlsConsolidated = !document.getElementById('btn-ai-summary-minimize') && !document.getElementById('ai-reader-profile') &&
+                !!readerModel && readerModel.tagName === 'SPAN' && readerModel.textContent.trim().length > 0;
+              document.getElementById('btn-ai-chat-center').click();
+              const aiPanelCenterOpened = __gaiaDebug.getView() === 'ai';
+              document.getElementById('btn-ai-back').click();
+              const aiPanelCenterReturned = __gaiaDebug.getView() === 'reader';
+              const selectionAiTools = ['ai-analyze', 'dictionary', 'web-search', 'book-search'].every((action) => !!document.querySelector('[data-selection-action="' + action + '"]')) &&
+                !document.querySelector('[data-selection-action="ai-ask"], [data-selection-action="note"]');
               __gaiaDebug.openAiAssistant();
               const selectionDismissed = await __gaiaDebug.verifySelectionDismissal();
-              const aiUiReady = aiUi.homeEntry && aiUi.centerView && aiUi.settingsSection && aiUi.assistantButton && aiUi.assistantPanel && aiUi.summaryPromptButton &&
-                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiModelMenuScrollable && aiCenterReturned && aiPanelOpened && aiChapterLabelMatches && aiChatInputEditable && aiAppearanceCompact && aiSummaryPromptReady && aiMinimizedLayout && aiRestoredLayout && selectionAiTools && selectionDismissed &&
+              const aiUiReady = aiUi.homeEntry && aiUi.centerView && aiUi.settingsSection && !aiUi.assistantButton && aiUi.assistantPanel && aiUi.summaryPromptButton &&
+                aiUi.readerTrigger && aiUi.chatInput && aiUi.profileCount >= 1 && aiUi.floatingWindow && aiCenterOpened && aiCenterLayout && aiModelPresets && aiModelMenuScrollable && aiCenterReturned && aiPanelOpened && aiChapterLabelMatches && aiChatInputEditable && aiAppearanceCompact && aiSummaryPromptReady && aiPanelControlsConsolidated && aiPanelCenterOpened && aiPanelCenterReturned && selectionAiTools && selectionDismissed &&
                 aiSource.bookPath === fixture && aiSource.chapterId.startsWith('epub:') && aiSource.content.length > 0;
               const annotationsBeforeHighlight = __gaiaDebug.getAnnotations().length;
               const highlightSelectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试高光');
@@ -668,11 +661,17 @@ function createWindow() {
               }
               const annotationsBefore = __gaiaDebug.getAnnotations().length;
               const selectionPrepared = __gaiaDebug.prepareAnnotationSelectionForTest('烟雾测试摘录');
-              document.querySelector('[data-selection-action="note"]').click();
-              await new Promise((r) => setTimeout(r, 80));
-              const noteEditorState = __gaiaDebug.getNoteEditorState();
-              __gaiaDebug.setNoteEditorText('烟雾测试笔记');
-              await __gaiaDebug.commitNoteEditor();
+              document.querySelector('[data-highlight-color="green"]').click();
+              await new Promise((r) => setTimeout(r, 120));
+              const noteSelection = __gaiaDebug.getAnnotations().find((item) => item.text === '烟雾测试摘录');
+              const noteCard = noteSelection && document.querySelector('[data-annotation-id="' + noteSelection.id + '"]');
+              const noteInput = noteCard && noteCard.querySelector('.annotation-note');
+              const noteInputReady = !!noteInput;
+              const noteQuote = noteSelection && noteSelection.text;
+              if (noteInput) {
+                noteInput.value = '烟雾测试笔记';
+                noteInput.dispatchEvent(new Event('change', { bubbles: true }));
+              }
               await new Promise((r) => setTimeout(r, 100));
               const savedAnnotations = __gaiaDebug.getAnnotations();
               const savedNote = savedAnnotations.find((item) => item.note === '烟雾测试笔记');
@@ -700,10 +699,9 @@ function createWindow() {
               await new Promise((r) => setTimeout(r, 400));
               const pctBefore = __gaiaDebug.getPercent();
               const locBefore = __gaiaDebug.getLoc();
-              const pageTurnMotionExpected = !document.hidden && !matchMedia('(prefers-reduced-motion: reduce)').matches;
               await __gaiaDebug.nextPage();
-              const pageTurnAnimationReady = !pageTurnMotionExpected || document.getAnimations().some((animation) =>
-                animation.id === 'reader-page-turn' && animation.playState === 'running');
+              const pageTurnAnimation = document.getAnimations().find((animation) => animation.id === 'reader-page-turn');
+              const pageTurnAnimated = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? !pageTurnAnimation : !!pageTurnAnimation;
               await new Promise((r) => setTimeout(r, 800));
               const pctAfter = __gaiaDebug.getPercent();
               const locAfter = __gaiaDebug.getLoc();
@@ -711,14 +709,10 @@ function createWindow() {
               const wheelsAfterNav = __gaiaDebug.countBoundWheels();
               const bgmCapsule = !!document.getElementById("bgm-capsule");
               const bgmInTopbar = !!document.querySelector("#reader-view .topbar .bgm-capsule");
-              const aliceSummaryAction = document.getElementById('btn-alice-summary');
               const aliceCommentAction = document.getElementById('btn-alice-comment');
-              const aliceQuickActionsReady = !!aliceSummaryAction && !!aliceCommentAction &&
-                aliceSummaryAction.closest('.reader-topbar') && aliceCommentAction.closest('.reader-topbar') &&
-                aliceSummaryAction.offsetHeight === aliceCommentAction.offsetHeight && aliceSummaryAction.offsetHeight >= 30 &&
-                aliceSummaryAction.dataset.aiAlice === 'summary' && aliceCommentAction.dataset.aiAlice === 'comment' &&
-                aliceSummaryAction.getAttribute('aria-label') !== aliceCommentAction.getAttribute('aria-label') &&
-                document.getElementById('ai-summary-panel').contains(document.getElementById('ai-reader-profile'));
+              const aliceQuickActionsReady = !document.getElementById('btn-alice-summary') && !!aliceCommentAction &&
+                !!aliceCommentAction.closest('.reader-topbar') && aliceCommentAction.offsetHeight >= 30 &&
+                document.getElementById('ai-summary-panel').contains(document.getElementById('ai-reader-model'));
               const progTrack = document.getElementById("progress-track");
               const progressVisible = !!progTrack && progTrack.offsetHeight > 0 && !!document.getElementById("progress-fill");
               const bgmTrackBefore = __gaiaDebug.bgmState().trackId;
@@ -726,18 +720,33 @@ function createWindow() {
               const bgmTrackAfter = __gaiaDebug.bgmState().trackId;
               await __gaiaDebug.bgmSetVolume(0.3);
               const bgmVolumeOk = Math.abs(__gaiaDebug.bgmState().volume - 0.3) < 0.01;
-              __gaiaDebug.openSettings();
-              const settingsOpenBeforeBookmark = __gaiaDebug.isSettingsOpen();
-              const addBookmarkButton = document.getElementById('btn-add-bookmark');
-              addBookmarkButton.click();
-              const bookmarkActionClosedImmediately = !__gaiaDebug.isSettingsOpen();
-              const bookmarkActionOpenedImmediately = !__gaiaDebug.getPanels().bookmarksHidden;
-              for (let attempt = 0; attempt < 40 && addBookmarkButton.disabled; attempt += 1) {
+              const bookmarkCountBeforeContext = __gaiaDebug.getBookmarkCount();
+              const bookmarkFrame = document.querySelector('#reader-content iframe');
+              const bookmarkDoc = bookmarkFrame.contentDocument;
+              const bookmarkContextEvent = new bookmarkFrame.contentWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+              bookmarkDoc.body.dispatchEvent(bookmarkContextEvent);
+              for (let attempt = 0; attempt < 40 && __gaiaDebug.getBookmarkCount() === bookmarkCountBeforeContext; attempt += 1) {
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
               const countAfterAdd = __gaiaDebug.getBookmarkCount();
-              const bookmarkActionSaved = countAfterAdd === 1 && addBookmarkButton.disabled === false;
-              if (bookmarkActionOpenedImmediately) __gaiaDebug.togglePanel('bookmarks');
+              const bookmarkActionSaved = countAfterAdd === bookmarkCountBeforeContext + 1 && bookmarkContextEvent.defaultPrevented;
+              const bookmarkDoesNotOpenPanel = __gaiaDebug.getPanels().bookmarksHidden;
+              __gaiaDebug.openSettings();
+              const readerToolsConsolidated = !document.getElementById('btn-toc') && !document.getElementById('btn-book-search-drawer') &&
+                !document.getElementById('btn-add-bookmark') && !document.getElementById('btn-annotations') &&
+                document.getElementById('btn-bookmarks').textContent === '书签和笔记';
+              const bookmarkHintsReady = document.getElementById('drawer-funcs').textContent.includes('右键') &&
+                document.getElementById('drawer-appearance').textContent.includes('右键点击有珠') && !document.getElementById('btn-pet-console');
+              document.getElementById('btn-bookmarks').click();
+              const bookmarkCollectionOpened = !__gaiaDebug.isSettingsOpen() && !__gaiaDebug.getPanels().bookmarksHidden &&
+                document.querySelector('#bookmarks-panel .collection-summary strong').textContent === '书签' &&
+                document.querySelector('#bookmarks-panel .collection-summary span').textContent === countAfterAdd + ' 条' &&
+                !document.querySelector('#bookmarks-panel .collection-hint');
+              document.querySelectorAll('#bookmarks-panel [role="tab"]')[1].click();
+              const notesTabOpened = !document.getElementById('annotations-panel').hidden && document.getElementById('bookmarks-panel').hidden;
+              document.querySelector('#annotations-panel [role="tab"]').click();
+              const collectionTabsWork = notesTabOpened && !document.getElementById('bookmarks-panel').hidden && document.getElementById('annotations-panel').hidden;
+              __gaiaDebug.togglePanel('bookmarks');
               const bmInfo = __gaiaDebug.getBookmarks();
               const bmChapter = bmInfo.length ? (bmInfo[bmInfo.length - 1].chapter || '') : '';
               const bmPercent = bmInfo.length ? bmInfo[bmInfo.length - 1].percent : null;
@@ -747,13 +756,15 @@ function createWindow() {
               const bookmarksOpen = !__gaiaDebug.getPanels().bookmarksHidden;
               __gaiaDebug.togglePanel('bookmarks');
               const bookmarksClosed = __gaiaDebug.getPanels().bookmarksHidden;
+              await __gaiaDebug.waitForReaderLayoutRefresh();
               __gaiaDebug.togglePanel('toc');
               const tocOpen = !__gaiaDebug.getPanels().tocHidden;
               const firstTocLink = document.querySelector('#toc-panel [data-epub-href]');
               const tocWithEntriesHasNoEmptyMessage = !!firstTocLink && !document.getElementById('toc-panel').textContent.includes('本书没有目录');
               const expectedTocOrdinal = firstTocLink ? __gaiaDebug.getEpubTocTargetIndex(firstTocLink.dataset.epubHref) : null;
               if (firstTocLink) firstTocLink.click();
-              await new Promise((r) => setTimeout(r, 500));
+              for (let attempt = 0; attempt < 60 && (__gaiaDebug.getAiChapterSource().ordinal !== expectedTocOrdinal || !__gaiaDebug.getPanels().tocHidden); attempt += 1) await new Promise((r) => setTimeout(r, 50));
+              await __gaiaDebug.waitForReaderLayoutRefresh();
               const tocClosed = __gaiaDebug.getPanels().tocHidden;
               const tocAfterOrdinal = __gaiaDebug.getAiChapterSource().ordinal;
               const firstTocHref = firstTocLink && firstTocLink.dataset.epubHref;
@@ -823,14 +834,14 @@ function createWindow() {
               const searchEngineOptionsReady = ['google', 'bing', 'baidu', 'custom'].every((value) => !!searchEngineSelect.querySelector('option[value="' + value + '"]'));
               searchEngineSelect.value = 'bing';
               searchEngineSelect.dispatchEvent(new Event('change', { bubbles: true }));
-              const searchUsesBing = document.querySelector('[data-selection-action="search"]').title === '使用 Bing 搜索';
+              const searchUsesBing = document.querySelector('[data-selection-action="web-search"]').title === '使用 Bing 搜索';
               searchEngineSelect.value = 'custom';
               searchEngineSelect.dispatchEvent(new Event('change', { bubbles: true }));
               const customSearchVisible = !document.getElementById('search-custom-row').hidden;
               searchEngineSelect.value = 'google';
               searchEngineSelect.dispatchEvent(new Event('change', { bubbles: true }));
               const searchSettingsReady = searchEngineOptionsReady && searchUsesBing && customSearchVisible &&
-                document.getElementById('search-custom-row').hidden && document.querySelector('[data-selection-action="search"]').title === '使用 Google 搜索';
+                document.getElementById('search-custom-row').hidden && document.querySelector('[data-selection-action="web-search"]').title === '使用 Google 搜索';
               const settingsDrawer = document.getElementById('settings-drawer');
               const settingsCapsuleRect = settingsCapsule.getBoundingClientRect();
               const settingsDrawerRect = settingsDrawer.getBoundingClientRect();
@@ -887,8 +898,8 @@ function createWindow() {
               await new Promise((r) => setTimeout(r, 50));
               const particleCountLibrary = __gaiaDebug.getParticleCount();
               console.log('DEBUG_VIEW', viewAfterSplash, splashHidden, drawerOpen, drawerClosed, epSize.w, epSize.h);
-              console.log('DEBUG_FX', fxOnHome, particleCount, fxInReader, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, diamondCount);
-              console.log('DEBUG_NIGHT', nightBefore, nightAfter, readerDark, darkInjected, eyeTheme, readerEye, fontInjected, pageTurnAnimationReady);
+              console.log('DEBUG_FX', fxOnHome, particleCount, fxInReader, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, fxSelection);
+              console.log('DEBUG_NIGHT', nightBefore, nightAfter, readerDark, darkInjected, eyeTheme, readerEye, fontInjected, pageTurnAnimated);
               console.log('DEBUG_REOPEN', reopenStatus, reopenPct, memOk, shelfOrderAfterRead, shelfProgressCount);
               console.log('DEBUG_SPREAD', spreadBefore, spreadAfter, epSizeAfterSpread.w);
               console.log('DEBUG_PROGRESS', pctBefore, pctAfter);
@@ -897,7 +908,7 @@ function createWindow() {
               console.log('DEBUG_PANELS', bookmarksOpen, bookmarksClosed, tocOpen, tocClosed);
               console.log('DEBUG_SHELF', libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove);
               console.log('DEBUG_BATCH', libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove);
-              return JSON.stringify({ viewAfterSplash, splashHidden, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, petReadingTimerSurvivesIframeFocus, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, highlightSaved, highlightPanelOpen, highlightCardLocated, selectionPrepared, noteEditorOpen: noteEditorState.open, noteEditorQuote: noteEditorState.quote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, readingThemeControlsReady, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, readerDark, darkInjected, eyeTheme, readerEye, fontInjected, pageTurnAnimationReady, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, diamondCount, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, settingsOpenBeforeBookmark, bookmarkActionClosedImmediately, bookmarkActionOpenedImmediately, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocWithEntriesHasNoEmptyMessage, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, edgeTocDisabledSetting, edgeTocDisabledBlocksHover, edgeTocDisabledKeepsManual, edgeTocReenabled, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
+              return JSON.stringify({ viewAfterSplash, splashHidden, homeReadingGoalOpened, homeReadingGoalReturned, importChooserReady, importChooserClosed, importSucceeded, importRecovered: importResult.recovered, bookSearchRuntimeReady, epubSearchWindowResizeReady, epubSearchSpreadAligned, searchSurvivedEdgeToc, bookSearchShortcutState, bookSearchRunState, bookSearchActivatedState, epubLayoutBeforeSearch, epubLayoutWithSearch, epubLayoutAfterWindowResize, epubLayoutAfterSearchJump, epubLayoutAfterSearch, aiUiReady, aiChatInputEditable, aiChatInputTopId: aiChatInputTopElement && aiChatInputTopElement.id, aiChatInserted, aiCenterOpened, aiCenterLayout, aiModelPresets, aiModelMenuScrollable, aiCenterReturned, aiPanelOpened, aiAppearanceCompact, aiSummaryPromptReady, selectionAiTools, highlightSaved, highlightPanelOpen, highlightCardLocated, selectionPrepared, noteInputReady, noteQuote, noteEditorSaved, notePanelOpen, noteCardLocated, drawerOpen, drawerClosed, searchSettingsReady, spreadGapControlReady, readingThemeControlsReady, bgmAvoidsSettings, readerActionsAvoidSettings, bgmSettingsState, bgmSettingsRestored, bgmSettingsOpeningAnimation, bgmSettingsOpeningFromOriginal, bgmSettingsClosingAnimation, epW: epSize.w, epH: epSize.h, spreadBefore, spreadAfter, spreadGapBefore, spreadGapAfter, activeSpreadGap, spreadGapApplied, spreadGapLocationKept, epW2: epSizeAfterSpread.w, fxOnHome, particleCount, fxInReader, nightBefore, nightAfter, readerDark, darkInjected, eyeTheme, readerEye, fontInjected, pageTurnAnimated, reopenPct, reopenStatus, memOk, shelfOrderAfterRead, shelfProgressCount, fxOnLibrary, particleCountLibrary, trailCount, trailLoopRunning, fxSelection, pctBefore, pctAfter, locBefore, locAfter, progressWidth, wheelsAfterNav, bgmCapsule, bgmInTopbar, aliceQuickActionsReady, progressVisible, bgmTrackBefore, bgmTrackAfter, bgmVolumeOk, bmChapter, bmPercent, bookmarkDoesNotOpenPanel, readerToolsConsolidated, bookmarkHintsReady, bookmarkCollectionOpened, collectionTabsWork, bookmarkActionSaved, countAfterAdd, countAfterRemove, bookmarksOpen, bookmarksClosed, tocOpen, tocClosed, tocWithEntriesHasNoEmptyMessage, tocButtonReady, bottomControlsClearContent, tocHoverOpened, tocHoverStayed, tocHoverClosed, edgeTocDisabledSetting, edgeTocDisabledBlocksHover, edgeTocDisabledKeepsManual, edgeTocReenabled, firstTocHref, firstTocTarget, expectedTocOrdinal, tocLocationIndex, tocAfterOrdinal, epubTocJumpWorked, libAfterAdd, libAfterRemove, shelfBookmarkBeforeRemove, bookmarkCountAfterShelfRemove, progressCountAfterShelfRemove, libAfterBatchAdd, bookmarkBeforeBatch, selectedCount, libAfterBatchRemove, bookmarkCountAfterBatchRemove, progressCountAfterBatchRemove });
             } catch (e) {
               console.error('DEBUG_OPEN_ERROR', e && (e.stack || e.message || String(e)));
               return 'ERROR';
@@ -910,18 +921,19 @@ function createWindow() {
             debugOk =
               parsed.viewAfterSplash === 'home' &&
               parsed.splashHidden === true &&
+              parsed.homeReadingGoalOpened === true &&
+              parsed.homeReadingGoalReturned === true &&
               parsed.importChooserReady === true &&
               parsed.importChooserClosed === true &&
               parsed.importSucceeded === true &&
               parsed.bookSearchRuntimeReady === true &&
-              parsed.petReadingTimerSurvivesIframeFocus === true &&
               parsed.aiUiReady === true &&
               parsed.highlightSaved === true &&
               parsed.highlightPanelOpen === true &&
               parsed.highlightCardLocated === true &&
               parsed.selectionPrepared === true &&
-              parsed.noteEditorOpen === true &&
-              parsed.noteEditorQuote === '烟雾测试摘录' &&
+              parsed.noteInputReady === true &&
+              parsed.noteQuote === '烟雾测试摘录' &&
               parsed.noteEditorSaved === true &&
               parsed.notePanelOpen === true &&
               parsed.noteCardLocated === true &&
@@ -946,7 +958,7 @@ function createWindow() {
               parsed.epW2 > 0 &&
               parsed.fxOnHome === true &&
               parsed.particleCount > 0 &&
-              parsed.fxInReader === false &&
+              parsed.fxInReader === true &&
               parsed.nightBefore === false &&
               parsed.nightAfter === true &&
               parsed.readerDark === true &&
@@ -958,19 +970,23 @@ function createWindow() {
               parsed.particleCountLibrary > 0 &&
               parsed.trailCount > 0 &&
               parsed.trailLoopRunning === true &&
-              parsed.diamondCount > 0 &&
+              parsed.fxSelection.id === 2 &&
+              parsed.fxSelection.intensity === 1 &&
+              parsed.fxSelection.scale === 1.5 &&
               parsed.locBefore !== parsed.locAfter &&
               parsed.pctAfter != null &&
               parsed.progressWidth !== '' &&
               parseFloat(parsed.progressWidth) > 0 && parsed.wheelsAfterNav >= 1 &&
-              parsed.pageTurnAnimationReady === true &&
+              parsed.pageTurnAnimated === true &&
               parsed.reopenPct > 0 &&
               parsed.memOk === true &&
               parsed.shelfOrderAfterRead[0] === DEBUG_OPEN_PATH &&
               parsed.shelfProgressCount >= 1 &&
-              parsed.settingsOpenBeforeBookmark === true &&
-              parsed.bookmarkActionClosedImmediately === true &&
-              parsed.bookmarkActionOpenedImmediately === true &&
+              parsed.bookmarkDoesNotOpenPanel === true &&
+              parsed.readerToolsConsolidated === true &&
+              parsed.bookmarkHintsReady === true &&
+              parsed.bookmarkCollectionOpened === true &&
+              parsed.collectionTabsWork === true &&
               parsed.bookmarkActionSaved === true &&
               parsed.countAfterAdd === 1 &&
               parsed.bgmCapsule === true &&
@@ -1023,11 +1039,11 @@ function createWindow() {
             const panel = document.querySelector('.gaia-pet-console');
             const emotionButtons = panel ? panel.querySelectorAll('[data-emotion]').length : 0;
             const actionButtons = panel ? panel.querySelectorAll('[data-action]').length : 0;
-            const careToggle = panel && panel.querySelector('[data-reading-care-toggle]');
-            const careSelect = panel && panel.querySelector('[data-reading-care-interval]');
-            const careStatus = panel && panel.querySelector('.gaia-pet-console-care-status');
-            const careTest = panel && panel.querySelector('[data-reading-care-test]');
-            const readingCareControls = !!careToggle && !!careSelect && !!careStatus && !!careTest;
+            const simplifiedControls = !panel.textContent.includes('自主活动总开关') && !panel.textContent.includes('自主台词') && !panel.textContent.includes('阅读关怀') && !panel.textContent.includes('半透明');
+            const sleepRow = Array.from(panel.querySelectorAll('.gaia-pet-console-select-row')).find((row) => row.firstElementChild.textContent === '入睡速度');
+            const sleepOptions = Array.from(sleepRow.querySelector('select').options).map((option) => Number(option.value));
+            const sleepOptionsCorrect = JSON.stringify(sleepOptions) === '[60000,180000,600000]';
+            const panelPaletteConsistent = getComputedStyle(panel).backgroundColor === 'rgb(32, 38, 46)';
             const panelVisible = !!panel && !panel.hidden && panel.offsetWidth > 0 && panel.offsetHeight > 0;
             const rect = panel ? panel.getBoundingClientRect() : null;
             const panelInViewport = !!rect && rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight;
@@ -1048,9 +1064,11 @@ function createWindow() {
             fpsToggle.checked = false;
             fpsToggle.dispatchEvent(new Event('change', { bubbles: true }));
             const fpsToggleHides = fpsLabel.hidden && document.getElementById('gaia-pet').classList.contains('fps-hidden');
+            GaiaPet.setWindowFocusedForTest(true);
             fpsToggle.checked = true;
             fpsToggle.dispatchEvent(new Event('change', { bubbles: true }));
-            await new Promise((resolve) => setTimeout(resolve, 1300));
+            for (let attempt = 0; attempt < 40 && !/^FPS [0-9]+ /.test(fpsLabel.textContent); attempt += 1) await new Promise((resolve) => setTimeout(resolve, 100));
+            const fpsSample = { text: fpsLabel.textContent, level: fpsLabel.dataset.level, hidden: fpsLabel.hidden, documentHidden: document.hidden };
             const reportedDisplayFrequency = await window.api.displayFrequency();
             const fpsSegments = fpsLabel.textContent.split(' / ');
             const fpsMeasured = !fpsLabel.hidden && fpsSegments.length === 2 && /^FPS [0-9]+$/.test(fpsSegments[0]) && /^[0-9]+Hz$/.test(fpsSegments[1]) && ['good', 'warn', 'bad'].includes(fpsLabel.dataset.level);
@@ -1084,38 +1102,26 @@ function createWindow() {
             const petTarget = petRoot.querySelector('.gaia-pet-hitbox');
             petRoot.style.pointerEvents = 'none';
             petTarget.style.pointerEvents = 'none';
-            careTest.click();
-            const careTestBubble = document.querySelector('.gaia-pet-bubble');
-            const immediateCareTest = careTestBubble.classList.contains('show') && GaiaPetShared.LINES.readingCare.includes(careTestBubble.textContent);
-            GaiaPet.setView('reader');
-            careSelect.value = '60000';
-            careSelect.dispatchEvent(new Event('change', { bubbles: true }));
-            const readingDateNow = Date.now;
-            Date.now = () => readingDateNow() + 30000;
-            await new Promise((resolve) => setTimeout(resolve, 600));
-            const readingTimerAdvanced = careStatus.textContent.includes('00:30 / 01:00');
+            GaiaPet.speak('阅读工具与台词各有自己的位置。', 4200);
+            const panelBounds = panel.getBoundingClientRect();
+            const speechBounds = document.querySelector('.gaia-pet-bubble').getBoundingClientRect();
+            const consoleAvoidsBubble = speechBounds.right <= panelBounds.left || panelBounds.right <= speechBounds.left || speechBounds.bottom <= panelBounds.top || panelBounds.bottom <= speechBounds.top;
+            let contextMenuBubbled = false;
+            const detectContextMenu = () => { contextMenuBubbled = true; };
+            document.addEventListener('contextmenu', detectContextMenu);
+            petTarget.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+            panel.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+            document.removeEventListener('contextmenu', detectContextMenu);
+            const contextMenuIsolated = !contextMenuBubbled;
             GaiaPet.setWindowFocusedForTest(false);
-            const readingTimerResetOnBlur = careStatus.textContent.includes('00:00 / 01:00');
             const fpsUnavailableOnBlur = fpsLabel.textContent.startsWith('FPS -- / ') && fpsLabel.dataset.level === 'idle';
             GaiaPet.setWindowFocusedForTest(true);
-            Date.now = readingDateNow;
-            GaiaPet.setView('home');
-            const readingTimerResetOnLeave = careStatus.textContent.includes('未在阅读');
-            GaiaPet.runEmotion('sleeping');
-            GaiaPet.setView('reader');
-            Date.now = () => readingDateNow() + 61000;
-            await new Promise((resolve) => setTimeout(resolve, 600));
-            const readingCareReminderTriggered = careTestBubble.classList.contains('show') &&
-              GaiaPetShared.LINES.readingCare.includes(careTestBubble.textContent) &&
-              careStatus.textContent.includes('00:00 / 01:00');
-            Date.now = readingDateNow;
-            GaiaPet.setView('home');
             GaiaPet.runEmotion('idle');
             const originalDateNow = Date.now;
-            Date.now = () => originalDateNow() + 26000;
+            Date.now = () => originalDateNow() + Math.ceil(GaiaPet.getState().sleepAfter * 5 / 7) + 1000;
             await new Promise((resolve) => setTimeout(resolve, 600));
             const autoRestWhileConsoleOpen = !panel.hidden && GaiaPet.getBrain().state === 'sleepy' && petHeadRig.classList.contains('performance-drowse');
-            Date.now = () => originalDateNow() + 36000;
+            Date.now = () => originalDateNow() + GaiaPet.getState().sleepAfter + 1000;
             await new Promise((resolve) => setTimeout(resolve, 600));
             const autoSleepWhileConsoleOpen = !panel.hidden && GaiaPet.getBrain().state === 'sleeping';
             Date.now = originalDateNow;
@@ -1259,7 +1265,7 @@ function createWindow() {
             __gaiaDebug.closeReadingStats();
             await new Promise((resolve) => setTimeout(resolve, 80));
             const statsPetRestored = !petRoot.hidden;
-            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsTargetMatchesDisplay, fpsUnavailableOnBlur, emotionButtons, actionButtons, readingCareControls, immediateCareTest, readingTimerAdvanced, readingTimerResetOnBlur, readingTimerResetOnLeave, readingCareReminderTriggered, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, translucentBeforeHover, translucentHoverWakes, translucentLeaveRestores, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned, statsViewVisible, statsUsesWholeImage, statsAliceVisible, statsAliceSizeStable, statsLayoutOverlap, statsPetHidden, statsBreathing, statsHoverInteractive, statsDragDisabled, statsBlinkStarted, statsYawnStarted, statsYawnExpression, statsSleepStarted, statsWakeStarted, statsHasNoDialogue, statsPetRestored };
+            return { panelVisible, panelInViewport, panelCompact, panelScrollable, stickyConsoleTop, panelWheelIsolated, fpsToggleHides, fpsMeasured, fpsSample, fpsTargetMatchesDisplay, fpsUnavailableOnBlur, emotionButtons, actionButtons, simplifiedControls, sleepOptionsCorrect, panelPaletteConsistent, consoleAvoidsBubble, contextMenuIsolated, layeredPet, headCutoutClean, oldLidRemoved, autoRestWhileConsoleOpen, autoSleepWhileConsoleOpen, sleeping, sleepExpression, sleepAnimation, sleepHeadPose, zzzVisible, hoverKeepsSleeping, translucentBeforeHover, translucentHoverWakes, translucentLeaveRestores, firstClickOnlyWakes, awake, wakePerformance, sleepAnimationCleared, zzzHidden, actionStarted, actionCleared, actionStateRestored, breathingRestored, yawnClosedBeforeInterrupt, blinkInterruptedYawn, interruptedBlinkCleaned, yawnStarted, yawnHeadActive, yawnBodyAnimation, yawnExpression, yawnTextVisible, yawnCleared, drowseStarted, blinkInterruptedDrowse, drowseCleared, angryPerformanceStarted, angryExpressionMatched, angryPerformanceCleared, spriteBlinkStarted, repeatedBlinkRestarted, repeatedBlinkCleaned, statsViewVisible, statsUsesWholeImage, statsAliceVisible, statsAliceSizeStable, statsLayoutOverlap, statsPetHidden, statsBreathing, statsHoverInteractive, statsDragDisabled, statsBlinkStarted, statsYawnStarted, statsYawnExpression, statsSleepStarted, statsWakeStarted, statsHasNoDialogue, statsPetRestored };
           })()`);
           debugOk =
             petStatus.panelVisible === true &&
@@ -1274,12 +1280,11 @@ function createWindow() {
             petStatus.fpsUnavailableOnBlur === true &&
             petStatus.emotionButtons === 8 &&
             petStatus.actionButtons === 3 &&
-            petStatus.readingCareControls === true &&
-            petStatus.immediateCareTest === true &&
-            petStatus.readingTimerAdvanced === true &&
-            petStatus.readingTimerResetOnBlur === true &&
-            petStatus.readingTimerResetOnLeave === true &&
-            petStatus.readingCareReminderTriggered === true &&
+            petStatus.simplifiedControls === true &&
+            petStatus.sleepOptionsCorrect === true &&
+            petStatus.panelPaletteConsistent === true &&
+            petStatus.consoleAvoidsBubble === true &&
+            petStatus.contextMenuIsolated === true &&
             petStatus.layeredPet === true &&
             petStatus.headCutoutClean === true &&
             petStatus.oldLidRemoved === true &&
@@ -1488,29 +1493,40 @@ function createWindow() {
   }
 }
 
-ipcMain.handle('dialog:openFiles', async () => {
-  logImport('file-picker-open');
+ipcMain.handle('book:import:begin', (event, requestId) => bookImports.begin(event.sender.id, requestId));
+ipcMain.handle('book:import:cancel', (event, requestId) => bookImports.cancel(event.sender.id, requestId));
+ipcMain.handle('book:import:end', (event, requestId) => bookImports.end(event.sender.id, requestId));
+
+ipcMain.handle('dialog:openFiles', (event, requestId) => bookImports.run(event.sender.id, requestId, async (signal) => {
+  throwIfImportCancelled(signal);
   const res = await dialog.showOpenDialog(mainWindow, {
     title: '选择电子书文件',
     filters: [{ name: '电子书', extensions: ['epub', 'pdf', 'txt', 'mobi', 'azw3'] }],
     properties: ['openFile', 'multiSelections'],
   });
+  throwIfImportCancelled(signal);
   if (res.canceled) return [];
-  logImport('file-picker-selected', { count: res.filePaths.length });
-  return res.filePaths.filter((p) => formatOf(p));
-});
+  return deduplicateBookPaths(res.filePaths, { signal });
+}));
 
-ipcMain.handle('dialog:openFolder', async () => {
-  logImport('folder-picker-open');
+ipcMain.handle('dialog:openFolder', (event, requestId) => bookImports.run(event.sender.id, requestId, async (signal) => {
+  throwIfImportCancelled(signal);
   const res = await dialog.showOpenDialog(mainWindow, {
     title: '选择电子书文件夹',
     properties: ['openDirectory'],
   });
-  if (res.canceled) return [];
-  const files = await scanBookFolder(res.filePaths[0], 8);
-  logImport('folder-scanned', { count: files.length });
-  return files;
-});
+  throwIfImportCancelled(signal);
+  if (res.canceled || !res.filePaths.length) return [];
+  return scanBookFolder(res.filePaths[0], {
+    signal,
+    maxDepth: 8,
+    onProgress: (progress) => {
+      if (requestId != null && !event.sender.isDestroyed()) {
+        event.sender.send('book:import:progress', { requestId, ...progress });
+      }
+    },
+  });
+}));
 
 ipcMain.handle('book:read', async (event, filePath) => {
   const format = formatOf(filePath);
@@ -1527,8 +1543,10 @@ ipcMain.handle('book:read', async (event, filePath) => {
   return { format, data: buf };
 });
 
-ipcMain.handle('book:metadata', (event, filePath) => importQueue.read(filePath, event.sender.id));
-ipcMain.handle('book:metadata:cancel', (event) => { importQueue.cancel(event.sender.id); return true; });
+ipcMain.handle('book:metadata', (event, filePath, requestId) => bookImports.run(event.sender.id, requestId, (signal) => {
+  if (!formatOf(filePath)) throw new Error('不支持的文件格式: ' + filePath);
+  return runMetadataProcess(filePath, { signal, temporaryRoot: app.getPath('temp') });
+}));
 
 const mobiSessions = new Map();
 let mobiSessionSeq = 0;
@@ -1536,7 +1554,7 @@ let mobiSessionSeq = 0;
 ipcMain.handle('mobi:open', async (event, filePath) => {
   const format = formatOf(filePath);
   if (format !== 'mobi' && format !== 'azw3') throw new Error('不是 MOBI/AZW3 文件: ' + filePath);
-  const resourceSaveDir = path.join(app.getPath('temp'), 'gaia-mobi-' + process.pid + '-' + (mobiSessionSeq + 1));
+  const resourceSaveDir = path.join(app.getPath('temp'), APP_NAME + '-mobi-' + process.pid + '-' + (mobiSessionSeq + 1));
   const opened = await openMobi(filePath, resourceSaveDir);
   const sessionId = 'mobi-' + (++mobiSessionSeq);
   mobiSessions.set(sessionId, { opened, resourceSaveDir });
@@ -1575,6 +1593,9 @@ ipcMain.handle('mobi:close', (event, sessionId) => {
 
 
 ipcMain.handle('state:get', (event, key) => store.get(key, null));
+// Only expose the rendering choice, not graphics-card details. Re-evaluate on
+// each window startup so software/remote sessions retain the cheaper vector path.
+ipcMain.handle('graphics:software-rendering', () => app.getGPUFeatureStatus().gpu_compositing !== 'enabled');
 ipcMain.handle('state:set', (event, { key, value }) => {
   store.set(key, value);
   return true;
@@ -1659,6 +1680,7 @@ ipcMain.handle('ai:chat', async (event, payload) => {
     const answer = await GaiaAi.chat(aiFetch, profile, aiKeyForProfile(profile), {
       bookTitle: String(source.bookTitle || '').slice(0, 300),
       chapterTitle: String(source.chapterTitle || '').slice(0, 300),
+      pageWindow: !!source.pageWindow,
       content,
     }, input.question, input.history, { timeoutMs: 90000, signal: controller.signal });
     return { answer, provider: profile.provider, model: profile.model, targetHost: new URL(profile.baseUrl).host };
@@ -1676,6 +1698,7 @@ ipcMain.handle('ai:alice-comment', async (event, payload) => {
   const comment = await GaiaAi.aliceComment(aiFetch, profile, aiKeyForProfile(profile), {
     bookTitle: String(source.bookTitle || '').slice(0, 300),
     chapterTitle: String(source.chapterTitle || '').slice(0, 300),
+    pageWindow: !!source.pageWindow,
     content,
   }, input.kind === 'summary' ? 'summary' : 'comment', { timeoutMs: 90000 });
   return { comment, kind: input.kind === 'summary' ? 'summary' : 'comment', model: profile.model, targetHost: new URL(profile.baseUrl).host };
@@ -1714,27 +1737,21 @@ function setupMenu() {
 }
 
 app.whenReady().then(() => {
-  const storePath = path.join(app.getPath('userData'), 'gaia-reading.json');
+  const storePath = path.join(app.getPath('userData'), STATE_FILE_NAME);
   try {
+    migrateLegacyDataFiles(app.getPath('userData'), { packaged: app.isPackaged, portableDirectory: dataPaths.portableDirectory });
     const upgrade = prepareDataFile(storePath, { appVersion: app.getVersion(), backupLimit: 5 });
     if (upgrade.backupPath) console.log('USER_DATA_BACKUP:', upgrade.backupPath);
   } catch (err) {
     console.error('USER_DATA_UPGRADE_FAILED:', err);
     dialog.showErrorBox(
-      'Gaia Reading 数据保护',
+      APP_NAME + ' 数据保护',
       '用户数据无法安全升级，程序不会覆盖原文件。\n\n数据位置：' + storePath + '\n\n原因：' + err.message
     );
     app.quit();
     return;
   }
   store = new JsonStore(storePath);
-  importQueue = new ImportQueue({
-    fork: () => utilityProcess.fork(path.join(__dirname, 'import-worker.js'), [], {
-      serviceName: 'Gaia Reading 图书导入', execArgv: ['--max-old-space-size=256'], stdio: 'ignore',
-    }),
-    tempRoot: path.join(app.getPath('temp'), 'gaia-book-import-' + process.pid),
-    log: logImport,
-  });
   registerBgmProtocol();
   setupMenu();
   createWindow();
@@ -1743,11 +1760,22 @@ app.whenReady().then(() => {
   });
 });
 
+let finishingImportShutdown = false;
+app.on('before-quit', (event) => {
+  if (finishingImportShutdown) return;
+  const hadPendingJobs = bookImports.pending.size > 0;
+  const settled = bookImports.closeAll();
+  if (!hadPendingJobs) return;
+  event.preventDefault();
+  settled.finally(() => {
+    finishingImportShutdown = true;
+    app.quit();
+  });
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-
-app.on('before-quit', () => { if (importQueue) importQueue.close(); });
 
 
 

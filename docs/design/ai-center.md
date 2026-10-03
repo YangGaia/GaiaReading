@@ -1,6 +1,6 @@
 # AI 阅读中心
 
-AI 中心在软件内延续首页、书架和阅读目标页的石墨灰、银白文字、冷蓝细线与浅浮雕按钮。中文沿用 Noto Sans SC，Gaia 字标沿用已有字体，URL 和模型 ID 使用等宽字体。
+AI 中心在软件内延续首页、书架和阅读目标页的石墨灰、银白文字、冷蓝细线与浅浮雕按钮。中文沿用 Noto Sans SC，GaiaReading_Lucky 字标沿用已有字体，URL 和模型 ID 使用等宽字体。
 
 - 接口档案在左，编辑表单在右；窄窗口改为上下排列，档案横向滚动。表单保留原控件、保存、删除、Key 管理、连接测试和读取模型功能。
 - 模型列表在卡片内展开，支持原有筛选、键盘操作和手填 ID。新选项直接显示 `gpt-6-astra`，不以产品昵称替代请求 ID。
@@ -16,14 +16,17 @@ AI 中心在软件内延续首页、书架和阅读目标页的石墨灰、银�
 
 ## 验证
 
+在项目目录执行：
+
 ```powershell
+. ./scripts/dev-env.ps1
 npm test
 $env:GAIA_UI_AI_ONLY = '1'
-$env:GAIA_UI_OUTPUT_DIR = 'D:\Codex_project\Gaia_Reading\dist\ai-center-ui'
+$env:GAIA_UI_OUTPUT_DIR = (Join-Path $env:TEMP 'ai-center-ui')
 npm run smoke:ui
 
 Remove-Item Env:GAIA_UI_AI_ONLY
-$env:GAIA_UI_OUTPUT_DIR = 'D:\Codex_project\Gaia_Reading\dist\ai-center-regression'
+$env:GAIA_UI_OUTPUT_DIR = (Join-Path $env:TEMP 'ai-center-regression')
 npm run smoke:ui
 ```
 

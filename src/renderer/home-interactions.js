@@ -5,38 +5,8 @@
   const home = document.getElementById('home-view');
   if (!home) return;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  const buttons = [...home.querySelectorAll('.action-button')];
   const reveals = new Set();
-  let pendingLight = null;
-  let frame = 0;
   let wasVisible = false;
-
-  function clearLight() {
-    cancelAnimationFrame(frame);
-    frame = 0;
-    pendingLight = null;
-    for (const button of buttons) {
-      button.style.removeProperty('--hover-x');
-      button.style.removeProperty('--hover-y');
-    }
-  }
-
-  function queueLight(event) {
-    if (reducedMotion.matches || event.pointerType === 'touch' || event.buttons) return;
-    pendingLight = { button: event.currentTarget, x: event.clientX, y: event.clientY };
-    if (frame) return;
-    frame = requestAnimationFrame(() => {
-      frame = 0;
-      if (!pendingLight || home.hidden || document.hidden) return;
-      const { button, x, y } = pendingLight;
-      const rect = button.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-      const percent = (value) => Math.max(0, Math.min(100, value)).toFixed(2) + '%';
-      button.style.setProperty('--hover-x', percent((x - rect.left) / rect.width * 100));
-      button.style.setProperty('--hover-y', percent((y - rect.top) / rect.height * 100));
-      pendingLight = null;
-    });
-  }
 
   function cancelReveals() {
     for (const animation of reveals) animation.cancel();
@@ -45,7 +15,7 @@
 
   function syncVisibility() {
     const visible = !home.hidden && !document.hidden;
-    if (!visible || reducedMotion.matches) { cancelReveals(); clearLight(); }
+    if (!visible || reducedMotion.matches) cancelReveals();
     // Returning from another page uses one short content entrance, without a
     // second staggered reveal extending the navigation animation.
     const entering = home.querySelector('.study-layout').getAnimations().some((animation) => animation.id === 'view-content-enter');
@@ -65,12 +35,6 @@
     wasVisible = visible;
   }
 
-  for (const button of buttons) {
-    button.addEventListener('pointermove', queueLight);
-    button.addEventListener('pointerleave', clearLight);
-    button.addEventListener('pointercancel', clearLight);
-    button.addEventListener('blur', clearLight);
-  }
   new MutationObserver(syncVisibility).observe(home, { attributes: true, attributeFilter: ['hidden'] });
   document.addEventListener('visibilitychange', syncVisibility);
   reducedMotion.addEventListener('change', syncVisibility);

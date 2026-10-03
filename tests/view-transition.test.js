@@ -16,6 +16,8 @@ function harness(from = 'home', reducedMotion = false) {
   const animations = [];
   const musicViews = [];
   const petViews = [];
+  const mouse = { reset: 0, clear: 0 };
+  const feedback = { cleared: 0 };
   const views = Object.fromEntries(['splash', 'home', 'library', 'ai', 'reader', 'stats'].map((name) => {
     const classes = new Set();
     const content = { animate(keyframes, options) {
@@ -28,15 +30,25 @@ function harness(from = 'home', reducedMotion = false) {
       content, querySelector(selector) { this.selector = selector; return content; } }];
   }));
   const context = vm.createContext({ views, $: () => ({}), stopHeldPageKey() {},
-    setTocMode() {}, TOC_MODES: { CLOSED: 'closed' }, clearFx() {}, renderReadingStats() {}, updateTocEdgeAvailability() {}, updatePetUI() {},
+    readerFeedback: { clear() { feedback.cleared += 1; } },
+    setTocMode() {}, TOC_MODES: { CLOSED: 'closed' }, clearFx() { mouse.clear += 1; }, renderReadingStats() {}, updateTocEdgeAvailability() {}, updatePetUI() {},
+    fx: { engine: { resetTrail() { mouse.reset += 1; } } },
     applyThemeClass() { views.reader.themedWhileHidden = views.reader.hidden; },
     window: { matchMedia: () => ({ matches: reducedMotion }),
       GaiaBgm: { positionBgm: (view) => musicViews.push(view) },
       GaiaPet: { init: () => Promise.resolve(), setView: (view) => petViews.push(view) } } });
   vm.runInContext(source, context);
-  return { context, views, animations, musicViews, petViews, show: (name) => context.showView(name),
+  return { context, views, animations, musicViews, petViews, mouse, feedback, show: (name) => context.showView(name),
     active: () => vm.runInContext('viewEntryAnimation', context) };
 }
+
+test('离开阅读界面时清除书签浮层，返回时不残留旧提示', () => {
+  const h = harness('reader');
+  h.show('library');
+  assert.equal(h.feedback.cleared, 1);
+  h.show('reader');
+  assert.equal(h.feedback.cleared, 1);
+});
 
 for (const [from, to, selector] of routes) {
   test(`${from} → ${to}: switch immediately with an opaque root and a short content entrance`, async () => {
@@ -55,6 +67,8 @@ for (const [from, to, selector] of routes) {
       { opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' },
     ]);
     assert.deepEqual(h.musicViews, [to]);
+    assert.equal(h.mouse.clear, 0, 'navigation must not erase the click burst');
+    assert.equal(h.mouse.reset, 1, 'new pointer samples should start a fresh trail');
     await Promise.resolve();
     assert.deepEqual(h.petViews, [to]);
   });

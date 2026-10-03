@@ -1,0 +1,11 @@
+/* Only these text actions use a left edge. Reader tools, selection actions
+   and collection controls retain their original centered alignment. */
+#ai-summary-panel .ai-chat-input-shortcuts button,
+#settings-drawer #btn-open-ai-center,
+.gaia-pet-console-lock {
+  text-align: left;
+  justify-content: flex-start;
+}
+
+#ai-summary-panel .ai-chat-input-shortcuts button { padding-inline: 10px; }
+.gaia-pet-console-lock { padding-inline: 10px; }

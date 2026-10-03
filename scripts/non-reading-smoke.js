@@ -5,7 +5,8 @@
 // GAIA_UI_OUTPUT_DIR may point to another screenshot/report directory.
 const { app, BrowserWindow, shell } = require('electron');
 const fs = require('node:fs');
-const os = require('node:os');
+const { STATE_FILE_NAME } = require('../src/shared/app-paths');
+const { makeSmokeDirectory, configureSmokePaths, resolveFPath } = require('./smoke-paths');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { dateKey } = require('../src/shared/reading-stats');
@@ -16,12 +17,13 @@ shell.openExternal = async (url) => { externalRequests.push(url); };
 let windowsCreated = 0;
 app.on('browser-window-created', () => { windowsCreated += 1; });
 
-const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'gaia-ui-smoke-'));
-const outputDir = path.resolve(process.env.GAIA_UI_OUTPUT_DIR || (process.argv.includes('--reader-toolbar') ? path.join(__dirname, '../dist/reader-ui-smoke') : path.join(sandbox, 'screenshots')));
+const sandbox = makeSmokeDirectory('gaia-ui-smoke-');
+const outputDir = resolveFPath(process.env.GAIA_UI_OUTPUT_DIR || path.join(sandbox, 'screenshots'));
 fs.mkdirSync(outputDir, { recursive: true });
-app.setPath('userData', sandbox);
-app.setPath('sessionData', path.join(sandbox, 'session'));
+configureSmokePaths(app, { userData: sandbox });
 app.setAppPath(path.join(__dirname, '..'));
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('force-device-scale-factor', '1');
 
 const titles = ['夜航西飞', '月亮与六便士', '山茶文具店', '长日将尽', '瓦尔登湖', '小王子', '人间草木', '古都', '海边的卡夫卡', '看不见的城市', '雪国', '漫长的告别', '银河铁道之夜', '克拉拉与太阳', '局外人', '浮生六记', '山月记', '霍乱时期的爱情', '时间的秩序', '一个人的好天气', 'The Collected Stories of a Quiet Library and the Longest UnbrokenTitleWithoutAnySpaces', '春天与阿修罗', '当我们谈论爱情时我们在谈论什么：短篇小说集与作者访谈', '<img src=x onerror="window.__uiTitleUnsafe=true"> 长书名安全测试'];
 const authors = ['柏瑞尔·马卡姆', '毛姆', '小川糸', '石黑一雄', '梭罗', '圣埃克苏佩里', '汪曾祺', '川端康成'];
@@ -29,7 +31,7 @@ const colors = [['#343a50', '#e8d8af'], ['#d6bc95', '#48433a'], ['#79938a', '#fa
 function coverSvg(title, author, index) {
   const [bg, fg] = colors[index % colors.length];
   const shortTitle = title.slice(0, 9).replace(/[<>&"]/g, '');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="520" viewBox="0 0 360 520"><rect width="360" height="520" fill="${bg}"/><rect x="21" y="21" width="318" height="478" fill="none" stroke="${fg}" stroke-opacity=".5"/><circle cx="180" cy="190" r="95" fill="none" stroke="${fg}" stroke-opacity=".4"/><path d="M70 260 L180 90 L290 260 Z" fill="${fg}" fill-opacity=".12"/><text x="180" y="330" text-anchor="middle" font-family="SimSun,serif" font-size="31" fill="${fg}">${shortTitle}</text><text x="180" y="378" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="16" fill="${fg}">${author}</text><text x="180" y="460" text-anchor="middle" font-family="Georgia,serif" font-size="10" letter-spacing="4" fill="${fg}">GAIA · TEST EDITION</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="520" viewBox="0 0 360 520"><rect width="360" height="520" fill="${bg}"/><rect x="21" y="21" width="318" height="478" fill="none" stroke="${fg}" stroke-opacity=".5"/><circle cx="180" cy="190" r="95" fill="none" stroke="${fg}" stroke-opacity=".4"/><path d="M70 260 L180 90 L290 260 Z" fill="${fg}" fill-opacity=".12"/><text x="180" y="330" text-anchor="middle" font-family="SimSun,serif" font-size="31" fill="${fg}">${shortTitle}</text><text x="180" y="378" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="16" fill="${fg}">${author}</text><text x="180" y="460" text-anchor="middle" font-family="Georgia,serif" font-size="10" letter-spacing="4" fill="${fg}">GaiaReading_Lucky</text></svg>`;
   return 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
 }
 
@@ -49,7 +51,7 @@ for (let i = 0; i < 8; i += 1) {
 }
 const progress = Object.fromEntries(books.slice(0, 9).map((book, i) => [book.path, { percent: 10 + i * 9, updatedAt: now - i * 1000 }]));
 const completedBooks = Object.fromEntries(books.slice(0, 7).map((book, i) => [book.path, { ...book, finishedAt: now - i * 86400000 }]));
-fs.writeFileSync(path.join(sandbox, 'gaia-reading.json'), JSON.stringify({ library: [], prefs: { theme: 'light' }, pet: { auto: false, autoSpeech: false, autoSleep: false }, progress, readingStats: { version: 1, goalMinutes: 30, days, completedBooks } }));
+fs.writeFileSync(path.join(sandbox, STATE_FILE_NAME), JSON.stringify({ library: [], prefs: { theme: 'light' }, pet: { auto: false, autoSpeech: false, autoSleep: false }, progress, readingStats: { version: 1, goalMinutes: 30, days, completedBooks } }));
 
 const report = { userData: sandbox, outputDir, checks: [], screenshots: [], consoleErrors: [], externalRequests };
 let finished = false;
@@ -339,9 +341,11 @@ async function run(win) {
     !/deerflow/i.test(document.body.innerHTML) && !document.querySelector('.design-credit')
   ));
   check('homepage has not requested an external website or child window', externalRequests.length === 0 && windowsCreated === 1);
-  await evaluate(async () => { await __uiSmoke.click('#btn-home-add-books'); });
-  check('home import dialog opens', await evaluate(() => !document.getElementById('book-import-overlay').hidden));
-  await evaluate(async () => { await __uiSmoke.click('#btn-book-import-close'); await __uiSmoke.click('#btn-home-settings'); });
+  await evaluate(async () => { await __uiSmoke.click('#btn-home-reading-stats'); });
+  check('home reading goal opens', await evaluate(() => __gaiaDebug.getView() === 'stats'));
+  await evaluate(async () => { await __uiSmoke.click('#btn-stats-back'); });
+  check('reading goal returns home', await evaluate(() => __gaiaDebug.getView() === 'home'));
+  await evaluate(async () => { await __uiSmoke.click('#btn-home-settings'); });
   check('home settings opens', await evaluate(() => __gaiaDebug.isSettingsOpen()));
   await evaluate(async () => { await __uiSmoke.click('#btn-settings-close'); await __uiSmoke.click('#btn-home-shelf'); });
   check('empty shelf and hint', await evaluate(() => __gaiaDebug.getView() === 'library' && !document.getElementById('library-hint').hidden && !document.querySelector('.book-card')));
@@ -396,7 +400,8 @@ async function run(win) {
         return [...cover.querySelectorAll('.book-cover-name, .book-cover-type')].every((el) => { const r = el.getBoundingClientRect(); return r.left >= outer.left && r.right <= outer.right && r.top >= outer.top && r.bottom <= outer.bottom; });
       })));
       if (takeShot) await capture(win, `library-${theme}-${width}x${height}`);
-      await evaluate(async () => { await __uiSmoke.click('#btn-reading-stats'); await __uiSmoke.wait(300); });
+      check(`shelf has no separate reading goal entry ${theme} ${width}`, await evaluate(() => !document.querySelector('#library-view #btn-reading-stats')));
+      await evaluate(async () => { await __uiSmoke.click('#btn-back-home'); await __uiSmoke.click('#btn-home-reading-stats'); await __uiSmoke.wait(300); });
       report.checks.push(await evaluate(() => __uiSmoke.layout('stats')));
       report.checks.push(await evaluate(() => __uiSmoke.controls('stats')));
       report.checks.push(await evaluate(() => __uiSmoke.contrast('stats')));
@@ -405,7 +410,7 @@ async function run(win) {
       await evaluate(async () => { await __uiSmoke.click('[data-goal-minutes="45"]'); });
       check(`goal persists ${theme} ${width}`, await evaluate(async () => __gaiaDebug.getReadingStats().goalMinutes === 45 && (await window.api.stateGet('readingStats')).goalMinutes === 45 && document.querySelector('[data-goal-minutes="45"]').classList.contains('active')));
       await evaluate(async () => { await __uiSmoke.click('[data-goal-minutes="30"]'); await __uiSmoke.click('#btn-stats-back'); });
-      check(`stats return navigation ${theme} ${width}`, await evaluate(() => __gaiaDebug.getView() === 'library'));
+      check(`stats return navigation ${theme} ${width}`, await evaluate(() => __gaiaDebug.getView() === 'home'));
     }
     await evaluate(async () => { __gaiaDebug.showView('home'); await __uiSmoke.wait(320); await __uiSmoke.click('#btn-home-ai'); await __uiSmoke.wait(350); });
     check(`AI page CSS remains identical ${theme}`, await evaluate(() => __uiSmoke.assertStyleIsolation('ai')));
