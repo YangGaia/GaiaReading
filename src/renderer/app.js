@@ -192,7 +192,9 @@ const state = {
   aiProfiles: { activeId: '', items: [] },
   aiConfig: null,
   aiEditingProfileId: null,
-  aiDiscoveredModels: {},
+  aiModelDraft: null,
+  aiModelKeyRevision: 0,
+  aiModelLoading: false,
   aiChatLoading: false,
   aiChatRequestId: '',
   aiChatInterrupting: false,
@@ -818,6 +820,124 @@ function isSettingsOpen() {
   return !els.settingsOverlay.hidden;
 }
 
+function readerChineseText(text) {
+  const current = state.current;
+  return window.GaiaChineseScript.convert(text, current && current.format !== 'pdf' ? current.chineseScript : null);
+}
+
+function updateChineseScriptControl() {
+  const current = state.current;
+  const mode = current && current.chineseScript || window.GaiaChineseScript.normalizeMode(state.prefs.chineseScript) || 'simplified';
+  const button = $('btn-chinese-script');
+  $('chinese-script-value').textContent = window.GaiaChineseScript.label(mode);
+  button.disabled = !current || current.format === 'pdf' || !!current.chineseScriptBusy;
+  button.title = current && current.format === 'pdf' ? 'PDF 为固定版式，暂不支持文字转换' : '点击切换为' + window.GaiaChineseScript.label(mode === 'simplified' ? 'traditional' : 'simplified');
+}
+
+function prepareChineseDocument(root) {
+  const current = state.current;
+  if (!current || current.format === 'pdf' || !root) return;
+  if (!current.chineseScript) current.chineseScript = window.GaiaChineseScript.chooseMode(state.prefs.chineseScript, root.textContent);
+  window.GaiaReaderChinese.apply(root, current.chineseScript);
+  updateChineseScriptControl();
+}
+
+function sourcePaginatorAnchor(current) {
+  const anchor = current.paginator && current.paginator.anchor();
+  if (!anchor) return null;
+  const root = current.paginator.doc.body;
+  const offset = window.GaiaReaderChinese.sourceOffset(root, anchor.off);
+  return { off: offset, snippet: window.GaiaReaderChinese.sourceText(root).slice(offset, offset + 40) };
+}
+
+function resolveReaderTextAnchor(root, anchor) {
+  const resolved = resolveTextAnchor(window.GaiaReaderChinese.sourceText(root), anchor);
+  return resolved ? { start: window.GaiaReaderChinese.displayOffset(root, resolved.start), end: window.GaiaReaderChinese.displayOffset(root, resolved.end) } : null;
+}
+
+function translateContentCfi(contents, cfi, toSource) {
+  const liveRoot = contents.document.body;
+  const originalRoot = window.GaiaReaderChinese.sourceRoot(liveRoot);
+  const fromRoot = toSource ? liveRoot : originalRoot;
+  const toRoot = toSource ? originalRoot : liveRoot;
+  const range = new window.ePub.CFI(cfi).toRange(fromRoot.ownerDocument);
+  const offsets = rangeTextOffsets(fromRoot, range, true);
+  if (!offsets) return cfi;
+  const mapOffset = toSource ? window.GaiaReaderChinese.sourceOffset : window.GaiaReaderChinese.displayOffset;
+  const converted = window.GaiaReaderChinese.rangeAt(toRoot, mapOffset(liveRoot, offsets.start), mapOffset(liveRoot, offsets.end));
+  return contents.cfiFromRange(converted);
+}
+
+function epubCfiContents(current, cfi) {
+  const parsed = new window.ePub.CFI(cfi);
+  return current.rendition.getContents().find(contents => contents.sectionIndex === parsed.spinePos || contents.section && contents.section.index === parsed.spinePos);
+}
+
+function sourceEpubCfi(current, cfi) {
+  if (!cfi || !current || !current.rendition) return cfi;
+  const contents = epubCfiContents(current, cfi);
+  return contents ? translateContentCfi(contents, cfi, true) : cfi;
+}
+
+function displayedEpubCfi(current, cfi) {
+  const contents = epubCfiContents(current, cfi);
+  return contents ? translateContentCfi(contents, cfi, false) : cfi;
+}
+
+async function convertedEpubTarget(current, target) {
+  if (typeof target !== 'string' || !target.startsWith('epubcfi(')) return target;
+  const section = current.epub.spine.get(target);
+  if (!section) return target;
+  await section.load(current.epub.load.bind(current.epub));
+  const originalRoot = section.document.body || section.document.querySelector('body');
+  const originalRange = new window.ePub.CFI(target).toRange(section.document);
+  const offsets = rangeTextOffsets(originalRoot, originalRange, true);
+  if (!offsets) return target;
+  const convertedDocument = section.document.cloneNode(true);
+  const root = convertedDocument.body || convertedDocument.querySelector('body');
+  window.GaiaReaderChinese.apply(root, current.chineseScript);
+  const range = window.GaiaReaderChinese.rangeAt(root, window.GaiaReaderChinese.displayOffset(root, offsets.start), window.GaiaReaderChinese.displayOffset(root, offsets.end));
+  return new window.ePub.CFI(range, section.cfiBase).toString();
+}
+
+async function displayEpubPosition(current, target) {
+  const converted = await convertedEpubTarget(current, target);
+  if (state.current !== current) return;
+  return current.rendition.display(converted);
+}
+
+async function toggleChineseScript() {
+  const current = state.current;
+  if (!current || current.format === 'pdf' || current.chineseScriptBusy) return;
+  const anchor = captureReaderLayoutAnchor();
+  current.chineseScriptBusy = true;
+  const mode = current.chineseScript === 'traditional' ? 'simplified' : 'traditional';
+  cancelPageTurns();
+  hideSelectionToolbar();
+  closeNoteEditor();
+  try {
+    current.chineseScript = mode;
+    updateChineseScriptControl();
+    if (current.rendition) {
+      for (const contents of current.rendition.getContents()) window.GaiaReaderChinese.apply(contents.document.body, mode);
+    } else if (current.paginator && current.paginator.doc) window.GaiaReaderChinese.apply(current.paginator.doc.body, mode);
+    await refreshReaderLayout(anchor, { force: true });
+    if (state.current !== current) return;
+    for (const item of els.tocPanel.querySelectorAll('[data-original-label]')) item.textContent = readerChineseText(item.dataset.originalLabel);
+    restoreCurrentAnnotations();
+    restoreBookSearchHighlight();
+    renderBookSearchResults();
+    state.prefs.chineseScript = mode;
+    await window.api.stateSet('prefs', state.prefs);
+    els.readerStatus.textContent = '已切换为' + window.GaiaChineseScript.label(mode) + '，并记住阅读习惯';
+  } catch (error) {
+    els.readerStatus.textContent = '文字转换失败：' + error.message;
+  } finally {
+    current.chineseScriptBusy = false;
+    updateChineseScriptControl();
+  }
+}
+
 function updateSettingsValues() {
   const c = state.current;
   const fixedEpub = isFixedEpubContent();
@@ -838,6 +958,7 @@ function updateSettingsValues() {
   els.edgeTocButton.setAttribute('aria-pressed', String(edgeEnabled));
   els.spreadGapRow.hidden = false;
   els.textContrastRow.hidden = !!c && c.format === 'pdf';
+  updateChineseScriptControl();
   $('btn-spread-gap').disabled = state.readMode !== 'spread';
 }
 
@@ -940,15 +1061,30 @@ async function openEpub(book) {
   const buf = toArrayBuffer(toUint8Array(res.data));
   const epub = window.ePub(buf);
   state.current.epub = epub;
+  await epub.ready;
+  const current = state.current;
+  current.chineseScript = window.GaiaChineseScript.normalizeMode(state.prefs.chineseScript);
+  if (!current.chineseScript) {
+    let sample = '';
+    for (const section of epub.spine.spineItems.slice(0, 4)) {
+      await section.load(epub.load.bind(epub));
+      const root = section.document.body || section.document.querySelector('body');
+      sample += (root ? root.textContent : '').slice(0, 12000);
+      if (sample.length >= 24000) break;
+    }
+    current.chineseScript = window.GaiaChineseScript.detect(sample);
+  }
   const rendition = epub.renderTo('reader-content', { width: '100%', height: '100%', flow: 'paginated', spread: 'none', gap: currentSpreadGap() });
   state.current.rendition = rendition;
   rendition.hooks.content.register((contents) => {
+    prepareChineseDocument(contents.document.body);
     applyReaderStyles(contents);
     bindReaderKeyboard(contents.document || contents.window);
     bindSelectionDismissal(contents.document);
   });
   rendition.on('rendered', () => {
     bindEpubWheel();
+    restoreEpubAnnotations();
     if (isSettingsOpen()) updateSettingsValues();
     window.setTimeout(restoreBookSearchHighlight, 0);
   });
@@ -959,7 +1095,7 @@ async function openEpub(book) {
   state.current.displayPercent = saved && saved.percent != null ? saved.percent : 0;
   state.current.locationsDone = false;
   updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(2) + '%');
-  await rendition.display(saved && saved.loc ? saved.loc : undefined);
+  await displayEpubPosition(state.current, saved && saved.loc ? saved.loc : undefined);
   restoreEpubAnnotations();
   bindEpubWheel();
   if (state.readMode === 'spread') {
@@ -968,7 +1104,7 @@ async function openEpub(book) {
 
   rendition.on('relocated', (location) => {
     hideSelectionToolbar();
-    const cfi = location.start.cfi;
+    const cfi = sourceEpubCfi(state.current, location.start.cfi);
     const items = state.current.epub && state.current.epub.spine ? state.current.epub.spine.spineItems : [];
     const locs = state.current.epub && state.current.epub.locations;
     const locTotal = locs && locs.total ? locs.total : 0;
@@ -1015,6 +1151,8 @@ async function openEpub(book) {
       const a = document.createElement('a');
       a.href = '#';
       a.textContent = '\u3000'.repeat(depth) + (item.label || '').trim();
+      a.dataset.originalLabel = a.textContent;
+      a.textContent = readerChineseText(a.textContent);
       a.dataset.epubHref = item.href;
       a.addEventListener('click', async (ev) => {
         ev.preventDefault();
@@ -1566,7 +1704,7 @@ function captureReaderLayoutAnchor() {
   if (c.format === 'epub' && c.rendition) {
     try {
       const location = c.rendition.currentLocation();
-      anchor.cfi = location && location.start ? location.start.cfi : '';
+      anchor.cfi = location && location.start ? sourceEpubCfi(c, location.start.cfi) : '';
     } catch (error) {}
   } else if (c.format === 'pdf') {
     anchor.page = c.page;
@@ -1574,7 +1712,7 @@ function captureReaderLayoutAnchor() {
   } else if (c.paginator) {
     anchor.chapter = c.flow ? c.flow.chapter : 0;
     anchor.page = c.paginator.currentPage;
-    anchor.text = c.paginator.anchor();
+      anchor.text = sourcePaginatorAnchor(c);
   }
   return anchor;
 }
@@ -1587,9 +1725,11 @@ async function refreshReaderLayout(anchor, options) {
   if (!size.width || !size.height) return false;
   if (!opts.force && size.width === anchor.width && size.height === anchor.height) return true;
   if (c.format === 'epub' && c.rendition) {
-    c.rendition.resize(size.width, size.height, anchor.cfi || undefined);
+    const target = await convertedEpubTarget(c, anchor.cfi);
+    if (state.current !== c) return false;
+    c.rendition.resize(size.width, size.height, target || undefined);
     applyEpubTypography();
-    if (anchor.cfi) await c.rendition.display(anchor.cfi);
+    if (target) await c.rendition.display(target);
     return true;
   }
   if (c.format === 'pdf' && c.pdf) {
@@ -1607,7 +1747,7 @@ async function refreshReaderLayout(anchor, options) {
     c.paginator.reflow();
     const sameChapter = !c.flow || c.flow.chapter === anchor.chapter;
     const textOffset = sameChapter && anchor.text && Number.isFinite(anchor.text.off) ? anchor.text.off : null;
-    const page = textOffset == null ? anchor.page : c.paginator.locate(textOffset);
+    const page = textOffset == null ? anchor.page : c.paginator.locate(window.GaiaReaderChinese.displayOffset(c.paginator.doc.body, textOffset));
     if (Number.isFinite(page) && page >= 0) c.paginator.showPage(page);
     if (c.flow) c.flow.page = c.paginator.currentPage;
     updateMobiProgress(true);
@@ -1655,6 +1795,17 @@ function updateTocEdgeAvailability() {
 async function openMobi(book) {
   const res = await window.api.mobiOpen(book.path);
   state.current.mobiSession = res.sessionId;
+  state.current.chineseScript = window.GaiaChineseScript.normalizeMode(state.prefs.chineseScript);
+  if (!state.current.chineseScript) {
+    let sample = '';
+    for (let index = 0; index < Math.min(4, (res.chapters || []).length); index++) {
+      const chapter = await window.api.mobiChapter(res.sessionId, index);
+      const parsed = new DOMParser().parseFromString(chapter.html || '', 'text/html');
+      sample += (parsed.body.textContent || '').slice(0, 12000);
+      if (sample.length >= 24000) break;
+    }
+    state.current.chineseScript = window.GaiaChineseScript.detect(sample);
+  }
   state.current.mobi = {
     chapters: res.chapters || [],
     toc: res.toc || [],
@@ -1686,7 +1837,7 @@ async function openMobi(book) {
     if (typeof saved.mobiPage === 'number') startPage = saved.mobiPage;
   }
   state.current.flow.gotoChapter(startChapter);
-  await loadMobiChapter(startChapter, { page: startPage });
+  await loadMobiChapter(startChapter, { page: startPage, textAnchor: saved && saved.textAnchor });
   renderMobiToc();
 }
 
@@ -1711,6 +1862,7 @@ async function loadMobiChapter(chapterIndex, opts) {
     if (c.paginator) {
       const rendered = await c.paginator.render(html, ch.cssText || '', {
         isCurrent,
+        prepareDocument: doc => prepareChineseDocument(doc.body),
         beforeCommit: () => { if (c.flow) c.flow.gotoChapter(clamped); },
       });
       if (!rendered || !isCurrent()) return false;
@@ -1721,6 +1873,10 @@ async function loadMobiChapter(chapterIndex, opts) {
       if (c.flow) c.flow.setPages(clamped, total);
       c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
       let p = opts.page === 'end' ? total - 1 : (typeof opts.page === 'number' ? opts.page : 0);
+      if (opts.textAnchor && Number.isFinite(opts.textAnchor.off)) {
+        const anchorPage = c.paginator.locate(window.GaiaReaderChinese.displayOffset(c.paginator.doc.body, opts.textAnchor.off));
+        if (anchorPage >= 0) p = anchorPage;
+      }
       if (opts.selector) {
         try {
           const targetNode = c.paginator.doc.body.querySelector(opts.selector);
@@ -1786,7 +1942,7 @@ function updateMobiProgress(force) {
   const now = Date.now();
   if (force || now - lastMobiSave > 600) {
     lastMobiSave = now;
-    const saved = { percent };
+    const saved = { percent, textAnchor: sourcePaginatorAnchor(c) };
     const isMobi = c.format === 'mobi' || c.format === 'azw3';
     if (isMobi) {
       if (c.flow) saved.mobiChapter = c.flow.chapter;
@@ -1810,6 +1966,8 @@ function renderMobiToc() {
       const a = document.createElement('a');
       a.href = '#';
       a.textContent = '\\u3000'.repeat(depth) + (item.label || '').trim();
+      a.dataset.originalLabel = a.textContent;
+      a.textContent = readerChineseText(a.textContent);
       a.addEventListener('click', (ev) => {
         ev.preventDefault();
         handleTocItemActivation();
@@ -1844,13 +2002,17 @@ async function openTxt(book) {
   state.current.txtParagraphs = paragraphs;
   state.current.txtChapters = detectTxtChapters(paragraphs);
   const html = paragraphsToHtml(res.text) || '<p></p>';
-  await state.current.paginator.render(html, '');
+  await state.current.paginator.render(html, '', { prepareDocument: doc => prepareChineseDocument(doc.body) });
   bindReaderInputs(state.current.paginator.doc);
   bindTextAnnotationInputs(state.current.paginator.doc, state.current.paginator.doc.body);
   if (state.current.flow) state.current.flow.setPages(0, state.current.paginator.totalPages || 1);
   state.current.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
   const saved = state.progress[book.path];
   if (saved && typeof saved.page === 'number') state.current.paginator.showPage(saved.page);
+  if (saved && saved.textAnchor && Number.isFinite(saved.textAnchor.off)) {
+    const restoredPage = state.current.paginator.locate(window.GaiaReaderChinese.displayOffset(state.current.paginator.doc.body, saved.textAnchor.off));
+    if (restoredPage >= 0) state.current.paginator.showPage(restoredPage);
+  }
   restoreTextAnnotations();
   restoreBookSearchHighlight();
   updateMobiProgress(true);
@@ -2518,7 +2680,7 @@ async function addBookmark() {
       els.readerStatus.textContent = '暂无法获取当前位置';
       return false;
     }
-    loc = locObj.start.cfi;
+    loc = sourceEpubCfi(c, locObj.start.cfi);
     percent = typeof state.current.displayPercent === 'number' ? state.current.displayPercent : 0;
     chapter = epubChapterTitle(c.epub, locObj.start.index);
   } else if (c.format === 'pdf') {
@@ -2527,7 +2689,7 @@ async function addBookmark() {
     percent = c.pages ? (c.page / c.pages) * 100 : 0;
   } else if (c.paginator) {
     const ch = c.flow ? c.flow.chapter : 0;
-    const a = c.paginator.anchor();
+    const a = sourcePaginatorAnchor(c);
     if (a && typeof a.off === 'number') {
       anchor = c.format === 'txt' ? { off: a.off, snippet: a.snippet || '' } : { ch, off: a.off, snippet: a.snippet || '' };
       loc = 'anchor:' + JSON.stringify(anchor);
@@ -2536,7 +2698,7 @@ async function addBookmark() {
     }
     percent = c.flow ? c.flow.percent() : c.paginator.pagePercent();
     if (c.format === 'txt') {
-      const paraIdx = a ? c.paginator.paragraphIndexOfTextOffset(a.off) : -1;
+      const paraIdx = a ? c.paginator.paragraphIndexOfTextOffset(window.GaiaReaderChinese.displayOffset(c.paginator.doc.body, a.off)) : -1;
       const t = paraIdx >= 0 ? chapterTitleForParagraph(c.txtChapters, paraIdx) : null;
       chapter = t || (a && a.snippet ? '…' + a.snippet + '…' : '全文');
     } else {
@@ -2631,7 +2793,7 @@ function textNodes(root) {
   return nodes;
 }
 
-function rangeTextOffsets(root, range) {
+function rangeTextOffsets(root, range, allowCollapsed = false) {
   if (!root || !range || !root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
   let total = 0;
   let start = -1;
@@ -2642,7 +2804,7 @@ function rangeTextOffsets(root, range) {
     if (node === range.endContainer) end = total + range.endOffset;
     total += len;
   }
-  return start >= 0 && end > start ? { start, end } : null;
+  return start >= 0 && (end > start || allowCollapsed && end === start) ? { start, end } : null;
 }
 
 function rangeFromTextOffsets(root, start, end) {
@@ -2758,7 +2920,7 @@ async function buildBookSearchIndex() {
         }
       } else {
         const root = c.paginator && c.paginator.doc && c.paginator.doc.body;
-        sections.push({ id: 'txt:0', title: '全文', text: root ? root.textContent || '' : '', locator: { chapter: 0 } });
+        sections.push({ id: 'txt:0', title: '全文', text: window.GaiaReaderChinese.sourceText(root), locator: { chapter: 0 } });
       }
       assertCurrentSearchBook(c);
       c.bookSearchIndex = sections;
@@ -2885,9 +3047,9 @@ function renderBookSearchResults() {
     button.className = 'book-search-result' + (index === c.bookSearchActiveIndex ? ' active' : '');
     button.dataset.searchIndex = String(index);
     const title = document.createElement('strong');
-    title.textContent = result.title;
+    title.textContent = readerChineseText(result.title);
     const excerpt = document.createElement('span');
-    excerpt.textContent = result.excerpt || result.quote;
+    excerpt.textContent = readerChineseText(result.excerpt || result.quote);
     button.append(title, excerpt);
     button.addEventListener('click', () => activateBookSearchResult(index));
     els.bookSearchResults.appendChild(button);
@@ -3074,7 +3236,7 @@ function clearTextHighlights(root) {
 }
 
 function applyTextHighlight(root, annotation) {
-  const resolved = resolveTextAnchor(root.textContent || '', annotation.anchor);
+  const resolved = resolveReaderTextAnchor(root, annotation.anchor);
   if (!resolved || resolved.end <= resolved.start) return false;
   const nodes = textNodes(root);
   let total = 0;
@@ -3145,13 +3307,13 @@ function restoreEpubAnnotations() {
     const color = ANNOTATION_COLORS[normalizeColor(annotation.color)];
     try {
       c.rendition.annotations.highlight(
-        annotation.anchor.cfi,
+        displayedEpubCfi(c, annotation.anchor.cfi),
         { id: annotation.id },
         (ev) => showExistingAnnotation(annotation.id, ev),
         'gaia-epub-highlight',
         { fill: color, 'fill-opacity': '1', 'mix-blend-mode': state.prefs.theme === 'dark' ? 'screen' : 'multiply' }
       );
-      applied.set(annotation.id, annotation.anchor.cfi);
+      applied.set(annotation.id, displayedEpubCfi(c, annotation.anchor.cfi));
     } catch (e) { console.error('EPUB 划线恢复失败', e); }
   }
   c.epubAppliedAnnotations = applied;
@@ -3299,7 +3461,7 @@ function captureTextSelection(sourceDoc, root) {
   const text = selection.toString().trim();
   if (!offsets || !text) return;
   const c = state.current;
-  const anchor = createTextAnchor(root.textContent || '', offsets.start, offsets.end);
+  const anchor = createTextAnchor(window.GaiaReaderChinese.sourceText(root), window.GaiaReaderChinese.sourceOffset(root, offsets.start), window.GaiaReaderChinese.sourceOffset(root, offsets.end));
   anchor.kind = c.format === 'pdf' ? 'pdf-text' : 'chapter-text';
   const pdfPage = c.format === 'pdf' ? (Number(root.dataset && root.dataset.pdfPage) || c.page) : 0;
   if (c.format === 'pdf') anchor.page = pdfPage;
@@ -3325,7 +3487,7 @@ function captureEpubSelection(cfiRange, contents) {
   const section = contents && contents.section;
   const index = section && Number.isFinite(section.index) ? section.index : (loc && loc.start ? loc.start.index : 0);
   const chapter = epubChapterTitle(state.current.epub, index, section && section.href);
-  showSelectionToolbar({ kind: 'epub', origin: 'selection', sourceDocument: contents && contents.document, text, anchor: { kind: 'epub-cfi', cfi: cfiRange }, chapter, rect });
+  showSelectionToolbar({ kind: 'epub', origin: 'selection', sourceDocument: contents && contents.document, text, anchor: { kind: 'epub-cfi', cfi: sourceEpubCfi(state.current, cfiRange) }, chapter, rect });
 }
 
 function showExistingAnnotation(id, ev) {
@@ -3605,14 +3767,14 @@ async function jumpToAnnotation(annotation) {
   if (!(await prepareAnnotationJumpLayout())) return false;
   const anchor = annotation.anchor;
   if (anchor.kind === 'epub-cfi' && c.rendition) {
-    await c.rendition.display(anchor.cfi);
+    await displayEpubPosition(c, anchor.cfi);
   } else if (anchor.kind === 'pdf-text' && c.pdf) {
     c.page = Math.max(1, Math.min(c.pages, Number(anchor.page) || 1));
     await renderPdfPage();
   } else if (anchor.kind === 'chapter-text' && c.paginator) {
     const chapter = Number(anchor.chapter) || 0;
     if (c.format === 'mobi' || c.format === 'azw3') await loadMobiChapter(chapter, {});
-    const resolved = resolveTextAnchor(c.paginator.doc.body.textContent || '', anchor);
+    const resolved = resolveReaderTextAnchor(c.paginator.doc.body, anchor);
     if (resolved) {
       const page = c.paginator.locate(resolved.start);
       if (page >= 0) {
@@ -3631,7 +3793,7 @@ async function jumpToBookmark(bm) {
   if (!c || !bm) return;
   const loc = bm.loc;
   if (c.format === 'epub') {
-    if (loc) c.rendition.display(loc);
+    if (loc) await displayEpubPosition(c, loc);
   } else if (c.format === 'pdf') {
     c.page = parseInt(loc, 10) || 1;
     await renderPdfPage();
@@ -3643,7 +3805,7 @@ async function jumpToBookmark(bm) {
       } else {
         c.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
       }
-      const page = c.paginator.locate(bm.anchor.off);
+      const page = c.paginator.locate(window.GaiaReaderChinese.displayOffset(c.paginator.doc.body, bm.anchor.off));
       if (page >= 0) {
         c.paginator.showPage(page);
         if (c.flow) c.flow.page = page;
@@ -4268,57 +4430,107 @@ function renderAiProfiles() {
   els.aiReaderProfile.disabled = !state.aiProfiles.items.length;
 }
 
+function currentAiModelCatalog() {
+  const profile = editingAiProfile();
+  const draft = state.aiModelDraft;
+  let scope;
+  try { scope = window.GaiaAi.secretScopeKey(readAiConfigForm()); } catch (error) { return null; }
+  if (draft && draft.id === state.aiEditingProfileId && draft.scope === scope && draft.keyRevision === state.aiModelKeyRevision) return draft.catalog;
+  if (profile && !els.aiApiKey.value.trim() && window.GaiaAi.secretScopeKey(profile) === scope) return profile.modelCatalog || null;
+  return null;
+}
+
 function aiModelChoices() {
   const providerId = els.aiProvider.value || 'custom';
   const provider = AI_PROVIDERS[providerId] || AI_PROVIDERS.custom;
-  const discovered = state.aiDiscoveredModels[state.aiEditingProfileId] || [];
+  const catalog = currentAiModelCatalog();
+  const discovered = catalog ? catalog.models : [];
   const presets = Array.isArray(provider.models) ? provider.models : [];
-  const labels = new Map(presets.map((item) => [item.id, item.label || item.id]));
-  const ids = Array.from(new Set([...presets.map((item) => item.id), ...discovered]));
-  return { providerId, provider, discovered, presets, labels, ids };
+  const models = catalog ? discovered : window.GaiaAiModels.extractModels(presets);
+  const labels = new Map((catalog ? [] : presets).map(item => [item.id, item.label || item.id]));
+  const ids = models.map(model => model.id);
+  return { providerId, provider, catalog, discovered, presets, labels, ids, models };
 }
 
 function setAiModelMenuOpen(open) {
   els.aiModelOptions.hidden = !open;
+  $('ai-model-filters').hidden = !open;
   els.aiModel.setAttribute('aria-expanded', open ? 'true' : 'false');
   $('btn-ai-model-menu').setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function updateAiModelOptions(filter) {
-  const { providerId, discovered, presets, labels, ids } = aiModelChoices();
-  const needle = String(filter || '').trim().toLowerCase();
-  const visibleIds = needle ? ids.filter((id) => id.toLowerCase().includes(needle) || String(labels.get(id) || '').toLowerCase().includes(needle)) : ids;
+  const { catalog, labels, ids, models } = aiModelChoices();
+  const search = $('ai-model-search');
+  const families = $('ai-model-family');
+  if (typeof filter === 'string') search.value = filter;
+  const selectedFamily = families.value;
+  families.replaceChildren(new Option('全部系列 · ' + models.length, ''));
+  for (const group of window.GaiaAiModels.groupModels(models)) families.appendChild(new Option(group.name + ' · ' + group.models.length, group.name));
+  families.value = Array.from(families.options).some(option => option.value === selectedFamily) ? selectedFamily : '';
+  const groups = window.GaiaAiModels.groupModels(models, search.value, families.value);
+  const added = new Set(catalog ? catalog.added : []);
   els.aiModelOptions.replaceChildren();
-  for (const id of visibleIds) {
-    const option = document.createElement('button');
-    option.type = 'button';
-    option.className = 'ai-model-option' + (els.aiModel.value === id ? ' active' : '');
-    option.dataset.modelId = id;
-    option.setAttribute('role', 'option');
-    option.setAttribute('aria-selected', els.aiModel.value === id ? 'true' : 'false');
-    const name = document.createElement('strong');
-    name.textContent = labels.get(id) || id;
-    option.appendChild(name);
-    if ((labels.get(id) || id) !== id) {
-      const modelId = document.createElement('small');
-      modelId.textContent = id;
-      option.appendChild(modelId);
+  for (const group of groups) {
+    const section = document.createElement('div');
+    section.className = 'ai-model-group';
+    section.setAttribute('role', 'group');
+    section.setAttribute('aria-label', group.name);
+    const heading = document.createElement('p');
+    heading.className = 'ai-model-group-title';
+    heading.textContent = group.name + ' · ' + group.models.length;
+    heading.setAttribute('role', 'presentation');
+    section.appendChild(heading);
+    for (const model of group.models) {
+      const id = model.id;
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'ai-model-option' + (els.aiModel.value === id ? ' active' : '');
+      option.dataset.modelId = id;
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', els.aiModel.value === id ? 'true' : 'false');
+      const name = document.createElement('strong');
+      name.textContent = labels.get(id) || id;
+      option.appendChild(name);
+      if (added.has(id)) {
+        const badge = document.createElement('span');
+        badge.className = 'ai-model-badge';
+        badge.textContent = '新增';
+        option.appendChild(badge);
+      }
+      if ((labels.get(id) || id) !== id) {
+        const modelId = document.createElement('small');
+        modelId.textContent = id;
+        option.appendChild(modelId);
+      }
+      if (model.capabilities.length) {
+        const capabilities = document.createElement('small');
+        capabilities.textContent = model.capabilities.join(' · ');
+        option.appendChild(capabilities);
+      }
+      section.appendChild(option);
     }
-    els.aiModelOptions.appendChild(option);
+    els.aiModelOptions.appendChild(section);
   }
-  if (!visibleIds.length) {
+  if (!groups.length) {
     const empty = document.createElement('p');
     empty.className = 'ai-model-options-empty';
     empty.textContent = ids.length ? '没有匹配的模型，仍可直接填写。' : '暂无模型，请读取接口模型或手动填写。';
     els.aiModelOptions.appendChild(empty);
   }
-  if (discovered.length) els.aiModelHint.textContent = '已从当前接口读取 ' + discovered.length + ' 个模型；也可以手动输入其他模型 ID。';
-  else if (presets.length) els.aiModelHint.textContent = '已内置 ' + presets.length + ' 个常用模型；也可以手动输入其他模型 ID。';
-  else els.aiModelHint.textContent = providerId === 'ollama' ? '点击“读取模型”获取本机已安装模型，也可以手动输入。' : '点击“读取模型”获取接口模型，也可以手动输入模型 ID。';
-  els.aiModel.placeholder = presets.length ? '请选择模型或输入其他模型 ID' : '填写或读取模型 ID';
+  if (catalog) {
+    const missing = els.aiModel.value.trim() && !ids.includes(els.aiModel.value.trim());
+    els.aiModelHint.textContent = '上游 ' + ids.length + ' 个模型 · 刷新于 ' + new Date(catalog.updatedAt).toLocaleString('zh-CN', { hour12: false }) +
+      (catalog.added.length || catalog.removed.length ? ' · 新增 ' + catalog.added.length + ' / 移除 ' + catalog.removed.length : '') +
+      (missing ? '。当前模型不在最新列表中，已保留您的选择。' : '。选择后保存即可使用。');
+  } else els.aiModelHint.textContent = '点击“刷新模型”读取当前接口的最新列表。内置候选仅供参考，也可手动填写 ID。';
+  els.aiModel.placeholder = '选择或填写模型 ID';
 }
 
 function updateAiConfigForm() {
+  state.aiModelDraft = null;
+  $('ai-model-search').value = '';
+  $('ai-model-family').value = '';
   renderAiProfiles();
   const config = editingAiProfile() || { name: '', provider: 'deepseek', baseUrl: AI_PROVIDERS.deepseek.baseUrl, model: '' };
   els.aiProfileName.value = config.name || '';
@@ -4403,18 +4615,35 @@ async function testAiConfig() {
 }
 
 async function refreshAiModels() {
-  setAiConfigStatus('正在保存接口并读取模型列表…');
-  if (!await saveAiConfig({ quiet: true })) return;
+  if (state.aiModelLoading) return;
+  const input = readAiConfigForm();
+  let scope;
+  try { scope = window.GaiaAi.secretScopeKey(input); } catch (error) { setAiConfigStatus(aiErrorMessage(error), 'error'); return; }
+  const keyRevision = state.aiModelKeyRevision;
+  const stillEditing = () => {
+    try { return state.aiEditingProfileId === input.id && state.aiModelKeyRevision === keyRevision && window.GaiaAi.secretScopeKey(readAiConfigForm()) === scope; }
+    catch (error) { return false; }
+  };
+  state.aiModelLoading = true;
+  $('btn-ai-model-refresh').disabled = true;
+  $('btn-ai-model-refresh').textContent = '读取中…';
+  setAiConfigStatus('正在读取上游模型列表…');
   try {
-    const result = await window.api.aiProfileModels(state.aiProfiles.activeId);
+    const result = await window.api.aiProfileModels(input);
+    if (!stillEditing()) return;
     if (!result || result.ok !== true) throw new Error(result && result.error ? result.error : '读取模型列表失败');
-    state.aiDiscoveredModels[state.aiProfiles.activeId] = result.models;
-    if (!els.aiModel.value && result.models[0]) els.aiModel.value = result.models[0];
-    updateAiModelOptions();
+    state.aiModelDraft = { id: input.id, scope, keyRevision, catalog: result.catalog };
+    const profile = editingAiProfile();
+    if (profile && !input.apiKey && window.GaiaAi.secretScopeKey(profile) === scope) profile.modelCatalog = result.catalog;
+    updateAiModelOptions('');
     setAiModelMenuOpen(true);
-    setAiConfigStatus('已读取 ' + result.models.length + ' 个模型，请选择后保存。', 'success');
+    setAiConfigStatus('已刷新 ' + result.models.length + ' 个上游模型，请选择后保存。', 'success');
   } catch (error) {
-    setAiConfigStatus(aiErrorMessage(error), 'error');
+    if (stillEditing()) setAiConfigStatus(aiErrorMessage(error) + '；保留上次列表和当前选择。', 'error');
+  } finally {
+    state.aiModelLoading = false;
+    $('btn-ai-model-refresh').disabled = false;
+    $('btn-ai-model-refresh').textContent = '刷新模型';
   }
 }
 
@@ -4570,13 +4799,14 @@ function epubChapterSummarySource(c) {
   try { contents = c.rendition ? c.rendition.getContents() : []; } catch (error) {}
   const currentContent = contents.find((item) => item && item.section && item.section.index === locationIndex) || contents[0];
   const index = currentContent && currentContent.section && Number.isFinite(currentContent.section.index) ? currentContent.section.index : locationIndex;
-  const root = currentContent && currentContent.document && currentContent.document.body;
+  const displayedRoot = currentContent && currentContent.document && currentContent.document.body;
+  const root = window.GaiaReaderChinese.sourceRoot(displayedRoot);
   const resourceHref = currentContent && currentContent.section && currentContent.section.href;
   let currentOffset = 0;
   if (root && location && location.start && location.start.cfi && currentContent && typeof currentContent.range === 'function') {
     try {
       const range = currentContent.range(location.start.cfi);
-      if (range) currentOffset = textOffsetBeforePosition(root, range.startContainer, range.startOffset);
+      if (range) currentOffset = window.GaiaReaderChinese.sourceOffset(displayedRoot, textOffsetBeforePosition(displayedRoot, range.startContainer, range.startOffset));
     } catch (error) {}
   }
   const tocEntries = flattenChapterToc(c.epubToc || []).map(({ item, depth, order }) => {
@@ -4667,7 +4897,7 @@ function mobiChapterSummarySource(c) {
   const root = c.paginator && c.paginator.doc && c.paginator.doc.body;
   const anchor = c.paginator && c.paginator.anchor();
   const currentOffset = anchor && Number.isFinite(anchor.off) ? anchor.off : 0;
-  return mobiChapterSummarySourceFromRoot(c, chapter, root, currentOffset);
+  return mobiChapterSummarySourceFromRoot(c, chapter, window.GaiaReaderChinese.sourceRoot(root), window.GaiaReaderChinese.sourceOffset(root, currentOffset));
 }
 
 async function resolveSparseMobiAiSource(source) {
@@ -5118,6 +5348,7 @@ function observeAiChapter() {
 }
 
 function bindEvents() {
+  $('btn-chinese-script').addEventListener('click', toggleChineseScript);
   $('btn-home-shelf').addEventListener('click', () => showView('library'));
   $('btn-home-add-books').addEventListener('click', () => openBookImportChooser(true));
   $('btn-home-ai').addEventListener('click', () => openAiCenter('home'));
@@ -5195,9 +5426,13 @@ function bindEvents() {
   $('btn-ai-save').addEventListener('click', () => saveAiConfig());
   $('btn-ai-test').addEventListener('click', testAiConfig);
   $('btn-ai-model-refresh').addEventListener('click', refreshAiModels);
+  $('ai-model-search').addEventListener('input', () => updateAiModelOptions());
+  $('ai-model-family').addEventListener('change', () => updateAiModelOptions());
+  els.aiApiKey.addEventListener('input', () => { state.aiModelKeyRevision += 1; updateAiModelOptions(''); });
+  els.aiBaseUrl.addEventListener('input', () => updateAiModelOptions(''));
   $('btn-ai-model-menu').addEventListener('click', () => {
     const opening = els.aiModelOptions.hidden;
-    if (opening) updateAiModelOptions();
+    if (opening) updateAiModelOptions('');
     setAiModelMenuOpen(opening);
   });
   els.aiModel.addEventListener('input', () => {
@@ -5223,6 +5458,19 @@ function bindEvents() {
     updateAiModelOptions();
     setAiModelMenuOpen(false);
     els.aiModel.focus();
+  });
+  els.aiModelOptions.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      setAiModelMenuOpen(false);
+      els.aiModel.focus();
+    }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const options = Array.from(els.aiModelOptions.querySelectorAll('[data-model-id]'));
+    if (!options.length) return;
+    event.preventDefault();
+    const current = options.indexOf(document.activeElement);
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : Math.max(0, Math.min(options.length - 1, current + (event.key === 'ArrowDown' ? 1 : -1)));
+    options[index].focus();
   });
   $('btn-ai-key-clear').addEventListener('click', clearAiApiKey);
   $('btn-ai-key-toggle').addEventListener('click', () => {

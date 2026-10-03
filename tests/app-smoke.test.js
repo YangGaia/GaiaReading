@@ -122,9 +122,9 @@ test('侧栏尺寸变化统一刷新全部阅读格式并保留阅读锚点', ()
   assert.ok(app.includes('function captureReaderLayoutAnchor()') && app.includes('function scheduleReaderLayoutRefresh(anchor, options)'), '侧栏变化必须统一捕获并恢复阅读位置');
   assert.ok(app.includes('epubWindowResizeTimer') && app.includes('scheduleReaderLayoutRefresh(anchor, { force: true })'), 'EPUB 窗口尺寸变化必须在尺寸稳定后按实际阅读区强制重排');
   assert.ok(app.includes("c && c.format === 'epub' ? Math.floor(bounds.width"), 'EPUB 重排必须使用不受旧画布滚动条影响的阅读区宽度');
-  assert.ok(app.includes('c.rendition.resize(size.width, size.height, anchor.cfi'), 'EPUB 必须按实际阅读区尺寸与 CFI 重排');
+  assert.ok(app.includes('convertedEpubTarget(c, anchor.cfi)') && app.includes('c.rendition.resize(size.width, size.height, target'), 'EPUB 必须将原文 CFI 转换为显示位置后按实际阅读区尺寸重排');
   assert.ok(app.includes("c.format === 'pdf' && c.pdf") && app.includes('renderPdfPage({ anchor: pdfAnchor })'), 'PDF 必须随阅读区尺寸重新渲染并保持相对视口锚点');
-  assert.ok(app.includes('c.paginator.reflow()') && app.includes('c.paginator.locate(textOffset)'), 'TXT、MOBI、AZW3 必须重排并恢复正文偏移');
+  assert.ok(app.includes('c.paginator.reflow()') && app.includes('c.paginator.locate(window.GaiaReaderChinese.displayOffset(c.paginator.doc.body, textOffset))'), 'TXT、MOBI、AZW3 必须重排并恢复原文对应的显示偏移');
   assert.ok(app.includes('await waitForReaderLayoutRefresh()'), '搜索结果跳转必须等待侧栏布局稳定');
   assert.ok(!app.includes("firstMark.scrollIntoView({ block: 'center', inline: 'center' })"), '分页搜索高亮不得再次横向滚动到半页位置');
   assert.ok(app.includes("firstMark && c && c.format === 'pdf'"), '仅 PDF 搜索高亮可以在页内滚动到命中文字');
@@ -244,7 +244,9 @@ test('1.1.3 发行说明、下载入口与 MOBI 图片修复保持一致', () =>
   assert.doesNotMatch(notes, /\{\{SHA256\}\}|\{\{FILE_SIZE\}\}/);
   assert.ok(notes.includes('compare/v1.1.2...v1.1.3'));
   assert.ok(readme.includes('RELEASE_NOTES_1.1.3.md') && readme.includes('## 1.1.3 更新亮点'));
-  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8').startsWith('## 1.1.3'));
+  const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+  assert.equal(changelog.match(/^## (\d+\.\d+\.\d+)/m)[1], '1.1.3');
+  assert.match(changelog, /^## 未发布.*待验收/);
   assert.ok(fs.readFileSync(path.join(root, 'scripts/verify-dist-layout.ps1'), 'utf8').includes("@('mobi-images', 'epub-font')"));
   assert.ok(fs.readFileSync(path.join(root, 'scripts/verify-dist-layout.ps1'), 'utf8').includes('portable-mobi-check.json'));
 });

@@ -77,8 +77,8 @@ function skeletonIndex(chapters) {
   return [Buffer.concat([header, tagx]), Buffer.concat([dataHeader, ...entries, idxt])];
 }
 
-function makeMobi7(directory) {
-  const html = Buffer.from('<html><head></head><body><p><img id="long" recindex="1"/></p><mbp:pagebreak/><img id="decimal" recindex="12"/></body></html>');
+function makeMobi7(directory, textHtml = '') {
+  const html = Buffer.from('<html><head></head><body>' + textHtml + '<p><img id="long" recindex="1"/></p><mbp:pagebreak/><img id="decimal" recindex="12"/></body></html>');
   const resources = Array.from({ length: 12 }, (_, i) => picture(i === 11 ? 80 : 360, i === 11 ? 40 : 2400));
   const file = path.join(directory, 'images-mobi7.mobi');
   fs.writeFileSync(file, pdb([mobiHeader(6, html.length, 2), html, ...resources]));

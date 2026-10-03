@@ -16,6 +16,7 @@
     "smoke:ui": "electron scripts/non-reading-smoke.js",
     "smoke:reader-ui": "electron scripts/non-reading-smoke.js --reader-toolbar",
     "smoke:import": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import-smoke.ps1",
+    "smoke:chinese-models": "electron scripts/chinese-models-smoke.js",
     "dist": "electron-builder --win",
     "shot": "electron . --shot-dir docs/screenshots --debug-open tests/fixtures/sample.epub"
   },
@@ -30,6 +31,7 @@
     "fast-xml-parser": "^4.5.0",
     "iconv-lite": "^0.6.3",
     "jszip": "^3.10.1",
+    "opencc-js": "1.4.2",
     "pdfjs-dist": "3.11.174",
     "yauzl": "^2.10.0"
   },

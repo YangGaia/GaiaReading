@@ -21,12 +21,14 @@ test('AI 中心保留全部配置控件、标签、状态与密码保护', () =>
   assert.doesNotMatch(ai, /ai-center-orb|ai-center-hero|deerflow|2\.jpeg/);
 });
 
-test('GPT-6 内置与接口读取结果合并去重，手动输入保持开放', () => {
-  const context = vm.createContext({ AI_PROVIDERS: PROVIDERS, els: { aiProvider: { value: 'custom' } }, state: { aiEditingProfileId: 'relay', aiDiscoveredModels: { relay: ['gpt-6-astra', 'relay/private'] } } });
+test('接口目录优先于内置候选，未获取目录时保留建议，手动输入保持开放', () => {
+  let catalog = { models: require('../src/shared/ai-models').extractModels(['relay/private']) };
+  const context = vm.createContext({ AI_PROVIDERS: PROVIDERS, els: { aiProvider: { value: 'custom' } }, currentAiModelCatalog: () => catalog, window: { GaiaAiModels: require('../src/shared/ai-models') } });
   vm.runInContext(app.slice(app.indexOf('function aiModelChoices()'), app.indexOf('function setAiModelMenuOpen(')), context);
   const result = context.aiModelChoices();
-  assert.deepEqual(Array.from(result.ids), ['gpt-6-astra', 'relay/private']);
-  assert.equal(result.labels.get('gpt-6-astra'), 'gpt-6-astra');
+  assert.deepEqual(Array.from(result.ids), ['relay/private']);
+  catalog = null;
+  assert.equal(context.aiModelChoices().ids[0], 'gpt-6-astra');
   context.els.aiProvider.value = 'openai';
   assert.equal(context.aiModelChoices().ids.filter((id) => id === 'gpt-6-astra').length, 1);
   assert.match(ai, /id="ai-model"[^>]+type="text"/);

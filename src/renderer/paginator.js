@@ -94,6 +94,7 @@ class Paginator {
     this.frame = frame;
     this.doc = doc;
     try {
+      if (options.prepareDocument) options.prepareDocument(doc);
       // Chapter bookkeeping joins the same synchronous commit as the iframe,
       // so a released hold cannot advance progress for an unseen chapter.
       if (options.beforeCommit) options.beforeCommit();

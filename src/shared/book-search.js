@@ -1,19 +1,20 @@
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof module === 'object' && module.exports ? require('./chinese-script') : root.GaiaChineseScript);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.GaiaBookSearch = api;
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, function (chinese) {
   'use strict';
 
   const DEFAULT_LIMIT = 500;
 
   function normalizeWithMap(value) {
     const source = String(value || '');
+    const converted = chinese.convertWithMap(source, 'simplified');
     let normalized = '';
     const map = [];
     let sourceIndex = 0;
-    for (const character of source) {
-      const start = sourceIndex;
+    for (const character of converted.text) {
+      const start = converted.targetToSource[sourceIndex];
       sourceIndex += character.length;
       if (/\s/u.test(character) || character === '\u00ad' || character === '\u200b') continue;
       let folded = character;
@@ -21,7 +22,7 @@
       folded = folded.toLocaleLowerCase();
       for (const output of folded) {
         normalized += output;
-        map.push(start);
+        for (let unit = 0; unit < output.length; unit++) map.push(start);
       }
     }
     return { source, normalized, map };

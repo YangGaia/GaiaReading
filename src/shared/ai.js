@@ -1,8 +1,8 @@
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof module === 'object' && module.exports ? require('./ai-models') : root.GaiaAiModels);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.GaiaAi = api;
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, function (modelCatalog) {
   'use strict';
 
   const PROVIDERS = {
@@ -435,13 +435,7 @@
   }
 
   function extractModelIds(value) {
-    const candidates = value && Array.isArray(value.data)
-      ? value.data
-      : (value && Array.isArray(value.models) ? value.models : []);
-    return Array.from(new Set(candidates.map((item) => {
-      if (typeof item === 'string') return item.trim();
-      return String(item && (item.id || item.name || item.model) || '').trim();
-    }).filter(Boolean))).slice(0, 200);
+    return modelCatalog.extractModels(value).map(model => model.id);
   }
 
   function textHash(value) {
@@ -562,31 +556,44 @@
     ], Object.assign({}, options, { maxTokens: 256, allowEmptyResponse: true }));
   }
 
-  async function listModels(fetchImpl, config, apiKey, options) {
+  async function listModelCatalog(fetchImpl, config, apiKey, options) {
     if (typeof fetchImpl !== 'function') throw new Error('当前环境无法读取模型列表');
     const normalized = normalizeConfig(config);
-    if (providerNeedsKey(normalized.provider) && !String(apiKey || '').trim()) throw new Error('请填写并保存 API Key');
+    if (providerNeedsKey(normalized.provider) && !String(apiKey || '').trim()) throw new Error('请填写 API Key');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.max(1000, Number(options && options.timeoutMs) || 20000));
     try {
       const headers = {};
       if (String(apiKey || '').trim()) headers.Authorization = 'Bearer ' + String(apiKey).trim();
-      const response = await fetchImpl(modelsEndpoint(normalized.baseUrl), { method: 'GET', headers, redirect: 'error', signal: controller.signal });
-      let data = null;
-      try { data = await response.json(); } catch (error) {}
-      if (!response.ok) {
-        const detail = data && data.error && (data.error.message || data.error.code);
-        throw new Error('模型列表接口返回 ' + response.status + (detail ? '：' + detail : ''));
+      const initial = modelsEndpoint(normalized.baseUrl);
+      let next = initial;
+      const visited = new Set();
+      const models = new Map();
+      while (next) {
+        if (visited.has(next) || visited.size >= 100) throw new Error('上游模型分页异常，未替换上次列表');
+        visited.add(next);
+        const response = await fetchImpl(next, { method: 'GET', headers, redirect: 'error', cache: 'no-store', signal: controller.signal });
+        let data = null;
+        try { data = await response.json(); } catch (error) { throw new Error('模型列表接口未返回有效 JSON'); }
+        if (!response.ok) {
+          const detail = data && data.error && (data.error.message || data.error.code);
+          throw new Error('模型列表接口返回 ' + response.status + (detail ? '：' + detail : ''));
+        }
+        if (!Array.isArray(data) && !(data && (Array.isArray(data.data) || Array.isArray(data.models)))) throw new Error('无法识别上游模型列表格式');
+        for (const model of modelCatalog.extractModels(data)) models.set(model.id, model);
+        next = modelCatalog.nextPageUrl(data, next, initial);
       }
-      const models = extractModelIds(data);
-      if (!models.length) throw new Error('接口没有返回可用模型，请手动填写模型名称');
-      return models;
+      return Array.from(models.values());
     } catch (error) {
       if (error && error.name === 'AbortError') throw new Error('读取模型列表超时');
       throw error;
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  async function listModels(fetchImpl, config, apiKey, options) {
+    return (await listModelCatalog(fetchImpl, config, apiKey, options)).map(model => model.id);
   }
 
   async function summarize(fetchImpl, config, apiKey, source, options) {
@@ -632,6 +639,7 @@
   }
 
   return {
+    listModelCatalog,
     PROVIDERS,
     DEFAULT_CONFIG,
     normalizeBaseUrl,

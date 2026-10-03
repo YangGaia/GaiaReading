@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld('api', {
   aiProfileActivate: (profileId) => ipcRenderer.invoke('ai:profile:activate', profileId),
   aiProfileDelete: (profileId) => ipcRenderer.invoke('ai:profile:delete', profileId),
   aiProfileTest: (profileId) => ipcRenderer.invoke('ai:profile:test', profileId),
-  aiProfileModels: (profileId) => ipcRenderer.invoke('ai:profile:models', profileId),
+  aiProfileModels: (profile) => ipcRenderer.invoke('ai:profile:models', profile),
   aiChat: (payload) => ipcRenderer.invoke('ai:chat', payload),
   aiChatCancel: (requestId) => ipcRenderer.invoke('ai:chat:cancel', requestId),
   aiAliceComment: (payload) => ipcRenderer.invoke('ai:alice-comment', payload),

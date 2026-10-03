@@ -123,7 +123,11 @@
                   <div class="ai-model-row">
                     <input id="ai-model" class="ai-config-input" type="text" spellcheck="false" autocomplete="off" placeholder="选择或填写模型 ID" aria-haspopup="listbox" aria-expanded="false" aria-controls="ai-model-options" aria-describedby="ai-model-hint">
                     <button id="btn-ai-model-menu" class="btn ai-model-menu-button" type="button" aria-label="展开模型列表"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></button>
-                    <button id="btn-ai-model-refresh" class="btn" type="button">读取模型</button>
+                    <button id="btn-ai-model-refresh" class="btn" type="button">刷新模型</button>
+                  </div>
+                  <div id="ai-model-filters" class="ai-model-filters" hidden>
+                    <input id="ai-model-search" class="ai-config-input" type="search" aria-label="搜索模型" placeholder="搜索名称或模型 ID" autocomplete="off">
+                    <select id="ai-model-family" class="ai-config-input" aria-label="模型分类"><option value="">全部系列</option></select>
                   </div>
                   <div id="ai-model-options" class="ai-model-options" role="listbox" aria-label="模型 ID" hidden></div>
                 </div>
@@ -524,6 +528,10 @@
           <span class="drawer-label" id="text-contrast-label">文字对比度</span>
           <button id="btn-text-contrast" class="btn drawer-cycle" type="button" aria-labelledby="text-contrast-label text-contrast-value" title="点击切换文字对比度"><span id="text-contrast-value">标准</span></button>
         </div>
+        <div class="drawer-row" id="drawer-chinese-script">
+          <span class="drawer-label" id="chinese-script-label">文字转换</span>
+          <button id="btn-chinese-script" class="btn drawer-cycle" type="button" aria-labelledby="chinese-script-label chinese-script-value"><span id="chinese-script-value" aria-live="polite">简体</span></button>
+        </div>
         <div class="drawer-row" id="drawer-spread">
           <span class="drawer-label" id="spread-label">页面布局</span>
           <button id="btn-spread" class="btn drawer-cycle" type="button" aria-labelledby="spread-label spread-value" title="切换单页 / 双页"><span id="spread-value">单页</span></button>
@@ -589,6 +597,9 @@
   <script src="vendor/jszip.min.js"></script>
   <script src="vendor/epub.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
+  <script src="vendor/opencc.js"></script>
+  <script src="../shared/chinese-script.js"></script>
+  <script src="reader-chinese.js"></script>
   <script src="paginator.js"></script>
   <script src="../shared/flow.js"></script>
   <script src="../shared/bookmarks.js"></script>
@@ -609,6 +620,7 @@
   <script src="../shared/reading-stats.js"></script>
   <script src="../shared/annotations.js"></script>
   <script src="../shared/book-search.js"></script>
+  <script src="../shared/ai-models.js"></script>
   <script src="../shared/ai.js"></script>
   <script src="bgm.js"></script>
   <script src="pet.js"></script>

@@ -14,6 +14,7 @@ const { prepareDataFile } = require('./shared/data-upgrade');
 const { openMobi, loadChapter, cleanupMobi, resolveMobiHref } = require('./shared/mobi');
 const { repairEpubBuffer } = require('./shared/epub-repair');
 const GaiaAi = require('./shared/ai');
+const { AiModelCache } = require('./shared/ai-model-cache');
 const Lookup = require('./shared/lookup');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -165,8 +166,13 @@ function getAiProfiles() {
 function publicAiProfile(profile) {
   const value = GaiaAi.normalizeProfile(profile);
   let hasApiKey = false;
-  try { hasApiKey = GaiaAi.providerNeedsKey(value.provider) && !!readAiSecret(value.id); } catch (error) {}
-  return { ...value, hasApiKey, targetHost: new URL(value.baseUrl).host };
+  let modelCatalog = null;
+  try {
+    const apiKey = aiKeyForProfile(value);
+    hasApiKey = GaiaAi.providerNeedsKey(value.provider) && !!apiKey;
+    modelCatalog = new AiModelCache(store).read(value, apiKey);
+  } catch (error) {}
+  return { ...value, hasApiKey, modelCatalog, targetHost: new URL(value.baseUrl).host };
 }
 
 function publicAiProfiles(profiles) {
@@ -579,7 +585,7 @@ function createWindow() {
               const aiCenterOpened = __gaiaDebug.getView() === 'ai';
               const aiCenterCard = document.querySelector('.ai-config-card');
               const aiCenterLayout = !!aiCenterCard && aiCenterCard.offsetWidth >= 420 && aiCenterCard.offsetHeight > 300;
-              const aiModelPresets = document.getElementById('ai-model-options').children.length >= 3;
+              const aiModelPresets = document.querySelectorAll('#ai-model-options [data-model-id]').length >= 3;
               document.getElementById('btn-ai-model-menu').click();
               const modelMenu = document.getElementById('ai-model-options');
               const aiModelMenuScrollable = !modelMenu.hidden && getComputedStyle(modelMenu).overflowY === 'auto' && modelMenu.clientHeight <= 220;
@@ -1597,6 +1603,7 @@ ipcMain.handle('ai:profile:save', (event, payload) => {
   else profiles.items.push(profile);
   if (existingIndex < 0 || input.activate === true) profiles.activeId = profile.id;
   store.set('aiProfiles', profiles);
+  if (existingIndex < 0) new AiModelCache(store).adoptDraft(profile, aiKeyForProfile(profile));
   return publicAiProfiles(profiles);
 });
 ipcMain.handle('ai:profile:activate', (event, profileId) => {
@@ -1613,6 +1620,7 @@ ipcMain.handle('ai:profile:delete', (event, profileId) => {
   if (index < 0) throw new Error('要删除的 AI 接口不存在');
   const removed = profiles.items.splice(index, 1)[0];
   writeAiSecret(removed.id, '');
+  new AiModelCache(store).remove(removed.id);
   if (profiles.activeId === removed.id) profiles.activeId = profiles.items[0].id;
   store.set('aiProfiles', profiles);
   return publicAiProfiles(profiles);
@@ -1626,11 +1634,17 @@ ipcMain.handle('ai:profile:test', async (event, profileId) => {
     return { ok: false, error: String(error && error.message || error || '连接测试失败') };
   }
 });
-ipcMain.handle('ai:profile:models', async (event, profileId) => {
+ipcMain.handle('ai:profile:models', async (event, payload) => {
   try {
-    const profile = aiProfileById(profileId);
-    const models = await GaiaAi.listModels(aiFetch, profile, aiKeyForProfile(profile), { timeoutMs: 20000 });
-    return { ok: true, models, targetHost: new URL(profile.baseUrl).host };
+    const input = typeof payload === 'string' ? aiProfileById(payload) : payload || {};
+    const existing = getAiProfiles().items.find(profile => profile.id === input.id);
+    const config = GaiaAi.normalizeConfig(input);
+    const sameScope = existing && GaiaAi.secretScopeKey(existing) === GaiaAi.secretScopeKey(config);
+    const apiKey = String(input.apiKey || '').trim() || (sameScope ? aiKeyForProfile(existing) : '');
+    const profile = { ...config, id: existing ? existing.id : 'draft' };
+    const models = await GaiaAi.listModelCatalog(aiFetch, profile, apiKey, { timeoutMs: 20000 });
+    const catalog = new AiModelCache(store).save(profile, apiKey, models);
+    return { ok: true, models: models.map(model => model.id), catalog, targetHost: new URL(profile.baseUrl).host };
   } catch (error) {
     return { ok: false, error: String(error && error.message || error || '读取模型列表失败') };
   }
@@ -1748,8 +1762,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => { if (importQueue) importQueue.close(); });
-
-
 
 
 

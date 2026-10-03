@@ -95,6 +95,15 @@
 #ai-view .ai-model-option.active { color: #edf3fc; border-color: #4f6684; background: #2b3a50; }
 #ai-view .ai-model-hint { margin: 8px 0 0; color: #a7b5c9; font-size: 11px; line-height: 1.65; }
 #ai-view .ai-model-options-empty { padding: 10px; color: var(--text-soft); font-size: 12px; }
+#ai-view .ai-model-filters { display: grid; grid-template-columns: minmax(0, 1fr) 166px; gap: 8px; margin-top: 8px; }
+#ai-view .ai-model-filters[hidden] { display: none; }
+#ai-view .ai-model-filters .ai-config-input { min-width: 0; width: 100%; }
+#ai-view .ai-model-group { display: grid; gap: 3px; min-width: 0; }
+#ai-view .ai-model-group-title { margin: 0; padding: 7px 10px 4px; color: #afbed3; font-size: 11px; font-weight: 500; letter-spacing: .04em; }
+#ai-view .ai-model-option { display: block; }
+#ai-view .ai-model-option strong { overflow-wrap: anywhere; white-space: normal; }
+#ai-view .ai-model-option small { display: block; overflow-wrap: anywhere; white-space: normal; }
+#ai-view .ai-model-option .ai-model-badge { display: inline-block; margin-left: 7px; padding: 0 5px; border: 1px solid #536780; border-radius: 4px; color: #cbdcf4; font-size: 10px; line-height: 17px; vertical-align: middle; }
 #ai-view .ai-config-target { margin: calc(15 * var(--ai-unit)) 0 0; padding: 9px 0 0; border-top: 1px solid #35404f; border-radius: 0; color: #a7b5c9; background: transparent; font-size: 11px; line-height: 1.65; overflow-wrap: anywhere; }
 #ai-view .ai-config-status { min-height: 0; margin: 8px 0 0; color: #bccae0; font-size: 12px; line-height: 1.6; }
 #ai-view .ai-config-status:empty { display: none; }
