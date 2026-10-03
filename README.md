@@ -2,20 +2,13 @@
 
 Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB、PDF、TXT、MOBI 和 AZW3。它把多格式阅读、章节级 AI 对话、划线笔记、阅读统计和桌面角色「久远寺有珠」放在同一个应用中。
 
-当前稳定版本：**1.1.3**
+当前稳定版本：**1.1.4**
 
-[下载 1.1.3](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.3) · [查看本版说明](RELEASE_NOTES_1.1.3.md) · [版本记录](CHANGELOG.md)
+[下载 1.1.4](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.4) · [查看本版说明](RELEASE_NOTES_1.1.4.md) · [版本记录](CHANGELOG.md)
 
-## 1.1.3 更新亮点
+## 1.1.4 更新亮点
 
-本版修复 MOBI/AZW3 的部分图片缺失和长图底部裁切问题，已通过用户验收。
-
-- **图片解析**：纠正 KF8 图片和样式资源编号，恢复此前读到错误记录的图片。
-- **长图完整显示**：图片根据单页宽高等比缩放，适配单页、双页和窗口调整，保留行内小图尺寸。
-- **嵌套资源**：补齐 SVG 内嵌图片、独立样式表和背景图，兼容本地资源路径与图片格式识别。
-- **慢加载重排**：图片较晚加载完成时仍会更新分页，并保留文字或插图阅读位置。
-
-## 当前源码新增功能（待验收，尚未包含在 1.1.3 发行文件中）
+本版新增离线简繁切换、上游 AI 模型目录刷新，并修复混合 MOBI 提示、字号调节及大型 AZW3 卡死问题，已通过用户验收；包含 1.1.3 的图片与长图显示修复。
 
 - MOBI／AZW3 按实际内容识别，混合 MOBI 不需改扩展名；正文固定字号也可缩放，并保留标题、脚注层级与阅读位置。
 - 大型 KF8 合集按需解析目录、分记录缓存解压，阅读解析在独立进程执行；超过 30 秒会终止并提示，返回书架或换书会取消旧请求，不再拖住整个应用。
@@ -103,8 +96,8 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 
 ## 下载与运行
 
-1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.3)。
-2. 下载 `Gaia.Reading.1.1.3.exe`。
+1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.4)。
+2. 下载 `Gaia.Reading.1.1.4.exe`。
 3. 双击运行，无需安装 Node.js，也无需执行安装程序。
 
 系统要求：Windows 10/11 x64。当前发行文件未购买商业代码签名证书，Windows 首次运行时可能显示 SmartScreen 提示；请确认下载来源并核对 Release 中公布的 SHA-256。
@@ -163,13 +156,15 @@ npm run smoke:open  # 打开测试 EPUB 的综合冒烟验证
 npm run smoke:ui    # 非阅读页面、设置侧栏的尺寸/交互，以及阅读配色隔离验证（独立临时数据）
 npm run smoke:reader-ui # 阅读上下栏、音乐滚播、EPUB/PDF 与键盘鼠标交互验证
 npm run smoke:epub-font # EPUB 固定字号、嵌套样式与排版回归验证
+npm run smoke:mobi-reading # MOBI/AZW3 格式、字号、目录与进程隔离验证
+npm run smoke:chinese-models # 简繁转换及上游模型目录验证
 npm run smoke:import # 真实 Windows 文件选择器、两组三本 EPUB、文件夹、重复导入与取消验证
 npm run dist        # 生成 Windows 绿色版 exe
 ```
 
 `smoke:import` 会显示测试窗口并操作系统文件选择器，默认使用临时生成的书籍和独立数据目录；测试期间请让该窗口保持可见。设置 `GAIA_IMPORT_BOOKS_DIR` 可使用本机书籍目录，设置 `GAIA_IMPORT_COPY_USER_DATA=1` 可在现有书架数据的副本上验证。原始数据与原始书籍不会被测试修改，报告及预览默认保存在 `dist/previews/import-smoke/`。
 
-本地最新版 exe 位于 `dist/Gaia.Reading.1.1.3.exe`；上一版保存在 `dist/archive/`，验证记录与预览分别放在 `dist/reports/` 和 `dist/previews/`。目录约定与校验命令见 [构建产物目录](docs/build-output.md)。
+本地最新版 exe 位于 `dist/Gaia.Reading.1.1.4.exe`；桌面保留一份相同的 exe 和指向它的同名快捷方式。上一版保存在 `dist/archive/`，验证记录与预览分别放在 `dist/reports/` 和 `dist/previews/`。目录约定与校验命令见 [构建产物目录](docs/build-output.md)。
 
 ## 项目结构
 
@@ -182,4 +177,4 @@ tests/               自动化测试和测试用电子书
 assets/bgm/          内置音乐资源
 ```
 
-本次更新详情请阅读 [RELEASE_NOTES_1.1.3.md](RELEASE_NOTES_1.1.3.md)；上一版本说明见 [RELEASE_NOTES_1.1.2.md](RELEASE_NOTES_1.1.2.md)；更早的 [1.1.1 说明](RELEASE_NOTES_1.1.1.md) 与 [1.1.0 说明](RELEASE_NOTES_1.1.0.md) 也予以保留。
+本次更新详情请阅读 [RELEASE_NOTES_1.1.4.md](RELEASE_NOTES_1.1.4.md)；上一版本说明见 [RELEASE_NOTES_1.1.3.md](RELEASE_NOTES_1.1.3.md)；更早的 [1.1.2 说明](RELEASE_NOTES_1.1.2.md)、[1.1.1 说明](RELEASE_NOTES_1.1.1.md) 与 [1.1.0 说明](RELEASE_NOTES_1.1.0.md) 也予以保留。

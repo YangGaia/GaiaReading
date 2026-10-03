@@ -1,26 +1,29 @@
 # 构建产物目录
 
-`dist` 不纳入 Git。最新版绿色 exe 直接放在根目录，桌面同名快捷方式指向它。
+`dist` 不纳入 Git。最新版绿色 exe 直接放在根目录，桌面另存一份校验值相同的 exe，桌面同名快捷方式指向桌面上的副本。
 
 ```text
 dist/
-├── Gaia.Reading.1.1.3.exe   当前正式版，双击运行
+├── Gaia.Reading.1.1.4.exe   当前正式版，双击运行
 ├── archive/
-│   └── Gaia.Reading.1.1.2.exe   上一正式版，供回退
+│   └── Gaia.Reading.1.1.3.exe   上一正式版，供回退
 ├── previews/
-│   └── 1.1.3/long-single.png   长图完整显示预览
+│   └── 1.1.4/long-single.png   长图完整显示预览
 └── reports/
-    └── 1.1.3/
+    └── 1.1.4/
         ├── release/       源码与发行文件校验、启动及自动化测试记录
         ├── mobi-images/   MOBI 图片、分页与慢加载回归记录及截图
-        └── epub-font/     EPUB 排版回归记录及截图
+        ├── epub-font/     EPUB 排版回归记录及截图
+        ├── mobi-reading/  格式、字号、目录和主进程响应验证
+        └── chinese-models/ 简繁转换和上游模型目录验证
 ```
 
 ## 保持目录整洁
 
 - 日常测试通过各脚本的输出环境变量写入 `dist/reports/` 下对应的测试目录，预览放入 `dist/previews/`。
+- Windows 发行构建先运行 `npm ci --omit=optional`，再执行打包。PDF 使用 Chromium Canvas，不依赖 `pdfjs-dist` 为 Node 环境提供的可选 `canvas` 原生模块，可避免额外的 GTK/Cairo 编译要求。
 - 打包时可用 `npm run dist -- --config.directories.output=dist/_build --publish never` 将解包程序、构建缓存和生成日志放入临时目录。仅在用户明确要求生成 exe 时执行打包。
-- 核验发行文件后，将新版 exe 放到 `dist` 根目录、上一版放入 `archive`，并更新桌面同名快捷方式的目标、工作目录和图标路径。
+- 核验发行文件后，将新版 exe 放到 `dist` 根目录、上一版放入 `archive`；将同一 exe 复制到桌面，并创建指向桌面副本的同名快捷方式，核对目标、工作目录、图标路径与 SHA-256。
 - 清理已完成构建的临时目录、过期日志和重复测试输出；保留当前发行版本的最终验证记录。不要将源代码、书籍或用户数据放入 `dist`。
 
 ## 本地验证

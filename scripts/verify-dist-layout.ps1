@@ -49,7 +49,7 @@ foreach ($file in $archive) {
 }
 
 $reportRoot = Join-Path $dist "reports\$version"
-foreach ($suite in @('mobi-images', 'epub-font')) {
+foreach ($suite in @('mobi-images', 'epub-font', 'mobi-reading', 'chinese-models')) {
     $suiteRoot = Join-Path $reportRoot $suite
     $report = Get-Content -LiteralPath (Join-Path $suiteRoot 'report.json') -Raw | ConvertFrom-Json
     Assert-Dist ($report.passed -eq $true) "Archived $suite checks did not pass"
@@ -75,13 +75,16 @@ if (-not $SkipPublishedCheck) {
 $preview = Join-Path $dist "previews\$version\long-single.png"
 Assert-Dist ((Test-Path -LiteralPath $preview -PathType Leaf) -and (Get-Item -LiteralPath $preview).Length -gt 0) 'Missing long image preview'
 
-$shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) "Gaia.Reading.$version.lnk"
+$desktop = [Environment]::GetFolderPath('Desktop')
+$desktopExecutable = Join-Path $desktop $fileName
+Test-ReleaseFile $desktopExecutable $version
+$shortcutPath = Join-Path $desktop "Gaia.Reading.$version.lnk"
 Assert-Dist (Test-Path -LiteralPath $shortcutPath -PathType Leaf) 'Desktop shortcut is missing'
 $shortcutShell = New-Object -ComObject WScript.Shell
 $shortcut = $shortcutShell.CreateShortcut($shortcutPath)
-Assert-Dist ($shortcut.TargetPath -eq $executable) 'Desktop shortcut points at the wrong executable'
-Assert-Dist ($shortcut.WorkingDirectory -eq $dist) 'Desktop shortcut has the wrong working directory'
-Assert-Dist ($shortcut.IconLocation -eq ($executable + ',0')) 'Desktop shortcut icon still points at an old path'
+Assert-Dist ($shortcut.TargetPath -eq $desktopExecutable) 'Desktop shortcut points at the wrong executable'
+Assert-Dist ($shortcut.WorkingDirectory -eq $desktop) 'Desktop shortcut has the wrong working directory'
+Assert-Dist ($shortcut.IconLocation -eq ($desktopExecutable + ',0')) 'Desktop shortcut icon still points at an old path'
 
 [ordered]@{
     Passed = $true
