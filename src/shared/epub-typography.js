@@ -9,9 +9,10 @@
   const HTML = 'http://www.w3.org/1999/xhtml';
   const SKIP = new Set(['script', 'style', 'link', 'meta', 'base', 'title', 'br', 'wbr', 'source', 'track']);
 
-  function normalizePercent(value) {
+  function normalizePercent(value, options) {
     const number = Number(value);
-    return Number.isFinite(number) ? Math.max(80, Math.min(200, number)) : 100;
+    const minimum = options && options.minPercent === 75 ? 75 : 80;
+    return Number.isFinite(number) ? Math.max(minimum, Math.min(200, number)) : 100;
   }
 
   function isFixedLayout(layout, properties) {
@@ -38,7 +39,7 @@
     // Restore only our typography properties. epub.js owns the other inline
     // styles (columns, size, position); restoring cssText would undo pagination.
     restore(doc);
-    const scale = normalizePercent(percent) / 100;
+    const scale = normalizePercent(percent, options) / 100;
     if (scale === 1 || (options && options.fixedLayout)) return;
 
     // Measure the entire unscaled tree before writing anything. Scaling an

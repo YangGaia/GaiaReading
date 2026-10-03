@@ -976,7 +976,7 @@ function closeReaderContent() {
     if (c.rendition) { try { c.rendition.destroy(); } catch (e) {} }
     if (c.pdf) { try { c.pdf.destroy(); } catch (e) {} }
     if (c.paginator) { try { c.paginator.destroy(); } catch (e) {} }
-    if (c.mobiSession) { try { window.api.mobiClose(c.mobiSession); } catch (e) {} }
+    if (c.format === 'mobi' || c.format === 'azw3') window.api.mobiClose(c.mobiSession || null).catch(() => {});
   }
   els.readerContent.innerHTML = '';
   cancelPendingPdfZoomRender();
@@ -1024,6 +1024,7 @@ async function openBook(book) {
   els.readerStatus.textContent = '加载中…';
   els.pageNav.hidden = false;
   state.current = { path: book.path, format: book.format, title: book.title || book.path, cover: book.cover || '', percent: 0 };
+  const opening = state.current;
   updateTocEdgeAvailability();
   noteReadingActivity();
   applyGlobalHabits();
@@ -1045,6 +1046,7 @@ async function openBook(book) {
       setTocMessage('（本书没有目录）');
     }
   } catch (err) {
+    if (state.current !== opening) return;
     console.error(err);
     els.readerStatus.textContent = '打开失败：' + err.message;
     setTocMessage('（目录加载失败）');
@@ -1793,19 +1795,14 @@ function updateTocEdgeAvailability() {
 }
 
 async function openMobi(book) {
+  const current = state.current;
   const res = await window.api.mobiOpen(book.path);
-  state.current.mobiSession = res.sessionId;
-  state.current.chineseScript = window.GaiaChineseScript.normalizeMode(state.prefs.chineseScript);
-  if (!state.current.chineseScript) {
-    let sample = '';
-    for (let index = 0; index < Math.min(4, (res.chapters || []).length); index++) {
-      const chapter = await window.api.mobiChapter(res.sessionId, index);
-      const parsed = new DOMParser().parseFromString(chapter.html || '', 'text/html');
-      sample += (parsed.body.textContent || '').slice(0, 12000);
-      if (sample.length >= 24000) break;
-    }
-    state.current.chineseScript = window.GaiaChineseScript.detect(sample);
+  if (state.current !== current) {
+    await window.api.mobiClose(res.sessionId);
+    return;
   }
+  state.current.mobiSession = res.sessionId;
+  state.current.chineseScript = window.GaiaChineseScript.chooseMode(state.prefs.chineseScript, res.textSample);
   state.current.mobi = {
     chapters: res.chapters || [],
     toc: res.toc || [],
@@ -1828,6 +1825,7 @@ async function openMobi(book) {
   state.current.paginator.setTheme(state.prefs.theme);
   state.current.paginator.setTextContrast(state.prefs.readerTextContrast);
   state.current.paginator.setMargin(state.prefs.marginPct != null ? state.prefs.marginPct : 8);
+  applyMobiTypography();
   const saved = state.progress[book.path];
   let startChapter = 0;
   let startPage = 0;
@@ -1837,8 +1835,20 @@ async function openMobi(book) {
     if (typeof saved.mobiPage === 'number') startPage = saved.mobiPage;
   }
   state.current.flow.gotoChapter(startChapter);
-  await loadMobiChapter(startChapter, { page: startPage, textAnchor: saved && saved.textAnchor });
+  if (!await loadMobiChapter(startChapter, { page: startPage, textAnchor: saved && saved.textAnchor })) return;
+  if (state.current !== current) return;
   renderMobiToc();
+}
+
+function updateMobiTocTargets(current, tocTargets) {
+  const targets = new Map((tocTargets || []).map(target => [target.href, target]));
+  const updateTargets = items => {
+    for (const item of items || []) {
+      if (targets.has(item.href)) Object.assign(item, targets.get(item.href));
+      updateTargets(item.children);
+    }
+  };
+  updateTargets(current.mobi.toc);
 }
 
 async function loadMobiChapter(chapterIndex, opts) {
@@ -1856,6 +1866,7 @@ async function loadMobiChapter(chapterIndex, opts) {
   try {
     const ch = await window.api.mobiChapter(c.mobiSession, clamped);
     if (!isCurrent()) return false;
+    updateMobiTocTargets(c, ch.tocTargets);
     let html = ch.html || '';
     const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
     if (bodyMatch) html = bodyMatch[1];
@@ -1968,10 +1979,16 @@ function renderMobiToc() {
       a.textContent = '\\u3000'.repeat(depth) + (item.label || '').trim();
       a.dataset.originalLabel = a.textContent;
       a.textContent = readerChineseText(a.textContent);
-      a.addEventListener('click', (ev) => {
+      a.addEventListener('click', async (ev) => {
         ev.preventDefault();
         handleTocItemActivation();
-        if (typeof item.index === 'number' && item.index >= 0) loadMobiChapter(item.index, { page: 0, selector: item.selector || '' });
+        try {
+          const target = item.href ? await window.api.mobiResolveHref(c.mobiSession, item.href) : item;
+          if (state.current !== c) return;
+          if (typeof target.index === 'number' && target.index >= 0) await loadMobiChapter(target.index, { page: 0, selector: target.selector || '' });
+        } catch (error) {
+          if (state.current === c) els.readerStatus.textContent = '目录跳转失败：' + error.message;
+        }
       });
       els.tocPanel.appendChild(a);
       if (item.children && item.children.length) renderItems(item.children, depth + 1);
@@ -4908,6 +4925,8 @@ async function resolveSparseMobiAiSource(source) {
   if (!Number.isInteger(nextIndex) || nextIndex < 0 || nextIndex >= c.mobi.chapters.length) return source;
   try {
     const nextChapter = await window.api.mobiChapter(c.mobiSession, nextIndex);
+    if (state.current !== c) return source;
+    updateMobiTocTargets(c, nextChapter.tocTargets);
     const doc = new DOMParser().parseFromString(String(nextChapter && nextChapter.html || ''), 'text/html');
     const nextSource = mobiChapterSummarySourceFromRoot(c, nextIndex, doc.body, 0);
     return nextSource.content.length >= 32 ? nextSource : source;

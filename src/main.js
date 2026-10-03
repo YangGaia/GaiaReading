@@ -11,7 +11,7 @@ const { scanBookFolder } = require('./shared/book-metadata');
 const { decodeTxt } = require('./shared/txt-utils');
 const { JsonStore } = require('./shared/store');
 const { prepareDataFile } = require('./shared/data-upgrade');
-const { openMobi, loadChapter, cleanupMobi, resolveMobiHref } = require('./shared/mobi');
+const { MobiSessions } = require('./shared/mobi-sessions');
 const { repairEpubBuffer } = require('./shared/epub-repair');
 const GaiaAi = require('./shared/ai');
 const { AiModelCache } = require('./shared/ai-model-cache');
@@ -49,6 +49,7 @@ let dictionaryWindow = null;
 let dictionarySessionSecured = false;
 let store = null;
 let importQueue = null;
+let mobiSessions = null;
 const repairedEpubCache = new Map();
 const aiChatRequests = new Map();
 
@@ -375,8 +376,15 @@ function createWindow() {
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     logImport('renderer-exit', details);
     if (importQueue) importQueue.cancel(importOwner);
+    if (mobiSessions) void mobiSessions.closeOwner(importOwner);
   });
-  mainWindow.webContents.on('destroyed', () => { if (importQueue) importQueue.cancel(importOwner); });
+  mainWindow.webContents.on('destroyed', () => {
+    if (importQueue) importQueue.cancel(importOwner);
+    if (mobiSessions) void mobiSessions.closeOwner(importOwner);
+  });
+  mainWindow.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => {
+    if (isMainFrame && mobiSessions) void mobiSessions.closeOwner(importOwner);
+  });
   mainWindow.on('unresponsive', () => logImport('window-unresponsive'));
   let displayUpdateTimer = null;
   const sendDisplayFrequency = () => {
@@ -1536,46 +1544,23 @@ ipcMain.handle('book:read', async (event, filePath) => {
 ipcMain.handle('book:metadata', (event, filePath) => importQueue.read(filePath, event.sender.id));
 ipcMain.handle('book:metadata:cancel', (event) => { importQueue.cancel(event.sender.id); return true; });
 
-const mobiSessions = new Map();
-let mobiSessionSeq = 0;
-
 ipcMain.handle('mobi:open', async (event, filePath) => {
   const format = formatOf(filePath);
   if (format !== 'mobi' && format !== 'azw3') throw new Error('不是 MOBI/AZW3 文件: ' + filePath);
-  const resourceSaveDir = path.join(app.getPath('temp'), 'gaia-mobi-' + process.pid + '-' + (mobiSessionSeq + 1));
-  const opened = await openMobi(filePath, resourceSaveDir);
-  const sessionId = 'mobi-' + (++mobiSessionSeq);
-  mobiSessions.set(sessionId, { opened, resourceSaveDir });
-  return {
-    sessionId,
-    kind: opened.kind,
-    title: opened.title,
-    author: opened.author,
-    cover: opened.cover,
-    chapters: opened.chapters,
-    toc: opened.toc,
-  };
+  return mobiSessions.open(filePath, event.sender.id);
 });
 
 ipcMain.handle('mobi:chapter', async (event, { sessionId, index }) => {
-  const session = mobiSessions.get(sessionId);
-  if (!session) throw new Error('MOBI 会话已失效，请重新打开');
-  const ch = await loadChapter(session.opened, index, session.resourceSaveDir);
-  return ch;
+  return mobiSessions.request(sessionId, event.sender.id, 'chapter', { index });
 });
 
 ipcMain.handle('mobi:resolve-href', (event, { sessionId, href }) => {
-  const session = mobiSessions.get(sessionId);
-  if (!session) throw new Error('MOBI 会话已失效，请重新打开');
-  return resolveMobiHref(session.opened, href);
+  return mobiSessions.request(sessionId, event.sender.id, 'resolve', { href });
 });
 
 ipcMain.handle('mobi:close', (event, sessionId) => {
-  const session = mobiSessions.get(sessionId);
-  if (session) {
-    cleanupMobi(session.opened);
-    mobiSessions.delete(sessionId);
-  }
+  if (sessionId) void mobiSessions.closeSession(sessionId, event.sender.id);
+  else void mobiSessions.closeOwner(event.sender.id);
   return true;
 });
 
@@ -1749,6 +1734,12 @@ app.whenReady().then(() => {
     tempRoot: path.join(app.getPath('temp'), 'gaia-book-import-' + process.pid),
     log: logImport,
   });
+  mobiSessions = new MobiSessions({
+    fork: () => utilityProcess.fork(path.join(__dirname, 'mobi-worker.js'), [], {
+      serviceName: 'Gaia Reading MOBI/AZW3 阅读', execArgv: ['--max-old-space-size=512'], stdio: 'ignore',
+    }),
+    tempRoot: path.join(app.getPath('temp'), 'gaia-mobi-reading-' + process.pid),
+  });
   registerBgmProtocol();
   setupMenu();
   createWindow();
@@ -1761,10 +1752,17 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => { if (importQueue) importQueue.close(); });
-
-
-
+let mobiQuitPending = false;
+app.on('before-quit', event => {
+  if (importQueue) importQueue.close();
+  if (!mobiSessions) return;
+  if (event && mobiSessions.cleanups.size) {
+    event.preventDefault();
+    if (mobiQuitPending) return;
+    mobiQuitPending = true;
+    void mobiSessions.close().finally(() => app.quit());
+  } else void mobiSessions.close();
+});
 
 
 

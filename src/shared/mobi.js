@@ -16,6 +16,7 @@
 
 const fs = require('fs');
 const { fixKf8ResourceIds, toDataUrl, inlineChapterResources } = require('./mobi-resources');
+const { fixKf8RawCache } = require('./mobi-kf8');
 
 let parserPromise = null;
 
@@ -31,7 +32,7 @@ function loadParser() {
 
 /** 小端/大端无符号整数读取（默认大端，MOBI 内部字段均大端）。 */
 function readU32(buf, offset) {
-  return (buf[offset] << 24) | (buf[offset + 1] << 16) | (buf[offset + 2] << 8) | buf[offset + 3];
+  return buf.readUInt32BE(offset);
 }
 
 /**
@@ -41,9 +42,11 @@ function readU32(buf, offset) {
 function readRecordOffsets(buf) {
   if (buf.length < 78) return [];
   const numRecords = (buf[76] << 8) | buf[77];
+  if (78 + numRecords * 8 > buf.length) return [];
   const offsets = [];
   for (let i = 0; i < numRecords; i++) {
     const off = readU32(buf, 78 + i * 8);
+    if (off < 78 + numRecords * 8 || off >= buf.length || (i > 0 && off < offsets[i - 1])) return [];
     offsets.push(off);
   }
   return offsets;
@@ -63,7 +66,7 @@ function detectKind(buf) {
   try {
     const offsets = readRecordOffsets(buf);
     if (!offsets.length) return 'unknown';
-    const rec0 = buf.slice(offsets[0], offsets[1] || offsets[0] + 512);
+    const rec0 = buf.subarray(offsets[0], offsets[1] || buf.length);
     if (rec0.length < 64) return 'unknown';
     // record0 = 16 字节 PalmDoc header + MOBI header（magic "MOBI" 在偏移 16）
     const magic = rec0.toString('latin1', 16, 20);
@@ -75,13 +78,27 @@ function detectKind(buf) {
     const length = readU32(rec0, 16 + 4); // MOBI header length
     if ((exthFlag & 0x40) && rec0.length >= 16 + length + 12) {
       const exthStart = 16 + length;
+      if (rec0.toString('latin1', exthStart, exthStart + 4) !== 'EXTH') return 'unknown';
       const exthLen = readU32(rec0, exthStart + 4);
-      const exthEnd = Math.min(rec0.length, exthStart + exthLen);
+      if (exthLen < 12 || exthStart + exthLen > rec0.length) return 'unknown';
+      const exthEnd = exthStart + exthLen;
+      const count = readU32(rec0, exthStart + 8);
       let pos = exthStart + 12;
-      while (pos + 8 <= exthEnd) {
+      for (let entry = 0; entry < count; entry++) {
+        if (pos + 8 > exthEnd) return 'unknown';
         const id = readU32(rec0, pos);
         const size = readU32(rec0, pos + 4);
-        if (id === 121) return 'kf8';
+        if (size < 8 || pos + size > exthEnd) return 'unknown';
+        if (id === 121) {
+          if (size < 12) return 'unknown';
+          const boundary = readU32(rec0, pos + 8);
+          if (boundary !== 0xffffffff) {
+            if (boundary >= offsets.length) return 'unknown';
+            const record = buf.subarray(offsets[boundary], offsets[boundary + 1] || buf.length);
+            if (record.length < 40 || record.toString('latin1', 16, 20) !== 'MOBI' || readU32(record, 36) < 8) return 'unknown';
+            return 'kf8';
+          }
+        }
         pos += size;
       }
     }
@@ -246,14 +263,16 @@ async function openMobi(filePath, resourceSaveDir, options = {}) {
 
   let book;
   if (kind === 'kf8') {
-    book = fixKf8ResourceIds(await parser.initKf8File(filePath, resourceSaveDir));
+    book = fixKf8RawCache(fixKf8ResourceIds(await parser.initKf8File(buf, resourceSaveDir)));
   } else {
     // mobi7 或 unknown：先尝试 MOBI，若解析器内部识别为 KF8 兼容文件则回退 KF8
     try {
-      book = await parser.initMobiFile(filePath, resourceSaveDir);
+      if (kind === 'unknown') throw new Error('文件头或记录表损坏');
+      book = await parser.initMobiFile(buf, resourceSaveDir);
     } catch (errMobi) {
       try {
-        book = fixKf8ResourceIds(await parser.initKf8File(filePath, resourceSaveDir));
+        if (kind === 'unknown') throw errMobi;
+        book = fixKf8RawCache(fixKf8ResourceIds(await parser.initKf8File(buf, resourceSaveDir)));
         kind = 'kf8';
       } catch (errKf8) {
         throw new Error('无法解析 MOBI 文件：' + errMobi.message + ' / ' + errKf8.message);
@@ -317,7 +336,7 @@ async function openMobi(filePath, resourceSaveDir, options = {}) {
     }
   }
   function tocTargetFromHref(href) {
-    return resolveMobiHref({ book, rawIndexById, fidToIndex, mergeTarget, newIndexOf }, href);
+    return resolveMobiHref({ book, rawIndexById, fidToIndex, mergeTarget, newIndexOf }, href, { indexOnly: true });
   }
   const mapToc = (items) => (items || []).map((item) => {
     const target = tocTargetFromHref(item.href);
@@ -353,13 +372,13 @@ async function openMobi(filePath, resourceSaveDir, options = {}) {
 }
 
 /** 把书内 filepos:/kindle:pos: 链接解析为合并后的章节序号和章节内选择器。 */
-function resolveMobiHref(opened, href) {
+function resolveMobiHref(opened, href, options = {}) {
   const book = opened && opened.book;
   if (!book || !href) return { index: null, selector: '' };
   const position = parseKindlePosition(href);
   let raw = position && opened.fidToIndex instanceof Map ? opened.fidToIndex.get(position.fid) : null;
   let resolved = null;
-  if (typeof book.resolveHref === 'function') {
+  if ((!options.indexOnly || !position) && typeof book.resolveHref === 'function') {
     try { resolved = book.resolveHref(String(href)); } catch (error) {}
   }
   if (raw == null && resolved && resolved.id != null && opened.rawIndexById instanceof Map) {
@@ -369,9 +388,9 @@ function resolveMobiHref(opened, href) {
   const target = Array.isArray(opened.mergeTarget) && opened.mergeTarget[raw] >= 0 ? opened.mergeTarget[raw] : raw;
   const mapped = Array.isArray(opened.newIndexOf) ? opened.newIndexOf[target] : target;
   let selector = position && resolved && typeof resolved.selector === 'string' ? resolved.selector : '';
-  if (!selector && position) selector = nearestKf8Selector(book, position.fid, position.off);
+  if (!options.indexOnly && !selector && position) selector = nearestKf8Selector(book, position.fid, position.off);
   const fileposMatch = String(href).match(/^filepos:(\d+)/i);
-  const textHint = fileposMatch ? mobi7TextHint(book, raw, Number(fileposMatch[1])) : '';
+  const textHint = !options.indexOnly && fileposMatch ? mobi7TextHint(book, raw, Number(fileposMatch[1])) : '';
   return { index: Number.isInteger(mapped) && mapped >= 0 ? mapped : null, selector, textHint };
 }
 
@@ -395,11 +414,38 @@ async function loadChapter(opened, chapterIndex, resourceSaveDir) {
   }
   if (!parts.length) throw new Error('章节加载失败: ' + chapterIndex);
   const inlinedList = parts.map((p) => inlineChapterResources(p.html, resourceSaveDir, p.css));
+  const tocTargets = [];
+  function resolveLoadedToc(items) {
+    for (const item of items || []) {
+      if (item.index === chapterIndex && item.href) {
+        const target = resolveMobiHref(opened, item.href);
+        item.selector = target.selector;
+        tocTargets.push({ href: item.href, ...target });
+      }
+      resolveLoadedToc(item.children);
+    }
+  }
+  resolveLoadedToc(opened.toc);
   return {
     index: chapterIndex,
+    tocTargets,
     html: inlinedList.map((x) => x.html).join(''),
     cssText: inlinedList.map((x) => x.cssText).join('\n'),
   };
+}
+
+function sampleMobiText(opened) {
+  let sample = '';
+  for (const chapter of (opened.book.chapters || []).slice(0, 4)) {
+    const html = typeof chapter.text === 'string' ? chapter.text : opened.book.loadText(chapter);
+    sample += String(html || '').slice(0, 256000)
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]*>/g, ' ')
+      .slice(0, 12000);
+    if (sample.length >= 24000) break;
+  }
+  return sample.slice(0, 24000);
 }
 
 /** 释放资源（删除落盘资源目录）。 */
@@ -422,4 +468,5 @@ module.exports = {
   chapterContentWeight,
   parseKindlePosition,
   resolveMobiHref,
+  sampleMobiText,
 };

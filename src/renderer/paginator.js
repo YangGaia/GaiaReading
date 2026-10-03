@@ -98,9 +98,10 @@ class Paginator {
       // Chapter bookkeeping joins the same synchronous commit as the iframe,
       // so a released hold cannot advance progress for an unseen chapter.
       if (options.beforeCommit) options.beforeCommit();
+      this.prepareImageContainers();
+      this.applyLayout();
       this.applyTypography();
       this.applyTheme();
-      this.prepareImageContainers();
       this.applyLayout();
       // Swap only after typography, theme and pagination are ready to paint.
       frame.classList.remove('paginator-pending');
@@ -197,6 +198,7 @@ class Paginator {
 
   /** 设置排版：fontSizePct 为百分比，lineHeight，fontFamily 为 CSS 字体栈。 */
   setTypography({ fontSizePct, lineHeight, fontFamily }) {
+    const anchor = this.doc ? this.anchor() : null;
     this.typo = {
       fontSizePct: fontSizePct == null ? this.typo.fontSizePct : fontSizePct,
       lineHeight: lineHeight == null ? this.typo.lineHeight : lineHeight,
@@ -204,6 +206,10 @@ class Paginator {
     };
     if (this.doc) this.applyTypography();
     this.reflow();
+    if (anchor) {
+      const page = this.locate(anchor.off);
+      if (page >= 0) this.showPage(page);
+    }
   }
 
   /** 设置页面左右边距百分比（如 4/8/12/16），立即重新排版。 */
@@ -234,7 +240,8 @@ class Paginator {
     if (!this.doc) return;
     const s = this.doc.getElementById('paginator-typo');
     if (!s) return;
-    let css = 'html { font-size: ' + (this.typo.fontSizePct / 100) + 'em !important; }';
+    window.GaiaEpubTypography.restore(this.doc);
+    let css = 'html { font-size: 1em !important; }';
     css += 'html, body { line-height: ' + this.typo.lineHeight + ' !important; word-break: break-word !important; overflow-wrap: break-word !important; }';
     // 与 EPUB 阅读一致的排版：段落首行缩进、标题间距、行距
     css += 'p { text-indent: 2em !important; margin-top: 0 !important; margin-bottom: 0.8em !important; line-height: ' + this.typo.lineHeight + ' !important; }';
@@ -245,6 +252,7 @@ class Paginator {
       css += 'html, body, p, div, span, li, a, h1, h2, h3, h4 { font-family: ' + this.typo.fontFamily + ' !important; }';
     }
     s.textContent = css;
+    window.GaiaEpubTypography.apply(this.doc, this.typo.fontSizePct, { minPercent: 75 });
   }
 
   applyTheme() {

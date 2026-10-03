@@ -8,6 +8,12 @@ test('EPUB 字号限制在阅读器范围内，非法输入回到默认比例', 
   assert.deepEqual([80, 100, 150, 200, 500, -1, '120', NaN, undefined].map(normalizePercent), [80, 100, 150, 200, 200, 80, 120, 100, 100]);
 });
 
+test('共用分页器保留 TXT 的 12px 下限，不改变 EPUB 的字号范围', () => {
+  assert.equal(normalizePercent(75, { minPercent: 75 }), 75);
+  assert.equal(normalizePercent(60, { minPercent: 75 }), 75);
+  assert.equal(normalizePercent(75), 80);
+});
+
 test('固定版式识别尊重章节覆盖，包括混合版式 EPUB', () => {
   assert.equal(isFixedLayout('pre-paginated', []), true);
   assert.equal(isFixedLayout('reflowable', ['rendition:layout-pre-paginated']), true);

@@ -9,7 +9,7 @@ const { detectKind, openMobi, loadChapter, cleanupMobi, planChapterMerge, chapte
 
 const ROOT = path.join(__dirname, '..');
 
-test('只导入元数据时不解析目录正文位置，阅读模式仍保留目录定位', async () => {
+test('导入和打开均不提前解压目录正文，点击时才解析精确位置', async () => {
   const vm = require('vm');
   let locations = 0;
   const book = {
@@ -23,12 +23,16 @@ test('只导入元数据时不解析目录正文位置，阅读模式仍保留�
     parser: { initMobiFile: async () => book },
     require: (name) => name === 'fs' ? { readFileSync: () => Buffer.alloc(128), existsSync: () => false } : require('module').createRequire(path.join(ROOT, 'src/shared/mobi.js'))(name),
   };
-  vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'src/shared/mobi.js'), 'utf8') + '\nloadParser = async () => parser;', context);
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'src/shared/mobi.js'), 'utf8') + '\nloadParser = async () => parser; detectKind = () => "mobi7";', context);
   const metadata = await context.module.exports.openMobi('book.mobi', 'resources', { metadataOnly: true });
   assert.equal(metadata.title, '合集');
   assert.equal(locations, 0);
   const reading = await context.module.exports.openMobi('book.mobi', 'resources');
   assert.equal(reading.toc[0].index, 0);
+  assert.equal(locations, 0);
+  const target = context.module.exports.resolveMobiHref(reading, reading.toc[0].href);
+  assert.equal(target.index, 0);
+  assert.equal(target.selector, '[id="chapter"]');
   assert.equal(locations, 1);
 });
 

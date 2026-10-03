@@ -322,7 +322,7 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(main.includes('当前章节没有可供 AI 阅读的文字'), '无正文页面必须显示明确错误');
   assert.ok(app.includes("semanticChapterEntries(root, chapter, c.format + ':' + chapter"), '目录缺少小章时，MOBI/AZW3 应按正文标题识别章节');
   assert.ok(app.includes("return holder.textContent || ''"), '章节正文提取不得受 AZW3 排版 CSS 的 innerText 可见性影响');
-  assert.ok(app.includes("selector: item.selector || ''"), 'MOBI/AZW3 目录跳转应定位到同一底层文档内的小章起点');
+  assert.ok(app.includes('await window.api.mobiResolveHref(c.mobiSession, item.href)') && app.includes("selector: target.selector || ''"), 'MOBI/AZW3 目录跳转应按需解析并定位到同一底层文档内的小章起点');
   assert.ok(app.includes('未识别到 TXT 章节标题'), 'TXT 未识别章节时不得把全文发送给 AI');
   assert.ok(main.includes('parsed.aiContentLen > 100'), 'MOBI/AZW3 冒烟必须在总结前验证 AI 已读到正文，不能只读到空格或页码');
   assert.ok(css.includes('.ai-content-stage { flex: 1; min-height: 0; overflow: hidden; }'), 'AI 对话内容区不得覆盖标题和状态文字');

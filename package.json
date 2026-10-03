@@ -13,6 +13,7 @@
     "smoke:pdf": "electron . --smoke-test --debug-open tests/fixtures/sample.pdf",
     "smoke:epub-font": "electron scripts/epub-typography-smoke.js",
     "smoke:mobi-images": "electron scripts/mobi-image-smoke.js",
+    "smoke:mobi-reading": "electron scripts/mobi-reading-smoke.js",
     "smoke:ui": "electron scripts/non-reading-smoke.js",
     "smoke:reader-ui": "electron scripts/non-reading-smoke.js --reader-toolbar",
     "smoke:import": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import-smoke.ps1",

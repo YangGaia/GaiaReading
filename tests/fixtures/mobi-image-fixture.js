@@ -85,14 +85,14 @@ function makeMobi7(directory, textHtml = '') {
   return { path: file, title: 'MOBI7 图片验证', format: 'mobi' };
 }
 
-function makeKf8(directory) {
+function makeKf8(directory, textHtml = '') {
   const embed = (index, mime = 'image/svg+xml') => `kindle:embed:${index.toString(32).toUpperCase().padStart(4, '0')}?mime=${mime}`;
   const paragraphs = Array.from({ length: 60 }, (_, i) => `<p id="text-${i}">第 ${i + 1} 段：阅读位置验证。文字和插图应当保持完整。${'月光落在书页上。'.repeat(12)}</p>`).join('');
   const contents = [
     `<div class="fixed-wrapper"><p><a><img id="long" src="${embed(172)}" width="360" height="2400"/></a></p></div>`,
     `<img id="wide" src="${embed(33)}"/><p>行内图 <img id="small" width="16" src="${embed(12)}"/> 保留小图尺寸。</p>`,
     `<svg id="svg-wrapper" width="360" height="2400" viewBox="0 0 360 2400"><image width="360" height="2400" xlink:href="${embed(172)}"/></svg>`,
-    `<p><img id="nested-svg" src="${embed(173)}"/></p>${paragraphs}`,
+    `${textHtml}<p><img id="nested-svg" src="${embed(173)}"/></p>${paragraphs}`,
   ];
   const chapters = contents.map(body => Buffer.from(`<html><head><link href="kindle:flow:000A?mime=text/css" rel="stylesheet"/><link href="kindle:flow:0010?mime=text/css" rel="stylesheet"/></head><body>${body}</body></html>`));
   const flows = Array.from({ length: 33 }, () => Buffer.from('/* unused flow */'));
@@ -124,4 +124,24 @@ function makeKf8(directory) {
   return { path: file, title: 'KF8 图片验证', format: 'azw3' };
 }
 
-module.exports = { picture, makeMobi7, makeKf8 };
+function makeHybrid(directory, options = {}) {
+  const pure = fs.readFileSync(makeKf8(directory).path);
+  const count = pure.readUInt16BE(76);
+  const records = Array.from({ length: count }, (_, index) => pure.subarray(
+    pure.readUInt32BE(78 + index * 8), index + 1 < count ? pure.readUInt32BE(86 + index * 8) : pure.length,
+  ));
+  const legacyText = Buffer.from('<html><body><p>旧版正文</p></body></html>');
+  const original = mobiHeader(6, legacyText.length, 3 + records[0].readUInt32BE(108));
+  const header = Buffer.concat([original.subarray(0, 296), Buffer.alloc(12), original.subarray(296)]);
+  header.writeUInt32BE(308, 84);
+  header.writeUInt32BE(24, 284);
+  header.writeUInt32BE(1, 288);
+  header.writeUInt32BE(121, 292);
+  header.writeUInt32BE(12, 296);
+  header.writeUInt32BE(options.boundary == null ? 3 : options.boundary, 300);
+  const file = path.join(directory, 'hybrid.mobi');
+  fs.writeFileSync(file, pdb([header, legacyText, Buffer.from('BOUNDARY'), ...records]));
+  return { path: file, title: '混合 MOBI/KF8 验证', format: 'mobi' };
+}
+
+module.exports = { picture, makeMobi7, makeKf8, makeHybrid };
