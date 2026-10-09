@@ -49,7 +49,7 @@ foreach ($file in $archive) {
 }
 
 $reportRoot = Join-Path $dist "reports\$version"
-foreach ($suite in @('mobi-images', 'epub-font', 'mobi-reading', 'chinese-models')) {
+foreach ($suite in @('mobi-images', 'epub-font', 'mobi-reading', 'chinese-models', 'page-turn')) {
     $suiteRoot = Join-Path $reportRoot $suite
     $report = Get-Content -LiteralPath (Join-Path $suiteRoot 'report.json') -Raw | ConvertFrom-Json
     Assert-Dist ($report.passed -eq $true) "Archived $suite checks did not pass"
@@ -66,7 +66,9 @@ Assert-Dist ($portableReport.runtime.asarSha256 -eq $payloadReport.asarSha256) '
 $mobiReport = Get-Content -LiteralPath (Join-Path $reportRoot 'release\portable-mobi-check.json') -Raw | ConvertFrom-Json
 Assert-Dist ($mobiReport.passed -eq $true -and $mobiReport.runtime.version -eq $version -and $mobiReport.runtime.packaged -eq $true) 'Packaged MOBI image checks did not pass'
 Assert-Dist ($mobiReport.runtime.asarSha256 -eq $payloadReport.asarSha256) 'Packaged MOBI checks used a different payload'
-Assert-Dist ($mobiReport.realBook.images -gt 0 -and @($mobiReport.realBook.failures).Count -eq 0) 'Packaged reader has failed MOBI images'
+$imageAudit = if ($mobiReport.realBook) { $mobiReport.realBook } else { $mobiReport.generatedBook }
+Assert-Dist ($imageAudit.images -gt 0 -and @($imageAudit.failures).Count -eq 0) 'Packaged reader has failed MOBI images'
+Assert-Dist (@($mobiReport.pageTurns).Count -gt 0 -and @($mobiReport.pageTurns | Where-Object { $_.moves -ne 1 -or $_.held }).Count -eq 0) 'Packaged arrow-key short presses did not turn exactly once'
 if (-not $SkipPublishedCheck) {
     $releaseReport = Get-Content -LiteralPath (Join-Path $reportRoot 'release\published-check.json') -Raw | ConvertFrom-Json
     Assert-Dist ($releaseReport.passed -eq $true -and $releaseReport.tag -eq "v$version") 'Missing successful publication verification'

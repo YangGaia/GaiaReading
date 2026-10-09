@@ -2,13 +2,20 @@
 
 Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB、PDF、TXT、MOBI 和 AZW3。它把多格式阅读、章节级 AI 对话、划线笔记、阅读统计和桌面角色「久远寺有珠」放在同一个应用中。
 
-当前稳定版本：**1.1.4**
+当前稳定版本：**1.1.5**
 
-[下载 1.1.4](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.4) · [查看本版说明](RELEASE_NOTES_1.1.4.md) · [版本记录](CHANGELOG.md)
+[下载 1.1.5](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.5) · [查看本版说明](RELEASE_NOTES_1.1.5.md) · [版本记录](CHANGELOG.md)
 
-## 1.1.4 更新亮点
+## 1.1.5 更新亮点
 
-本版新增离线简繁切换、上游 AI 模型目录刷新，并修复混合 MOBI 提示、字号调节及大型 AZW3 卡死问题，已通过用户验收；包含 1.1.3 的图片与长图显示修复。
+本版修复左右方向键普通点按容易误触长按、一次翻两页或更多页的问题，已通过用户验收。
+
+- 首次按下立即翻一页；连续翻页必须持续按住至少 500ms，并收到同一按键的系统重复事件确认，不再仅按 200ms 计时自动启动。
+- 快速独立按键逐次响应，不使用会吞掉点按的翻页冷却；系统重复事件不额外叠加翻页。
+- 松手、失焦、换书或打开设置时停止连翻，反向按下重新等待长按确认；双页模式仍一次翻一组。
+- 补充短按边界、多种刷新率、迟到重复事件、主界面与正文 iframe 焦点、跨章加载取消的回归测试。
+
+### 延续 1.1.4 的阅读功能
 
 - MOBI／AZW3 按实际内容识别，混合 MOBI 不需改扩展名；正文固定字号也可缩放，并保留标题、脚注层级与阅读位置。
 - 大型 KF8 合集按需解析目录、分记录缓存解压，阅读解析在独立进程执行；超过 30 秒会终止并提示，返回书架或换书会取消旧请求，不再拖住整个应用。
@@ -96,8 +103,8 @@ Gaia Reading 是一款面向 Windows 的绿色电子书阅读器，支持 EPUB�
 
 ## 下载与运行
 
-1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.4)。
-2. 下载 `Gaia.Reading.1.1.4.exe`。
+1. 打开 [GitHub Releases](https://github.com/YangGaia/GaiaReading/releases/tag/v1.1.5)。
+2. 下载 `Gaia.Reading.1.1.5.exe`。
 3. 双击运行，无需安装 Node.js，也无需执行安装程序。
 
 系统要求：Windows 10/11 x64。当前发行文件未购买商业代码签名证书，Windows 首次运行时可能显示 SmartScreen 提示；请确认下载来源并核对 Release 中公布的 SHA-256。
@@ -164,7 +171,7 @@ npm run dist        # 生成 Windows 绿色版 exe
 
 `smoke:import` 会显示测试窗口并操作系统文件选择器，默认使用临时生成的书籍和独立数据目录；测试期间请让该窗口保持可见。设置 `GAIA_IMPORT_BOOKS_DIR` 可使用本机书籍目录，设置 `GAIA_IMPORT_COPY_USER_DATA=1` 可在现有书架数据的副本上验证。原始数据与原始书籍不会被测试修改，报告及预览默认保存在 `dist/previews/import-smoke/`。
 
-本地最新版 exe 位于 `dist/Gaia.Reading.1.1.4.exe`；桌面保留一份相同的 exe 和指向它的同名快捷方式。上一版保存在 `dist/archive/`，验证记录与预览分别放在 `dist/reports/` 和 `dist/previews/`。目录约定与校验命令见 [构建产物目录](docs/build-output.md)。
+本地最新版 exe 位于 `dist/Gaia.Reading.1.1.5.exe`；桌面保留一份相同的 exe 和指向它的同名快捷方式。上一版保存在 `dist/archive/`，验证记录与预览分别放在 `dist/reports/` 和 `dist/previews/`。目录约定与校验命令见 [构建产物目录](docs/build-output.md)。
 
 ## 项目结构
 
@@ -177,4 +184,4 @@ tests/               自动化测试和测试用电子书
 assets/bgm/          内置音乐资源
 ```
 
-本次更新详情请阅读 [RELEASE_NOTES_1.1.4.md](RELEASE_NOTES_1.1.4.md)；上一版本说明见 [RELEASE_NOTES_1.1.3.md](RELEASE_NOTES_1.1.3.md)；更早的 [1.1.2 说明](RELEASE_NOTES_1.1.2.md)、[1.1.1 说明](RELEASE_NOTES_1.1.1.md) 与 [1.1.0 说明](RELEASE_NOTES_1.1.0.md) 也予以保留。
+本次更新详情请阅读 [RELEASE_NOTES_1.1.5.md](RELEASE_NOTES_1.1.5.md)；上一版本说明见 [RELEASE_NOTES_1.1.4.md](RELEASE_NOTES_1.1.4.md)；更早的 [1.1.3 说明](RELEASE_NOTES_1.1.3.md)、[1.1.2 说明](RELEASE_NOTES_1.1.2.md)、[1.1.1 说明](RELEASE_NOTES_1.1.1.md) 与 [1.1.0 说明](RELEASE_NOTES_1.1.0.md) 也予以保留。

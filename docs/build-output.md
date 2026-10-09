@@ -4,18 +4,19 @@
 
 ```text
 dist/
-├── Gaia.Reading.1.1.4.exe   当前正式版，双击运行
+├── Gaia.Reading.1.1.5.exe   当前正式版，双击运行
 ├── archive/
-│   └── Gaia.Reading.1.1.3.exe   上一正式版，供回退
+│   └── Gaia.Reading.1.1.4.exe   上一正式版，供回退
 ├── previews/
-│   └── 1.1.4/long-single.png   长图完整显示预览
+│   └── 1.1.5/long-single.png   长图完整显示预览
 └── reports/
-    └── 1.1.4/
+    └── 1.1.5/
         ├── release/       源码与发行文件校验、启动及自动化测试记录
         ├── mobi-images/   MOBI 图片、分页与慢加载回归记录及截图
         ├── epub-font/     EPUB 排版回归记录及截图
         ├── mobi-reading/  格式、字号、目录和主进程响应验证
-        └── chinese-models/ 简繁转换和上游模型目录验证
+        ├── chinese-models/ 简繁转换和上游模型目录验证
+        └── page-turn/     短按、长按、原生按键与翻页动画验证
 ```
 
 ## 保持目录整洁
