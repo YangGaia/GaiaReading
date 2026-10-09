@@ -17,7 +17,7 @@ const deferred = () => {
 };
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
-function harness({ reducedMotion = false } = {}) {
+function harness({ reducedMotion = false, frameRate = 120 } = {}) {
   const animations = [];
   const content = { animate(keyframes, options) {
     const gate = deferred();
@@ -38,7 +38,7 @@ function harness({ reducedMotion = false } = {}) {
     matchMedia: () => ({ matches: reducedMotion }),
     setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: now + delay }); return id; },
     clearTimeout: (id) => timers.delete(id),
-    requestAnimationFrame: (fn) => { const id = ++timerId; timers.set(id, { fn, at: now + 1000 / 120 }); return id; },
+    requestAnimationFrame: (fn) => { const id = ++timerId; timers.set(id, { fn, at: now + 1000 / frameRate }); return id; },
     cancelAnimationFrame: (id) => timers.delete(id),
     addEventListener: (type, fn) => windowListeners.set(type, fn),
   };
@@ -146,16 +146,110 @@ test('长按加载期间的系统重复事件不积压，松手后不补翻', as
   assert.equal(h.animations[0].playState, 'running');
 });
 
-test('按住 200ms 自动进入约 30 次每秒连翻，系统重复不叠加，动画不阻塞内容', async () => {
+for (const key of ['ArrowLeft', 'ArrowRight']) {
+  for (const duration of [100, 200, 210, 300, 450, 499]) {
+    for (const systemRepeat of [false, true]) test(`${key} 按住 ${duration}ms 只翻一次，提前重复事件=${systemRepeat}`, async () => {
+      const reader = harness();
+      reader.key(key);
+      await reader.settled();
+      assert.equal(reader.pages.length, 1, '首次按下立即响应');
+      await reader.advance(100);
+      if (systemRepeat) reader.key(key, true);
+      await reader.advance(duration - 100);
+      reader.release(key);
+      await reader.settled();
+      await reader.advance(1000);
+      assert.deepEqual(reader.pages, [key === 'ArrowRight' ? 'next' : 'prev']);
+      assert.equal(reader.timerCount(), 0);
+    });
+  }
+}
+
+test('未收到系统长按确认时，即使按住两秒也不自行连翻', async () => {
+  const reader = harness();
+  reader.key('ArrowRight');
+  await reader.settled();
+  await reader.advance(2000);
+  assert.deepEqual(reader.pages, ['next']);
+  reader.release('ArrowRight');
+  reader.key('ArrowRight', true);
+  await reader.advance(1000);
+  assert.deepEqual(reader.pages, ['next'], '孤立 repeat 不得启动翻页');
+  assert.equal(reader.timerCount(), 0);
+});
+
+for (const frameRate of [60, 120, 144, 240]) test(`${frameRate}Hz 下长按确认不能绕过 500ms 门槛`, async () => {
+  const reader = harness({ frameRate });
+  reader.key('ArrowRight');
+  await reader.settled();
+  await reader.advance(200);
+  reader.key('ArrowRight', true);
+  await reader.advance(299);
+  assert.deepEqual(reader.pages, ['next']);
+  await reader.advance(25);
+  assert.equal(reader.pages.length, 2);
+  reader.release('ArrowRight');
+  await reader.advance(1000);
+  assert.equal(reader.pages.length, 2);
+});
+
+test('迟到的系统长按确认不追赶此前未翻的页数', async () => {
+  const reader = harness();
+  reader.key('ArrowRight');
+  await reader.settled();
+  await reader.advance(1200);
+  assert.deepEqual(reader.pages, ['next']);
+  reader.key('ArrowRight', true);
+  await reader.advance(80);
+  assert.ok(reader.pages.length >= 3 && reader.pages.length <= 4);
+  reader.release('ArrowRight');
+});
+
+test('重复绑定和重复 keydown 不叠加翻页或计时器', async () => {
+  const reader = harness();
+  reader.context.bindReaderKeyboard(reader.context.document);
+  reader.key('ArrowRight');
+  reader.key('ArrowRight');
+  await reader.settled();
+  assert.deepEqual(reader.pages, ['next']);
+  assert.equal(reader.timerCount(), 1);
+  for (let repeat = 0; repeat < 100; repeat += 1) reader.key('ArrowRight', true);
+  assert.equal(reader.timerCount(), 1);
+  await reader.advance(499);
+  assert.deepEqual(reader.pages, ['next']);
+  await reader.advance(25);
+  assert.deepEqual(reader.pages, ['next', 'next']);
+  reader.release('ArrowRight');
+});
+
+test('连续 300ms 点按逐次翻页，长按确认不带入下一次按键', async () => {
+  const reader = harness();
+  const directions = ['next', 'next', 'prev', 'next', 'prev', 'prev'];
+  for (const direction of directions) {
+    const key = direction === 'next' ? 'ArrowRight' : 'ArrowLeft';
+    reader.key(key);
+    await reader.settled();
+    await reader.advance(200);
+    reader.key(key, true);
+    await reader.advance(100);
+    reader.release(key);
+    await reader.advance(20);
+  }
+  assert.deepEqual(reader.pages, directions);
+  await reader.advance(1000);
+  assert.deepEqual(reader.pages, directions);
+});
+
+test('按住至少 500ms 且经系统确认后约 30 次每秒连翻，系统重复不叠加', async () => {
   const h = harness();
   h.key('ArrowRight');
   await h.settled();
-  await h.advance(199);
+  await h.advance(499);
   assert.equal(h.pages.length, 1);
   for (let i = 0; i < 10; i += 1) { h.key('ArrowRight', true); await h.settled(); }
   assert.equal(h.pages.length, 1, '系统重复不得提前启动或另行翻页');
   await h.advance(1001);
-  assert.ok(h.pages.length >= 31 && h.pages.length <= 32, '无需系统 repeat 事件也持续高速翻页');
+  assert.ok(h.pages.length >= 31 && h.pages.length <= 32, '确认长按后由单一调度器持续高速翻页');
   const count = h.pages.length;
   h.release('ArrowRight');
   await h.advance(1000);
@@ -178,6 +272,7 @@ test('长按只允许一个自动加载，松手后过期加载不提交页码�
     h.pages.push(direction);
     return true;
   };
+  h.key('ArrowRight', true);
   await h.advance(2000);
   assert.equal(calls, 1);
   h.release('ArrowRight');
@@ -199,12 +294,19 @@ test('按下反向键立即使旧自动请求失效，释放旧键不会打断�
     h.pages.push(direction);
     return true;
   };
-  await h.advance(200);
+  h.key('ArrowRight', true);
+  await h.advance(600);
   h.key('ArrowLeft');
   h.release('ArrowRight');
   gate.resolve();
   await h.settled();
   assert.deepEqual(h.pages, ['next', 'prev']);
+  await h.advance(300);
+  assert.deepEqual(h.pages, ['next', 'prev'], '反向按下必须重新等待长按门槛');
+  h.key('ArrowRight', true);
+  await h.advance(250);
+  assert.deepEqual(h.pages, ['next', 'prev'], '旧方向 repeat 不得确认新方向长按');
+  h.key('ArrowLeft', true);
   await h.advance(300);
   assert.ok(h.pages.length > 3);
   assert.ok(h.pages.slice(1).every((direction) => direction === 'prev'));
@@ -216,7 +318,8 @@ for (const reason of ['blur', 'hide', 'settings', 'typing', 'close']) test(`${re
   h.key('ArrowRight');
   await h.settled();
   h.blur(false);
-  await h.advance(250);
+  h.key('ArrowRight', true);
+  await h.advance(650);
   assert.ok(h.pages.length > 1);
   const count = h.pages.length;
   if (reason === 'typing') h.focus({ tagName: 'TEXTAREA' });
@@ -235,6 +338,7 @@ test('书尾自动停止，不持续调用翻页；PageUp/PageDown 保持原系�
   await h.settled();
   let calls = 0;
   h.update = () => { calls += 1; return false; };
+  h.key('ArrowRight', true);
   await h.advance(1000);
   assert.equal(calls, 1);
   assert.equal(h.timerCount(), 0);

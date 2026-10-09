@@ -1252,7 +1252,7 @@ function queuePageTurn(direction, update, requestIsCurrent) {
 // Arrow holds have one frame callback and at most one automatic turn in flight. The
 // first press is independent: a quick release must never discard a normal tap.
 let heldPageKey = null;
-const PAGE_HOLD_DELAY = 200;
+const PAGE_HOLD_DELAY = 500;
 const PAGE_HOLD_INTERVAL = 1000 / 30;
 
 function stopHeldPageKey() {
@@ -1262,20 +1262,19 @@ function stopHeldPageKey() {
 
 function startHeldPageKey(key, direction) {
   stopHeldPageKey();
-  const held = { key, current: state.current, frame: 0 };
+  const held = { key, current: state.current, frame: 0, repeatConfirmed: false, nextAt: performance.now() + PAGE_HOLD_DELAY };
   heldPageKey = held;
   const isCurrent = () => heldPageKey === held && state.current === held.current &&
     !document.hidden && !views.reader.hidden && !isSettingsOpen();
   const turn = direction === 'next' ? nextPage : prevPage;
-  let nextAt = performance.now() + PAGE_HOLD_DELAY;
   const repeat = async () => {
     if (!isCurrent()) return;
     // Other explicit input may still be loading. Do not put automatic turns
     // behind it, or try to catch up with missed frames afterwards.
-    if (performance.now() >= nextAt && pendingPageTurns === 0) {
+    if (held.repeatConfirmed && performance.now() >= held.nextAt && pendingPageTurns === 0) {
       const moved = await turn(undefined, isCurrent);
       if (moved === false) return;
-      nextAt = Math.max(performance.now(), nextAt + PAGE_HOLD_INTERVAL);
+      held.nextAt = Math.max(performance.now(), held.nextAt + PAGE_HOLD_INTERVAL);
     }
     if (isCurrent()) held.frame = window.requestAnimationFrame(repeat);
   };
@@ -2220,7 +2219,14 @@ function onReaderKey(ev) {
   if (!previous && !next) return;
   ev.preventDefault();
   if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
-    if (ev.repeat || (heldPageKey && heldPageKey.key === ev.key)) return;
+    if (ev.repeat) {
+      if (heldPageKey && heldPageKey.key === ev.key && !heldPageKey.repeatConfirmed) {
+        heldPageKey.repeatConfirmed = true;
+        heldPageKey.nextAt = Math.max(heldPageKey.nextAt, performance.now());
+      }
+      return;
+    }
+    if (heldPageKey && heldPageKey.key === ev.key) return;
     startHeldPageKey(ev.key, previous ? 'prev' : 'next');
     return;
   }
