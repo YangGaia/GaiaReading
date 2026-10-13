@@ -4076,6 +4076,19 @@ function applyReaderStyles(contents) {
   css += 'img, svg { max-width: 100% !important; height: auto !important; box-sizing: border-box !important; object-fit: contain; }';
   css += 'body > img, body > svg { max-width: calc(100% - ' + (marginPct * 2) + '%) !important; }';
   css += 'body > a:has(> img), body > a:has(> svg) { display: block !important; }';
+  // figure 与 figcaption：浏览器默认上下 margin、左右 padding 会越过列边界；figure/img 强制块级居中。
+  css += 'body > figure { margin-top: 0.8em !important; margin-bottom: 0.8em !important; padding: 0 !important; }';
+  css += 'body > figure > img, body > figure > svg { display: block !important; margin: 0 auto !important; max-width: 100% !important; max-height: calc(100vh - 80px) !important; }';
+  css += 'body > figure > figcaption { display: block !important; margin-top: 0.4em !important; margin-bottom: 0 !important; padding: 0 !important; text-indent: 0 !important; font-size: 0.9em !important; line-height: 1.5 !important; text-align: center !important; opacity: .78 !important; }';
+  // 只含图片的段落：inline 图会被 line-height 顶得很高且越过列，强制块级并取消首行缩进。
+  css += 'p:has(> img:only-child), p:has(> svg:only-child) { text-indent: 0 !important; }';
+  css += 'p > img:only-child, p > svg:only-child { display: block !important; margin: 0 auto !important; max-width: 100% !important; max-height: calc(100vh - 80px) !important; }';
+  // 段落里的链接包裹图片：链接块级化、首行不缩进，与独立图片块一致。
+  css += 'p > a:has(> img:only-child), p > a:has(> svg:only-child) { display: block !important; text-indent: 0 !important; padding: 0 !important; }';
+  css += 'p > a > img:only-child, p > a > svg:only-child { display: block !important; margin: 0 auto !important; max-width: 100% !important; max-height: calc(100vh - 80px) !important; }';
+  // 直接 div 包裹（如 .image-wrapper）：视为独立图片块，去掉浏览器/作者留下的内边距。
+  css += 'div:has(> img:only-child), div:has(> svg:only-child) { display: block !important; padding: 0 !important; }';
+  css += 'div > img:only-child, div > svg:only-child { display: block !important; margin: 0 auto !important; max-width: 100% !important; max-height: calc(100vh - 80px) !important; }';
   if (state.readMode === 'spread') css += 'body { column-rule: 1px solid rgba(127,127,127,.28) !important; }';
   if (font) css += 'body, p, div, span, li { font-family: ' + font + ' !important; }';
   if (style) style.remove();

@@ -560,6 +560,25 @@ test('可调节页边距功能接入', () => {
   assert.ok(pag.includes('this.marginPct'), '分页器应保存边距档位');
 });
 
+test('EPUB 图块在 figure、p、div、a 等多种包裹里都归到列内并保留纵横比', () => {
+  const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
+  // figure 重置与块级居中
+  assert.ok(app.includes("body > figure { margin-top: 0.8em !important; margin-bottom: 0.8em !important; padding: 0 !important; }"), 'figure 须复位默认上下边距与内边距，且不覆盖左右 8% 边距');
+  assert.ok(app.includes("body > figure > img, body > figure > svg { display: block !important; margin: 0 auto !important; max-width: 100% !important; max-height: calc(100vh - 80px) !important; }"), 'figure 内的 img/svg 须块级居中并限高');
+  assert.ok(app.includes("body > figure > figcaption { display: block !important; margin-top: 0.4em !important; margin-bottom: 0 !important"), 'figcaption 须块级、居中、字号略小，并复位上下边距');
+  // 只含图片的段落：图块级、首行不缩进
+  assert.ok(app.includes("p:has(> img:only-child), p:has(> svg:only-child) { text-indent: 0 !important; }"), '只含图片的段落须取消首行缩进');
+  assert.ok(app.includes("p > img:only-child, p > svg:only-child { display: block !important; margin: 0 auto !important; max-width: 100% !important; max-height: calc(100vh - 80px) !important; }"), '段落里唯一一张图片应块级居中并限高');
+  // 段落里 a 包裹
+  assert.ok(app.includes("p > a:has(> img:only-child), p > a:has(> svg:only-child) { display: block !important; text-indent: 0 !important; padding: 0 !important; }"), '段落里 a 包裹的图片须块级、首行不缩进');
+  assert.ok(app.includes("p > a > img:only-child, p > a > svg:only-child { display: block !important; margin: 0 auto !important; max-width: 100% !important; max-height: calc(100vh - 80px) !important; }"), '段落里 a 内部的唯一图片应块级居中并限高');
+  // 直接 div 包裹
+  assert.ok(app.includes("div:has(> img:only-child), div:has(> svg:only-child) { display: block !important; padding: 0 !important; }"), 'div 包裹的图片块须去掉默认 padding');
+  assert.ok(app.includes("div > img:only-child, div > svg:only-child { display: block !important; margin: 0 auto !important; max-width: 100% !important; max-height: calc(100vh - 80px) !important; }"), 'div 内唯一图片须块级居中并限高');
+  // 已有规则必须继续生效
+  assert.ok(app.includes("body > a:has(> img), body > a:has(> svg) { display: block !important; }"), '原有的 body > a 包裹规则须保留');
+});
+
 test('分页图片总宽度不会越过右侧列边界', () => {
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const pag = fs.readFileSync(path.join(root, 'src', 'renderer', 'paginator.js'), 'utf8');

@@ -18,6 +18,7 @@
     "smoke:reader-ui": "electron scripts/non-reading-smoke.js --reader-toolbar",
     "smoke:import": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import-smoke.ps1",
     "smoke:chinese-models": "electron scripts/chinese-models-smoke.js",
+    "smoke:epub-image": "electron scripts/epub-image-smoke.js",
     "dist": "electron-builder --win",
     "shot": "electron . --shot-dir docs/screenshots --debug-open tests/fixtures/sample.epub"
   },
