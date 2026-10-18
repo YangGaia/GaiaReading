@@ -1,10 +1,16 @@
-## 1.1.6（EPUB 图片在 figure/p/div/a 包裹下归位与 figcaption 排版）
+## 1.1.6（EPUB 图片加载、脚注悬停与原文元素保留）
 
 ### 2026-10-13
 - 修复 EPUB 图块在不同包裹（`<p>`、`<div class="image-wrapper">`、`<figure>`、`<p><a>`）下显示位置错乱、inline 图被 line-height 顶出列底的问题；强制图片块级居中并按列宽等比缩放
 - 重置 figure / figcaption 的浏览器默认上下 margin 与 padding，让图片与说明文本贴齐正文版心，不再误读 EPUB 内的 1em 默认间距
 - 段落里 `<a>` 包裹的链接图片首行不再继承正文 2em 缩进，链接块级化
 - 新增 `tests/fixtures/epub-image-fixture.js` 与 `scripts/epub-image-smoke.js`，在 800/1100/1600 窗口、单/双页、日间/夜间主题下用 `getBoundingClientRect()` 校验图片不越过列边界；30 项检查全部通过
+
+### 2026-10-18
+- 等待 EPUB 章节图片加载或失败后再分页，降低迟到图片引起的空白与排版错位
+- 支持 EPUB 图片使用含中文和空格的 percent-encoded 路径，并验证图片确实完成解码
+- 原文语义脚注标记支持鼠标悬停显示注释；保留原文特殊符号和 ruby 注音
+- 全量测试 377 项通过、3 项跳过；EPUB 图片与脚注真实渲染烟雾验证 35 项通过
 
 ---
 
