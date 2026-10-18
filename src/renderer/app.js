@@ -1081,8 +1081,10 @@ async function openEpub(book) {
   rendition.hooks.content.register((contents) => {
     prepareChineseDocument(contents.document.body);
     applyReaderStyles(contents);
+    window.GaiaEpubContent.bindFootnoteHover(contents.document);
     bindReaderKeyboard(contents.document || contents.window);
     bindSelectionDismissal(contents.document);
+    return window.GaiaEpubContent.waitForImages(contents.document);
   });
   rendition.on('rendered', () => {
     bindEpubWheel();

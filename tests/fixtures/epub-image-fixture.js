@@ -59,7 +59,7 @@ module.exports = async function makeImageFixture(directory) {
     '<h1>第一章 图片位置验证</h1>',
     '<p>本章的正文段落,用来确认页内文字布局仍然正常,不会因为图片样式调整而错位。</p>',
     // 1) 段落包裹的内联图片
-    '<p><img src="images/portrait.png" alt="肖像图" width="320" height="480"/></p>',
+    '<p><img src="images/%E8%A7%92%E8%89%B2%20%E5%9B%BE.png" alt="肖像图" width="320" height="480"/></p>',
     '<p>第一张图片后的文字段落,介绍插图的背景。</p>',
     // 2) div 包裹
     '<div class="image-wrapper"><img src="images/landscape.png" alt="风景图" width="800" height="450"/></div>',
@@ -70,16 +70,18 @@ module.exports = async function makeImageFixture(directory) {
     // 4) 段落里 a 包裹的图片
     '<p><a href="c2.x"><img src="images/thumb.png" alt="跳转缩略图" width="240" height="160"/></a></p>',
     '<p>第四章开始前的最后一段文字。</p>',
+    '<p>特殊字符保留：※ † ‡ ① ㊟ <ruby>漢<rt>かん</rt></ruby>。脚注示例<sup><a epub:type="noteref" href="#fn-demo">[注]</a></sup></p>',
+    '<aside id="fn-demo" epub:type="footnote"><p>这是一条原文脚注说明，包含原有符号：※ †。</p><a role="doc-backlink" href="#">返回</a></aside>',
     // 5) 一段非常长的文本,确保多列布局中图片不再越过列边界
     ...Array.from({ length: 10 }, (_, i) => `<p>填充段落 ${i + 1}:月光照在书页上,窗外的夜色渐渐深了。</p>`)
   ].join('');
-  zip.file(chapterName, '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>第一章</title></head><body>' + body + '</body></html>');
+  zip.file(chapterName, '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>第一章</title></head><body>' + body + '</body></html>');
   let opf = await zip.file('OEBPS/content.opf').async('string');
-  if (!opf.includes('images/portrait.png')) {
+  if (!opf.includes('images/%E8%A7%92%E8%89%B2%20%E5%9B%BE.png')) {
     opf = opf.replace(
       '</manifest>',
       [
-        '<item id="img-portrait" href="images/portrait.png" media-type="image/png"/>',
+        '<item id="img-portrait" href="images/%E8%A7%92%E8%89%B2%20%E5%9B%BE.png" media-type="image/png"/>',
         '<item id="img-landscape" href="images/landscape.png" media-type="image/png"/>',
         '<item id="img-wide" href="images/wide.png" media-type="image/png"/>',
         '<item id="img-thumb" href="images/thumb.png" media-type="image/png"/>'
@@ -87,7 +89,7 @@ module.exports = async function makeImageFixture(directory) {
     );
     zip.file('OEBPS/content.opf', opf);
   }
-  zip.file('OEBPS/images/portrait.png', makePng(320, 480, [120, 90, 160]));
+  zip.file('OEBPS/images/角色 图.png', makePng(320, 480, [120, 90, 160]));
   zip.file('OEBPS/images/landscape.png', makePng(800, 450, [80, 140, 100]));
   zip.file('OEBPS/images/wide.png', makePng(1200, 600, [180, 120, 80]));
   zip.file('OEBPS/images/thumb.png', makePng(240, 160, [90, 100, 140]));

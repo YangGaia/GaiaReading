@@ -1,6 +1,6 @@
 'use strict';
 
-// Real app + real EPUB renderer; only checks image placement within the column.
+// Real app + EPUB renderer; checks image decoding, footnote hover, and source glyphs.
 const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -71,6 +71,7 @@ async function run(win) {
         const cs = getComputedStyle(img);
         all.push({
           src: img.getAttribute('src'),
+          alt: img.getAttribute('alt'),
           renderedWidth: r.width,
           renderedHeight: r.height,
           top: r.top,
@@ -83,6 +84,7 @@ async function run(win) {
           display: cs.display,
           csMaxWidth: cs.maxWidth,
           csMaxHeight: cs.maxHeight,
+          loaded: img.localName === 'img' ? img.complete && img.naturalWidth > 0 : true,
           inFigure: !!img.closest('figure'),
           inLink: !!img.closest('a'),
           inDiv: !!img.closest('div'),
@@ -96,6 +98,8 @@ async function run(win) {
   const imgs = await inspect();
   report.measurements = imgs;
   check('载入样书后渲染出 4 张图', imgs.length === 4);
+  check('EPUB 中含中文和空格的图片路径已成功解码', imgs.some(img => img.alt === '肖像图' && img.loaded && img.renderedWidth > 0));
+  check('所有 EPUB 位图均已加载并解码', imgs.filter(img => img.src && !img.src.startsWith('data:image/svg')).every(img => img.loaded));
   check('所有图片均为块级', imgs.every(img => img.display === 'block'));
   for (const img of imgs) {
     const leftBound = img.columnIndex * img.columnWidth + img.columnWidth * 0.08;
@@ -105,6 +109,32 @@ async function run(win) {
     check(`${img.src} 高度不超出列底(bottom=${img.bottom.toFixed(1)} <= ${(img.top + img.columnHeight + 1).toFixed(1)})`, img.bottom <= img.top + img.columnHeight + 1);
   }
   await shot('epub-image-default-1100x760');
+
+  const sourceContent = await evaluate(async () => {
+    const contents = state.current.rendition.getContents();
+    const owner = contents.find(item => item.document.body.textContent.includes('原文脚注说明'));
+    if (!owner) return null;
+    let doc = owner.document;
+    const ref = Array.from(doc.querySelectorAll('a[href]')).find(link => link.textContent.includes('注'));
+    if (!ref) return null;
+    const range = doc.createRange();
+    range.selectNodeContents(ref);
+    await state.current.rendition.display(owner.cfiFromRange(range));
+    doc = state.current.rendition.getContents().map(item => item.document).find(item => item.body.textContent.includes('原文脚注说明'));
+    const visibleRef = Array.from(doc.querySelectorAll('a[href]')).find(link => link.textContent.includes('注'));
+    const tooltip = doc.querySelector('.gaia-footnote-tooltip');
+    const before = !!tooltip && tooltip.hidden;
+    visibleRef.dispatchEvent(new doc.defaultView.MouseEvent('mouseenter', { clientX: 300, clientY: 300 }));
+    const after = !!tooltip && !tooltip.hidden && tooltip.textContent.includes('原文脚注说明');
+    const sourceText = doc.body.textContent;
+    const tooltipRect = tooltip.getBoundingClientRect();
+    return { before, after, tooltipFits: tooltipRect.left >= 0 && tooltipRect.right <= doc.defaultView.innerWidth && tooltipRect.top >= 0 && tooltipRect.bottom <= doc.defaultView.innerHeight, glyphs: ['※', '†', '‡', '①', '㊟'].every(glyph => sourceText.includes(glyph)), ruby: !!doc.querySelector('ruby rt') };
+  });
+  check('注释默认隐藏，悬停注释标记后显示原文内容', !!sourceContent && sourceContent.before && sourceContent.after);
+  check('悬停提示完整显示在阅读页内', !!sourceContent && sourceContent.tooltipFits);
+  check('原文特殊符号与 ruby 注音元素均保留', !!sourceContent && sourceContent.glyphs && sourceContent.ruby);
+  await wait(500);
+  await shot('epub-footnote-hover');
 
   win.setContentSize(800, 600);
   await wait(800);

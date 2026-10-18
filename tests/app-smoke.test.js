@@ -274,7 +274,7 @@ test('1.1.5 发行说明、翻页修复、下载入口与构建验证保持一�
   assert.ok(notes.includes('compare/v1.1.4...v1.1.5'));
   assert.ok(readme.includes('RELEASE_NOTES_1.1.5.md') && readme.includes('## 1.1.5 更新亮点'));
   const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
-  assert.equal(changelog.match(/^## (\d+\.\d+\.\d+)/m)[1], '1.1.5');
+  assert.match(changelog, /^## 1\.1\.5（左右方向键翻页误触修复）$/m, '发行说明应保留 1.1.5 历史条目');
   assert.doesNotMatch(changelog, /^## 未发布/);
   assert.ok(fs.readFileSync(path.join(root, 'scripts/verify-dist-layout.ps1'), 'utf8').includes("'mobi-reading', 'chinese-models'"));
   assert.ok(fs.readFileSync(path.join(root, 'scripts/verify-dist-layout.ps1'), 'utf8').includes('portable-mobi-check.json'));
