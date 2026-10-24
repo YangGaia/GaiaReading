@@ -130,15 +130,15 @@ test('侧栏尺寸变化统一刷新全部阅读格式并保留阅读锚点', ()
   assert.ok(app.includes("firstMark && c && c.format === 'pdf'"), '仅 PDF 搜索高亮可以在页内滚动到命中文字');
 });
 
-test('版本号为 1.1.6，依赖锁和界面同步', () => {
+test('版本号为 1.1.7，依赖锁和界面同步', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.1.6');
+  assert.strictEqual(pkg.version, '1.1.7');
   assert.strictEqual(lock.version, pkg.version);
   assert.strictEqual(lock.packages[''].version, pkg.version);
   assert.strictEqual(pkg.build.win.artifactName, 'Gaia.Reading.${version}.${ext}', '发行文件名应与 GitHub Release 保持一致');
   const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
-  assert.match(html, /class="drawer-about"[^>]*>[\s\S]*?Gaia Reading[\s\S]*?1\.1\.6[\s\S]*?<\/footer>/, '关于面板版本号未同步');
+  assert.match(html, /class="drawer-about"[^>]*>[\s\S]*?Gaia Reading[\s\S]*?1\.1\.7[\s\S]*?<\/footer>/, '关于面板版本号未同步');
   assert.ok(html.includes('btn-spread'), '缺少双页模式开关');
   assert.ok(html.includes('reader-theme-options'), '缺少主题切换');
   assert.ok(html.includes('fx-canvas'), '缺少粒子画布');
@@ -267,7 +267,8 @@ test('1.1.5 发行说明、翻页修复、下载入口与构建验证保持一�
     assert.ok(notes.includes(section), `1.1.5 Release 说明缺少 ${section}`);
   }
   assert.ok(notes.includes('500ms') && notes.includes('系统重复'));
-  assert.ok(notes.includes('Gaia.Reading.1.1.5.exe') && readme.includes('Gaia.Reading.1.1.6.exe'));
+  const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+  assert.ok(notes.includes('Gaia.Reading.1.1.5.exe') && readme.includes(`Gaia.Reading.${version}.exe`));
   assert.match(notes, /文件大小：[\d,]+ 字节/);
   assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
   assert.doesNotMatch(notes, /待构建|发行前补齐|\{\{SHA256\}\}|\{\{FILE_SIZE\}\}/);
@@ -405,8 +406,8 @@ test('README 展示新版阅读截图并替换旧的阅读设置截图', () => {
     const file = path.join(root, 'docs', 'screenshots', shot);
     assert.ok(fs.statSync(file).size > 5000, shot + ' 异常过小');
   }
-  assert.ok(readme.includes('当前稳定版本：**1.1.6**'), 'README 应明确当前稳定版本');
-  assert.ok(readme.includes('releases/tag/v1.1.6'), 'README 应提供正式版下载入口');
+  assert.ok(readme.includes('当前稳定版本：**1.1.7**'), 'README 应明确当前稳定版本');
+  assert.ok(readme.includes('releases/tag/v1.1.7'), 'README 应提供正式版下载入口');
 });
 
 test('主题/排版/翻页动画/菜单相关配置存在', () => {
