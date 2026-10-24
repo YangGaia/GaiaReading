@@ -15,6 +15,9 @@ const {
   chunkMessages,
   compactChapterForChat,
   sanitizeChatHistory,
+  readingChatHistory,
+  spoilerSensitiveQuestion,
+  chapterContextForQuestion,
   chatMessages,
   aliceCommentMessages,
   cleanAliceComment,
@@ -302,6 +305,69 @@ test('超长章节对话上下文保留首尾并限制长度', () => {
   assert.ok(compact.endsWith('结尾'));
 });
 
+test('自由问答允许通用知识和分析，同时明确事实、猜想与单次剧透授权边界', () => {
+  for (const question of ['认知失调是什么意思？', '他为什么沉默？还有其他解释吗？', '这是伏笔吗？大胆推测一下', '允许剧透，请告诉我这个人物的结局']) {
+    const messages = chatMessages({ content: '他低下头，没有回答。', contextScope: 'read', readEnd: 12 }, question, []);
+    assert.strictEqual(messages.at(-1).content, question);
+    assert.match(messages[0].content, /正常回答书外问题/);
+    assert.match(messages[0].content, /区分原文事实与解读/);
+    assert.match(messages[0].content, /不得用后文验证猜想/);
+    assert.match(messages[0].content, /授权仅限本次问题/);
+    assert.doesNotMatch(messages[0].content, /只能依据下方当前章节正文和对话回答/);
+  }
+  assert.match(chatMessages({ content: '正文', contextScope: 'chapter' }, '总结', [])[1].content, /当前整章（仅本次包含本章未读部分）/);
+});
+
+test('没有可用正文仍能发送通用问题，同时明确书中事实缺少依据', async () => {
+  let request;
+  const answer = await chat(async (_url, options) => {
+    request = JSON.parse(options.body);
+    return { ok: true, json: async () => ({ choices: [{ message: { content: '认知失调是信念与行为冲突带来的不适。' } }] }) };
+  }, { provider: 'ollama', model: 'local' }, '', { content: '', readEnd: 0 }, '解释认知失调', []);
+  assert.match(answer, /认知失调/);
+  assert.match(request.messages[1].content, /当前没有可用正文/);
+  assert.strictEqual(request.messages.at(-1).content, '解释认知失调');
+});
+
+test('默认问答排除整章答案、后面页面与剧透对话，保留安全追问上下文', () => {
+  const turn = (content, end, scope = 'read', sensitive = false) => [
+    { role: 'user', content, contextEnd: end, contextScope: scope, spoilerSensitive: sensitive },
+    { role: 'assistant', content: '答：' + content, contextEnd: end, contextScope: scope, spoilerSensitive: sensitive },
+  ];
+  const history = [...turn('安全背景', 50), ...turn('整章答案', 900, 'chapter'), ...turn('后页答案', 500), ...turn('结局', 50, 'read', true)];
+  const before = JSON.stringify(history);
+  assert.deepStrictEqual(readingChatHistory(history, { readEnd: 100 }).map(item => item.content), ['安全背景', '答：安全背景']);
+  assert.deepStrictEqual(readingChatHistory(history, { readEnd: 500 }).map(item => item.content), ['安全背景', '答：安全背景', '后页答案', '答：后页答案']);
+  assert.strictEqual(readingChatHistory(history, { contextScope: 'chapter', readEnd: 900 }).length, 6);
+  assert.strictEqual(readingChatHistory([{ role: 'assistant', content: '旧格式可能有后文' }], { readEnd: 100 }).length, 0);
+  assert.strictEqual(JSON.stringify(history), before);
+  assert.ok(spoilerSensitiveQuestion('允许剧透，告诉我结局'));
+  assert.ok(spoilerSensitiveQuestion('别剧透，凶手是谁？'));
+  assert.ok(!spoilerSensitiveQuestion('解释一下认知失调'));
+});
+
+test('上下文过滤在最终请求中生效，不把历史答案或授权带回普通问答', () => {
+  const messages = chatMessages({ content: '只有开头', contextScope: 'read', readEnd: 4 }, '解释这个词', [
+    { role: 'assistant', content: '完整结局秘密', contextScope: 'chapter', contextEnd: 100 },
+    { role: 'user', content: '允许剧透', contextScope: 'read', contextEnd: 4, spoilerSensitive: true },
+  ]);
+  assert.strictEqual(messages.length, 3);
+  assert.ok(!JSON.stringify(messages).includes('完整结局秘密'));
+});
+
+test('长正文优先保留问题相关的中间段落，节选有标记且保持原始顺序', () => {
+  const text = '开头。' + '甲'.repeat(16000) + '\n\n青铜钟上的裂纹让他改变主意。\n\n' + '乙'.repeat(16000) + '结尾。';
+  const context = chapterContextForQuestion(text, '青铜钟上的裂纹有什么含义？', 8000);
+  assert.ok(context.length <= 8000);
+  assert.match(context, /青铜钟上的裂纹让他改变主意/);
+  assert.match(context, /节选之间有省略/);
+  assert.ok(context.indexOf('开头。') < context.indexOf('青铜钟'));
+  assert.ok(context.indexOf('青铜钟') < context.indexOf('结尾。'));
+  assert.strictEqual(chapterContextForQuestion('短正文', '解释'), '短正文');
+  const edgeText = '甲'.repeat(1850) + '银河列车的车票' + '乙'.repeat(20000);
+  assert.match(chapterContextForQuestion(edgeText, '银河列车的车票代表什么？', 8000), /银河列车的车票/);
+});
+
 test('请求只向配置的 Base URL 发送且使用 Bearer Key', async () => {
   let captured;
   const fakeFetch = async (url, options) => {
@@ -396,7 +462,7 @@ test('普通对话不套用有珠人设', async () => {
     []
   );
   assert.match(result, /错误判断/);
-  assert.strictEqual(captured.max_tokens, 1800);
+  assert.strictEqual(captured.max_tokens, 3000);
   assert.strictEqual(captured.temperature, 0.25);
   assert.strictEqual(captured.messages[0].role, 'system');
   assert.doesNotMatch(captured.messages[0].content, /有珠/);

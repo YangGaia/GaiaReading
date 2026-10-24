@@ -3405,6 +3405,7 @@ function useSelectionWithAi(context, mode) {
   if (!quote) return;
   hideSelectionToolbar();
   if (!showAiAssistantPanel()) return;
+  $('ai-chat-whole-chapter').checked = false;
   if (els.aiSummaryPanel.classList.contains('minimized')) toggleAiPanelMinimized();
   const wrapped = '<selected_text>\n' + quote + '\n</selected_text>';
   if (mode === 'analyze') {
@@ -4717,7 +4718,7 @@ async function activateAiProfile(profileId) {
     acceptAiProfiles(profiles, profileId);
     els.aiSummaryStatus.textContent = '已切换到接口：' + state.aiConfig.name;
     if (!els.aiSummaryPanel.hidden) {
-      const source = currentChapterSummarySource();
+      const source = currentAiAssistantSource();
       showAiAssistantChapter(source);
     }
   } catch (error) {
@@ -4830,22 +4831,43 @@ function semanticChapterEntries(root, containerIndex, prefix, orderStart) {
   return out;
 }
 
+function epubContentIndex(content) {
+  return content && Number.isFinite(content.sectionIndex) ? content.sectionIndex : content && content.section ? content.section.index : null;
+}
+
+function epubReadingViewport(current, content) {
+  const frame = content && content.document && content.document.defaultView.frameElement;
+  const container = current.rendition && current.rendition.manager && current.rendition.manager.container;
+  if (!frame || !container || !frame.offsetWidth || !frame.offsetHeight) return null;
+  const rect = frame.getBoundingClientRect();
+  const viewport = container.getBoundingClientRect();
+  const scaleX = rect.width / frame.offsetWidth;
+  const scaleY = rect.height / frame.offsetHeight;
+  if (!(scaleX > 0 && scaleY > 0)) return null;
+  return {
+    left: (Math.max(rect.left, viewport.left) - rect.left) / scaleX,
+    top: (Math.max(rect.top, viewport.top) - rect.top) / scaleY,
+    right: (Math.min(rect.right, viewport.right) - rect.left) / scaleX,
+    bottom: (Math.min(rect.bottom, viewport.bottom) - rect.top) / scaleY,
+  };
+}
+
 function epubChapterSummarySource(c) {
   const location = c.rendition && c.rendition.currentLocation();
   const locationIndex = location && location.start && Number.isFinite(location.start.index) ? location.start.index : 0;
   let contents = [];
   try { contents = c.rendition ? c.rendition.getContents() : []; } catch (error) {}
-  const currentContent = contents.find((item) => item && item.section && item.section.index === locationIndex) || contents[0];
-  const index = currentContent && currentContent.section && Number.isFinite(currentContent.section.index) ? currentContent.section.index : locationIndex;
+  const currentContent = contents.find((item) => epubContentIndex(item) === locationIndex) || contents[0];
+  const index = Number.isFinite(epubContentIndex(currentContent)) ? epubContentIndex(currentContent) : locationIndex;
   const displayedRoot = currentContent && currentContent.document && currentContent.document.body;
   const root = window.GaiaReaderChinese.sourceRoot(displayedRoot);
-  const resourceHref = currentContent && currentContent.section && currentContent.section.href;
+  const section = c.epub && c.epub.spine && c.epub.spine.get(index);
+  const resourceHref = section && section.href;
   let currentOffset = 0;
-  if (root && location && location.start && location.start.cfi && currentContent && typeof currentContent.range === 'function') {
-    try {
-      const range = currentContent.range(location.start.cfi);
-      if (range) currentOffset = window.GaiaReaderChinese.sourceOffset(displayedRoot, textOffsetBeforePosition(displayedRoot, range.startContainer, range.startOffset));
-    } catch (error) {}
+  const viewport = epubReadingViewport(c, currentContent);
+  if (root && viewport) {
+    const visible = window.GaiaAiReadingContext.visibleTextRange(displayedRoot, viewport);
+    currentOffset = window.GaiaReaderChinese.sourceOffset(displayedRoot, visible.start);
   }
   const tocEntries = flattenChapterToc(c.epubToc || []).map(({ item, depth, order }) => {
     let section = null;
@@ -4855,7 +4877,7 @@ function epubChapterSummarySource(c) {
     } catch (error) {}
     const containerIndex = section && Number.isFinite(section.index) ? section.index : NaN;
     const fragment = decodedHrefFragment(item.href);
-    const node = root && containerIndex === index && fragment ? currentContent.document.getElementById(fragment) : null;
+    const node = root && containerIndex === index && fragment ? root.ownerDocument.getElementById(fragment) : null;
     return {
       label: String(item.label || '').trim(),
       id: item.href,
@@ -4877,6 +4899,8 @@ function epubChapterSummarySource(c) {
     chapterId: selected && selected.id ? 'epub:toc:' + selected.id : 'epub:' + index,
     ordinal: index,
     content: cleanChapterText(content),
+    chapterStartOffset: scope.startOffset,
+    chapterEndOffset: scope.endOffset == null ? (root ? root.textContent.length : 0) : scope.endOffset,
   };
 }
 
@@ -4927,6 +4951,8 @@ function mobiChapterSummarySourceFromRoot(c, chapter, root, currentOffset) {
     chapterId: selected && selected.id ? c.format + ':toc:' + selected.id : c.format + ':' + chapter,
     ordinal: chapter,
     content,
+    chapterStartOffset: selected && !selected.continued && selected.node ? textOffsetBeforeNode(root, selected.node) : 0,
+    chapterEndOffset: scope.endEntry && scope.endEntry.node ? textOffsetBeforeNode(root, scope.endEntry.node) : (root ? root.textContent.length : 0),
   };
 }
 
@@ -4981,18 +5007,76 @@ function currentChapterSummarySource() {
     if (index >= 0) {
       const start = chapters[index].paraIndex;
       const end = chapters[index + 1] ? chapters[index + 1].paraIndex : paragraphs.length;
-      return { bookPath: c.path, bookTitle: c.title, chapterTitle: chapters[index].title, chapterId: 'txt:' + index, ordinal: index, content: cleanChapterText(paragraphs.slice(start, end).join('\n\n')) };
+      const root = window.GaiaReaderChinese.sourceRoot(c.paginator && c.paginator.doc && c.paginator.doc.body);
+      const nodes = root ? root.querySelectorAll('p') : [];
+      return {
+        bookPath: c.path, bookTitle: c.title, chapterTitle: chapters[index].title, chapterId: 'txt:' + index, ordinal: index,
+        content: cleanChapterText(paragraphs.slice(start, end).join('\n\n')),
+        chapterStartOffset: nodes[start] ? textOffsetBeforeNode(root, nodes[start]) : 0,
+        chapterEndOffset: nodes[end] ? textOffsetBeforeNode(root, nodes[end]) : (root ? root.textContent.length : 0),
+      };
     }
     if (chapters.length) {
       const end = chapters[0].paraIndex;
-      return { bookPath: c.path, bookTitle: c.title, chapterTitle: '章节前内容', chapterId: 'txt:frontmatter', ordinal: -1, content: cleanChapterText(paragraphs.slice(0, end).join('\n\n')) };
+      const root = window.GaiaReaderChinese.sourceRoot(c.paginator && c.paginator.doc && c.paginator.doc.body);
+      const nodes = root ? root.querySelectorAll('p') : [];
+      return {
+        bookPath: c.path, bookTitle: c.title, chapterTitle: '章节前内容', chapterId: 'txt:frontmatter', ordinal: -1,
+        content: cleanChapterText(paragraphs.slice(0, end).join('\n\n')), chapterStartOffset: 0,
+        chapterEndOffset: nodes[end] ? textOffsetBeforeNode(root, nodes[end]) : 0,
+      };
     }
     throw new Error('未识别到 TXT 章节标题，无法确定“本章”范围');
   }
   return mobiChapterSummarySource(c);
 }
 
+function currentAiAssistantSource() {
+  if (!state.current) throw new Error('请先打开一本书');
+  try { return currentChapterSummarySource(); } catch (error) {
+    const c = state.current;
+    return { bookPath: c.path, bookTitle: c.title, chapterTitle: '当前正文范围未识别 · 可讨论通用问题', chapterId: c.format + ':general', ordinal: -1, content: '' };
+  }
+}
+
+function currentAiChatSource(source, wholeChapter = false) {
+  const c = state.current;
+  const scoped = { bookTitle: source.bookTitle, chapterTitle: source.chapterTitle, contextScope: 'read', readEnd: 0, content: '' };
+  if (!c || c.path !== source.bookPath) return scoped;
+  if (c.format === 'pdf') return { ...scoped, content: source.content, readEnd: source.content.length };
+  let root = null;
+  let visibleEnd = 0;
+  if (c.format === 'epub') {
+    let contents = [];
+    try { contents = c.rendition ? c.rendition.getContents() : []; } catch (error) {}
+    const content = contents.find(item => epubContentIndex(item) === source.ordinal);
+    root = content && content.document && content.document.body;
+    const viewport = epubReadingViewport(c, content);
+    if (root && viewport) visibleEnd = window.GaiaReaderChinese.sourceOffset(root, window.GaiaAiReadingContext.visibleTextEnd(root, viewport));
+  } else {
+    root = c.paginator && c.paginator.doc && c.paginator.doc.body;
+    visibleEnd = window.GaiaReaderChinese.sourceOffset(root, window.GaiaAiReadingContext.visibleTextEnd(root));
+  }
+  if (!root || !Number.isFinite(source.chapterStartOffset) || !Number.isFinite(source.chapterEndOffset)) return scoped;
+  const text = window.GaiaReaderChinese.sourceText(root);
+  const start = source.chapterStartOffset;
+  const end = Math.max(start, Math.min(text.length, source.chapterEndOffset, wholeChapter ? text.length : visibleEnd));
+  return {
+    ...scoped,
+    content: cleanChapterText(window.GaiaAiReadingContext.textBetween(window.GaiaReaderChinese.sourceRoot(root), start, end)),
+    readEnd: end - start, contextScope: wholeChapter ? 'chapter' : 'read',
+  };
+}
+
 function showAiAssistantChapter(source) {
+  const scope = $('ai-chat-whole-chapter');
+  const key = aiChatKey(source);
+  if (scope.dataset.chapter !== key) scope.checked = false;
+  scope.dataset.chapter = key;
+  scope.disabled = !!(state.current && state.current.format === 'pdf') || !source.content;
+  if (scope.disabled) scope.checked = false;
+  $('ai-chat-scope-label').textContent = state.current && state.current.format === 'pdf' ? 'PDF 仅使用当前显示页' : '本次包含整章（含未读内容）';
+  $('btn-ai-full-summary-prompt').disabled = scope.disabled;
   els.aiSummaryChapter.textContent = source.chapterTitle;
   els.aiSummaryTarget.textContent = state.aiConfig && state.aiConfig.model
     ? state.aiConfig.model + ' · ' + state.aiConfig.targetHost
@@ -5001,13 +5085,14 @@ function showAiAssistantChapter(source) {
   els.aiSummaryStatus.classList.remove('error');
 }
 
-function fillAiPrompt(prompt) {
+function fillAiPrompt(prompt, scope) {
   prompt = String(prompt || '').trim();
   if (!prompt) return;
   els.aiChatInput.value = prompt;
+  $('ai-chat-whole-chapter').checked = scope === 'chapter' && !$('ai-chat-whole-chapter').disabled;
   els.aiChatInput.focus();
   els.aiChatInput.setSelectionRange(prompt.length, prompt.length);
-  els.aiSummaryStatus.textContent = '快捷指令已填入输入框，确认后点击发送。';
+  els.aiSummaryStatus.textContent = $('ai-chat-whole-chapter').checked ? '本次会包含当前整章的未读内容，确认后点击发送。' : '快捷指令已填入输入框，确认后点击发送。';
   els.aiSummaryStatus.classList.remove('error');
 }
 
@@ -5053,7 +5138,7 @@ async function cancelActiveAiChat() {
 }
 
 function isCurrentAiSource(source) {
-  try { return sameChapterSource(currentChapterSummarySource(), source); } catch (error) { return false; }
+  try { return sameChapterSource(currentAiAssistantSource(), source); } catch (error) { return false; }
 }
 
 function currentAiChat(source) {
@@ -5068,7 +5153,7 @@ function renderAiChat(source) {
   if (!messages.length) {
     const empty = document.createElement('p');
     empty.className = 'ai-chat-empty';
-    empty.textContent = '我只会依据当前已读章节回答，不会主动剧透后面的内容。有珠短评只会出现在桌宠气泡里。';
+    empty.textContent = '可以讨论正文、分析人物，也可以拓展知识或聊书外的问题。默认依据本章截至当前页的内容，避免透露未读剧情；整章总结会包含本章未读部分。';
     els.aiChatMessages.appendChild(empty);
     return;
   }
@@ -5231,7 +5316,7 @@ function showAiAssistantPanel() {
   if (!els.bookSearchPanel.hidden) closeBookSearch();
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   let source;
-  try { source = currentChapterSummarySource(); } catch (error) {
+  try { source = currentAiAssistantSource(); } catch (error) {
     els.readerStatus.textContent = aiErrorMessage(error);
     return false;
   }
@@ -5282,7 +5367,7 @@ async function sendAiQuestion(question, options) {
   }
   if (!prompt) return;
   let source;
-  try { source = currentChapterSummarySource(); } catch (error) {
+  try { source = currentAiAssistantSource(); } catch (error) {
     els.aiSummaryStatus.textContent = aiErrorMessage(error);
     els.aiSummaryStatus.classList.add('error');
     return;
@@ -5293,23 +5378,26 @@ async function sendAiQuestion(question, options) {
     return;
   }
   const messages = currentAiChat(source);
+  const chatSource = currentAiChatSource(source, $('ai-chat-whole-chapter').checked);
+  const metadata = { contextScope: chatSource.contextScope, contextEnd: chatSource.readEnd, spoilerSensitive: window.GaiaAi.spoilerSensitiveQuestion(prompt) };
   const history = messages
     .filter((item) => item.role === 'user' || item.role === 'assistant')
-    .map((item) => ({ role: item.role, content: item.content }));
-  messages.push({ role: 'user', content: prompt });
+    .map((item) => ({ ...item }));
+  messages.push({ role: 'user', content: prompt, ...metadata });
   if (messages.length > 40) messages.splice(0, messages.length - 40);
   els.aiChatInput.value = '';
+  $('ai-chat-whole-chapter').checked = false;
   renderAiChat(source);
   const requestId = nextAiChatRequestId();
   state.aiChatLoading = true;
   state.aiChatRequestId = requestId;
   updateAiChatComposer();
   els.aiSummaryStatus.classList.remove('error');
-  els.aiSummaryStatus.textContent = 'AI 正在阅读当前章节…';
+  els.aiSummaryStatus.textContent = chatSource.contextScope === 'chapter' ? 'AI 正在结合当前整章回答（含未读内容）…' : 'AI 正在结合截至当前页的内容回答…';
   try {
-    const result = await window.api.aiChat({ source, question: prompt, history, profileId: state.aiProfiles.activeId, requestId });
+    const result = await window.api.aiChat({ source: chatSource, question: prompt, history, profileId: state.aiProfiles.activeId, requestId });
     if (state.aiChatRequestId !== requestId) return;
-    messages.push({ role: 'assistant', content: result.answer });
+    messages.push({ role: 'assistant', content: result.answer, ...metadata });
     if (messages.length > 40) messages.splice(0, messages.length - 40);
     if (isCurrentAiSource(source)) els.aiSummaryStatus.textContent = '回答来自 ' + result.model + ' · ' + result.targetHost;
   } catch (error) {
@@ -5368,7 +5456,7 @@ async function runAliceComment(kind) {
 
 function clearCurrentAiChat() {
   try {
-    const source = currentChapterSummarySource();
+    const source = currentAiAssistantSource();
     state.aiChats[aiChatKey(source)] = [];
     renderAiChat(source);
     els.aiSummaryStatus.textContent = '本章对话已清空。';
@@ -5379,8 +5467,7 @@ function clearCurrentAiChat() {
 function observeAiChapter() {
   if (!state.current || state.current.format === 'pdf') return;
   let source;
-  try { source = currentChapterSummarySource(); } catch (error) { return; }
-  if (!source.content) return;
+  try { source = currentAiAssistantSource(); } catch (error) { return; }
   if (!els.aiSummaryPanel.hidden) {
     showAiAssistantChapter(source);
     renderAiChat(source);
@@ -5603,7 +5690,7 @@ function bindEvents() {
   $('btn-ai-summary-close').addEventListener('click', closeAiAssistantPanel);
   $('btn-ai-appearance').addEventListener('click', toggleAiAppearanceMenu);
   $('btn-ai-summary-minimize').addEventListener('click', toggleAiPanelMinimized);
-  document.querySelectorAll('[data-ai-prompt]').forEach((button) => button.addEventListener('click', () => fillAiPrompt(button.dataset.aiPrompt)));
+  document.querySelectorAll('[data-ai-prompt]').forEach((button) => button.addEventListener('click', () => fillAiPrompt(button.dataset.aiPrompt, button.dataset.aiScope)));
   $('btn-ai-chat-clear').addEventListener('click', clearCurrentAiChat);
   document.querySelectorAll('[data-ai-alice]').forEach((button) => button.addEventListener('click', () => runAliceComment(button.dataset.aiAlice)));
   els.aiFontSelect.addEventListener('change', () => {

@@ -275,7 +275,7 @@ test('1.1.5 发行说明、翻页修复、下载入口与构建验证保持一�
   assert.ok(readme.includes('RELEASE_NOTES_1.1.5.md') && readme.includes('## 1.1.5 更新亮点'));
   const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
   assert.match(changelog, /^## 1\.1\.5（左右方向键翻页误触修复）$/m, '发行说明应保留 1.1.5 历史条目');
-  assert.doesNotMatch(changelog, /^## 未发布/);
+  assert.doesNotMatch(notes, /^## 未发布/m, '已发布版本说明不能包含未发布占位；CHANGELOG 可记录后续开发');
   assert.ok(fs.readFileSync(path.join(root, 'scripts/verify-dist-layout.ps1'), 'utf8').includes("'mobi-reading', 'chinese-models'"));
   assert.ok(fs.readFileSync(path.join(root, 'scripts/verify-dist-layout.ps1'), 'utf8').includes('portable-mobi-check.json'));
   assert.ok(fs.readFileSync(path.join(root, 'scripts/verify-dist-layout.ps1'), 'utf8').includes("'page-turn'"));
@@ -335,7 +335,7 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(app.includes('setAiAppearanceOpen(els.aiAppearancePopover.hidden)'), 'Aa 按钮应能正确切换 AI 排版弹层');
   assert.ok(!html.includes('id="ai-summary-pane"') && !html.includes('id="btn-ai-tab-summary"'), '独立本章总结页签应被移除');
   assert.ok(app.includes("document.querySelectorAll('[data-ai-prompt]')"), '三个章节快捷键应共用输入逻辑');
-  for (const prompt of ['简要概括本章内容', '总结本章人物关系', '总结本章伏笔']) {
+  for (const prompt of ['简要概括本章截至当前页的内容', '根据截至当前页的内容，分析人物关系与动机', '分析已读内容中的线索和可能含义，不要用后文确认伏笔']) {
     assert.ok(html.includes(`data-ai-prompt="${prompt}"`), `缺少快捷指令：${prompt}`);
   }
   const summaryPrompt = app.slice(app.indexOf('function fillAiPrompt('), app.indexOf('function aiChatKey'));
@@ -346,11 +346,11 @@ test('AI 章节助手接入首页、设置与阅读器并保护 API Key', () => 
   assert.ok(app.includes('resolveEpubTocTarget(epub.spine && epub.spine.spineItems, item.href)'), 'EPUB 目录跳转前应把目录路径解析为 spine 目标');
   assert.ok(app.includes('selectChapterScope(entries, index, currentOffset)'), 'EPUB 对话应按目录边界截取当前小章');
   assert.ok(app.includes('selectChapterScope(entries, chapter, currentOffset)'), 'MOBI/AZW3 对话应按目录边界截取当前小章');
-  assert.ok(app.includes('sameChapterSource(currentChapterSummarySource(), source)'), 'AI 返回结果应兼容同一正文的章节标识波动');
+  assert.ok(app.includes('sameChapterSource(currentAiAssistantSource(), source)'), 'AI 返回结果应兼容同一正文的章节标识波动');
   assert.ok(app.includes('candidateContent.length >= 32'), 'MOBI/AZW3 的短标题页应推进到紧邻的真实章节');
   assert.ok(app.includes('await window.api.mobiChapter(c.mobiSession, nextIndex)'), '跨底层片段的 MOBI/AZW3 标题页应读取紧邻正文');
   assert.ok(app.includes('resolveAiChapterSource'), 'MOBI/AZW3 烟雾测试应验证总结前的异步章节补全');
-  assert.ok(main.includes('当前章节没有可供 AI 阅读的文字'), '无正文页面必须显示明确错误');
+  assert.ok(app.includes('当前正文范围未识别 · 可讨论通用问题'), '无正文页面仍可提问，但不得偷偷扩大正文范围');
   assert.ok(app.includes("semanticChapterEntries(root, chapter, c.format + ':' + chapter"), '目录缺少小章时，MOBI/AZW3 应按正文标题识别章节');
   assert.ok(app.includes("return holder.textContent || ''"), '章节正文提取不得受 AZW3 排版 CSS 的 innerText 可见性影响');
   assert.ok(app.includes('await window.api.mobiResolveHref(c.mobiSession, item.href)') && app.includes("selector: target.selector || ''"), 'MOBI/AZW3 目录跳转应按需解析并定位到同一底层文档内的小章起点');

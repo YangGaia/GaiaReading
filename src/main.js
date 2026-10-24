@@ -642,9 +642,9 @@ function createWindow() {
               document.getElementById('btn-ai-appearance').click();
               const promptMessagesBefore = __gaiaDebug.getAiChatState().messages;
               const promptShortcuts = [
-                ['btn-ai-summary-prompt', '简要概括本章内容'],
-                ['btn-ai-characters-prompt', '总结本章人物关系'],
-                ['btn-ai-foreshadow-prompt', '总结本章伏笔'],
+                ['btn-ai-summary-prompt', '简要概括本章截至当前页的内容'],
+                ['btn-ai-characters-prompt', '根据截至当前页的内容，分析人物关系与动机'],
+                ['btn-ai-foreshadow-prompt', '分析已读内容中的线索和可能含义，不要用后文确认伏笔'],
               ];
               const aiSummaryPromptReady = promptShortcuts.every(([id, expected]) => {
                 document.getElementById(id).click();
@@ -1646,7 +1646,6 @@ ipcMain.handle('ai:chat', async (event, payload) => {
   const input = payload && typeof payload === 'object' ? payload : {};
   const source = input.source && typeof input.source === 'object' ? input.source : {};
   const content = GaiaAi.cleanChapterText(source.content);
-  if (!content) throw new Error('当前章节没有可供 AI 阅读的文字');
   if (content.length > 180000) throw new Error('当前章节超过 18 万字，请缩小阅读范围');
   const profile = aiProfileById(input.profileId);
   const requestKey = aiChatRequestKey(event.sender, input.requestId);
@@ -1659,6 +1658,8 @@ ipcMain.handle('ai:chat', async (event, payload) => {
       bookTitle: String(source.bookTitle || '').slice(0, 300),
       chapterTitle: String(source.chapterTitle || '').slice(0, 300),
       content,
+      contextScope: source.contextScope === 'chapter' ? 'chapter' : 'read',
+      readEnd: Number.isFinite(source.readEnd) && source.readEnd >= 0 ? source.readEnd : 0,
     }, input.question, input.history, { timeoutMs: 90000, signal: controller.signal });
     return { answer, provider: profile.provider, model: profile.model, targetHost: new URL(profile.baseUrl).host };
   } finally {

@@ -391,12 +391,14 @@
             <div id="ai-chat-messages" class="ai-chat-messages" aria-live="polite"></div>
             <div class="ai-chat-composer">
               <div class="ai-chat-input-shortcuts" aria-label="输入快捷指令">
-                <button id="btn-ai-summary-prompt" type="button" data-ai-prompt="简要概括本章内容">总结本章</button>
-                <button id="btn-ai-characters-prompt" type="button" data-ai-prompt="总结本章人物关系">人物关系</button>
-                <button id="btn-ai-foreshadow-prompt" type="button" data-ai-prompt="总结本章伏笔">伏笔</button>
+                <button id="btn-ai-summary-prompt" type="button" data-ai-prompt="简要概括本章截至当前页的内容">总结已读</button>
+                <button id="btn-ai-characters-prompt" type="button" data-ai-prompt="根据截至当前页的内容，分析人物关系与动机">人物分析</button>
+                <button id="btn-ai-foreshadow-prompt" type="button" data-ai-prompt="分析已读内容中的线索和可能含义，不要用后文确认伏笔">线索分析</button>
+                <button id="btn-ai-full-summary-prompt" type="button" data-ai-scope="chapter" data-ai-prompt="请总结当前整章内容，包括本章尚未读到的部分；不要透露后续章节。">整章总结（含未读）</button>
               </div>
+              <label class="ai-context-option"><input id="ai-chat-whole-chapter" type="checkbox"><span id="ai-chat-scope-label">本次包含整章（含未读内容）</span></label>
               <div class="ai-chat-compose-row">
-                <textarea id="ai-chat-input" maxlength="2000" rows="3" placeholder="问问当前章节，Ctrl + Enter 发送…"></textarea>
+                <textarea id="ai-chat-input" maxlength="2000" rows="3" placeholder="聊聊正文、分析观点或拓展知识，Ctrl + Enter 发送…"></textarea>
                 <button id="btn-ai-chat-send" class="btn primary" type="button">发送</button>
               </div>
             </div>
@@ -623,6 +625,7 @@
   <script src="../shared/book-search.js"></script>
   <script src="../shared/ai-models.js"></script>
   <script src="../shared/ai.js"></script>
+  <script src="ai-reading-context.js"></script>
   <script src="bgm.js"></script>
   <script src="pet.js"></script>
   <script src="home-layout.js"></script>
