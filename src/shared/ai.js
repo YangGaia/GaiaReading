@@ -686,7 +686,7 @@
       config,
       apiKey,
       aliceCommentMessages(source, kind === 'summary' ? 'summary' : 'comment'),
-      Object.assign({}, options, { maxTokens: 100, temperature: kind === 'summary' ? 0.35 : 0.6 })
+      Object.assign({}, options, { maxTokens: 1000, temperature: kind === 'summary' ? 0.35 : 0.6 })
     );
     return cleanAliceComment(text);
   }

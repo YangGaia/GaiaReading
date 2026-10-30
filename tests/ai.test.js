@@ -523,11 +523,37 @@ test('有珠只生成受控的一句话短评并限制输出长度', async () =>
   assert.match(messages[0].content, /不要描写动作或心理活动/);
   assert.match(messages[0].content, /20～50/);
   assert.match(messages[0].content, /不能输出标题、列表/);
-  const result = await aliceComment(fakeFetch, { provider: 'custom', baseUrl: 'https://relay.example/v1', model: 'demo' }, 'key', source, 'comment');
+  const config = { provider: 'custom', baseUrl: 'https://relay.example/v1', model: 'demo' };
+  const result = await aliceComment(fakeFetch, config, 'key', source, 'comment');
   assert.strictEqual(result, '这种判断若还能称作计划，未免太宽容了。');
-  assert.strictEqual(captured.max_tokens, 100);
+  assert.strictEqual(captured.max_tokens, 1000);
   assert.strictEqual(captured.temperature, 0.6);
+  await aliceComment(fakeFetch, config, 'key', source, 'summary');
+  assert.strictEqual(captured.max_tokens, 1000);
+  assert.strictEqual(captured.temperature, 0.35);
   assert.ok(Array.from(cleanAliceComment('甲'.repeat(100))).length <= 60);
+});
+
+test('有珠请求遇到没有最终正文时会增加推理与输出预算重试', async () => {
+  const tokenLimits = [];
+  const fakeFetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    tokenLimits.push(body.max_tokens);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: tokenLimits.length === 1 ? '' : '这场混乱，倒也称得上有始有终。' } }] }),
+    };
+  };
+  const result = await aliceComment(
+    fakeFetch,
+    { provider: 'custom', baseUrl: 'https://relay.example/v1', model: 'reasoning-model' },
+    'key',
+    { bookTitle: '书', chapterTitle: '章', content: '一段正文。' },
+    'comment'
+  );
+  assert.strictEqual(result, '这场混乱，倒也称得上有始有终。');
+  assert.deepStrictEqual(tokenLimits, [1000, 2000]);
 });
 
 test('多段章节先分别总结再合并并生成稳定缓存键', async () => {
