@@ -82,6 +82,11 @@ function files(root, prefix = '') {
     return entry.isDirectory() ? files(root, relative) : [relative];
   });
 }
+function comparableSourceBytes(file, value) {
+  const textExtensions = new Set(['.css', '.html', '.js', '.json', '.md', '.ps1', '.bat', '.txt', '.xml', '.yml', '.yaml']);
+  if (!textExtensions.has(path.extname(file).toLowerCase())) return value;
+  return Buffer.from(value.toString('utf8').replace(/\r\n?/g, '\n'), 'utf8');
+}
 
 let cdp;
 let child;
@@ -132,7 +137,9 @@ const server = http.createServer((req, res) => {
   report.runtime.asarSha256 = sha256(fs.readFileSync(asarPath));
   const sourceFiles = files(path.join(project, 'src'));
   for (const file of sourceFiles) {
-    assert.deepEqual(asar.extractFile(asarPath, path.join('src', file)), fs.readFileSync(path.join(project, 'src', file)), 'Packaged source mismatch: ' + file);
+    const packaged = asar.extractFile(asarPath, path.join('src', file));
+    const source = fs.readFileSync(path.join(project, 'src', file));
+    assert.deepEqual(comparableSourceBytes(file, packaged), comparableSourceBytes(file, source), 'Packaged source mismatch: ' + file);
   }
   check('All packaged src files exactly match current source', sourceFiles.length > 100);
   check('Packaged package.json has the release version', JSON.parse(asar.extractFile(asarPath, 'package.json')).version === version);

@@ -60,6 +60,12 @@ test('项目关键文件齐全', () => {
   }
 });
 
+test('便携版发布校验兼容源码换行格式', () => {
+  const smoke = fs.readFileSync(path.join(root, 'scripts/portable-release-smoke.js'), 'utf8');
+  assert.ok(smoke.includes('comparableSourceBytes'), '便携版校验应统一文本源码换行');
+  assert.ok(smoke.includes("replace(/\\r\\n?/g, '\\n')"), '便携版校验应将 CRLF 归一化为 LF');
+});
+
 test('首页与闪屏图片资源存在', () => {
   for (const img of ['1.jpg', '2.jpeg']) {
     const f = path.join(root, 'src', 'renderer', 'images', img);
