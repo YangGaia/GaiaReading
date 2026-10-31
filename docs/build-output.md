@@ -4,13 +4,13 @@
 
 ```text
 dist/
-├── Gaia.Reading.1.1.7.exe   当前正式版，双击运行
+├── Gaia.Reading.1.1.8.exe   当前正式版，双击运行
 ├── archive/
 │   └── Gaia.Reading.1.1.6.exe   上一正式版，供回退
 ├── previews/
-│   └── 1.1.7/long-single.png   长图完整显示预览
+│   └── 1.1.8/long-single.png   长图完整显示预览
 └── reports/
-    └── 1.1.7/
+    └── 1.1.8/
         ├── release/       源码与发行文件校验、启动及自动化测试记录
         ├── mobi-images/   MOBI 图片、分页与慢加载回归记录及截图
         ├── epub-font/     EPUB 排版回归记录及截图

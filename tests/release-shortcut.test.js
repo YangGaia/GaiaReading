@@ -55,10 +55,10 @@ test('缺少 dist exe 或桌面已有同版本 exe 时拒绝生成，不复制�
   assert.equal(fs.readFileSync(duplicate, 'utf8'), 'desktop fixture');
 });
 
-test('1.1.7 发布说明包含更新、下载方式与实际构建校验值', () => {
-  const notes = fs.readFileSync(path.join(project, 'RELEASE_NOTES_1.1.7.md'), 'utf8');
-  assert.match(notes, /Gaia Reading 1\.1\.7/);
-  for (const value of ['背景知识', '未读', '整章', '历史', '长正文', '桌面只创建', 'Gaia.Reading.1.1.7.exe']) assert.ok(notes.includes(value), value);
+test('1.1.8 发布说明包含更新、下载方式与实际构建校验值', () => {
+  const notes = fs.readFileSync(path.join(project, 'RELEASE_NOTES_1.1.8.md'), 'utf8');
+  assert.match(notes, /Gaia Reading 1\.1\.8/);
+  for (const value of ['有珠总结', '有珠吐槽', '输出预算', '自动重试', '桌面只创建', 'Gaia.Reading.1.1.8.exe']) assert.ok(notes.includes(value), value);
   assert.match(notes, /文件大小：[\d,]+ 字节/);
   assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
   assert.doesNotMatch(notes, /待构建|构建完成后填入/);
