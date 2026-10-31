@@ -62,4 +62,9 @@ test('1.1.8 发布说明包含更新、下载方式与实际构建校验值', ()
   assert.match(notes, /文件大小：[\d,]+ 字节/);
   assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
   assert.doesNotMatch(notes, /待构建|构建完成后填入/);
+  const artifact = path.join(project, 'dist', 'Gaia.Reading.1.1.8.exe');
+  assert.equal(fs.statSync(artifact).size, 136448532, '发布说明中的文件大小应与实际 exe 一致');
+  const { execFileSync } = require('child_process');
+  const hash = execFileSync('certutil', ['-hashfile', artifact, 'SHA256'], { encoding: 'utf8' }).match(/[A-Fa-f0-9]{64}/g);
+  assert.ok(hash && hash[0].toUpperCase() === '62FE727114B07138C90AF1711D149F540E6581931D463F51292CB54418DE7991', '发布说明 SHA-256 应与实际 exe 一致');
 });
