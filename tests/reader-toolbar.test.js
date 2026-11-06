@@ -61,3 +61,11 @@ test('EPUB 使用应用管理的像素尺寸，避免 epub.js 与应用并发监
   assert.match(openEpub, /height:\s*Math\.max\(1, Math\.floor\(readerBounds\.height\)\)/);
   assert.doesNotMatch(openEpub, /width:\s*['"]100%['"]|height:\s*['"]100%['"]/);
 });
+
+test('EPUB 改变布局尺寸时只等待 resize 自带的定位，避免重复 display 互相取消', () => {
+  const app = read('app.js');
+  const refresh = app.slice(app.indexOf('async function refreshReaderLayout('), app.indexOf('function scheduleReaderLayoutRefresh('));
+  assert.match(refresh, /rendition\.once\('relocated', onRelocated\)/);
+  assert.match(refresh, /rendition\.once\('displayError', onDisplayError\)/);
+  assert.match(refresh, /if \(resizeSettled\) await resizeSettled;\s*else await c\.rendition\.display\(target\)/);
+});

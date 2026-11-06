@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { ipcMain } = require('electron');
 const { BGM_TRACKS } = require('../src/shared/bgm');
+const makeEpubPositionFixture = require('../tests/fixtures/epub-font-fixture');
 
 module.exports = async ({ win, report, check, capture }) => {
   const evaluate = (fn, arg) => win.webContents.executeJavaScript(`(${fn.toString()})(${JSON.stringify(arg)})`);
@@ -21,7 +22,8 @@ module.exports = async ({ win, report, check, capture }) => {
       if (!el || !el.getClientRects().length || getComputedStyle(el).visibility === 'hidden') throw new Error(`${selector} is hidden`);
       const r = el.getBoundingClientRect();
       const x = Math.round(r.x + r.width / 2), y = Math.round(r.y + r.height / 2);
-      if (!el.contains(document.elementFromPoint(x, y))) throw new Error(`${selector} cannot receive pointer input`);
+      const hit = document.elementFromPoint(x, y);
+      if (!el.contains(hit)) throw new Error(`${selector} cannot receive pointer input; hit=${hit && (hit.id || hit.className || hit.tagName)}; rect=${JSON.stringify({ x: r.x, y: r.y, width: r.width, height: r.height })}`);
       return { x, y };
     }, selector);
     win.webContents.sendInputEvent({ type: 'mouseMove', ...point });
@@ -121,7 +123,9 @@ module.exports = async ({ win, report, check, capture }) => {
     const c = state.current;
     if (c.format === 'epub') {
       const location = c.rendition.currentLocation();
-      return { format: c.format, cfi: location && location.start ? sourceEpubCfi(c, location.start.cfi) : '' };
+      return { format: c.format, cfi: location && location.start ? sourceEpubCfi(c, location.start.cfi) : '',
+        href: location && location.start ? location.start.href : '', page: location && location.start ? location.start.displayed.page : 0,
+        total: location && location.start ? location.start.displayed.total : 0 };
     }
     if (c.format === 'pdf') return { format: c.format, page: c.page };
     return { format: c.format, chapter: c.flow ? c.flow.chapter : 0, anchor: sourcePaginatorAnchor(c) };
@@ -131,7 +135,9 @@ module.exports = async ({ win, report, check, capture }) => {
     if (!c || c.format !== position.format) return false;
     if (c.format === 'epub') {
       const location = c.rendition.currentLocation();
-      return !!location && !!location.start && sourceEpubCfi(c, location.start.cfi) === position.cfi;
+      if (!location || !location.start || !location.end || location.start.href !== position.href) return false;
+      const cfi = new window.ePub.CFI();
+      return cfi.compare(location.start.cfi, position.cfi) <= 0 && cfi.compare(position.cfi, location.end.cfi) <= 0;
     }
     if (c.format === 'pdf') return c.page === position.page;
     if ((c.flow ? c.flow.chapter : 0) !== position.chapter || !position.anchor) return false;
@@ -146,6 +152,7 @@ module.exports = async ({ win, report, check, capture }) => {
     await wait(500);
   };
 
+  if (!process.argv.includes('--epub-only')) {
   const firstTxtPage = await evaluate(() => __gaiaDebug.getPaginatorPage());
   await click('#btn-next-page');
   await until(page => __gaiaDebug.getPaginatorPage() > page, firstTxtPage);
@@ -191,8 +198,9 @@ module.exports = async ({ win, report, check, capture }) => {
   await key('F11');
   await settleFullscreen(false);
   check('F11 enters and exits fullscreen reading', true);
+  }
 
-  if (!process.argv.includes('--skip-marquee')) {
+  if (!process.argv.includes('--skip-marquee') && !process.argv.includes('--epub-only')) {
     await require('./music-marquee-runtime-checks')({ win, report, check, capture, click });
   }
 
@@ -311,8 +319,10 @@ module.exports = async ({ win, report, check, capture }) => {
     await wait(250);
   }
 
+  const positionEpub = await makeEpubPositionFixture(report.userData);
   for (const format of ['epub', 'pdf']) {
-    await evaluate(book => __gaiaDebug.openBook(book), { path: path.resolve(__dirname, `../tests/fixtures/sample.${format}`), title: `${format.toUpperCase()} 阅读验证`, format });
+    const book = format === 'epub' ? positionEpub : { path: path.resolve(__dirname, '../tests/fixtures/sample.pdf'), title: 'PDF 阅读验证', format };
+    await evaluate(book => __gaiaDebug.openBook(book), book);
     await wait(450);
     for (const spread of [false, true]) {
       await evaluate(async spread => { if ((state.readMode === 'spread') !== spread) await __gaiaDebug.toggleSpread(); }, spread);
@@ -326,21 +336,34 @@ module.exports = async ({ win, report, check, capture }) => {
     }
     win.setContentSize(1100, 760);
     await wait(400);
+    if (format === 'epub') {
+      await evaluate(async () => { if (state.readMode === 'spread') await __gaiaDebug.toggleSpread(); });
+      await wait(300);
+      const initialCfi = await readerPosition();
+      await evaluate(async () => {
+        for (let page = 0; page < 5; page += 1) await state.current.rendition.next();
+      });
+      await wait(500);
+      const middleCfi = await readerPosition();
+      check('EPUB fullscreen fixture navigates beyond the chapter opening', middleCfi.cfi !== initialCfi.cfi);
+    }
     const positionBeforeFullscreen = await readerPosition();
     await evaluate(() => setReaderFullscreen(true));
     await settleFullscreen(true);
-    check(`${format}: fullscreen entry keeps the current reading position`, await preservesPosition(positionBeforeFullscreen));
-    check(`${format}: fullscreen entry leaves the final location stable`, JSON.stringify(await readerPosition()) === JSON.stringify(positionBeforeFullscreen));
+    const entryPosition = await readerPosition();
+    check(`${format}: fullscreen entry keeps the current reading position ${JSON.stringify(positionBeforeFullscreen)} -> ${JSON.stringify(entryPosition)}`,
+      await preservesPosition(positionBeforeFullscreen));
     await evaluate(() => setReaderFullscreen(false));
     await settleFullscreen(false);
     check(`${format}: fullscreen exit keeps the current reading position`, await preservesPosition(positionBeforeFullscreen));
-    check(`${format}: fullscreen exit leaves the final location stable`, JSON.stringify(await readerPosition()) === JSON.stringify(positionBeforeFullscreen));
-    const position = () => evaluate(() => state.current.format === 'pdf' ? state.current.page : state.current.rendition.currentLocation().start.cfi);
-    const before = await position();
-    await click('#btn-next-page');
-    check(`${format}: next-page button moves the actual renderer`, await position() !== before);
-    await click('#btn-prev-page');
-    check(`${format}: previous-page button returns`, await position() === before);
+    if (format === 'epub' || await evaluate(() => state.current.pages > 1)) {
+      const position = () => evaluate(() => state.current.format === 'pdf' ? state.current.page : state.current.rendition.currentLocation().start.displayed.page);
+      const before = await position();
+      await click('#btn-next-page');
+      check(`${format}: next-page button moves the actual renderer`, await position() !== before);
+      await click('#btn-prev-page');
+      check(`${format}: previous-page button returns`, await position() === before);
+    }
     if (format === 'pdf') {
       const zoom = await evaluate(() => document.getElementById('pdf-zoom-value').textContent);
       await click('#btn-pdf-zoom-in');

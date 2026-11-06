@@ -1849,9 +1849,27 @@ async function refreshReaderLayout(anchor, options) {
   if (c.format === 'epub' && c.rendition) {
     const target = await convertedEpubTarget(c, anchor.cfi);
     if (state.current !== c) return false;
+    const stageSize = c.rendition.manager && c.rendition.manager._stageSize;
+    const willResize = !stageSize || stageSize.width !== size.width || stageSize.height !== size.height;
+    let resizeSettled;
+    if (willResize && target) {
+      resizeSettled = new Promise((resolve, reject) => {
+        const cleanup = () => {
+          c.rendition.off('relocated', onRelocated);
+          c.rendition.off('displayError', onDisplayError);
+        };
+        const onRelocated = (location) => { cleanup(); resolve(location); };
+        const onDisplayError = (error) => { cleanup(); reject(error); };
+        c.rendition.once('relocated', onRelocated);
+        c.rendition.once('displayError', onDisplayError);
+      });
+    }
     c.rendition.resize(size.width, size.height, target || undefined);
     applyEpubTypography();
-    if (target) await c.rendition.display(target);
+    if (target) {
+      if (resizeSettled) await resizeSettled;
+      else await c.rendition.display(target);
+    }
     return true;
   }
   if (c.format === 'pdf' && c.pdf) {
