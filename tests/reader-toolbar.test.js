@@ -52,3 +52,12 @@ test('阅读全屏提供 F11/Esc 控制、工具栏自动收放和锚点重排',
   assert.ok(main.includes("ipcMain.handle('window:fullscreen:set'"));
   assert.ok(main.includes("win !== mainWindow"), '全屏 IPC 只能控制应用主窗口');
 });
+
+test('EPUB 使用应用管理的像素尺寸，避免 epub.js 与应用并发监听窗口 resize', () => {
+  const app = read('app.js');
+  const openEpub = app.slice(app.indexOf('async function openEpub('), app.indexOf('function resizeEpubRendition('));
+  assert.match(openEpub, /const readerBounds = els\.readerContent\.getBoundingClientRect\(\)/);
+  assert.match(openEpub, /width:\s*Math\.max\(1, Math\.floor\(readerBounds\.width\)\)/);
+  assert.match(openEpub, /height:\s*Math\.max\(1, Math\.floor\(readerBounds\.height\)\)/);
+  assert.doesNotMatch(openEpub, /width:\s*['"]100%['"]|height:\s*['"]100%['"]/);
+});

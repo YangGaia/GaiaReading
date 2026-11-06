@@ -1084,7 +1084,12 @@ async function openEpub(book) {
     }
     current.chineseScript = window.GaiaChineseScript.detect(sample);
   }
-  const rendition = epub.renderTo('reader-content', { width: '100%', height: '100%', flow: 'paginated', spread: 'none', gap: currentSpreadGap() });
+  const readerBounds = els.readerContent.getBoundingClientRect();
+  const rendition = epub.renderTo('reader-content', {
+    width: Math.max(1, Math.floor(readerBounds.width)),
+    height: Math.max(1, Math.floor(readerBounds.height)),
+    flow: 'paginated', spread: 'none', gap: currentSpreadGap(),
+  });
   state.current.rendition = rendition;
   rendition.hooks.content.register((contents) => {
     prepareChineseDocument(contents.document.body);

@@ -143,6 +143,7 @@ module.exports = async ({ win, report, check, capture }) => {
       ? () => document.getElementById('reader-view').classList.contains('reader-fullscreen')
       : () => !document.getElementById('reader-view').classList.contains('reader-fullscreen'));
     await until(() => !readerFullscreenAnchor);
+    await wait(500);
   };
 
   const firstTxtPage = await evaluate(() => __gaiaDebug.getPaginatorPage());
@@ -191,7 +192,9 @@ module.exports = async ({ win, report, check, capture }) => {
   await settleFullscreen(false);
   check('F11 enters and exits fullscreen reading', true);
 
-  await require('./music-marquee-runtime-checks')({ win, report, check, capture, click });
+  if (!process.argv.includes('--skip-marquee')) {
+    await require('./music-marquee-runtime-checks')({ win, report, check, capture, click });
+  }
 
   let palette;
   for (const theme of ['light', 'eye', 'dark']) {
@@ -327,9 +330,11 @@ module.exports = async ({ win, report, check, capture }) => {
     await evaluate(() => setReaderFullscreen(true));
     await settleFullscreen(true);
     check(`${format}: fullscreen entry keeps the current reading position`, await preservesPosition(positionBeforeFullscreen));
+    check(`${format}: fullscreen entry leaves the final location stable`, JSON.stringify(await readerPosition()) === JSON.stringify(positionBeforeFullscreen));
     await evaluate(() => setReaderFullscreen(false));
     await settleFullscreen(false);
     check(`${format}: fullscreen exit keeps the current reading position`, await preservesPosition(positionBeforeFullscreen));
+    check(`${format}: fullscreen exit leaves the final location stable`, JSON.stringify(await readerPosition()) === JSON.stringify(positionBeforeFullscreen));
     const position = () => evaluate(() => state.current.format === 'pdf' ? state.current.page : state.current.rendition.currentLocation().start.cfi);
     const before = await position();
     await click('#btn-next-page');
