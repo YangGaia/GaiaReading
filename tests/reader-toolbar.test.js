@@ -42,7 +42,8 @@ test('阅读全屏提供 F11/Esc 控制、工具栏自动收放和锚点重排',
   assert.match(html, /id="btn-reader-fullscreen"[^>]*aria-pressed="false"/);
   assert.match(css, /#reader-view\.reader-fullscreen > \.reader-topbar \{ top: 0; opacity: 0;/);
   assert.match(css, /#reader-view\.reader-fullscreen > \.statusbar \{ bottom: 0; opacity: 0;/);
-  assert.match(css, /#reader-view\.reader-fullscreen\.chrome-visible/);
+  assert.match(css, /#reader-view\.reader-fullscreen\.top-chrome-visible > \.reader-topbar/);
+  assert.match(css, /#reader-view\.reader-fullscreen\.bottom-chrome-visible > \.statusbar/);
   assert.ok(app.includes("ev.key === 'F11'"), 'F11 应切换阅读全屏');
   assert.ok(app.includes("if (readerFullscreen) { ev.preventDefault(); ev.stopPropagation(); void setReaderFullscreen(false); return; }"), '全屏时 Esc 应先退出，而不是返回书架');
   assert.ok(app.includes('scheduleReaderLayoutRefresh(anchor, { force: true })'), '全屏切换后应按原阅读锚点重排');

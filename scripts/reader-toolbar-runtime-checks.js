@@ -117,29 +117,78 @@ module.exports = async ({ win, report, check, capture }) => {
   assert.deepEqual(await evaluate(() => GaiaBgm.getState()), initialMusic, 'Full track cycle preserves playback and volume');
   for (let i = 0; i < BGM_TRACKS.length && (await evaluate(() => GaiaBgm.getState().trackId)) !== 'main-theme'; i++) await click('#bgm-capsule [data-action="next"]');
 
+  const readerPosition = () => evaluate(() => {
+    const c = state.current;
+    if (c.format === 'epub') {
+      const location = c.rendition.currentLocation();
+      return { format: c.format, cfi: location && location.start ? sourceEpubCfi(c, location.start.cfi) : '' };
+    }
+    if (c.format === 'pdf') return { format: c.format, page: c.page };
+    return { format: c.format, chapter: c.flow ? c.flow.chapter : 0, anchor: sourcePaginatorAnchor(c) };
+  });
+  const preservesPosition = position => evaluate(position => {
+    const c = state.current;
+    if (!c || c.format !== position.format) return false;
+    if (c.format === 'epub') {
+      const location = c.rendition.currentLocation();
+      return !!location && !!location.start && sourceEpubCfi(c, location.start.cfi) === position.cfi;
+    }
+    if (c.format === 'pdf') return c.page === position.page;
+    if ((c.flow ? c.flow.chapter : 0) !== position.chapter || !position.anchor) return false;
+    const offset = window.GaiaReaderChinese.displayOffset(c.paginator.doc.body, position.anchor.off);
+    return c.paginator.anchorInView(offset);
+  }, position);
+  const settleFullscreen = async active => {
+    await until(active
+      ? () => document.getElementById('reader-view').classList.contains('reader-fullscreen')
+      : () => !document.getElementById('reader-view').classList.contains('reader-fullscreen'));
+    await until(() => !readerFullscreenAnchor);
+  };
+
+  const firstTxtPage = await evaluate(() => __gaiaDebug.getPaginatorPage());
+  await click('#btn-next-page');
+  await until(page => __gaiaDebug.getPaginatorPage() > page, firstTxtPage);
+  const txtPosition = await readerPosition();
   await click('#btn-reader-fullscreen');
-  await until(() => document.getElementById('reader-view').classList.contains('reader-fullscreen'));
+  await settleFullscreen(true);
+  check('TXT fullscreen entry keeps the current text anchor visible', await preservesPosition(txtPosition));
   check('fullscreen button enters native fullscreen reading', await evaluate(() =>
     document.getElementById('btn-reader-fullscreen').getAttribute('aria-pressed') === 'true' &&
     document.getElementById('reader-view').classList.contains('reader-fullscreen')));
   await evaluate(() => document.activeElement.blur());
+  win.focus();
+  win.webContents.focus();
   win.webContents.sendInputEvent({ type: 'mouseMove', x: 550, y: Math.floor(win.getContentSize()[1] / 2) });
   await wait(2050);
   check('fullscreen toolbars hide after inactivity', await evaluate(() =>
-    !document.getElementById('reader-view').classList.contains('chrome-visible') &&
+    !document.getElementById('reader-view').classList.contains('top-chrome-visible') &&
+    !document.getElementById('reader-view').classList.contains('bottom-chrome-visible') &&
     Number(getComputedStyle(document.querySelector('#reader-view > .reader-topbar')).opacity) === 0));
-  await evaluate(() => document.dispatchEvent(new PointerEvent('pointermove', { clientY: 30, bubbles: true })));
-  await until(() => document.getElementById('reader-view').classList.contains('chrome-visible'));
-  check('moving to the viewport edge reveals fullscreen toolbars', true);
+  const [fullscreenWidth, fullscreenHeight] = win.getContentSize();
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.floor(fullscreenWidth / 2), y: 24 });
+  await until(() => document.getElementById('reader-view').classList.contains('top-chrome-visible'));
+  check('real pointer at the top edge reveals only the top toolbar', await evaluate(() =>
+    !document.getElementById('reader-view').classList.contains('bottom-chrome-visible')));
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.floor(fullscreenWidth / 2), y: fullscreenHeight - 24 });
+  await until(() => document.getElementById('reader-view').classList.contains('bottom-chrome-visible'));
+  check('real pointer at the bottom edge reveals only the bottom toolbar', await evaluate(() =>
+    !document.getElementById('reader-view').classList.contains('top-chrome-visible')));
+  const fullscreenTxtPosition = await readerPosition();
+  const fullscreenTxtPage = await evaluate(() => __gaiaDebug.getPaginatorPage());
+  await click('#btn-next-page');
+  await until(page => __gaiaDebug.getPaginatorPage() > page, fullscreenTxtPage);
+  const advancedTxtPosition = await readerPosition();
+  check('fullscreen page navigation advances the text anchor', advancedTxtPosition.anchor.off > fullscreenTxtPosition.anchor.off);
   await capture(win, 'reader-fullscreen');
   await key('Escape');
-  await until(() => !document.getElementById('reader-view').classList.contains('reader-fullscreen'));
+  await settleFullscreen(false);
+  check('TXT fullscreen exit keeps the advanced text anchor visible', await preservesPosition(advancedTxtPosition));
   check('Escape exits fullscreen and restores the normal reader layout', await evaluate(() =>
     document.getElementById('btn-reader-fullscreen').getAttribute('aria-pressed') === 'false'));
   await key('F11');
-  await until(() => document.getElementById('reader-view').classList.contains('reader-fullscreen'));
+  await settleFullscreen(true);
   await key('F11');
-  await until(() => !document.getElementById('reader-view').classList.contains('reader-fullscreen'));
+  await settleFullscreen(false);
   check('F11 enters and exits fullscreen reading', true);
 
   await require('./music-marquee-runtime-checks')({ win, report, check, capture, click });
@@ -274,6 +323,13 @@ module.exports = async ({ win, report, check, capture }) => {
     }
     win.setContentSize(1100, 760);
     await wait(400);
+    const positionBeforeFullscreen = await readerPosition();
+    await evaluate(() => setReaderFullscreen(true));
+    await settleFullscreen(true);
+    check(`${format}: fullscreen entry keeps the current reading position`, await preservesPosition(positionBeforeFullscreen));
+    await evaluate(() => setReaderFullscreen(false));
+    await settleFullscreen(false);
+    check(`${format}: fullscreen exit keeps the current reading position`, await preservesPosition(positionBeforeFullscreen));
     const position = () => evaluate(() => state.current.format === 'pdf' ? state.current.page : state.current.rendition.currentLocation().start.cfi);
     const before = await position();
     await click('#btn-next-page');

@@ -47,6 +47,18 @@ button { font-family: inherit; }
 /* Fullscreen reading keeps the page body at the full viewport size. Toolbars
    float above the page and appear only while the reader interacts with them. */
 #reader-view.reader-fullscreen { position: relative; }
+#reader-view > .reader-fullscreen-edge { display: none; }
+#reader-view.reader-fullscreen > .reader-fullscreen-edge {
+  display: block;
+  position: absolute;
+  z-index: 79;
+  left: 0;
+  right: 0;
+  height: 32px;
+  pointer-events: auto;
+}
+#reader-view.reader-fullscreen > #reader-fullscreen-top-edge { top: 0; }
+#reader-view.reader-fullscreen > #reader-fullscreen-bottom-edge { bottom: 0; }
 #reader-view.reader-fullscreen > .reader-topbar,
 #reader-view.reader-fullscreen > .statusbar {
   position: absolute;
@@ -58,8 +70,8 @@ button { font-family: inherit; }
 }
 #reader-view.reader-fullscreen > .reader-topbar { top: 0; opacity: 0; transform: translateY(-100%); }
 #reader-view.reader-fullscreen > .statusbar { bottom: 0; opacity: 0; transform: translateY(100%); }
-#reader-view.reader-fullscreen.chrome-visible > .reader-topbar,
-#reader-view.reader-fullscreen.chrome-visible > .statusbar,
+#reader-view.reader-fullscreen.top-chrome-visible > .reader-topbar,
+#reader-view.reader-fullscreen.bottom-chrome-visible > .statusbar,
 #reader-view.reader-fullscreen > .reader-topbar:focus-within,
 #reader-view.reader-fullscreen > .statusbar:focus-within {
   opacity: 1;

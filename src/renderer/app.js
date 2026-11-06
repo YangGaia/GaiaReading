@@ -76,7 +76,11 @@ let readerLayoutSyncVersion = 0;
 let readerLayoutSyncPromise = Promise.resolve(false);
 let readerFullscreen = false;
 let readerFullscreenAnchor = null;
-let readerFullscreenHideTimer = 0;
+let readerFullscreenOriginAnchor = null;
+let readerFullscreenEntryAnchor = null;
+let readerFullscreenRestoreTimer = 0;
+let readerFullscreenTopHideTimer = 0;
+let readerFullscreenBottomHideTimer = 0;
 let bookImportFromHome = false;
 let bookImportReturnFocus = null;
 let bookImportPickerBusy = false;
@@ -1724,20 +1728,63 @@ function captureReaderLayoutAnchor() {
   return anchor;
 }
 
-function showReaderFullscreenChrome() {
+function showReaderFullscreenBar(edge) {
   if (!readerFullscreen || views.reader.hidden) return;
-  views.reader.classList.add('chrome-visible');
-  window.clearTimeout(readerFullscreenHideTimer);
-  readerFullscreenHideTimer = 0;
+  const top = edge === 'top';
+  const className = top ? 'top-chrome-visible' : 'bottom-chrome-visible';
+  const otherClassName = top ? 'bottom-chrome-visible' : 'top-chrome-visible';
+  window.clearTimeout(top ? readerFullscreenTopHideTimer : readerFullscreenBottomHideTimer);
+  window.clearTimeout(top ? readerFullscreenBottomHideTimer : readerFullscreenTopHideTimer);
+  if (top) readerFullscreenTopHideTimer = 0;
+  else readerFullscreenBottomHideTimer = 0;
+  if (top) readerFullscreenBottomHideTimer = 0;
+  else readerFullscreenTopHideTimer = 0;
+  views.reader.classList.remove(otherClassName);
+  views.reader.classList.add(className);
 }
 
-function scheduleReaderFullscreenChromeHide() {
-  window.clearTimeout(readerFullscreenHideTimer);
+function scheduleReaderFullscreenBarHide(edge) {
   if (!readerFullscreen) return;
-  readerFullscreenHideTimer = window.setTimeout(() => {
-    readerFullscreenHideTimer = 0;
-    views.reader.classList.remove('chrome-visible');
-  }, 1800);
+  const top = edge === 'top';
+  const className = top ? 'top-chrome-visible' : 'bottom-chrome-visible';
+  const timer = top ? readerFullscreenTopHideTimer : readerFullscreenBottomHideTimer;
+  window.clearTimeout(timer);
+  const nextTimer = window.setTimeout(() => {
+    if (top) readerFullscreenTopHideTimer = 0;
+    else readerFullscreenBottomHideTimer = 0;
+    views.reader.classList.remove(className);
+  }, 900);
+  if (top) readerFullscreenTopHideTimer = nextTimer;
+  else readerFullscreenBottomHideTimer = nextTimer;
+}
+
+function scheduleReaderFullscreenRestore(anchor) {
+  if (!anchor) return;
+  window.clearTimeout(readerFullscreenRestoreTimer);
+  readerFullscreenRestoreTimer = window.setTimeout(() => {
+    readerFullscreenRestoreTimer = 0;
+    if (readerFullscreenAnchor !== anchor || views.reader.hidden) return;
+    scheduleReaderLayoutRefresh(anchor, { force: true }).then(() => {
+      if (readerFullscreenAnchor !== anchor) return;
+      readerFullscreenAnchor = null;
+      if (readerFullscreen) readerFullscreenEntryAnchor = captureReaderLayoutAnchor();
+      else {
+        readerFullscreenOriginAnchor = null;
+        readerFullscreenEntryAnchor = null;
+      }
+    });
+  }, 220);
+}
+
+function sameReaderLayoutPosition(left, right) {
+  if (!left || !right || left.bookPath !== right.bookPath || left.format !== right.format) return false;
+  if (left.format === 'epub') return !!left.cfi && left.cfi === right.cfi;
+  if (left.format === 'pdf') {
+    const a = left.pdfViewport;
+    const b = right.pdfViewport;
+    return left.page === right.page && (!a || !b || (a.page === b.page && Math.abs(a.x - b.x) < 0.02 && Math.abs(a.y - b.y) < 0.02));
+  }
+  return left.chapter === right.chapter && left.text && right.text && left.text.off === right.text.off;
 }
 
 function syncReaderFullscreen(enabled) {
@@ -1746,30 +1793,43 @@ function syncReaderFullscreen(enabled) {
   readerFullscreen = next;
   const active = next && !views.reader.hidden;
   views.reader.classList.toggle('reader-fullscreen', active);
-  views.reader.classList.remove('chrome-visible');
+  views.reader.classList.remove('top-chrome-visible', 'bottom-chrome-visible');
   const button = $('btn-reader-fullscreen');
   button.setAttribute('aria-pressed', String(next));
   button.setAttribute('aria-label', next ? '退出全屏阅读' : '进入全屏阅读');
   button.title = next ? '退出全屏阅读（Esc 或 F11）' : '进入全屏阅读（F11）';
-  window.clearTimeout(readerFullscreenHideTimer);
-  readerFullscreenHideTimer = 0;
+  window.clearTimeout(readerFullscreenTopHideTimer);
+  window.clearTimeout(readerFullscreenBottomHideTimer);
+  readerFullscreenTopHideTimer = 0;
+  readerFullscreenBottomHideTimer = 0;
   const anchor = readerFullscreenAnchor || captureReaderLayoutAnchor();
-  readerFullscreenAnchor = null;
-  if (active) scheduleReaderFullscreenChromeHide();
-  if (!views.reader.hidden && anchor) {
-    window.setTimeout(() => scheduleReaderLayoutRefresh(anchor, { force: true }), 160);
+  if (active) {
+    if (!readerFullscreenOriginAnchor) readerFullscreenOriginAnchor = anchor;
+    scheduleReaderFullscreenRestore(anchor);
   }
+  else if (anchor) scheduleReaderFullscreenRestore(anchor);
 }
 
 async function setReaderFullscreen(enabled) {
   const next = !!enabled;
   if (readerFullscreen === next) return;
   if (next && (views.reader.hidden || !state.current)) return;
-  readerFullscreenAnchor = captureReaderLayoutAnchor();
+  const currentAnchor = captureReaderLayoutAnchor();
+  readerFullscreenAnchor = !next && sameReaderLayoutPosition(currentAnchor, readerFullscreenEntryAnchor)
+    ? readerFullscreenOriginAnchor
+    : currentAnchor;
+  if (next) {
+    readerFullscreenOriginAnchor = currentAnchor;
+    readerFullscreenEntryAnchor = null;
+  }
   try {
     await window.api.setFullScreen(next);
   } catch (error) {
+    window.clearTimeout(readerFullscreenRestoreTimer);
+    readerFullscreenRestoreTimer = 0;
     readerFullscreenAnchor = null;
+    readerFullscreenOriginAnchor = null;
+    readerFullscreenEntryAnchor = null;
     els.readerStatus.textContent = '全屏切换失败：' + aiErrorMessage(error);
   }
 }
@@ -5856,16 +5916,31 @@ function bindEvents() {
   bindReaderKeyboard(document);
   bindReaderWheel(els.readerContent);
   $('btn-reader-fullscreen').addEventListener('click', () => setReaderFullscreen(!readerFullscreen));
-  views.reader.querySelectorAll(':scope > .reader-topbar, :scope > .statusbar').forEach((bar) => {
-    bar.addEventListener('pointerenter', showReaderFullscreenChrome);
-    bar.addEventListener('pointerleave', scheduleReaderFullscreenChromeHide);
-  });
-  document.addEventListener('pointermove', (event) => {
+  const topBar = views.reader.querySelector(':scope > .reader-topbar');
+  const bottomBar = views.reader.querySelector(':scope > .statusbar');
+  const topEdge = $('reader-fullscreen-top-edge');
+  const bottomEdge = $('reader-fullscreen-bottom-edge');
+  topBar.addEventListener('pointerenter', () => showReaderFullscreenBar('top'));
+  topBar.addEventListener('pointerleave', () => scheduleReaderFullscreenBarHide('top'));
+  bottomBar.addEventListener('pointerenter', () => showReaderFullscreenBar('bottom'));
+  bottomBar.addEventListener('pointerleave', () => scheduleReaderFullscreenBarHide('bottom'));
+  topEdge.addEventListener('pointerenter', () => showReaderFullscreenBar('top'));
+  topEdge.addEventListener('pointerleave', () => scheduleReaderFullscreenBarHide('top'));
+  bottomEdge.addEventListener('pointerenter', () => showReaderFullscreenBar('bottom'));
+  bottomEdge.addEventListener('pointerleave', () => scheduleReaderFullscreenBarHide('bottom'));
+  const revealFullscreenBarAtEdge = (event) => {
     if (!readerFullscreen || views.reader.hidden) return;
-    if (event.clientY <= 64 || event.clientY >= window.innerHeight - 64) showReaderFullscreenChrome();
-  });
+    if (event.clientY <= 64) showReaderFullscreenBar('top');
+    else if (event.clientY >= window.innerHeight - 64) showReaderFullscreenBar('bottom');
+  };
+  document.addEventListener('pointermove', revealFullscreenBarAtEdge);
+  document.addEventListener('mousemove', revealFullscreenBarAtEdge);
   window.api.onFullScreenChanged(syncReaderFullscreen);
   window.addEventListener('resize', () => {
+    if (readerFullscreenAnchor) {
+      scheduleReaderFullscreenRestore(readerFullscreenAnchor);
+      return;
+    }
     const c = state.current;
     if (c && c.format === 'pdf') {
       const anchor = centeredPdfZoomAnchor();
