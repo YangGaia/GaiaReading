@@ -399,8 +399,14 @@ function createWindow() {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.webContents.send('window:focus-changed', !!focused);
   };
+  const sendFullscreenState = (enabled) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send('window:fullscreen-changed', !!enabled);
+  };
   mainWindow.on('focus', () => sendWindowFocusState(true));
   mainWindow.on('blur', () => sendWindowFocusState(false));
+  mainWindow.on('enter-full-screen', () => sendFullscreenState(true));
+  mainWindow.on('leave-full-screen', () => sendFullscreenState(false));
   mainWindow.on('move', scheduleDisplayFrequency);
   mainWindow.on('resize', scheduleDisplayFrequency);
   screen.on('display-metrics-changed', scheduleDisplayFrequency);
@@ -1698,6 +1704,12 @@ ipcMain.handle('display:frequency', (event) => displayFrequencyForWindow(Browser
 ipcMain.handle('window:is-focused', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   return !!(win && !win.isDestroyed() && win.isFocused());
+});
+ipcMain.handle('window:fullscreen:set', (event, enabled) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win !== mainWindow || win.isDestroyed()) throw new Error('无权更改此窗口的全屏状态');
+  win.setFullScreen(!!enabled);
+  return win.isFullScreen();
 });
 
 function setupMenu() {

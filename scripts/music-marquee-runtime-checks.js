@@ -24,6 +24,7 @@ module.exports = async ({ win, report, check, capture, click }) => {
   });
   moveAway();
   await until(() => !!__titleAnimation());
+  await evaluate(() => { __titleAnimation().currentTime = 0; });
   const initial = await evaluate(() => __marqueeMeasure());
   check('long title initially holds its first characters for one second', initial.currentTime < 1000 && initial.x === 0);
   await wait(1250);

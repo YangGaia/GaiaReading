@@ -74,6 +74,9 @@ let bookSearchTimer = 0;
 let epubWindowResizeTimer = 0;
 let readerLayoutSyncVersion = 0;
 let readerLayoutSyncPromise = Promise.resolve(false);
+let readerFullscreen = false;
+let readerFullscreenAnchor = null;
+let readerFullscreenHideTimer = 0;
 let bookImportFromHome = false;
 let bookImportReturnFocus = null;
 let bookImportPickerBusy = false;
@@ -288,6 +291,7 @@ function animateViewEntry(from, name) {
 
 function showView(name) {
   const previous = Object.keys(views).find((key) => !views[key].hidden);
+  if (name !== 'reader' && readerFullscreen) void setReaderFullscreen(false);
   if (name !== 'reader') stopHeldPageKey();
   if (name === 'reader') applyThemeClass();
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
@@ -1720,6 +1724,56 @@ function captureReaderLayoutAnchor() {
   return anchor;
 }
 
+function showReaderFullscreenChrome() {
+  if (!readerFullscreen || views.reader.hidden) return;
+  views.reader.classList.add('chrome-visible');
+  window.clearTimeout(readerFullscreenHideTimer);
+  readerFullscreenHideTimer = 0;
+}
+
+function scheduleReaderFullscreenChromeHide() {
+  window.clearTimeout(readerFullscreenHideTimer);
+  if (!readerFullscreen) return;
+  readerFullscreenHideTimer = window.setTimeout(() => {
+    readerFullscreenHideTimer = 0;
+    views.reader.classList.remove('chrome-visible');
+  }, 1800);
+}
+
+function syncReaderFullscreen(enabled) {
+  const next = !!enabled;
+  if (readerFullscreen === next) return;
+  readerFullscreen = next;
+  const active = next && !views.reader.hidden;
+  views.reader.classList.toggle('reader-fullscreen', active);
+  views.reader.classList.remove('chrome-visible');
+  const button = $('btn-reader-fullscreen');
+  button.setAttribute('aria-pressed', String(next));
+  button.setAttribute('aria-label', next ? '退出全屏阅读' : '进入全屏阅读');
+  button.title = next ? '退出全屏阅读（Esc 或 F11）' : '进入全屏阅读（F11）';
+  window.clearTimeout(readerFullscreenHideTimer);
+  readerFullscreenHideTimer = 0;
+  const anchor = readerFullscreenAnchor || captureReaderLayoutAnchor();
+  readerFullscreenAnchor = null;
+  if (active) scheduleReaderFullscreenChromeHide();
+  if (!views.reader.hidden && anchor) {
+    window.setTimeout(() => scheduleReaderLayoutRefresh(anchor, { force: true }), 160);
+  }
+}
+
+async function setReaderFullscreen(enabled) {
+  const next = !!enabled;
+  if (readerFullscreen === next) return;
+  if (next && (views.reader.hidden || !state.current)) return;
+  readerFullscreenAnchor = captureReaderLayoutAnchor();
+  try {
+    await window.api.setFullScreen(next);
+  } catch (error) {
+    readerFullscreenAnchor = null;
+    els.readerStatus.textContent = '全屏切换失败：' + aiErrorMessage(error);
+  }
+}
+
 async function refreshReaderLayout(anchor, options) {
   const c = state.current;
   if (!c || !anchor || c.path !== anchor.bookPath || c.format !== anchor.format) return false;
@@ -2196,12 +2250,19 @@ function isReaderTyping(target) {
 }
 
 function onReaderKey(ev) {
+  if (ev.key === 'F11' && !views.reader.hidden) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    void setReaderFullscreen(!readerFullscreen);
+    return;
+  }
   if (ev.key === 'Escape') {
     stopHeldPageKey();
     if (els.selectionToolbar && !els.selectionToolbar.hidden) { ev.preventDefault(); hideSelectionToolbar(); return; }
     if (els.bookSearchPanel && !els.bookSearchPanel.hidden) { ev.preventDefault(); closeBookSearch(); return; }
     if (isSettingsOpen()) { ev.preventDefault(); closeSettings(); return; }
     if (els.contextMenu && !els.contextMenu.hidden) { ev.preventDefault(); hideContextMenu(); return; }
+    if (readerFullscreen) { ev.preventDefault(); ev.stopPropagation(); void setReaderFullscreen(false); return; }
     if (!views.reader.hidden) { ev.preventDefault(); backToLibrary(); }
     return;
   }
@@ -5794,6 +5855,16 @@ function bindEvents() {
 
   bindReaderKeyboard(document);
   bindReaderWheel(els.readerContent);
+  $('btn-reader-fullscreen').addEventListener('click', () => setReaderFullscreen(!readerFullscreen));
+  views.reader.querySelectorAll(':scope > .reader-topbar, :scope > .statusbar').forEach((bar) => {
+    bar.addEventListener('pointerenter', showReaderFullscreenChrome);
+    bar.addEventListener('pointerleave', scheduleReaderFullscreenChromeHide);
+  });
+  document.addEventListener('pointermove', (event) => {
+    if (!readerFullscreen || views.reader.hidden) return;
+    if (event.clientY <= 64 || event.clientY >= window.innerHeight - 64) showReaderFullscreenChrome();
+  });
+  window.api.onFullScreenChanged(syncReaderFullscreen);
   window.addEventListener('resize', () => {
     const c = state.current;
     if (c && c.format === 'pdf') {

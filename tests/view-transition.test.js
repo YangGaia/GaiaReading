@@ -27,7 +27,8 @@ function harness(from = 'home', reducedMotion = false) {
     return [name, { hidden: name !== from, classList: { remove: (c) => classes.delete(c), add: (c) => classes.add(c), contains: (c) => classes.has(c) },
       content, querySelector(selector) { this.selector = selector; return content; } }];
   }));
-  const context = vm.createContext({ views, $: () => ({}), stopHeldPageKey() {},
+  const context = vm.createContext({ views, $: () => ({}), stopHeldPageKey() {}, readerFullscreen: false,
+    setReaderFullscreen() {},
     setTocMode() {}, TOC_MODES: { CLOSED: 'closed' }, clearFx() {}, renderReadingStats() {}, updateTocEdgeAvailability() {}, updatePetUI() {},
     applyThemeClass() { views.reader.themedWhileHidden = views.reader.hidden; },
     window: { matchMedia: () => ({ matches: reducedMotion }),

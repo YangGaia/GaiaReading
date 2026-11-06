@@ -116,6 +116,32 @@ module.exports = async ({ win, report, check, capture }) => {
   }
   assert.deepEqual(await evaluate(() => GaiaBgm.getState()), initialMusic, 'Full track cycle preserves playback and volume');
   for (let i = 0; i < BGM_TRACKS.length && (await evaluate(() => GaiaBgm.getState().trackId)) !== 'main-theme'; i++) await click('#bgm-capsule [data-action="next"]');
+
+  await click('#btn-reader-fullscreen');
+  await until(() => document.getElementById('reader-view').classList.contains('reader-fullscreen'));
+  check('fullscreen button enters native fullscreen reading', await evaluate(() =>
+    document.getElementById('btn-reader-fullscreen').getAttribute('aria-pressed') === 'true' &&
+    document.getElementById('reader-view').classList.contains('reader-fullscreen')));
+  await evaluate(() => document.activeElement.blur());
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: 550, y: Math.floor(win.getContentSize()[1] / 2) });
+  await wait(2050);
+  check('fullscreen toolbars hide after inactivity', await evaluate(() =>
+    !document.getElementById('reader-view').classList.contains('chrome-visible') &&
+    Number(getComputedStyle(document.querySelector('#reader-view > .reader-topbar')).opacity) === 0));
+  await evaluate(() => document.dispatchEvent(new PointerEvent('pointermove', { clientY: 30, bubbles: true })));
+  await until(() => document.getElementById('reader-view').classList.contains('chrome-visible'));
+  check('moving to the viewport edge reveals fullscreen toolbars', true);
+  await capture(win, 'reader-fullscreen');
+  await key('Escape');
+  await until(() => !document.getElementById('reader-view').classList.contains('reader-fullscreen'));
+  check('Escape exits fullscreen and restores the normal reader layout', await evaluate(() =>
+    document.getElementById('btn-reader-fullscreen').getAttribute('aria-pressed') === 'false'));
+  await key('F11');
+  await until(() => document.getElementById('reader-view').classList.contains('reader-fullscreen'));
+  await key('F11');
+  await until(() => !document.getElementById('reader-view').classList.contains('reader-fullscreen'));
+  check('F11 enters and exits fullscreen reading', true);
+
   await require('./music-marquee-runtime-checks')({ win, report, check, capture, click });
 
   let palette;

@@ -35,6 +35,12 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('display:frequency-changed', listener);
   },
   isWindowFocused: () => ipcRenderer.invoke('window:is-focused'),
+  setFullScreen: (enabled) => ipcRenderer.invoke('window:fullscreen:set', !!enabled),
+  onFullScreenChanged: (callback) => {
+    const listener = (_event, enabled) => callback(!!enabled);
+    ipcRenderer.on('window:fullscreen-changed', listener);
+    return () => ipcRenderer.removeListener('window:fullscreen-changed', listener);
+  },
   onWindowFocusChanged: (callback) => {
     const listener = (event, focused) => callback(!!focused);
     ipcRenderer.on('window:focus-changed', listener);
