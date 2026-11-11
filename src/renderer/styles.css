@@ -561,6 +561,7 @@ button { font-family: inherit; }
   overflow: auto;
 }
 #reader-view.reader-fullscreen #reader-content > .epub-container { flex: none; }
+#reader-view.reader-fullscreen #reader-content.epub-page-turn { overflow-x: hidden; }
 /* Prepare a chapter outside the viewport without changing the old scroll range. */
 #reader-content .epub-view.is-preparing { position: fixed !important; left: -100000px !important; top: 0 !important; visibility: hidden !important; pointer-events: none; }
 

@@ -400,6 +400,58 @@ module.exports = async ({ win, report, check, capture }) => {
   }
 
   const positionEpub = await makeEpubPositionFixture(report.userData);
+  const initialTheme = await evaluate(() => state.prefs.theme);
+  win.maximize();
+  await wait(400);
+  await evaluate(async book => {
+    await __gaiaDebug.openBook(book);
+    __gaiaDebug.setTheme('dark');
+    await setReaderFullscreen(true);
+  }, positionEpub);
+  await settleFullscreen(true);
+  check('maximized EPUB keeps a page that fills the fullscreen viewport width', await evaluate(() => {
+    const container = state.current.rendition.manager.container;
+    return container.offsetWidth === els.readerContent.clientWidth;
+  }));
+  for (const direction of ['next', 'prev']) {
+    const result = await evaluate(async direction => {
+      const host = els.readerContent;
+      const stage = state.current.rendition.manager.container;
+      const height = host.clientHeight;
+      const turn = direction === 'next' ? nextPage() : prevPage();
+      let animated = false;
+      let steadyHeight = true;
+      const end = performance.now() + 300;
+      while (performance.now() < end) {
+        await new Promise(requestAnimationFrame);
+        animated ||= getComputedStyle(stage).transform !== 'none';
+        steadyHeight &&= host.clientHeight === height;
+      }
+      return { moved: await turn, animated, steadyHeight, overflowX: getComputedStyle(host).overflowX };
+    }, direction);
+    check(`fullscreen EPUB ${direction}: animation plays without a bottom scrollbar`, result.moved && result.animated && result.steadyHeight);
+    check(`fullscreen EPUB ${direction}: normal overflow returns when the animation ends`, result.overflowX === 'auto');
+  }
+  await evaluate(async () => {
+    animatePage('next');
+    activePageAnimation.pause();
+    activePageAnimation.currentTime = 0;
+    await new Promise(requestAnimationFrame);
+  });
+  try {
+    await capture(win, 'reader-epub-fullscreen-turn');
+  } finally {
+    await evaluate(async theme => {
+      cancelPageTurns();
+      await setReaderFullscreen(false);
+      __gaiaDebug.setTheme(theme);
+    }, initialTheme);
+  }
+  await settleFullscreen(false);
+  win.unmaximize();
+  win.setContentSize(1100, 760);
+  await wait(400);
+
   for (const format of ['epub', 'pdf']) {
     const book = format === 'epub' ? positionEpub : { path: path.resolve(__dirname, '../tests/fixtures/sample.pdf'), title: 'PDF 阅读验证', format };
     await evaluate(book => __gaiaDebug.openBook(book), book);

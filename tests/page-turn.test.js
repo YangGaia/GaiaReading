@@ -27,7 +27,12 @@ function harness({ reducedMotion = false, frameRate = 120 } = {}) {
     animations.push(animation);
     return animation;
   } };
-  const reader = { querySelector: () => content };
+  const classes = new Set();
+  const reader = { querySelector: () => content, clientWidth: 1100, classList: {
+    toggle(name, enabled) { if (enabled) classes.add(name); else classes.delete(name); },
+    remove(name) { classes.delete(name); },
+    contains(name) { return classes.has(name); },
+  } };
   const errors = [];
   const state = { current: {} };
   const listeners = new Map();
@@ -114,6 +119,29 @@ test('快速独立按键逐次保留方向，不为动画积压任务', async ()
   await h.settled();
   assert.deepEqual(h.pages, ['next', 'next', 'prev', 'next', 'prev', 'next']);
   assert.equal(h.animations.length, 1);
+});
+
+test('EPUB 仅裁切可完整显示页面的翻页动画，结束或取消后恢复滚动', async () => {
+  const h = harness();
+  h.state.current.format = 'epub';
+  h.content.offsetWidth = h.reader.clientWidth;
+  await h.context.nextPage();
+  assert.equal(h.reader.classList.contains('epub-page-turn'), true);
+  h.animations[0].finish();
+  await tick();
+  assert.equal(h.reader.classList.contains('epub-page-turn'), false);
+
+  h.content.offsetWidth += 1;
+  await h.context.nextPage();
+  assert.equal(h.reader.classList.contains('epub-page-turn'), false);
+  h.animations[1].finish();
+  await tick();
+
+  h.content.offsetWidth = h.reader.clientWidth;
+  await h.context.prevPage();
+  assert.equal(h.reader.classList.contains('epub-page-turn'), true);
+  h.context.cancelPageTurns();
+  assert.equal(h.reader.classList.contains('epub-page-turn'), false);
 });
 
 test('PDF 或跨章替换内容节点时延续当前动画位置，不重新从头滑入', async () => {

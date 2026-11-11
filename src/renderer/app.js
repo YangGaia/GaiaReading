@@ -1232,6 +1232,7 @@ function cancelPageTurns() {
   pageTurnQueue = Promise.resolve();
   if (activePageAnimation) activePageAnimation.cancel();
   activePageAnimation = null;
+  els.readerContent.classList.remove('epub-page-turn');
 }
 
 function animatePage(direction) {
@@ -1252,7 +1253,15 @@ function animatePage(direction) {
   if (startedAt != null) animation.startTime = startedAt;
   animation.id = 'reader-page-turn';
   activePageAnimation = animation;
-  const clear = () => { if (activePageAnimation === animation) activePageAnimation = null; };
+  // A fitting EPUB page can extend past the fullscreen viewport during the slide.
+  // Keep real overflow scrollable when the page itself is wider than the viewport.
+  els.readerContent.classList.toggle('epub-page-turn',
+    state.current?.format === 'epub' && content.offsetWidth <= els.readerContent.clientWidth);
+  const clear = () => {
+    if (activePageAnimation !== animation) return;
+    activePageAnimation = null;
+    els.readerContent.classList.remove('epub-page-turn');
+  };
   animation.finished.then(clear, clear);
 }
 
