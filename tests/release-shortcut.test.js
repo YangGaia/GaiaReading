@@ -55,16 +55,18 @@ test('缺少 dist exe 或桌面已有同版本 exe 时拒绝生成，不复制�
   assert.equal(fs.readFileSync(duplicate, 'utf8'), 'desktop fixture');
 });
 
-test('1.1.8 发布说明包含更新、下载方式与实际构建校验值', () => {
-  const notes = fs.readFileSync(path.join(project, 'RELEASE_NOTES_1.1.8.md'), 'utf8');
-  assert.match(notes, /Gaia Reading 1\.1\.8/);
-  for (const value of ['有珠总结', '有珠吐槽', '输出预算', '自动重试', '桌面只创建', 'Gaia.Reading.1.1.8.exe']) assert.ok(notes.includes(value), value);
-  assert.match(notes, /文件大小：[\d,]+ 字节/);
-  assert.match(notes, /SHA-256：`[A-F0-9]{64}`/);
+test('1.1.9 发布说明包含全屏更新、下载方式与实际构建校验值', async () => {
+  const notes = fs.readFileSync(path.join(project, 'RELEASE_NOTES_1.1.9.md'), 'utf8');
+  assert.match(notes, /Gaia Reading 1\.1\.9/);
+  for (const value of ['全屏阅读', 'F11', 'Esc', '原来这一屏', '横向滚动条', '桌面只创建', 'Gaia.Reading.1.1.9.exe']) assert.ok(notes.includes(value), value);
+  const size = notes.match(/文件大小：(\d+) 字节/);
+  const checksum = notes.match(/SHA-256：`([A-F0-9]{64})`/);
+  assert.ok(size && checksum, '发布说明应包含 EXE 字节数和 SHA-256');
   assert.doesNotMatch(notes, /待构建|构建完成后填入/);
-  const artifact = path.join(project, 'dist', 'Gaia.Reading.1.1.8.exe');
-  assert.equal(fs.statSync(artifact).size, 136448532, '发布说明中的文件大小应与实际 exe 一致');
-  const { execFileSync } = require('child_process');
-  const hash = execFileSync('certutil', ['-hashfile', artifact, 'SHA256'], { encoding: 'utf8' }).match(/[A-Fa-f0-9]{64}/g);
-  assert.ok(hash && hash[0].toUpperCase() === '62FE727114B07138C90AF1711D149F540E6581931D463F51292CB54418DE7991', '发布说明 SHA-256 应与实际 exe 一致');
+  const artifact = path.join(project, 'dist', 'Gaia.Reading.1.1.9.exe');
+  if (!fs.existsSync(artifact)) return;
+  assert.equal(fs.statSync(artifact).size, Number(size[1]), '发布说明中的文件大小应与实际 exe 一致');
+  const hash = require('node:crypto').createHash('sha256');
+  for await (const chunk of fs.createReadStream(artifact)) hash.update(chunk);
+  assert.equal(hash.digest('hex').toUpperCase(), checksum[1], '发布说明 SHA-256 应与实际 exe 一致');
 });

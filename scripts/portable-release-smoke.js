@@ -12,6 +12,7 @@ const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const asar = require('@electron/asar');
 const { makeMobi7 } = require('../tests/fixtures/mobi-image-fixture');
+const makeEpubFixture = require('../tests/fixtures/epub-font-fixture');
 const project = path.join(__dirname, '..');
 const version = require('../package.json').version;
 const executable = path.resolve(process.argv[2] || path.join(project, 'dist', `Gaia.Reading.${version}.exe`));
@@ -198,6 +199,46 @@ const server = http.createServer((req, res) => {
   });
   check('Generated MOBI images decode in the actual portable reader', report.generatedBook.images > 0 && report.generatedBook.failures.length === 0);
   await turnChecks('mobi');
+
+  const epub = await makeEpubFixture(sandbox);
+  await evaluateMain('__releaseElectron.BrowserWindow.getAllWindows()[0].maximize()');
+  await wait(400);
+  await evaluate(async book => {
+    await __gaiaDebug.openBook(book);
+    await nextPage();
+    if (activePageAnimation) await activePageAnimation.finished;
+    const rendition = state.current.rendition;
+    window.portableEpubFrame = rendition.getContents()[0].window.frameElement;
+    window.portableEpubLocation = rendition.currentLocation();
+    window.portableEpubSize = [rendition.manager.container.offsetWidth, rendition.manager.container.offsetHeight];
+    await setReaderFullscreen(true);
+  }, epub);
+  await poll(() => evaluate(() => readerFullscreen));
+  check('Packaged EPUB keeps the same iframe, layout, and visible CFI range on fullscreen entry', await evaluate(() => {
+    const rendition = state.current.rendition;
+    const { container } = rendition.manager;
+    const location = rendition.currentLocation();
+    return container.contains(window.portableEpubFrame) &&
+      container.offsetWidth === window.portableEpubSize[0] && container.offsetHeight === window.portableEpubSize[1] &&
+      location.start.cfi === window.portableEpubLocation.start.cfi && location.end.cfi === window.portableEpubLocation.end.cfi;
+  }));
+  check('Packaged fullscreen EPUB turns a page without showing a bottom scrollbar', await evaluate(async () => {
+    const host = els.readerContent;
+    const container = state.current.rendition.manager.container;
+    const height = host.clientHeight;
+    if (host.clientWidth !== container.offsetWidth || height !== host.offsetHeight) return false;
+    const moved = await nextPage();
+    const animation = activePageAnimation;
+    if (!animation) return false;
+    let stable = true;
+    while (animation.playState === 'running') {
+      stable &&= host.clientHeight === height;
+      await new Promise(requestAnimationFrame);
+    }
+    return moved && stable && host.clientHeight === height;
+  }));
+  await evaluate(() => setReaderFullscreen(false));
+  await poll(() => evaluate(() => !readerFullscreen));
   report.passed = true;
   save('portable-check.json', report);
   save('portable-mobi-check.json', report);

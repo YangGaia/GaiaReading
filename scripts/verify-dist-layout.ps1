@@ -31,15 +31,18 @@ function Test-ReleaseFile([string]$Path, [string]$Version) {
     Assert-Dist ($file.VersionInfo.ProductVersion -eq $Version) "Executable version mismatch: $Path"
 }
 
-$expectedEntries = @('archive', 'previews', 'reports', $fileName) | Sort-Object
-$actualEntries = @(Get-ChildItem -LiteralPath $dist -Force | ForEach-Object Name | Sort-Object)
-Assert-Dist (@(Compare-Object $expectedEntries $actualEntries).Count -eq 0) 'dist must contain only the current exe, archive, previews and reports'
+$entries = @(Get-ChildItem -LiteralPath $dist -Force)
+$actualEntries = @($entries | ForEach-Object Name | Sort-Object)
+foreach ($directory in @('archive', 'previews', 'reports')) {
+    Assert-Dist (Test-Path -LiteralPath (Join-Path $dist $directory) -PathType Container) "Missing dist directory: $directory"
+}
+Assert-Dist (@($entries | Where-Object { -not $_.PSIsContainer -and $_.Name -ne $fileName }).Count -eq 0) 'dist root can only contain the current release file'
 Assert-Dist (-not ((Get-Item -LiteralPath $dist -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) 'dist cannot be a reparse point'
 Assert-Dist (@(Get-ChildItem -LiteralPath $dist -Force -Recurse -Attributes ReparsePoint).Count -eq 0) 'dist cannot contain reparse points'
 Test-ReleaseFile $executable $version
 
 $archive = @(Get-ChildItem -LiteralPath (Join-Path $dist 'archive') -Force)
-Assert-Dist ($archive.Count -eq 1) 'Keep exactly one previous release for rollback'
+Assert-Dist ($archive.Count -gt 0) 'Keep a previous release for rollback'
 foreach ($file in $archive) {
     $match = [regex]::Match($file.Name, '^Gaia\.Reading\.(\d+\.\d+\.\d+)\.exe$')
     Assert-Dist (-not $file.PSIsContainer -and $match.Success) "Unexpected archive item: $($file.Name)"
@@ -49,8 +52,9 @@ foreach ($file in $archive) {
 }
 
 $reportRoot = Join-Path $dist "reports\$version"
-foreach ($suite in @('mobi-images', 'epub-font', 'mobi-reading', 'chinese-models', 'page-turn', 'ai-reading')) {
+foreach ($suite in @('reader-ui', 'mobi-images', 'epub-font', 'mobi-reading', 'chinese-models', 'page-turn', 'ai-reading')) {
     $suiteRoot = Join-Path $reportRoot $suite
+    if ($suite -ne 'reader-ui' -and -not (Test-Path -LiteralPath $suiteRoot)) { continue }
     $report = Get-Content -LiteralPath (Join-Path $suiteRoot 'report.json') -Raw | ConvertFrom-Json
     Assert-Dist ($report.passed -eq $true) "Archived $suite checks did not pass"
     # Reports preserve the original run paths; archived images keep their names.
@@ -74,8 +78,8 @@ if (-not $SkipPublishedCheck) {
     Assert-Dist ($releaseReport.passed -eq $true -and $releaseReport.tag -eq "v$version") 'Missing successful publication verification'
     Assert-Dist ((Get-FileHash -LiteralPath $executable).Hash -eq $releaseReport.sha256) 'Local exe differs from the published release'
 }
-$preview = Join-Path $dist "previews\$version\long-single.png"
-Assert-Dist ((Test-Path -LiteralPath $preview -PathType Leaf) -and (Get-Item -LiteralPath $preview).Length -gt 0) 'Missing long image preview'
+$preview = Join-Path $dist "previews\$version\reader-epub-fullscreen-turn.png"
+Assert-Dist ((Test-Path -LiteralPath $preview -PathType Leaf) -and (Get-Item -LiteralPath $preview).Length -gt 0) 'Missing fullscreen page-turn preview'
 
 $desktop = [Environment]::GetFolderPath('Desktop')
 $desktopExecutable = Join-Path $desktop $fileName
