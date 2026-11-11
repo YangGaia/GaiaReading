@@ -122,24 +122,12 @@ module.exports = async ({ win, report, check, capture }) => {
 
   const readerPosition = () => evaluate(() => {
     const c = state.current;
-    if (c.format === 'epub') {
-      const location = c.rendition.currentLocation();
-      return { format: c.format, cfi: location && location.start ? location.start.cfi : '',
-        href: location && location.start ? location.start.href : '', page: location && location.start ? location.start.displayed.page : 0,
-        total: location && location.start ? location.start.displayed.total : 0 };
-    }
     if (c.format === 'pdf') return { format: c.format, page: c.page };
     return { format: c.format, chapter: c.flow ? c.flow.chapter : 0, anchor: sourcePaginatorAnchor(c) };
   });
   const preservesPosition = position => evaluate(position => {
     const c = state.current;
     if (!c || c.format !== position.format) return false;
-    if (c.format === 'epub') {
-      const location = c.rendition.currentLocation();
-      if (!location || !location.start || !location.end || location.start.href !== position.href) return false;
-      const cfi = new window.ePub.CFI();
-      return cfi.compare(location.start.cfi, position.cfi) <= 0 && cfi.compare(position.cfi, location.end.cfi) <= 0;
-    }
     if (c.format === 'pdf') return c.page === position.page;
     if ((c.flow ? c.flow.chapter : 0) !== position.chapter || !position.anchor) return false;
     const offset = window.GaiaReaderChinese.displayOffset(c.paginator.doc.body, position.anchor.off);
@@ -152,6 +140,38 @@ module.exports = async ({ win, report, check, capture }) => {
     await until(() => !readerFullscreenAnchor);
     await wait(500);
   };
+  const visibleEpubPage = () => evaluate(() => {
+    const { manager } = state.current.rendition;
+    const viewport = manager.container.getBoundingClientRect();
+    const lines = new Map();
+    for (const view of manager.views.displayed()) {
+      const frame = view.iframe.getBoundingClientRect();
+      const dx = frame.left - viewport.left;
+      const dy = frame.top - viewport.top;
+      const doc = view.contents.document;
+      const range = doc.createRange();
+      const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+      const visible = rect => rect.width > 0 && rect.height > 0 &&
+        rect.right + dx > 0 && rect.left + dx < viewport.width && rect.bottom + dy > 0 && rect.top + dy < viewport.height;
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.data.trim()) continue;
+        range.selectNodeContents(node);
+        if (!Array.from(range.getClientRects()).some(visible)) continue;
+        let offset = 0;
+        for (const character of node.data) {
+          range.setStart(node, offset);
+          offset += character.length;
+          range.setEnd(node, offset);
+          const rect = range.getBoundingClientRect();
+          if (!visible(rect)) continue;
+          const column = Math.floor((rect.left + dx) / manager.layout.pageWidth);
+          const key = `${column}:${Math.round(rect.top + dy)}`;
+          lines.set(key, (lines.get(key) || '') + character);
+        }
+      }
+    }
+    return { width: viewport.width, height: viewport.height, columns: manager.layout.divisor, lines: [...lines] };
+  });
 
   if (!process.argv.includes('--epub-only')) {
   const firstTxtPage = await evaluate(() => __gaiaDebug.getPaginatorPage());
@@ -354,7 +374,6 @@ module.exports = async ({ win, report, check, capture }) => {
     const paragraph = await currentEpubParagraph();
     check(`EPUB ${mode}: starts on a later page at a visible paragraph boundary`,
       /^page-[2-9]$/.test(paragraph) && await epubParagraphVisible(paragraph));
-    if (!spread) await capture(win, 'reader-epub-before-fullscreen');
     await click('#btn-reader-fullscreen');
     await settleFullscreen(true);
     await evaluate(() => document.activeElement.blur());
@@ -362,7 +381,6 @@ module.exports = async ({ win, report, check, capture }) => {
     win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.floor(width / 2), y: Math.floor(height / 2) });
     await until(() => Number(getComputedStyle(document.querySelector('#reader-view > .reader-topbar')).opacity) === 0);
     check(`EPUB ${mode}: entering fullscreen keeps ${paragraph} visible`, await epubParagraphVisible(paragraph));
-    if (!spread) await capture(win, 'reader-epub-fullscreen');
 
     await key('Escape');
     await settleFullscreen(false);
@@ -399,25 +417,61 @@ module.exports = async ({ win, report, check, capture }) => {
     win.setContentSize(1100, 760);
     await wait(400);
     if (format === 'epub') {
-      await evaluate(async () => { if (state.readMode === 'spread') await __gaiaDebug.toggleSpread(); });
-      await wait(300);
-      const initialCfi = await readerPosition();
-      await evaluate(async () => {
-        for (let page = 0; page < 5; page += 1) await state.current.rendition.next();
-      });
-      await wait(500);
-      const middleCfi = await readerPosition();
-      check('EPUB fullscreen fixture navigates beyond the chapter opening', middleCfi.cfi !== initialCfi.cfi);
+      for (const spread of [true, false]) {
+        const mode = spread ? 'spread' : 'single';
+        await evaluate(async spread => {
+          if ((state.readMode === 'spread') !== spread) await __gaiaDebug.toggleSpread();
+          await state.current.rendition.display(0);
+        }, spread);
+        await click('#btn-next-page');
+        await click('#btn-next-page');
+        const before = await visibleEpubPage();
+        check(`EPUB ${mode}: test page contains multiple lines of reflowable text`, before.lines.length > 8 && before.columns === (spread ? 2 : 1));
+        await evaluate(() => { window.fullscreenTestEpubFrame = state.current.rendition.getContents()[0].window.frameElement; });
+        await capture(win, `reader-epub-${mode}-windowed`);
+        await click('#btn-reader-fullscreen');
+        await settleFullscreen(true);
+        assert.deepEqual(await visibleEpubPage(), before, `EPUB ${mode}: fullscreen changes the visible lines or page geometry`);
+        check(`EPUB ${mode}: fullscreen preserves each visible line and the original iframe`, await evaluate(() => {
+          const container = state.current.rendition.manager.container;
+          const page = container.getBoundingClientRect();
+          const host = container.parentElement.getBoundingClientRect();
+          return container.contains(window.fullscreenTestEpubFrame) &&
+            Math.abs(page.left - host.left - Math.max(0, (host.width - page.width) / 2)) <= 1 &&
+            Math.abs(page.top - host.top - Math.max(0, (host.height - page.height) / 2)) <= 1;
+        }));
+        await evaluate(() => document.activeElement.blur());
+        const [width, height] = win.getContentSize();
+        win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.floor(width / 2), y: Math.floor(height / 2) });
+        await until(() => Number(getComputedStyle(document.querySelector('#reader-view > .reader-topbar')).opacity) === 0);
+        await capture(win, `reader-epub-${mode}-fullscreen`);
+
+        await key('Right');
+        const advanced = await visibleEpubPage();
+        check(`EPUB ${mode}: turns a page without changing the pagination size`,
+          advanced.width === before.width && advanced.height === before.height &&
+          advanced.columns === before.columns && JSON.stringify(advanced.lines) !== JSON.stringify(before.lines));
+        await key('Escape');
+        await settleFullscreen(false);
+        assert.deepEqual(await visibleEpubPage(), advanced, `EPUB ${mode}: leaving fullscreen changes the page reached in fullscreen`);
+        check(`EPUB ${mode}: leaving fullscreen preserves the page reached in fullscreen`, true);
+      }
+      const windowedWidth = (await visibleEpubPage()).width;
+      win.setContentSize(1040, 710);
+      await until(width => {
+        const container = state.current.rendition.manager.container;
+        return container.offsetWidth !== width && container.offsetWidth === container.parentElement.clientWidth;
+      }, windowedWidth);
+      check('EPUB adapts to a regular window resize after leaving fullscreen', true);
+    } else {
+      const positionBeforeFullscreen = await readerPosition();
+      await evaluate(() => setReaderFullscreen(true));
+      await settleFullscreen(true);
+      check('PDF: fullscreen entry keeps the current reading position', await preservesPosition(positionBeforeFullscreen));
+      await evaluate(() => setReaderFullscreen(false));
+      await settleFullscreen(false);
+      check('PDF: fullscreen exit keeps the current reading position', await preservesPosition(positionBeforeFullscreen));
     }
-    const positionBeforeFullscreen = await readerPosition();
-    await evaluate(() => setReaderFullscreen(true));
-    await settleFullscreen(true);
-    const entryPosition = await readerPosition();
-    check(`${format}: fullscreen entry keeps the current reading position ${JSON.stringify(positionBeforeFullscreen)} -> ${JSON.stringify(entryPosition)}`,
-      await preservesPosition(positionBeforeFullscreen));
-    await evaluate(() => setReaderFullscreen(false));
-    await settleFullscreen(false);
-    check(`${format}: fullscreen exit keeps the current reading position`, await preservesPosition(positionBeforeFullscreen));
     if (format === 'epub' || await evaluate(() => state.current.pages > 1)) {
       const position = () => evaluate(() => state.current.format === 'pdf' ? state.current.page : state.current.rendition.currentLocation().start.displayed.page);
       const before = await position();

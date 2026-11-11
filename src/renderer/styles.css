@@ -554,6 +554,13 @@ button { font-family: inherit; }
    Animation is driven by animatePage(), independently of keyboard/page loading. */
 #reader-content > :is(.paginator-frame, .epub-container, .pdf-spread) { opacity: 1; }
 #reader-content:has(> .paginator-frame), #reader-content:has(> .epub-container) { overflow: hidden; }
+#reader-view.reader-fullscreen #reader-content:has(> .epub-container) {
+  display: flex;
+  align-items: safe center;
+  justify-content: safe center;
+  overflow: auto;
+}
+#reader-view.reader-fullscreen #reader-content > .epub-container { flex: none; }
 /* Prepare a chapter outside the viewport without changing the old scroll range. */
 #reader-content .epub-view.is-preparing { position: fixed !important; left: -100000px !important; top: 0 !important; visibility: hidden !important; pointer-events: none; }
 

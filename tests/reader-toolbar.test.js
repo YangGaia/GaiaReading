@@ -46,11 +46,22 @@ test('阅读全屏提供 F11/Esc 控制、工具栏自动收放和锚点重排',
   assert.match(css, /#reader-view\.reader-fullscreen\.bottom-chrome-visible > \.statusbar/);
   assert.ok(app.includes("ev.key === 'F11'"), 'F11 应切换阅读全屏');
   assert.ok(app.includes("if (readerFullscreen) { ev.preventDefault(); ev.stopPropagation(); void setReaderFullscreen(false); return; }"), '全屏时 Esc 应先退出，而不是返回书架');
-  assert.ok(app.includes('scheduleReaderLayoutRefresh(anchor, { force: true, verifyEpubPosition: true })'), '全屏切换后应验证 EPUB 原阅读锚点可见');
+  assert.ok(app.includes('scheduleReaderLayoutRefresh(anchor, { force: true })'), '需要重排的阅读格式应恢复阅读锚点');
   assert.ok(preload.includes("ipcRenderer.invoke('window:fullscreen:set'"));
   assert.ok(preload.includes("ipcRenderer.on('window:fullscreen-changed'"));
   assert.ok(main.includes("ipcMain.handle('window:fullscreen:set'"));
   assert.ok(main.includes("win !== mainWindow"), '全屏 IPC 只能控制应用主窗口');
+});
+
+test('EPUB 全屏居中原版心，并仅在退出后需要适配窗口时重排', () => {
+  const app = read('app.js');
+  const css = read('styles.css');
+  const sync = app.slice(app.indexOf('function syncReaderFullscreen('), app.indexOf('async function setReaderFullscreen('));
+  const resize = app.slice(app.indexOf('function resizeEpubRendition('), app.indexOf('let pageTurnQueue'));
+  assert.match(sync, /if \(state\.current\?\.format === 'epub'\) \{\s*if \(!next\) resizeEpubRendition\(\);\s*return;/);
+  assert.match(resize, /readerFullscreen \|\| readerFullscreenRequest !== null/);
+  assert.match(resize, /stageSize\?\.width === size\.width && stageSize\.height === size\.height/);
+  assert.match(css, /#reader-view\.reader-fullscreen #reader-content:has\(> \.epub-container\) \{\s*display: flex;\s*align-items: safe center;\s*justify-content: safe center;/);
 });
 
 test('EPUB 使用应用管理的像素尺寸，避免 epub.js 与应用并发监听窗口 resize', () => {
