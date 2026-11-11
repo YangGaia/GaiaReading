@@ -872,7 +872,9 @@ function translateContentCfi(contents, cfi, toSource) {
   const offsets = rangeTextOffsets(fromRoot, range, true);
   if (!offsets) return cfi;
   const mapOffset = toSource ? window.GaiaReaderChinese.sourceOffset : window.GaiaReaderChinese.displayOffset;
-  const converted = window.GaiaReaderChinese.rangeAt(toRoot, mapOffset(liveRoot, offsets.start), mapOffset(liveRoot, offsets.end));
+  const converted = window.GaiaReaderChinese.rangeAt(
+    toRoot, mapOffset(liveRoot, offsets.start), mapOffset(liveRoot, offsets.end), range.collapsed && range.startOffset === 0
+  );
   return contents.cfiFromRange(converted);
 }
 
@@ -904,7 +906,10 @@ async function convertedEpubTarget(current, target) {
   const convertedDocument = section.document.cloneNode(true);
   const root = convertedDocument.body || convertedDocument.querySelector('body');
   window.GaiaReaderChinese.apply(root, current.chineseScript);
-  const range = window.GaiaReaderChinese.rangeAt(root, window.GaiaReaderChinese.displayOffset(root, offsets.start), window.GaiaReaderChinese.displayOffset(root, offsets.end));
+  const range = window.GaiaReaderChinese.rangeAt(
+    root, window.GaiaReaderChinese.displayOffset(root, offsets.start), window.GaiaReaderChinese.displayOffset(root, offsets.end),
+    originalRange.collapsed && originalRange.startOffset === 0
+  );
   return new window.ePub.CFI(range, section.cfiBase).toString();
 }
 
@@ -976,6 +981,11 @@ function closeReaderContent() {
   closeBookSearch({ reset: true, refresh: false });
   window.clearTimeout(epubWindowResizeTimer);
   epubWindowResizeTimer = 0;
+  window.clearTimeout(readerFullscreenRestoreTimer);
+  readerFullscreenRestoreTimer = 0;
+  readerFullscreenAnchor = null;
+  readerFullscreenOriginAnchor = null;
+  readerFullscreenEntryAnchor = null;
   readerLayoutSyncVersion += 1;
   setTocMode(TOC_MODES.CLOSED, { immediate: true });
   const c = state.current;
@@ -1107,46 +1117,36 @@ async function openEpub(book) {
   });
   rendition.on('selected', (cfiRange, contents) => captureEpubSelection(cfiRange, contents));
 
+  if (state.readMode === 'spread') {
+    await rendition.started;
+    if (state.current !== current) return;
+    // Resolve the saved CFI against the same columns that will be displayed.
+    rendition.spread('auto', 700);
+  }
   applyEpubTypography();
   const saved = state.progress[book.path];
   state.current.displayPercent = saved && saved.percent != null ? saved.percent : 0;
   state.current.locationsDone = false;
   updateProgress(state.current.displayPercent, '进度 ' + state.current.displayPercent.toFixed(2) + '%');
   await displayEpubPosition(state.current, saved && saved.loc ? saved.loc : undefined);
+  if (state.current !== current) return;
   restoreEpubAnnotations();
   bindEpubWheel();
-  if (state.readMode === 'spread') {
-    try { rendition.spread('auto', 700); } catch (e) {}
-  }
 
   rendition.on('relocated', (location) => {
+    if (state.current !== current) return;
     hideSelectionToolbar();
-    const cfi = sourceEpubCfi(state.current, location.start.cfi);
-    const items = state.current.epub && state.current.epub.spine ? state.current.epub.spine.spineItems : [];
-    const locs = state.current.epub && state.current.epub.locations;
-    const locTotal = locs && locs.total ? locs.total : 0;
-    const percent = epubDisplayPercent(location, items, locTotal);
-    state.current.displayPercent = percent;
-    updateProgress(percent, '进度 ' + percent.toFixed(2) + '%');
-    saveProgress(book.path, { loc: cfi, percent });
-    window.setTimeout(observeAiChapter, 0);
+    if (updateEpubReadingProgress(current, location)) window.setTimeout(observeAiChapter, 0);
   });
   window.setTimeout(observeAiChapter, 0);
 
   const locationsReady = epub.locations
     .generate(1600)
     .then(() => {
-      state.current.locationsDone = true;
+      if (state.current !== current) return false;
+      current.locationsDone = true;
       try {
-        const loc = rendition.currentLocation();
-        const items = state.current.epub && state.current.epub.spine ? state.current.epub.spine.spineItems : [];
-        const locTotal = epub.locations.total || 0;
-        if (loc && loc.start) {
-          const percent = epubDisplayPercent(loc, items, locTotal);
-          state.current.displayPercent = percent;
-          updateProgress(percent, '进度 ' + percent.toFixed(2) + '%');
-          saveProgress(book.path, { loc: loc.start.cfi, percent });
-        }
+        updateEpubReadingProgress(current, rendition.currentLocation());
       } catch (e) {
         // 位置刷新失败不阻塞
       }
@@ -1193,12 +1193,23 @@ async function openEpub(book) {
   if (!els.tocPanel.children.length) els.tocPanel.textContent = '（本书没有目录）';
 }
 
+function updateEpubReadingProgress(current, location) {
+  if (!location?.start || readerFullscreenAnchor?.bookPath === current.path) return false;
+  const loc = sourceEpubCfi(current, location.start.cfi);
+  const percent = epubDisplayPercent(location, current.epub.spine.spineItems, current.epub.locations.total || 0);
+  current.displayPercent = percent;
+  updateProgress(percent, '进度 ' + percent.toFixed(2) + '%');
+  saveProgress(current.path, { loc, percent });
+  return true;
+}
+
 function resizeEpubRendition() {
   const c = state.current;
   if (!c || c.format !== 'epub' || !c.rendition) return;
   window.clearTimeout(epubWindowResizeTimer);
   epubWindowResizeTimer = window.setTimeout(() => {
     epubWindowResizeTimer = 0;
+    if (state.current !== c || readerFullscreenAnchor) return;
     const anchor = captureReaderLayoutAnchor();
     if (anchor) scheduleReaderLayoutRefresh(anchor, { force: true });
   }, 120);
@@ -1712,7 +1723,7 @@ function readerViewportSize() {
   };
 }
 
-function captureReaderLayoutAnchor() {
+function captureReaderLayoutAnchor(useRenderedEpubCfi = false) {
   const c = state.current;
   if (!c) return null;
   const size = readerViewportSize();
@@ -1720,7 +1731,8 @@ function captureReaderLayoutAnchor() {
   if (c.format === 'epub' && c.rendition) {
     try {
       const location = c.rendition.currentLocation();
-      anchor.cfi = location && location.start ? sourceEpubCfi(c, location.start.cfi) : '';
+      const cfi = location?.start?.cfi || c.rendition.location?.start?.cfi || '';
+      anchor.cfi = useRenderedEpubCfi ? cfi : sourceEpubCfi(c, cfi);
     } catch (error) {}
   } else if (c.format === 'pdf') {
     anchor.page = c.page;
@@ -1731,6 +1743,13 @@ function captureReaderLayoutAnchor() {
       anchor.text = sourcePaginatorAnchor(c);
   }
   return anchor;
+}
+
+function captureReaderFullscreenAnchor() {
+  const current = state.current;
+  // Search marks split text nodes. Capture the CFI against the same text nodes as the new iframe.
+  if (current?.rendition && current.bookSearchActiveResult) clearBookSearchHighlights();
+  return captureReaderLayoutAnchor(true);
 }
 
 function showReaderFullscreenBar(edge) {
@@ -1769,14 +1788,24 @@ function scheduleReaderFullscreenRestore(anchor) {
   readerFullscreenRestoreTimer = window.setTimeout(() => {
     readerFullscreenRestoreTimer = 0;
     if (readerFullscreenAnchor !== anchor || views.reader.hidden) return;
-    scheduleReaderLayoutRefresh(anchor, { force: true }).then(() => {
+    scheduleReaderLayoutRefresh(anchor, { force: true, verifyEpubPosition: true }).then(restored => {
       if (readerFullscreenAnchor !== anchor) return;
       readerFullscreenAnchor = null;
-      if (readerFullscreen) readerFullscreenEntryAnchor = captureReaderLayoutAnchor();
+      const current = state.current;
+      if (current?.path === anchor.bookPath && current.rendition && anchor.cfi) {
+        if (restored) {
+          updateEpubReadingProgress(current, current.rendition.currentLocation());
+          window.setTimeout(observeAiChapter, 0);
+        } else {
+          els.readerStatus.textContent = '全屏切换后未能恢复 EPUB 阅读位置';
+        }
+      }
+      if (readerFullscreen) readerFullscreenEntryAnchor = restored ? captureReaderFullscreenAnchor() : null;
       else {
         readerFullscreenOriginAnchor = null;
         readerFullscreenEntryAnchor = null;
       }
+      if (current?.rendition) restoreBookSearchHighlight();
     });
   }, 220);
 }
@@ -1807,7 +1836,8 @@ function syncReaderFullscreen(enabled) {
   window.clearTimeout(readerFullscreenBottomHideTimer);
   readerFullscreenTopHideTimer = 0;
   readerFullscreenBottomHideTimer = 0;
-  const anchor = readerFullscreenAnchor || captureReaderLayoutAnchor();
+  if (views.reader.hidden) return;
+  const anchor = readerFullscreenAnchor ||= captureReaderFullscreenAnchor();
   if (active) {
     if (!readerFullscreenOriginAnchor) readerFullscreenOriginAnchor = anchor;
     scheduleReaderFullscreenRestore(anchor);
@@ -1819,7 +1849,9 @@ async function setReaderFullscreen(enabled) {
   const next = !!enabled;
   if (readerFullscreen === next) return;
   if (next && (views.reader.hidden || !state.current)) return;
-  const currentAnchor = captureReaderLayoutAnchor();
+  window.clearTimeout(epubWindowResizeTimer);
+  epubWindowResizeTimer = 0;
+  const currentAnchor = captureReaderFullscreenAnchor();
   readerFullscreenAnchor = !next && sameReaderLayoutPosition(currentAnchor, readerFullscreenEntryAnchor)
     ? readerFullscreenOriginAnchor
     : currentAnchor;
@@ -1835,8 +1867,15 @@ async function setReaderFullscreen(enabled) {
     readerFullscreenAnchor = null;
     readerFullscreenOriginAnchor = null;
     readerFullscreenEntryAnchor = null;
+    if (state.current?.rendition) restoreBookSearchHighlight();
     els.readerStatus.textContent = '全屏切换失败：' + aiErrorMessage(error);
   }
+}
+
+function epubLocationContainsCfi(location, target) {
+  if (!location?.start?.cfi || !location?.end?.cfi) return false;
+  const cfi = new window.ePub.CFI();
+  return cfi.compare(location.start.cfi, target) <= 0 && cfi.compare(target, location.end.cfi) <= 0;
 }
 
 async function refreshReaderLayout(anchor, options) {
@@ -1847,19 +1886,21 @@ async function refreshReaderLayout(anchor, options) {
   if (!size.width || !size.height) return false;
   if (!opts.force && size.width === anchor.width && size.height === anchor.height) return true;
   if (c.format === 'epub' && c.rendition) {
-    const target = await convertedEpubTarget(c, anchor.cfi);
+    const target = opts.verifyEpubPosition ? anchor.cfi : await convertedEpubTarget(c, anchor.cfi);
     if (state.current !== c) return false;
     const stageSize = c.rendition.manager && c.rendition.manager._stageSize;
     const willResize = !stageSize || stageSize.width !== size.width || stageSize.height !== size.height;
     let resizeSettled;
-    if (willResize && target) {
+    if (willResize && target && c.rendition.location?.start) {
       resizeSettled = new Promise((resolve, reject) => {
         const cleanup = () => {
+          window.clearTimeout(timeout);
           c.rendition.off('relocated', onRelocated);
           c.rendition.off('displayError', onDisplayError);
         };
         const onRelocated = (location) => { cleanup(); resolve(location); };
         const onDisplayError = (error) => { cleanup(); reject(error); };
+        const timeout = window.setTimeout(() => onDisplayError(new Error('EPUB resize did not report a location')), 5000);
         c.rendition.once('relocated', onRelocated);
         c.rendition.once('displayError', onDisplayError);
       });
@@ -1869,6 +1910,13 @@ async function refreshReaderLayout(anchor, options) {
     if (target) {
       if (resizeSettled) await resizeSettled;
       else await c.rendition.display(target);
+      if (opts.verifyEpubPosition) {
+        if (state.current !== c || readerFullscreenAnchor !== anchor) return false;
+        if (epubLocationContainsCfi(c.rendition.currentLocation(), target)) return true;
+        // A relocation may be reported before content styles and images settle.
+        await c.rendition.display(target);
+        return state.current === c && epubLocationContainsCfi(c.rendition.currentLocation(), target);
+      }
     }
     return true;
   }
@@ -3178,6 +3226,7 @@ function restoreBookSearchHighlight() {
   if (!c || !result || els.bookSearchPanel.hidden) return false;
   let root = null;
   if (c.format === 'epub' && c.rendition) {
+    if (readerFullscreenAnchor?.bookPath === c.path) return false;
     let contents = [];
     try { contents = c.rendition.getContents(); } catch (error) {}
     const wanted = Number(result.locator && result.locator.section);

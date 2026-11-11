@@ -89,13 +89,15 @@
     return record ? record.originalDocument.body || record.originalDocument.querySelector('body') : root;
   }
 
-  function rangeAt(root, start, end = start) {
+  function rangeAt(root, start, end = start, preferNextTextNode = false) {
     const nodes = nodesIn(root);
     const range = root.ownerDocument.createRange();
     const locate = offset => {
       let remaining = Math.max(0, offset);
       for (const node of nodes) {
-        if (remaining <= node.nodeValue.length) return { node, offset: remaining };
+        if (remaining < node.nodeValue.length || (!preferNextTextNode && remaining === node.nodeValue.length)) {
+          return { node, offset: remaining };
+        }
         remaining -= node.nodeValue.length;
       }
       const node = nodes[nodes.length - 1];

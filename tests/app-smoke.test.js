@@ -125,10 +125,10 @@ test('侧栏尺寸变化统一刷新全部阅读格式并保留阅读锚点', ()
   const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.js'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
   assert.ok(css.includes('#reader-content { min-width: 0; min-height: 0;'), '阅读区必须允许在侧栏出现后正确收缩');
-  assert.ok(app.includes('function captureReaderLayoutAnchor()') && app.includes('function scheduleReaderLayoutRefresh(anchor, options)'), '侧栏变化必须统一捕获并恢复阅读位置');
+  assert.ok(app.includes('function captureReaderLayoutAnchor(') && app.includes('function scheduleReaderLayoutRefresh(anchor, options)'), '侧栏变化必须统一捕获并恢复阅读位置');
   assert.ok(app.includes('epubWindowResizeTimer') && app.includes('scheduleReaderLayoutRefresh(anchor, { force: true })'), 'EPUB 窗口尺寸变化必须在尺寸稳定后按实际阅读区强制重排');
   assert.ok(app.includes("c && c.format === 'epub' ? Math.floor(bounds.width"), 'EPUB 重排必须使用不受旧画布滚动条影响的阅读区宽度');
-  assert.ok(app.includes('convertedEpubTarget(c, anchor.cfi)') && app.includes('c.rendition.resize(size.width, size.height, target'), 'EPUB 必须将原文 CFI 转换为显示位置后按实际阅读区尺寸重排');
+  assert.ok(app.includes('opts.verifyEpubPosition ? anchor.cfi : await convertedEpubTarget(c, anchor.cfi)') && app.includes('c.rendition.resize(size.width, size.height, target'), '侧栏重排使用原文 CFI，全屏重排使用渲染器 CFI');
   assert.ok(app.includes("c.format === 'pdf' && c.pdf") && app.includes('renderPdfPage({ anchor: pdfAnchor })'), 'PDF 必须随阅读区尺寸重新渲染并保持相对视口锚点');
   assert.ok(app.includes('c.paginator.reflow()') && app.includes('c.paginator.locate(window.GaiaReaderChinese.displayOffset(c.paginator.doc.body, textOffset))'), 'TXT、MOBI、AZW3 必须重排并恢复原文对应的显示偏移');
   assert.ok(app.includes('await waitForReaderLayoutRefresh()'), '搜索结果跳转必须等待侧栏布局稳定');

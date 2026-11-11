@@ -46,7 +46,7 @@ test('阅读全屏提供 F11/Esc 控制、工具栏自动收放和锚点重排',
   assert.match(css, /#reader-view\.reader-fullscreen\.bottom-chrome-visible > \.statusbar/);
   assert.ok(app.includes("ev.key === 'F11'"), 'F11 应切换阅读全屏');
   assert.ok(app.includes("if (readerFullscreen) { ev.preventDefault(); ev.stopPropagation(); void setReaderFullscreen(false); return; }"), '全屏时 Esc 应先退出，而不是返回书架');
-  assert.ok(app.includes('scheduleReaderLayoutRefresh(anchor, { force: true })'), '全屏切换后应按原阅读锚点重排');
+  assert.ok(app.includes('scheduleReaderLayoutRefresh(anchor, { force: true, verifyEpubPosition: true })'), '全屏切换后应验证 EPUB 原阅读锚点可见');
   assert.ok(preload.includes("ipcRenderer.invoke('window:fullscreen:set'"));
   assert.ok(preload.includes("ipcRenderer.on('window:fullscreen-changed'"));
   assert.ok(main.includes("ipcMain.handle('window:fullscreen:set'"));
