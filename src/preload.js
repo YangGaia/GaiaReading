@@ -5,6 +5,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   openFiles: () => ipcRenderer.invoke('dialog:openFiles'),
   openFolder: () => ipcRenderer.invoke('dialog:openFolder'),
+  missingBookFiles: (paths) => ipcRenderer.invoke('library:missing-files', paths),
+  relocateBook: (oldPath) => ipcRenderer.invoke('library:relocate-book', oldPath),
   readBook: (filePath) => ipcRenderer.invoke('book:read', filePath),
   metadata: (filePath) => ipcRenderer.invoke('book:metadata', filePath),
   cancelBookImport: () => ipcRenderer.invoke('book:metadata:cancel'),
@@ -27,7 +29,6 @@ contextBridge.exposeInMainWorld('api', {
   aiAliceComment: (payload) => ipcRenderer.invoke('ai:alice-comment', payload),
   dictionaryOpen: (query) => ipcRenderer.invoke('dictionary:open', query),
   searchWeb: (query, options) => ipcRenderer.invoke('selection:search', { query, ...(options || {}) }),
-  exists: (filePath) => ipcRenderer.invoke('file:exists', filePath),
   displayFrequency: () => ipcRenderer.invoke('display:frequency'),
   onDisplayFrequencyChanged: (callback) => {
     const listener = (event, frequency) => callback(frequency);

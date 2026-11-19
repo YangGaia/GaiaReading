@@ -103,7 +103,7 @@ class ImportQueue {
           // UtilityProcess.kill() can return false before spawn; cancellation must
           // also terminate that late-starting process so the queue can advance.
           if (settled) child.kill();
-          else child.postMessage({ filePath: job.filePath, directory });
+          else child.postMessage({ filePath: job.filePath, directory, deadline: started + this.timeoutMs });
         }
         catch (error) { job.finish(error); }
       });

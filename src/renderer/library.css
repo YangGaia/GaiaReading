@@ -73,7 +73,13 @@
 #library-view .book-title { margin: 14px 0 3px; min-height: 40px; font: 500 13px/20px var(--paper-font); letter-spacing: .025em; color: #e7edf7; }
 #library-view .book-card:hover .book-title { color: #fff; }
 #library-view .book-author { min-height: 18px; color: #acb7c9; font: 400 11px/18px var(--paper-font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#library-view .book-format { margin-top: 7px; color: #a1aec2; font: 400 9px/1.5 var(--paper-font); letter-spacing: .08em; text-transform: uppercase; }
+#library-view .book-meta { display: flex; align-items: baseline; gap: 9px; margin-top: 7px; }
+#library-view .book-format { margin-top: 0; color: #a1aec2; font: 400 9px/1.5 var(--paper-font); letter-spacing: .08em; text-transform: uppercase; }
+#library-view .book-availability { position: absolute; z-index: 1; top: 10px; left: 10px; max-width: calc(100% - 20px); padding: 3px 7px; border: 1px solid #897247; border-radius: 4px; background: #261e17; color: #f0d7a9; font: 400 11px/1.45 var(--paper-font); }
+#library-view .book-missing .book-cover { opacity: .72; }
+#library-view .book-missing .book-open-mark { display: none; }
+#library-view .book-relocate-label { color: #c4d4ed; font: 500 11px/1.5 var(--paper-font); text-decoration: underline; text-underline-offset: 3px; }
+#library-view .book-availability[hidden], #library-view .book-relocate-label[hidden] { display: none; }
 #library-view .book-progress { margin-top: 8px; min-height: 18px; gap: 9px; }
 #library-view .book-progress-track { height: 2px; background: #3f4b5e; }
 #library-view .book-progress-fill { background: #a6bad9; }

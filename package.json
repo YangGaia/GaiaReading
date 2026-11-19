@@ -17,6 +17,7 @@
     "smoke:ui": "electron scripts/non-reading-smoke.js",
     "smoke:reader-ui": "electron scripts/non-reading-smoke.js --reader-toolbar",
     "smoke:import": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import-smoke.ps1",
+    "smoke:book-relocation": "electron scripts/book-relocation-smoke.js",
     "smoke:chinese-models": "electron scripts/chinese-models-smoke.js",
     "smoke:epub-image": "electron scripts/epub-image-smoke.js",
     "smoke:ai-reading": "electron scripts/ai-reading-smoke.js",

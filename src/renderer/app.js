@@ -85,6 +85,10 @@ let readerFullscreenBottomHideTimer = 0;
 let bookImportFromHome = false;
 let bookImportReturnFocus = null;
 let bookImportPickerBusy = false;
+let bookActivationPending = false;
+let bookRelocationBusy = false;
+let bookAvailabilityCheck = 0;
+let missingBookPaths = new Set();
 
 const FONTS = {
   default: '',
@@ -307,6 +311,7 @@ function showView(name) {
   fxCanvas.hidden = !(name === 'home' || name === 'library');
   if (name !== 'home' && name !== 'library') clearFx();
   if (name === 'stats') renderReadingStats();
+  if (name === 'library') void refreshBookAvailability();
   if (window.GaiaBgm && window.GaiaBgm.positionBgm) window.GaiaBgm.positionBgm(name);
   animateViewEntry(previous, name);
   updateTocEdgeAvailability();
@@ -401,14 +406,7 @@ async function init() {
   window.GaiaBgm.initBgm();
   window.GaiaBgm.positionBgm('home');
 
-  const alive = [];
-  for (const book of state.library) {
-    if (await window.api.exists(book.path)) alive.push(book);
-  }
-  if (alive.length !== state.library.length) {
-    state.library = alive;
-    await saveLibrary();
-  }
+  await refreshBookAvailability();
   renderLibrary();
   bindEvents();
   initReadingStatsTracker();
@@ -424,6 +422,27 @@ function sortLibrary() {
   });
 }
 
+function updateBookCardAvailability(card) {
+  const missing = missingBookPaths.has(card.dataset.path);
+  const title = card.querySelector('.book-title').textContent;
+  card.classList.toggle('book-missing', missing);
+  card.querySelector('.book-availability').hidden = !missing;
+  card.querySelector('.book-relocate-label').hidden = !missing || state.manageMode;
+  card.setAttribute('aria-label', missing ? title + '，文件暂不可用' + (state.manageMode ? '' : '，重新定位') : title);
+}
+
+async function refreshBookAvailability() {
+  const check = ++bookAvailabilityCheck;
+  try {
+    const missing = await window.api.missingBookFiles(state.library.map((book) => book.path));
+    if (check !== bookAvailabilityCheck) return;
+    missingBookPaths = new Set(missing);
+    for (const card of els.bookshelf.querySelectorAll('.book-card')) updateBookCardAvailability(card);
+  } catch (error) {
+    console.warn('无法检查书籍文件位置', error);
+  }
+}
+
 function renderLibrary() {
   els.bookshelf.innerHTML = '';
   els.hint.hidden = state.library.length > 0;
@@ -435,7 +454,6 @@ function renderLibrary() {
     card.title = book.path;
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
-    card.setAttribute('aria-label', book.title || '(未命名)');
     if (state.manageMode) card.setAttribute('aria-pressed', String(state.selected.has(book.path)));
 
     const check = document.createElement('div');
@@ -475,6 +493,11 @@ function renderLibrary() {
     openMark.textContent = '↗';
     jacket.appendChild(openMark);
 
+    const availability = document.createElement('span');
+    availability.className = 'book-availability';
+    availability.textContent = '文件暂不可用';
+    jacket.appendChild(availability);
+
     const title = document.createElement('div');
     title.className = 'book-title';
     title.textContent = book.title || '(未命名)';
@@ -485,10 +508,17 @@ function renderLibrary() {
     author.textContent = book.author || '未知作者';
     card.appendChild(author);
 
+    const meta = document.createElement('div');
+    meta.className = 'book-meta';
     const badge = document.createElement('span');
     badge.className = 'book-format';
     badge.textContent = book.format;
-    card.appendChild(badge);
+
+    const relocateLabel = document.createElement('span');
+    relocateLabel.className = 'book-relocate-label';
+    relocateLabel.textContent = '重新定位';
+    meta.append(badge, relocateLabel);
+    card.appendChild(meta);
 
     const prog = state.progress[book.path];
     if (prog && (prog.percent != null || prog.page)) {
@@ -509,9 +539,11 @@ function renderLibrary() {
       card.appendChild(prow);
     }
 
+    updateBookCardAvailability(card);
     card.addEventListener('click', () => {
+      if (bookRelocationBusy) return;
       if (state.manageMode) toggleSelect(book.path);
-      else openBook(book);
+      else void activateShelfBook(book, card);
     });
     card.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -519,6 +551,72 @@ function renderLibrary() {
       if (!event.repeat) card.click();
     });
     els.bookshelf.appendChild(card);
+  }
+}
+
+function setShelfStatus(message, isError = false) {
+  els.importStatus.classList.toggle('error', isError);
+  els.importStatus.textContent = message;
+  els.importStatus.title = message;
+}
+
+async function activateShelfBook(book, card) {
+  if (bookActivationPending) return;
+  bookActivationPending = true;
+  try {
+    const [missing] = await window.api.missingBookFiles([book.path]);
+    if (views.library.hidden || !state.library.includes(book)) return;
+    if (!missing) {
+      missingBookPaths.delete(book.path);
+      return openBook(book);
+    }
+    missingBookPaths.add(book.path);
+    if (card) updateBookCardAvailability(card);
+    if (bookImporter.busy || bookImportPickerBusy) return;
+
+    bookRelocationBusy = true;
+    setBookImportBusy(true);
+    setShelfStatus('正在重新定位《' + (book.title || '未命名') + '》…');
+    const result = await window.api.relocateBook(book.path);
+    if (result.status === 'error') {
+      setShelfStatus(result.message, true);
+      return;
+    }
+    if (result.status === 'cancelled') {
+      setShelfStatus('');
+      return;
+    }
+    missingBookPaths.delete(book.path);
+    if (result.status === 'available') {
+      setShelfStatus('');
+      if (card) updateBookCardAvailability(card);
+      if (!views.library.hidden) return openBook(book);
+      return;
+    }
+
+    Object.assign(state, result.updated);
+    if (result.updated.readingStats) state.readingStats = createReadingStats(result.updated.readingStats);
+    delete lastProgressSave[book.path];
+    const oldPrefix = book.path + '|';
+    for (const key of Object.keys(state.aiChats)) {
+      if (!key.startsWith(oldPrefix)) continue;
+      state.aiChats[result.book.path + key.slice(book.path.length)] = state.aiChats[key];
+      delete state.aiChats[key];
+    }
+    renderLibrary();
+    if (!views.stats.hidden) renderReadingStats();
+    setShelfStatus('已重新定位，原有阅读记录已保留。');
+    if (!views.library.hidden) return openBook(result.book);
+  } catch (error) {
+    setShelfStatus('无法检查或更新书籍位置，请重试。', true);
+    console.error(error);
+  } finally {
+    bookActivationPending = false;
+    if (bookRelocationBusy) {
+      bookRelocationBusy = false;
+      setBookImportBusy(false);
+      if (!views.library.hidden && card?.isConnected) card.focus();
+    }
   }
 }
 
@@ -558,7 +656,7 @@ function setBookImportBusy(busy, cancellable = false) {
 }
 
 async function importPaths(paths) {
-  if (bookImporter.busy) return { added: 0, recovered: 0, skipped: 0, failures: [], busy: true };
+  if (bookImporter.busy || bookRelocationBusy) return { added: 0, recovered: 0, skipped: 0, failures: [], busy: true };
   setBookImportBusy(true, true);
   els.importStatus.classList.remove('error');
   let result;
@@ -585,7 +683,7 @@ async function importPaths(paths) {
 }
 
 function openBookImportChooser(fromHome) {
-  if (bookImportPickerBusy || bookImporter.busy) return;
+  if (bookImportPickerBusy || bookImporter.busy || bookRelocationBusy) return;
   bookImportFromHome = !!fromHome;
   bookImportReturnFocus = document.activeElement;
   els.bookImportOverlay.hidden = false;
@@ -603,7 +701,7 @@ function closeBookImportChooser(options) {
 }
 
 async function chooseBookImportSource(source) {
-  if (bookImportPickerBusy || bookImporter.busy) return null;
+  if (bookImportPickerBusy || bookImporter.busy || bookRelocationBusy) return null;
   bookImportPickerBusy = true;
   setBookImportBusy(true);
   try {
@@ -641,6 +739,7 @@ function removeAiChatsForPaths(paths) {
 }
 
 async function removeFromShelf(book, silent) {
+  if (bookRelocationBusy) return false;
   if (!silent && !window.confirm('确定从书架移除《' + (book.title || book.path) + '》吗？\n只从书架移除，不会删除电脑上的原文件。')) {
     return false;
   }
@@ -702,6 +801,7 @@ function updateManageUI() {
 }
 
 async function batchRemoveSelected(silent) {
+  if (bookRelocationBusy) return false;
   const paths = Array.from(state.selected);
   if (!paths.length) return false;
   const names = paths
@@ -732,6 +832,7 @@ async function batchRemoveSelected(silent) {
 
 function showContextMenu(x, y, book) {
   state.ctxBook = book;
+  $('ctx-open').textContent = missingBookPaths.has(book.path) ? '重新定位' : '打开';
   const menu = els.contextMenu;
   menu.style.left = Math.max(4, Math.min(x, window.innerWidth - 160)) + 'px';
   menu.style.top = Math.max(4, Math.min(y, window.innerHeight - 90)) + 'px';
@@ -2178,37 +2279,39 @@ function renderMobiToc() {
 
 
 async function openTxt(book) {
+  const current = state.current;
+  const saved = state.progress[book.path];
   const res = await window.api.readBook(book.path);
-  state.current.flow = new window.GaiaFlow({ totalChapters: 1 });
-  state.current.paginator = new window.GaiaPaginator(els.readerContent, { pageWidth: 640, gap: currentSpreadGap() });
-  state.current.paginator.onChange = () => {
-    if (state.current && state.current.flow && state.current.paginator) {
-      state.current.flow.page = state.current.paginator.currentPage;
-    }
+  if (state.current !== current) return;
+  current.flow = new window.GaiaFlow({ totalChapters: 1 });
+  current.paginator = new window.GaiaPaginator(els.readerContent, { pageWidth: 640, gap: currentSpreadGap() });
+  current.paginator.onTotalChange = (total) => current.flow.setPages(0, total);
+  current.paginator.setTheme(state.prefs.theme);
+  current.paginator.setTextContrast(state.prefs.readerTextContrast);
+  current.paginator.setMargin(state.prefs.marginPct != null ? state.prefs.marginPct : 8);
+  const paragraphs = splitTxtParagraphs(res.text);
+  current.txtParagraphs = paragraphs;
+  current.txtChapters = detectTxtChapters(paragraphs);
+  const html = paragraphsToHtml(res.text) || '<p></p>';
+  await current.paginator.render(html, '', { prepareDocument: doc => prepareChineseDocument(doc.body) });
+  if (state.current !== current) return;
+  bindReaderInputs(current.paginator.doc);
+  bindTextAnnotationInputs(current.paginator.doc, current.paginator.doc.body);
+  current.flow.setPages(0, current.paginator.totalPages || 1);
+  current.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
+  if (saved && typeof saved.page === 'number') current.paginator.showPage(saved.page);
+  if (saved && saved.textAnchor && Number.isFinite(saved.textAnchor.off)) {
+    const restoredPage = current.paginator.locate(window.GaiaReaderChinese.displayOffset(current.paginator.doc.body, saved.textAnchor.off));
+    if (restoredPage >= 0) current.paginator.showPage(restoredPage);
+  }
+  // The paginator emits changes during its first layout, before the saved position is restored.
+  current.flow.page = current.paginator.currentPage;
+  current.paginator.onChange = () => {
+    if (state.current !== current) return;
+    current.flow.page = current.paginator.currentPage;
     updateMobiProgress(false);
     window.setTimeout(observeAiChapter, 0);
   };
-  state.current.paginator.onTotalChange = (total) => {
-    if (state.current && state.current.flow) state.current.flow.setPages(0, total);
-  };
-  state.current.paginator.setTheme(state.prefs.theme);
-  state.current.paginator.setTextContrast(state.prefs.readerTextContrast);
-  state.current.paginator.setMargin(state.prefs.marginPct != null ? state.prefs.marginPct : 8);
-  const paragraphs = splitTxtParagraphs(res.text);
-  state.current.txtParagraphs = paragraphs;
-  state.current.txtChapters = detectTxtChapters(paragraphs);
-  const html = paragraphsToHtml(res.text) || '<p></p>';
-  await state.current.paginator.render(html, '', { prepareDocument: doc => prepareChineseDocument(doc.body) });
-  bindReaderInputs(state.current.paginator.doc);
-  bindTextAnnotationInputs(state.current.paginator.doc, state.current.paginator.doc.body);
-  if (state.current.flow) state.current.flow.setPages(0, state.current.paginator.totalPages || 1);
-  state.current.paginator.setMode(state.readMode === 'spread' ? 'spread' : 'single');
-  const saved = state.progress[book.path];
-  if (saved && typeof saved.page === 'number') state.current.paginator.showPage(saved.page);
-  if (saved && saved.textAnchor && Number.isFinite(saved.textAnchor.off)) {
-    const restoredPage = state.current.paginator.locate(window.GaiaReaderChinese.displayOffset(state.current.paginator.doc.body, saved.textAnchor.off));
-    if (restoredPage >= 0) state.current.paginator.showPage(restoredPage);
-  }
   restoreTextAnnotations();
   restoreBookSearchHighlight();
   updateMobiProgress(true);
@@ -5958,6 +6061,7 @@ function bindEvents() {
     const card = ev.target.closest('.book-card');
     if (!card) return;
     ev.preventDefault();
+    if (bookRelocationBusy) return;
     const book = state.library.find((b) => b.path === card.dataset.path);
     if (book) showContextMenu(ev.clientX, ev.clientY, book);
   });
@@ -5965,7 +6069,10 @@ function bindEvents() {
   $('ctx-open').addEventListener('click', () => {
     const book = state.ctxBook;
     hideContextMenu();
-    if (book) openBook(book);
+    if (book) {
+      const card = Array.from(els.bookshelf.children).find((item) => item.dataset.path === book.path);
+      void activateShelfBook(book, card);
+    }
   });
   $('ctx-remove').addEventListener('click', () => {
     const book = state.ctxBook;
@@ -5975,6 +6082,9 @@ function bindEvents() {
   document.addEventListener('click', (ev) => {
     if (!ev.target.closest('#context-menu')) hideContextMenu();
     if (!ev.target.closest('#selection-toolbar') && !ev.target.closest('mark[data-gaia-annotation]')) hideSelectionToolbar();
+  });
+  window.addEventListener('focus', () => {
+    if (!views.library.hidden) void refreshBookAvailability();
   });
 
   bindReaderKeyboard(document);

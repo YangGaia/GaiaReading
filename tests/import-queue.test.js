@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { fork } = require('node:child_process');
 const { ImportQueue } = require('../src/shared/import-queue');
 
@@ -69,6 +70,7 @@ test('生产解析脚本通过进程消息返回真实 EPUB 信息', async (t) =
   assert.equal(meta.path, file);
   assert.equal(meta.format, 'epub');
   assert.equal(meta.title, '进程隔离验证');
+  assert.equal(meta.fingerprint, createHash('sha256').update(fs.readFileSync(file)).digest('hex'));
 });
 
 test('进程尚未 spawn 时取消，也会终止迟到的进程并继续下一项', async (t) => {

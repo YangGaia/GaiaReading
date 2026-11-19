@@ -8,6 +8,8 @@ const JSZip = require('jszip');
 const { pathToFileURL } = require('url');
 const { ImportQueue } = require('./shared/import-queue');
 const { scanBookFolder } = require('./shared/book-metadata');
+const { bookFileStat, sameBookFileStat, inspectBookFile } = require('./shared/book-files');
+const { assertRelocationTarget, relocateBookRecords } = require('./shared/book-relocation');
 const { decodeTxt } = require('./shared/txt-utils');
 const { JsonStore } = require('./shared/store');
 const { prepareDataFile } = require('./shared/data-upgrade');
@@ -1532,6 +1534,60 @@ ipcMain.handle('dialog:openFolder', async () => {
   return files;
 });
 
+ipcMain.handle('library:missing-files', async (_event, paths) => {
+  const present = await Promise.all(paths.map((filePath) => bookFileStat(filePath)));
+  return paths.filter((_filePath, index) => !present[index]);
+});
+
+ipcMain.handle('library:relocate-book', async (event, oldPath) => {
+  try {
+    const data = store.load();
+    const book = data.library?.find((entry) => entry.path === oldPath);
+    if (!book) throw new Error('这本书已从书架移除。');
+    if (await bookFileStat(oldPath)) return { status: 'available' };
+
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const selection = await dialog.showOpenDialog(win, {
+      title: '重新定位《' + (book.title || path.basename(oldPath)) + '》',
+      defaultPath: path.dirname(oldPath),
+      filters: [{ name: '原书格式', extensions: [book.format] }],
+      properties: ['openFile'],
+    });
+    if (selection.canceled || !selection.filePaths.length) return { status: 'cancelled' };
+    if (await bookFileStat(oldPath)) return { status: 'available' };
+    const [newPath] = selection.filePaths;
+    if (formatOf(newPath) !== book.format) throw new Error('请选择与原书相同格式的文件（' + book.format.toUpperCase() + '）。');
+    assertRelocationTarget(store.load(), newPath);
+    const file = await inspectBookFile(newPath);
+    if (book.fingerprint) {
+      if (file.fingerprint !== book.fingerprint) throw new Error('所选文件的内容与原书不同，请选择原来的版本。');
+    } else {
+      const confirmation = await dialog.showMessageBox(win, {
+        type: 'question',
+        title: '确认书籍新位置',
+        message: '这是《' + (book.title || path.basename(oldPath)) + '》的原文件吗？',
+        detail: '这本书没有可用于比对的文件指纹。请确认是同一版本，以便继续使用原来的进度、书签和划线。\n\n原位置：' + oldPath + '\n新位置：' + newPath,
+        buttons: ['确认重新定位', '取消'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (confirmation.response !== 0) return { status: 'cancelled' };
+    }
+    const [original, selected] = await Promise.all([bookFileStat(oldPath), bookFileStat(newPath)]);
+    if (original) return { status: 'available' };
+    if (!sameBookFileStat(file.stat, selected)) throw new Error('所选文件在确认期间发生变化，请重新选择。');
+
+    // Read the current state after the dialogs and commit every path-keyed record together.
+    const latest = store.load();
+    const result = relocateBookRecords(latest, oldPath, newPath, file.fingerprint);
+    store.save({ ...latest, ...result.updated });
+    return { status: 'relocated', ...result };
+  } catch (error) {
+    return { status: 'error', message: error.message };
+  }
+});
+
 ipcMain.handle('book:read', async (event, filePath) => {
   const format = formatOf(filePath);
   if (!format) throw new Error('不支持的文件格式: ' + filePath);
@@ -1699,7 +1755,6 @@ ipcMain.handle('selection:search', async (event, payload) => {
   await shell.openExternal(target);
   return { ok: true, query: normalized, engine, engineLabel: Lookup.searchEngineLabel(engine) };
 });
-ipcMain.handle('file:exists', (event, filePath) => fs.existsSync(filePath));
 ipcMain.handle('display:frequency', (event) => displayFrequencyForWindow(BrowserWindow.fromWebContents(event.sender)));
 ipcMain.handle('window:is-focused', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);

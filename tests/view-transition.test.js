@@ -29,7 +29,7 @@ function harness(from = 'home', reducedMotion = false) {
   }));
   const context = vm.createContext({ views, $: () => ({}), stopHeldPageKey() {}, readerFullscreen: false,
     setReaderFullscreen() {},
-    setTocMode() {}, TOC_MODES: { CLOSED: 'closed' }, clearFx() {}, renderReadingStats() {}, updateTocEdgeAvailability() {}, updatePetUI() {},
+    setTocMode() {}, TOC_MODES: { CLOSED: 'closed' }, clearFx() {}, renderReadingStats() {}, refreshBookAvailability() {}, updateTocEdgeAvailability() {}, updatePetUI() {},
     applyThemeClass() { views.reader.themedWhileHidden = views.reader.hidden; },
     window: { matchMedia: () => ({ matches: reducedMotion }),
       GaiaBgm: { positionBgm: (view) => musicViews.push(view) },
