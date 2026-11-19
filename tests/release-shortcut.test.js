@@ -55,18 +55,45 @@ test('缺少 dist exe 或桌面已有同版本 exe 时拒绝生成，不复制�
   assert.equal(fs.readFileSync(duplicate, 'utf8'), 'desktop fixture');
 });
 
-test('1.1.9 发布说明包含全屏更新、下载方式与实际构建校验值', async () => {
-  const notes = fs.readFileSync(path.join(project, 'RELEASE_NOTES_1.1.9.md'), 'utf8');
-  assert.match(notes, /Gaia Reading 1\.1\.9/);
-  for (const value of ['全屏阅读', 'F11', 'Esc', '原来这一屏', '横向滚动条', '桌面只创建', 'Gaia.Reading.1.1.9.exe']) assert.ok(notes.includes(value), value);
+async function checkReleaseArtifact(notes, version) {
   const size = notes.match(/文件大小：(\d+) 字节/);
   const checksum = notes.match(/SHA-256：`([A-F0-9]{64})`/);
   assert.ok(size && checksum, '发布说明应包含 EXE 字节数和 SHA-256');
   assert.doesNotMatch(notes, /待构建|构建完成后填入/);
-  const artifact = path.join(project, 'dist', 'Gaia.Reading.1.1.9.exe');
-  if (!fs.existsSync(artifact)) return;
+  const name = `Gaia.Reading.${version}.exe`;
+  const artifact = [path.join(project, 'dist', name), path.join(project, 'dist', 'archive', name)].find((file) => fs.existsSync(file));
+  if (!artifact) return;
   assert.equal(fs.statSync(artifact).size, Number(size[1]), '发布说明中的文件大小应与实际 exe 一致');
   const hash = require('node:crypto').createHash('sha256');
   for await (const chunk of fs.createReadStream(artifact)) hash.update(chunk);
   assert.equal(hash.digest('hex').toUpperCase(), checksum[1], '发布说明 SHA-256 应与实际 exe 一致');
+}
+
+test('1.1.9 发布说明包含全屏更新、下载方式与实际构建校验值', async () => {
+  const notes = fs.readFileSync(path.join(project, 'RELEASE_NOTES_1.1.9.md'), 'utf8');
+  assert.match(notes, /Gaia Reading 1\.1\.9/);
+  for (const value of ['全屏阅读', 'F11', 'Esc', '原来这一屏', '横向滚动条', '桌面只创建', 'Gaia.Reading.1.1.9.exe']) assert.ok(notes.includes(value), value);
+  await checkReleaseArtifact(notes, '1.1.9');
+});
+
+test('当前发布版本在元数据、文档和便携版文件中一致', async () => {
+  const pkg = require('../package.json');
+  const lock = require('../package-lock.json');
+  const version = pkg.version;
+  const notesFile = `RELEASE_NOTES_${version}.md`;
+  const notes = fs.readFileSync(path.join(project, notesFile), 'utf8');
+  const readme = fs.readFileSync(path.join(project, 'README.md'), 'utf8');
+  const changelog = fs.readFileSync(path.join(project, 'CHANGELOG.md'), 'utf8');
+  assert.equal(version, lock.version);
+  assert.equal(version, lock.packages[''].version);
+  assert.ok(notes.startsWith(`# Gaia Reading ${version}`));
+  assert.ok(readme.includes(`**${version}**`) && readme.includes(`/releases/tag/v${version}`) && readme.includes(`(${notesFile})`));
+  assert.ok(changelog.startsWith(`## ${version}`) && changelog.includes(`(${notesFile})`));
+  assert.ok(notes.includes(`Gaia.Reading.${version}.exe`));
+  await checkReleaseArtifact(notes, version);
+});
+
+test('1.1.10 发布说明列出书架搜索、书籍重新定位和 TXT 续读修复', () => {
+  const notes = fs.readFileSync(path.join(project, 'RELEASE_NOTES_1.1.10.md'), 'utf8');
+  for (const value of ['书架搜索', '书籍重新定位', 'TXT 续读修复']) assert.ok(notes.includes(value), value);
 });

@@ -202,6 +202,11 @@ module.exports = async ({ win, report, check, capture }) => {
   await until(() => document.getElementById('reader-view').classList.contains('bottom-chrome-visible'));
   check('real pointer at the bottom edge reveals only the bottom toolbar', await evaluate(() =>
     !document.getElementById('reader-view').classList.contains('top-chrome-visible')));
+  await until(() => {
+    const button = document.getElementById('btn-next-page');
+    const rect = button.getBoundingClientRect();
+    return button.contains(document.elementFromPoint(Math.round(rect.x + rect.width / 2), Math.round(rect.y + rect.height / 2)));
+  });
   const fullscreenTxtPosition = await readerPosition();
   const fullscreenTxtPage = await evaluate(() => __gaiaDebug.getPaginatorPage());
   await click('#btn-next-page');
@@ -525,12 +530,15 @@ module.exports = async ({ win, report, check, capture }) => {
       check('PDF: fullscreen exit keeps the current reading position', await preservesPosition(positionBeforeFullscreen));
     }
     if (format === 'epub' || await evaluate(() => state.current.pages > 1)) {
-      const position = () => evaluate(() => state.current.format === 'pdf' ? state.current.page : state.current.rendition.currentLocation().start.displayed.page);
-      const before = await position();
+      const page = () => state.current.format === 'pdf' ? state.current.page : state.current.rendition.currentLocation()?.start?.displayed?.page;
+      await evaluate(() => waitForReaderLayoutRefresh());
+      await until(page);
+      const before = await evaluate(page);
       await click('#btn-next-page');
-      check(`${format}: next-page button moves the actual renderer`, await position() !== before);
+      const after = await evaluate(page);
+      check(`${format}: next-page button moves the actual renderer`, Number.isInteger(after) && after !== before);
       await click('#btn-prev-page');
-      check(`${format}: previous-page button returns`, await position() === before);
+      check(`${format}: previous-page button returns`, await evaluate(page) === before);
     }
     if (format === 'pdf') {
       const zoom = await evaluate(() => document.getElementById('pdf-zoom-value').textContent);

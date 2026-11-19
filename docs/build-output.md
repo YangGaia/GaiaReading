@@ -4,13 +4,13 @@
 
 ```text
 dist/
-├── Gaia.Reading.1.1.9.exe   当前正式版，双击运行
+├── Gaia.Reading.1.1.10.exe   当前正式版，双击运行
 ├── archive/
-│   └── Gaia.Reading.1.1.8.exe   上一正式版，供回退
+│   └── Gaia.Reading.1.1.9.exe   上一正式版，供回退
 ├── previews/
-│   └── 1.1.9/reader-epub-fullscreen-turn.png   全屏翻页预览
+│   └── 1.1.10/              书架搜索、重新定位和全屏翻页预览
 └── reports/
-    └── 1.1.9/
+    └── 1.1.10/
         ├── release/       源码与发行文件校验、启动及自动化测试记录
         └── reader-ui/     全屏排版、翻页动画及阅读器回归记录与截图
 ```
@@ -21,7 +21,7 @@ dist/
 - Windows 发行构建先运行 `npm ci --omit=optional`，再执行打包。PDF 使用 Chromium Canvas，不依赖 `pdfjs-dist` 为 Node 环境提供的可选 `canvas` 原生模块，可避免额外的 GTK/Cairo 编译要求。
 - 打包时可用 `npm run dist -- --config.directories.output=dist/_build --publish never` 将解包程序、构建缓存和生成日志放入临时目录。仅在用户明确要求生成 exe 时执行打包。
 - 核验发行文件后，将新版 exe 放到 `dist` 根目录、上一版放入 `archive`；运行 `./scripts/create-release-shortcut.ps1` 创建桌面同名快捷方式，目标和图标均指向 `dist` 内的 exe，工作目录为 `dist`，桌面不放 exe。
-- 可用 Node.js 22 或更新版本运行 `node scripts/portable-release-smoke.js`，在读取用户配置前为实际 exe 指定独立目录，核对包内源码及 AI、MOBI 图片和短按翻页，并生成发行校验报告。
+- 可用 Node.js 22 或更新版本运行 `node scripts/portable-release-smoke.js`，在读取用户配置前为实际 exe 指定独立目录，核对包内源码、书架搜索、图书重新定位、AI、MOBI 图片和翻页，并生成发行校验报告。
 - 清理已完成构建的临时目录、过期日志和重复测试输出；保留当前发行版本的最终验证记录。不要将源代码、书籍或用户数据放入 `dist`。
 
 ## 本地验证

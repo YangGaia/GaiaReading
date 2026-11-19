@@ -190,6 +190,45 @@ const server = http.createServer((req, res) => {
     }
   };
   await turnChecks('txt');
+
+  const saved = await evaluate(async (file) => {
+    await __gaiaDebug.addBookmark();
+    await __gaiaDebug.backToLibrary();
+    const imported = await __gaiaDebug.importPaths([file]);
+    const input = $('shelf-search-input');
+    input.value = 'ＰＯＲＴＡＢＬＥ-ＲＥＡＤＩＮＧ.txt';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    return {
+      imported: imported.added,
+      visible: [...document.querySelectorAll('.book-card:not([hidden])')].map((card) => card.dataset.path),
+      page: state.progress[file].page,
+    };
+  }, txt);
+  check('Packaged shelf search matches the imported book filename with full-width Latin input',
+    saved.imported === 1 && saved.visible.length === 1 && saved.visible[0] === txt && saved.page > 0);
+  const movedTxt = path.join(sandbox, 'relocated', path.basename(txt));
+  fs.mkdirSync(path.dirname(movedTxt));
+  fs.renameSync(txt, movedTxt);
+  await evaluateMain(`globalThis.__portableOpenDialog = __releaseElectron.dialog.showOpenDialog;
+    __releaseElectron.dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [${JSON.stringify(movedTxt)}] }); true;`);
+  try {
+    check('Packaged shelf search shows the missing file and opens the relocation workflow', await evaluate(async () => {
+      await refreshBookAvailability();
+      const card = document.querySelector('.book-card.book-missing:not([hidden])');
+      if (!card || card.querySelector('.book-relocate-label').hidden) return false;
+      card.click();
+      return true;
+    }));
+    await poll(() => evaluate((file) => state.current?.path === file && state.current.paginator?.doc &&
+      els.readerStatus.textContent.startsWith('进度'), movedTxt));
+    check('Packaged relocation restores the TXT page and bookmark from the old path', await evaluate(({ oldPath, newPath, page }) =>
+      __gaiaDebug.getPaginatorPage() === page && __gaiaDebug.getBookmarks().length === 1 &&
+      !Object.hasOwn(state.progress, oldPath) && state.library.some((book) => book.path === newPath),
+    { oldPath: txt, newPath: movedTxt, page: saved.page }));
+  } finally {
+    await evaluateMain('__releaseElectron.dialog.showOpenDialog = globalThis.__portableOpenDialog; delete globalThis.__portableOpenDialog;');
+  }
+
   const mobi = makeMobi7(sandbox, '<h1>第一章</h1><p>' + '这是一段用于实际便携程序验证的文字。'.repeat(300) + '</p>');
   await evaluate(book => __gaiaDebug.openBook(book), mobi);
   await wait(300);
