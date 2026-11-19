@@ -2,7 +2,27 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { removeBook, removeBooks, removeEntry, removeEntries } = require('../src/shared/library');
+const { searchBooks, removeBook, removeBooks, removeEntry, removeEntries } = require('../src/shared/library');
+
+test('书架搜索按书名、作者和文件名分词匹配并保留传入的顺序', () => {
+  const first = { title: '三體 I', author: '劉慈欣', path: 'D:\\Archive\\Orbit-01.EPUB' };
+  const second = { title: '三体 II', author: '刘慈欣', path: '/library/Orbit-02.epub' };
+  const third = { title: '银河', author: '刘慈欣', path: '/books/other.txt' };
+  const shelf = [second, third, first];
+  assert.deepStrictEqual(searchBooks(shelf, ' 三体\t劉慈欣　ＥＰＵＢ '), [second, first]);
+  assert.deepStrictEqual(searchBooks(shelf, '三體 oRbIt-01'), [first]);
+  assert.deepStrictEqual(searchBooks(shelf, 'archive'), []);
+  assert.deepStrictEqual(searchBooks(shelf, '银河 orbit'), []);
+  assert.deepStrictEqual(searchBooks(shelf, '三体['), []);
+  assert.strictEqual(searchBooks(shelf, ' 　\n'), shelf);
+});
+
+test('旧书架条目缺少作者和文件名时仍然可以按书名查找', () => {
+  const shelf = [{ title: '貓' }, { title: '' }, { path: '/books/封面.txt' }];
+  assert.deepStrictEqual(searchBooks(shelf, '猫'), [shelf[0]]);
+  assert.deepStrictEqual(searchBooks(shelf, '封面'), [shelf[2]]);
+  assert.deepStrictEqual(searchBooks([], '空书架'), []);
+});
 
 test('按路径移除书籍且不修改原数组', () => {
   const library = [

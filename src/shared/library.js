@@ -1,11 +1,31 @@
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory();
+    module.exports = factory(require('./chinese-script'));
   } else {
-    root.GaiaLibrary = factory();
+    root.GaiaLibrary = factory(root.GaiaChineseScript);
   }
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, function (chinese) {
   'use strict';
+
+  const searchFields = new WeakMap();
+
+  function normalizeSearchText(value) {
+    const text = String(value || '').normalize('NFKC').trim();
+    return text && chinese.convert(text, 'simplified').toLowerCase();
+  }
+
+  function searchBooks(library, query) {
+    const terms = normalizeSearchText(query).match(/\S+/g);
+    if (!terms) return library;
+    return library.filter((book) => {
+      if (!searchFields.has(book)) {
+        const filename = String(book.path || '').split(/[\\/]/).pop();
+        searchFields.set(book, [book.title, book.author, filename].map(normalizeSearchText));
+      }
+      const fields = searchFields.get(book);
+      return terms.every((term) => fields.some((field) => field.includes(term)));
+    });
+  }
 
   function removeBook(library, pathKey) {
     const index = library.findIndex((b) => b.path === pathKey);
@@ -34,5 +54,5 @@
     return next;
   }
 
-  return { removeBook, removeBooks, removeEntry, removeEntries };
+  return { searchBooks, removeBook, removeBooks, removeEntry, removeEntries };
 });

@@ -4,6 +4,7 @@ const $ = (id) => document.getElementById(id);
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const { addBookmark: addBookmarkToMap, removeBookmark: removeBookmarkFromMap, renameBookmark: renameBookmarkFromMap } = window.GaiaBookmarks;
 const {
+  searchBooks: searchShelfBooks,
   removeBook: removeBookFromLibrary,
   removeBooks: removeBooksFromLibrary,
   removeEntry: removeEntryFromMap,
@@ -102,6 +103,10 @@ const SEARCH_ENGINE_LABELS = Object.freeze({ google: 'Google', bing: 'Bing', bai
 const els = {
   bookshelf: $('bookshelf'),
   hint: $('library-hint'),
+  shelfSearch: $('shelf-search-input'),
+  shelfSearchClear: $('btn-shelf-search-clear'),
+  shelfSearchStatus: $('shelf-search-status'),
+  shelfSearchEmpty: $('shelf-search-empty'),
   readerTitle: $('reader-title'),
   readerContent: $('reader-content'),
   readerStatus: $('reader-status'),
@@ -198,6 +203,7 @@ const views = {
 
 const state = {
   library: [],
+  shelfQuery: '',
   progress: {},
   bookmarks: {},
   annotations: {},
@@ -444,17 +450,15 @@ async function refreshBookAvailability() {
 }
 
 function renderLibrary() {
-  els.bookshelf.innerHTML = '';
-  els.hint.hidden = state.library.length > 0;
+  const cards = document.createDocumentFragment();
   const sorted = sortLibrary();
   for (const book of sorted) {
     const card = document.createElement('div');
-    card.className = 'book-card' + (state.selected.has(book.path) ? ' selected' : '');
+    card.className = 'book-card';
     card.dataset.path = book.path;
     card.title = book.path;
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
-    if (state.manageMode) card.setAttribute('aria-pressed', String(state.selected.has(book.path)));
 
     const check = document.createElement('div');
     check.className = 'book-check';
@@ -550,8 +554,45 @@ function renderLibrary() {
       event.preventDefault();
       if (!event.repeat) card.click();
     });
-    els.bookshelf.appendChild(card);
+    cards.appendChild(card);
   }
+  els.bookshelf.replaceChildren(cards);
+  updateShelfSearch();
+}
+
+function updateShelfSearch() {
+  const searching = Boolean(state.shelfQuery.trim());
+  const matches = searchShelfBooks(state.library, state.shelfQuery);
+  const visiblePaths = new Set(matches.map((book) => book.path));
+  for (const card of els.bookshelf.children) {
+    const hidden = !visiblePaths.has(card.dataset.path);
+    if (card.hidden !== hidden) card.hidden = hidden;
+  }
+  for (const path of state.selected) {
+    if (!visiblePaths.has(path)) state.selected.delete(path);
+  }
+  els.hint.hidden = searching || state.library.length > 0;
+  els.shelfSearchEmpty.hidden = !searching || matches.length > 0;
+  els.shelfSearchClear.hidden = !state.shelfQuery;
+  const status = searching ? '找到 ' + matches.length + ' 本' : '';
+  if (els.shelfSearchStatus.textContent !== status) els.shelfSearchStatus.textContent = status;
+  $('btn-select-all').disabled = matches.length === 0;
+  updateManageUI();
+}
+
+function applyShelfSearch() {
+  const query = els.shelfSearch.value;
+  if (query === state.shelfQuery) return;
+  state.shelfQuery = query;
+  hideContextMenu();
+  updateShelfSearch();
+  els.bookshelf.scrollTop = 0;
+}
+
+function clearShelfSearch() {
+  els.shelfSearch.value = '';
+  applyShelfSearch();
+  els.shelfSearch.focus();
 }
 
 function setShelfStatus(message, isError = false) {
@@ -787,7 +828,9 @@ function toggleSelect(pathKey) {
 }
 
 function selectAll() {
-  for (const b of state.library) state.selected.add(b.path);
+  for (const card of els.bookshelf.querySelectorAll('.book-card:not([hidden])')) {
+    state.selected.add(card.dataset.path);
+  }
   updateManageUI();
 }
 
@@ -5895,6 +5938,25 @@ function bindEvents() {
   });
 
   $('btn-manage').addEventListener('click', toggleManageMode);
+  els.shelfSearch.addEventListener('input', (event) => {
+    if (!event.isComposing) applyShelfSearch();
+  });
+  els.shelfSearch.addEventListener('compositionend', applyShelfSearch);
+  els.shelfSearch.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.isComposing || !els.shelfSearch.value) return;
+    event.preventDefault();
+    event.stopPropagation();
+    clearShelfSearch();
+  });
+  els.shelfSearchClear.addEventListener('click', clearShelfSearch);
+  document.addEventListener('keydown', (event) => {
+    if (views.library.hidden || isSettingsOpen() || !els.bookImportOverlay.hidden || event.isComposing) return;
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== 'f') return;
+    event.preventDefault();
+    hideContextMenu();
+    els.shelfSearch.focus();
+    els.shelfSearch.select();
+  });
   $('btn-select-all').addEventListener('click', selectAll);
   $('btn-remove-selected').addEventListener('click', () => batchRemoveSelected());
   $('btn-exit-manage').addEventListener('click', exitManageMode);

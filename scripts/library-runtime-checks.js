@@ -28,6 +28,89 @@ module.exports = async ({ win, report, check, capture, books }) => {
       [...document.querySelectorAll('.library-ornament')].every((el) => el.getAttribute('aria-hidden') === 'true' && getComputedStyle(el).pointerEvents === 'none') &&
       [...document.querySelectorAll('.book-card')].every((el) => el.tabIndex === 0 && el.getAttribute('role') === 'button' && el.getAttribute('aria-label'));
   }));
+  const search = (value) => evaluate((query) => {
+    const input = document.getElementById('shelf-search-input');
+    input.value = query;
+    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+  }, value);
+  const searchState = () => evaluate(() => ({
+    paths: [...document.querySelectorAll('.book-card:not([hidden])')].map((card) => card.dataset.path),
+    selected: __gaiaDebug.getSelectedCount(),
+    count: document.getElementById('shelf-search-status').textContent,
+    empty: !document.getElementById('shelf-search-empty').hidden,
+    libraryHint: !document.getElementById('library-hint').hidden,
+    query: document.getElementById('shelf-search-input').value,
+  }));
+  await search('ＢＯＯＫ.txt 小川');
+  const groupedPaths = new Set(books.filter((book) => book.author.startsWith('小川')).map((book) => book.path));
+  const sortedMatches = (await evaluate(() => __gaiaDebug.getSortedLibrary())).filter((file) => groupedPaths.has(file));
+  let found = await searchState();
+  check('shelf search matches filename and author, handles full-width Latin and preserves reading order',
+    found.paths.length === 3 && found.paths.join('\n') === sortedMatches.join('\n') && found.count === '找到 3 本');
+  await search('小川');
+  await settle();
+  await capture(win, 'shelf-search-results');
+  await resize(800, 600);
+  await capture(win, 'shelf-search-800x600');
+  await resize(1100, 760);
+  await evaluate(() => {
+    const input = document.getElementById('shelf-search-input');
+    input.value = '未完成的输入';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, isComposing: true }));
+  });
+  check('candidate text during IME composition leaves the visible results unchanged', (await searchState()).paths.length === 3);
+  await evaluate(() => {
+    const input = document.getElementById('shelf-search-input');
+    input.value = '長日將盡 石黑';
+    input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+  });
+  found = await searchState();
+  check('committed traditional Chinese matches title and author in simplified Chinese', found.paths.length === 1 && found.paths[0] === books[3].path);
+  await evaluate(() => document.querySelector('.book-card:not([hidden])').click());
+  await settle();
+  check('a filtered book opens from its shelf card', await evaluate(() => __gaiaDebug.getView() === 'reader'));
+  await evaluate(() => __gaiaDebug.backToLibrary());
+  found = await searchState();
+  check('returning from the reader keeps the query and the filtered book', found.query === '長日將盡 石黑' && found.paths.length === 1 && found.paths[0] === books[3].path);
+
+  await evaluate(() => document.getElementById('btn-manage').click());
+  await search('ＢＯＯＫ.txt');
+  await evaluate(() => document.getElementById('btn-select-all').click());
+  found = await searchState();
+  check('select all applies to visible books only', found.selected === books.length - 1 && found.selected === found.paths.length && !found.paths.includes(books[0].path));
+  await search('ＢＯＯＫ.txt 小川');
+  found = await searchState();
+  const removalPrompt = await evaluate(() => {
+    const originalConfirm = window.confirm;
+    let message = '';
+    window.confirm = (text) => { message = text; return false; };
+    try { document.getElementById('btn-remove-selected').click(); }
+    finally { window.confirm = originalConfirm; }
+    return message;
+  });
+  check('narrowing the search keeps visible selections, and removal lists exactly those books', found.selected === 3 &&
+    removalPrompt.includes('移除选中的 3 本书') && books.every((book) => removalPrompt.includes(book.title) === groupedPaths.has(book.path)));
+  await search('書架沒有的書名');
+  found = await searchState();
+  check('no results have a distinct empty state and clear the hidden selection', found.selected === 0 && found.paths.length === 0 && found.empty && !found.libraryHint);
+  check('select all is unavailable when there are no matches', await evaluate(() => document.getElementById('btn-select-all').disabled));
+  await evaluate(() => document.getElementById('btn-exit-manage').click());
+  await settle();
+  await capture(win, 'shelf-search-empty');
+  await evaluate(() => document.getElementById('btn-shelf-search-clear').click());
+  found = await searchState();
+  check('the clear button restores the shelf and returns focus to search', found.paths.length === books.length && !found.query &&
+    await evaluate(() => document.activeElement.id === 'shelf-search-input' && document.getElementById('btn-shelf-search-clear').hidden));
+  await search('夜航');
+  await evaluate(() => document.getElementById('btn-manage').focus());
+  await key('F', ['control']);
+  check('Ctrl+F focuses the search field and selects the existing query', await evaluate(() => {
+    const input = document.getElementById('shelf-search-input');
+    return document.activeElement === input && input.selectionStart === 0 && input.selectionEnd === input.value.length;
+  }));
+  await key('Escape');
+  check('Escape clears the focused shelf search', (await searchState()).paths.length === books.length);
+
   win.webContents.sendInputEvent({ type: 'mouseMove', x: 1, y: 1 });
   for (const [width, height, zoom] of [[800, 600, 1], [1100, 760, 1], [1600, 1000, 1], [1440, 600, 1], [800, 1000, 1], [1920, 1080, 1], [2560, 1080, 1], [800, 600, 1.25]]) {
     await resize(width, height, zoom);
@@ -38,6 +121,10 @@ module.exports = async ({ win, report, check, capture, books }) => {
       const screen = document.getElementById('library-view');
       requireTrue(screen.scrollWidth <= screen.clientWidth, 'Library must not overflow horizontally');
       requireTrue(Math.abs(content.left - (innerWidth - content.right)) < 2, 'Library content must stay centered between ornaments');
+      const search = document.querySelector('.shelf-search').getBoundingClientRect();
+      const addBooks = document.getElementById('btn-add-books').getBoundingClientRect();
+      requireTrue(search.left >= content.left && search.right <= content.right && search.height >= 32, 'Shelf search must stay within the library toolbar');
+      requireTrue(search.right <= addBooks.left || search.bottom <= addBooks.top, 'Shelf search must leave room for the import button');
       for (const card of cards) {
         const jacket = card.querySelector('.book-jacket').getBoundingClientRect();
         const cover = card.querySelector('.book-cover').getBoundingClientRect();

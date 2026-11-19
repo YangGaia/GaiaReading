@@ -159,6 +159,14 @@ async function run(win) {
   });
   await waitFor((file) => Array.from(document.querySelectorAll('.book-missing')).some((item) => item.dataset.path === file), original);
   await capture('missing-book');
+  const filtered = await evaluate(() => {
+    const input = document.getElementById('shelf-search-input');
+    input.value = '霧港來信';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    const cards = [...document.querySelectorAll('.book-card:not([hidden])')];
+    return cards.length === 1 && cards[0].classList.contains('book-missing') && cards[0].dataset.path;
+  });
+  check('搜索结果包含文件离线的图书和重新定位入口', () => assert.equal(filtered, original));
 
   await clickBook(original);
   await waitForShelfAction();
@@ -203,6 +211,14 @@ async function run(win) {
     for (const key of ['progress', 'bookmarks', 'annotations']) assert.equal(Object.hasOwn(after[key], original), false);
   });
   await evaluate(() => __gaiaDebug.backToLibrary());
+  const filteredAfterMove = await evaluate(() => ({
+    query: document.getElementById('shelf-search-input').value,
+    paths: [...document.querySelectorAll('.book-card:not([hidden])')].map((card) => card.dataset.path),
+  }));
+  check('过滤后的书籍重新定位后保留查询，结果指向新文件', () => {
+    assert.deepEqual(filteredAfterMove, { query: '霧港來信', paths: [relocated] });
+  });
+  await evaluate(() => document.getElementById('btn-shelf-search-clear').click());
 
   pick = legacyDestination;
   confirm = 1;
